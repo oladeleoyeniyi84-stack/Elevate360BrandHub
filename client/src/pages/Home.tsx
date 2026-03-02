@@ -39,9 +39,9 @@ export default function Home() {
             : "bg-transparent border-transparent py-4"
         }`}
       >
-        <div className="container mx-auto px-4 md:px-6 flex justify-between items-center h-28 md:h-44">
-          <Link href="/" className="flex items-center h-full max-w-[280px] md:max-w-[500px] -ml-16 md:-ml-32">
-            <img src={brandLogo} alt="Elevate360" className="h-full w-full object-contain object-left scale-150 origin-left" />
+        <div className="container mx-auto px-4 md:px-6 flex justify-between items-center h-16 md:h-20">
+          <Link href="/" className="flex items-center h-full max-w-[160px] md:max-w-[240px]">
+            <img src={brandLogo} alt="Elevate360" className="h-full w-full object-contain object-left" />
           </Link>
           <div className="hidden md:flex items-center space-x-8">
             <a href="#apps" data-testid="link-nav-apps" className="text-sm font-medium hover:text-primary transition-colors">
@@ -58,7 +58,7 @@ export default function Home() {
       </nav>
 
       {/* Hero Section */}
-      <section className="relative min-h-[90vh] flex items-center pt-56 md:pt-64 pb-12 overflow-hidden">
+      <section className="relative min-h-[90vh] flex items-center pt-32 md:pt-36 pb-12 overflow-hidden">
         <div className="absolute inset-0 z-0">
           <img 
             src={heroBg} 
