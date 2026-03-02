@@ -38,9 +38,9 @@ export default function Home() {
             : "bg-transparent border-transparent py-4"
         }`}
       >
-        <div className="container mx-auto px-4 md:px-6 flex justify-between items-center h-24 md:h-36">
-          <Link href="/" className="flex items-center h-full max-w-[250px] md:max-w-[400px] -ml-16 md:-ml-32">
-            <img src={brandLogo} alt="Elevate360" className="h-full w-full object-contain object-left scale-125 origin-left" />
+        <div className="container mx-auto px-4 md:px-6 flex justify-between items-center h-28 md:h-44">
+          <Link href="/" className="flex items-center h-full max-w-[280px] md:max-w-[500px] -ml-16 md:-ml-32">
+            <img src={brandLogo} alt="Elevate360" className="h-full w-full object-contain object-left scale-150 origin-left" />
           </Link>
           <div className="hidden md:flex items-center space-x-8">
             <a href="#apps" className="text-sm font-medium hover:text-primary transition-colors">
@@ -57,7 +57,7 @@ export default function Home() {
       </nav>
 
       {/* Hero Section */}
-      <section className="relative min-h-[90vh] flex items-center pt-48 pb-12 overflow-hidden">
+      <section className="relative min-h-[90vh] flex items-center pt-56 md:pt-64 pb-12 overflow-hidden">
         <div className="absolute inset-0 z-0">
           <img 
             src={heroBg} 
@@ -81,13 +81,10 @@ export default function Home() {
               Innovating digital experiences
             </div>
             
-            <h1 className="text-7xl md:text-9xl lg:text-[10rem] font-heading font-extrabold tracking-tighter leading-[0.85] animate-in fade-in slide-in-from-bottom-8 duration-700 delay-100">
-              <span className="relative inline-block">
-                Empowering
-                <span className="absolute -bottom-8 -right-16 text-primary/30 text-8xl md:text-[10rem] lg:text-[12rem] -z-10 blur-[3px]">Empowering</span>
-              </span><br />
-              <span className="relative inline-block mt-4">
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-orange-400 to-primary">Lives</span>
+            <h1 className="text-5xl md:text-7xl lg:text-8xl font-heading font-extrabold tracking-tight leading-tight animate-in fade-in slide-in-from-bottom-8 duration-700 delay-100">
+              Empowering Lives Through<br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-orange-400 to-primary">
+                Technology & Words
               </span>
             </h1>
             
