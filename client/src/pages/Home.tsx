@@ -225,7 +225,7 @@ export default function Home() {
                   ))}
                 </ul>
                 <div className="pt-4">
-                  <a href="https://www.etsy.com/shop/Elevate360Official?sort_order=date_desc" target="_blank" rel="noopener noreferrer" data-testid="link-etsy-shop" className="btn-primary !bg-[#F1641E] hover:!bg-[#D35400] !text-white shadow-lg hover:shadow-xl">
+                  <a href="https://www.etsy.com/shop/Elevate360Official?sort_order=date_desc" target="_blank" rel="noopener noreferrer" data-testid="link-etsy-shop" className="btn-primary shadow-lg hover:shadow-xl">
                     <ExternalLink className="h-5 w-5" />
                     Visit Art Studio on Etsy
                   </a>
