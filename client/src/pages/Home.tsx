@@ -32,14 +32,14 @@ export default function Home() {
       <nav
         className={`fixed top-0 w-full z-50 transition-all duration-300 border-b ${
           isScrolled
-            ? "bg-background/80 backdrop-blur-md border-border py-4"
-            : "bg-transparent border-transparent py-6"
+            ? "bg-background/95 backdrop-blur-xl border-border py-2 shadow-sm"
+            : "bg-transparent border-transparent py-4"
         }`}
       >
-        <div className="container mx-auto px-4 md:px-6 flex justify-between items-center">
+        <div className="container mx-auto px-4 md:px-6 flex justify-between items-center h-24 md:h-36">
           <Link href="/">
-            <a className="flex items-center gap-2 py-2">
-              <img src={brandLogo} alt="Elevate360" className="h-24 md:h-32 w-auto object-contain" />
+            <a className="flex items-center h-full max-w-[250px] md:max-w-[400px]">
+              <img src={brandLogo} alt="Elevate360" className="h-full w-full object-contain object-left scale-125 origin-left" />
             </a>
           </Link>
           <div className="hidden md:flex items-center space-x-8">
@@ -55,7 +55,7 @@ export default function Home() {
       </nav>
 
       {/* Hero Section */}
-      <section className="relative min-h-[90vh] flex items-center pt-24 pb-12 overflow-hidden">
+      <section className="relative min-h-[90vh] flex items-center pt-48 pb-12 overflow-hidden">
         <div className="absolute inset-0 z-0">
           <img 
             src={heroBg} 
@@ -65,21 +65,31 @@ export default function Home() {
           <div className="absolute inset-0 bg-gradient-to-b from-background/50 via-background to-background"></div>
         </div>
         
+        {/* Giant Overlapping Background Words */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full text-center z-0 pointer-events-none flex justify-center opacity-[0.03] dark:opacity-[0.02]">
+          <span className="text-[12rem] md:text-[20rem] lg:text-[28rem] font-heading font-black leading-none whitespace-nowrap text-primary select-none -tracking-[0.05em]">
+            ELEVATE
+          </span>
+        </div>
+        
         <div className="container relative z-10 mx-auto px-4 md:px-6">
           <div className="max-w-4xl mx-auto text-center space-y-8">
-            <div className="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-sm font-medium text-primary mb-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            <div className="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-sm font-medium text-primary mb-4 animate-in fade-in slide-in-from-bottom-4 duration-700 backdrop-blur-sm">
               <span className="flex h-2 w-2 rounded-full bg-primary mr-2 animate-pulse"></span>
               Innovating digital experiences
             </div>
             
-            <h1 className="text-5xl md:text-7xl font-heading font-extrabold tracking-tight leading-tight animate-in fade-in slide-in-from-bottom-8 duration-700 delay-100">
-              Empowering Lives Through <br className="hidden md:block" />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-blue-400">
-                Technology & Words
+            <h1 className="text-6xl md:text-8xl lg:text-9xl font-heading font-extrabold tracking-tighter leading-[0.9] animate-in fade-in slide-in-from-bottom-8 duration-700 delay-100">
+              <span className="relative inline-block">
+                Empowering
+                <span className="absolute -bottom-4 -right-12 text-primary/20 text-8xl md:text-9xl -z-10 blur-[2px]">Empowering</span>
+              </span><br />
+              <span className="relative inline-block mt-2">
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-orange-400 to-primary">Lives</span>
               </span>
             </h1>
             
-            <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed animate-in fade-in slide-in-from-bottom-8 duration-700 delay-200">
+            <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto leading-relaxed animate-in fade-in slide-in-from-bottom-8 duration-700 delay-200 font-light mt-8">
               Welcome to the official portfolio of Elevate360. Discover our suite of transformative mobile applications and insightful Amazon publications designed to elevate your everyday life.
             </p>
             
@@ -427,14 +437,14 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-background border-t py-12">
+      <footer className="bg-background border-t py-16 mt-12">
         <div className="container mx-auto px-4 md:px-6">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-            <div>
-              <a className="flex items-center gap-2 mb-6">
-                <img src={brandLogo} alt="Elevate360" className="h-20 md:h-28 w-auto object-contain" />
+          <div className="flex flex-col md:flex-row justify-between items-center gap-12">
+            <div className="flex flex-col items-center md:items-start text-center md:text-left w-full md:w-1/3">
+              <a className="flex items-center w-full max-w-[300px] md:max-w-[450px] mb-6">
+                <img src={brandLogo} alt="Elevate360" className="w-full h-auto object-contain scale-110 origin-left" />
               </a>
-              <p className="text-muted-foreground text-sm mt-2">
+              <p className="text-muted-foreground text-sm mt-4">
                 © {new Date().getFullYear()} Elevate360. All rights reserved.
               </p>
             </div>
