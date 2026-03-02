@@ -460,12 +460,12 @@ export default function Home() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-24 bg-primary text-primary-foreground">
+      <section className="py-24 bg-gradient-to-b from-[#0a1424] to-[#070b13] border-t border-white/10">
         <div className="container mx-auto px-4 md:px-6 text-center">
           <h2 className="text-3xl md:text-5xl font-heading font-bold tracking-tight mb-6 text-white">
             Ready to Elevate Your Experience?
           </h2>
-          <p className="text-lg md:text-xl text-primary-foreground/80 max-w-2xl mx-auto mb-10">
+          <p className="text-lg md:text-xl text-white/70 max-w-2xl mx-auto mb-10">
             Subscribe to stay updated on new apps, book releases, and exclusive content from Elevate360.
           </p>
           <NewsletterForm />
