@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
-import { Menu, X, ArrowRight, Smartphone, BookOpen, Instagram, Youtube, Palette, ExternalLink } from "lucide-react";
+import { ArrowRight, Smartphone, BookOpen, Instagram, Youtube, Palette, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ContactDialog } from "@/components/ContactDialog";
 import { NewsletterForm } from "@/components/NewsletterForm";
@@ -13,7 +13,6 @@ import brandLogo from "@assets/Elevate360_Brand_Logo_1772418122164.png";
 import artStudioImg from "@assets/Elevate360Art_Studio_Presentation_1772460961759.png";
 
 // Real Amazon Book Covers
-const bookMockup = "https://m.media-amazon.com/images/I/41Ih48BpUEL._SY445_SX342_FMwebp_.jpg";
 const featuredBook = "https://m.media-amazon.com/images/I/41Ih48BpUEL._SY445_SX342_FMwebp_.jpg";
 const bookTogether = "https://m.media-amazon.com/images/I/61XmcRNAyTL._SY466_.jpg";
 const bookOneCleanMeal = "https://m.media-amazon.com/images/I/41zbjQDKkNL._SY466_.jpg";
@@ -135,9 +134,9 @@ export default function Home() {
                 <p className="text-muted-foreground mb-6 line-clamp-3">
                   A revolutionary dating application focused on fostering genuine, lasting connections. Find your perfect match through meaningful interactions.
                 </p>
-                <a href="#" className="btn-tertiary mt-auto">
+                <Link href="/apps/bondedlove" className="btn-tertiary mt-auto">
                   Learn more <ArrowRight className="h-4 w-4" />
-                </a>
+                </Link>
               </div>
             </div>
 
@@ -158,9 +157,9 @@ export default function Home() {
                 <p className="text-muted-foreground mb-6 line-clamp-3">
                   Your comprehensive health wellness companion. Access medical support, track your wellness journey, and connect with healthcare professionals.
                 </p>
-                <a href="#" className="btn-tertiary mt-auto">
+                <Link href="/apps/healthwisesupport" className="btn-tertiary mt-auto">
                   Learn more <ArrowRight className="h-4 w-4" />
-                </a>
+                </Link>
               </div>
             </div>
 
@@ -181,9 +180,9 @@ export default function Home() {
                 <p className="text-muted-foreground mb-6 line-clamp-3">
                   Unleash your creativity with our intuitive video editing suite. Professional-grade tools made accessible for creators of all levels.
                 </p>
-                <a href="#" className="btn-tertiary mt-auto">
+                <Link href="/apps/videocrafter" className="btn-tertiary mt-auto">
                   Learn more <ArrowRight className="h-4 w-4" />
-                </a>
+                </Link>
               </div>
             </div>
           </div>
