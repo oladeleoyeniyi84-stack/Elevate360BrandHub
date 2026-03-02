@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
-import { Menu, X, ArrowRight, Smartphone, BookOpen } from "lucide-react";
+import { Menu, X, ArrowRight, Smartphone, BookOpen, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 import heroBg from "@/assets/images/hero-bg.png";
@@ -8,6 +8,7 @@ import appBondedlove from "@/assets/images/app-bondedlove.png";
 import appHealthwise from "@/assets/images/app-healthwise.png";
 import appVideoCrafter from "@/assets/images/app-videocrafter.png";
 import bookMockup from "@/assets/images/book-mockup.png";
+import featuredBook from "@/assets/images/featured-book.png";
 
 export default function Home() {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -179,9 +180,9 @@ export default function Home() {
       </section>
 
       {/* Publications Section */}
-      <section id="books" className="py-24">
+      <section id="books" className="pt-24 pb-12">
         <div className="container mx-auto px-4 md:px-6">
-          <div className="flex flex-col md:flex-row items-center gap-16">
+          <div className="flex flex-col md:flex-row items-center gap-16 mb-16">
             <div className="w-full md:w-1/2 space-y-8">
               <div className="inline-flex items-center rounded-full border border-orange-500/20 bg-orange-500/10 px-3 py-1 text-sm font-medium text-orange-600 mb-2">
                 Available on Amazon KDP
@@ -225,6 +226,64 @@ export default function Home() {
                 alt="Elevate360 Publications" 
                 className="w-full h-auto rounded-3xl shadow-2xl relative z-10"
               />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Featured Book Section */}
+      <section className="pb-24 pt-12">
+        <div className="container mx-auto px-4 md:px-6">
+          <div className="bg-card border rounded-[2.5rem] p-8 md:p-12 shadow-sm relative overflow-hidden">
+            {/* Background decoration */}
+            <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-gradient-to-br from-primary/5 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
+            
+            <div className="relative z-10 flex flex-col md:flex-row items-center gap-12 lg:gap-20">
+              <div className="w-full md:w-1/3 flex justify-center">
+                <div className="relative group perspective-1000">
+                  <div className="absolute -inset-4 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-2xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+                  <img 
+                    src={featuredBook} 
+                    alt="Featured Book Cover" 
+                    className="relative w-64 md:w-72 h-auto rounded-md shadow-2xl transition-transform duration-700 group-hover:scale-[1.02] group-hover:-rotate-2"
+                  />
+                  
+                  {/* Bestseller badge */}
+                  <div className="absolute -top-4 -right-4 bg-gradient-to-r from-orange-400 to-amber-500 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg transform rotate-12">
+                    #1 Bestseller
+                  </div>
+                </div>
+              </div>
+              
+              <div className="w-full md:w-2/3 space-y-6">
+                <div className="flex items-center space-x-1 text-amber-500 mb-2">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} className="w-5 h-5 fill-current" />
+                  ))}
+                  <span className="text-muted-foreground text-sm ml-2 font-medium">(4.9/5 from 1.2k Reviews)</span>
+                </div>
+                
+                <div>
+                  <h3 className="text-xs font-bold tracking-widest text-primary uppercase mb-3">Featured Release</h3>
+                  <h4 className="text-3xl md:text-5xl font-heading font-extrabold tracking-tight mb-4">
+                    Elevate Your Life: <br className="hidden md:block" />
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-purple-600">The 360° Approach</span>
+                  </h4>
+                </div>
+                
+                <p className="text-lg text-muted-foreground leading-relaxed max-w-2xl">
+                  Discover the comprehensive guide to transforming your personal and professional life. This groundbreaking book offers actionable strategies, deep insights, and the inspiration you need to unlock your full potential and achieve a perfectly balanced lifestyle.
+                </p>
+                
+                <div className="flex flex-col sm:flex-row gap-4 pt-6">
+                  <Button size="lg" className="rounded-full px-8 bg-[#232F3E] text-white hover:bg-[#131A22] h-14 text-base font-semibold border border-transparent shadow-lg hover:shadow-xl transition-all">
+                    Buy on Amazon
+                  </Button>
+                  <Button size="lg" variant="outline" className="rounded-full px-8 h-14 text-base font-medium">
+                    Read Sample Chapter
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
