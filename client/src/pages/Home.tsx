@@ -266,18 +266,20 @@ export default function Home() {
                 <div>
                   <h3 className="text-xs font-bold tracking-widest text-primary uppercase mb-3">Featured Release</h3>
                   <h4 className="text-3xl md:text-5xl font-heading font-extrabold tracking-tight mb-4">
-                    Elevate Your Life: <br className="hidden md:block" />
-                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-purple-600">The 360° Approach</span>
+                    Healthwise: <br className="hidden md:block" />
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-teal-500">Stay Healthy</span>
                   </h4>
                 </div>
                 
                 <p className="text-lg text-muted-foreground leading-relaxed max-w-2xl">
-                  Discover the comprehensive guide to transforming your personal and professional life. This groundbreaking book offers actionable strategies, deep insights, and the inspiration you need to unlock your full potential and achieve a perfectly balanced lifestyle.
+                  Your body has been speaking to you for years. Are you finally ready to listen? Healthwise: A Practical Guide to Understanding Your Body and Protecting Your Health walks you through how your body is organized, why common symptoms appear, and how everyday choices quietly shape your long-term wellbeing.
                 </p>
                 
                 <div className="flex flex-col sm:flex-row gap-4 pt-6">
-                  <Button size="lg" className="rounded-full px-8 bg-[#232F3E] text-white hover:bg-[#131A22] h-14 text-base font-semibold border border-transparent shadow-lg hover:shadow-xl transition-all">
-                    Buy on Amazon
+                  <Button size="lg" className="rounded-full px-8 bg-[#232F3E] text-white hover:bg-[#131A22] h-14 text-base font-semibold border border-transparent shadow-lg hover:shadow-xl transition-all" asChild>
+                    <a href="https://www.amazon.com/dp/B0GMBNPZC9" target="_blank" rel="noopener noreferrer">
+                      Buy on Amazon
+                    </a>
                   </Button>
                   <Button size="lg" variant="outline" className="rounded-full px-8 h-14 text-base font-medium">
                     Read Sample Chapter
