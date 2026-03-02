@@ -40,8 +40,8 @@ export default function Home() {
         }`}
       >
         <div className="container mx-auto px-4 md:px-6 flex justify-between items-center h-16 md:h-20">
-          <Link href="/" className="flex items-center h-full max-w-[160px] md:max-w-[240px]">
-            <img src={brandLogo} alt="Elevate360" className="h-full w-full object-contain object-left" />
+          <Link href="/" className="flex items-center max-w-[220px] md:max-w-[280px]">
+            <img src={brandLogo} alt="Elevate360" className="h-12 md:h-14 w-auto object-contain" />
           </Link>
           <div className="hidden md:flex items-center space-x-8">
             <a href="#apps" data-testid="link-nav-apps" className="text-sm font-medium hover:text-primary transition-colors">
