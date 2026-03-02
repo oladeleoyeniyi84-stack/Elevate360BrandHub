@@ -303,7 +303,7 @@ export default function Home() {
                   />
                 </div>
               </div>
-              <div className="absolute inset-0 bg-gradient-to-tr from-orange-100 to-transparent rounded-[3rem] -rotate-6 scale-105 -z-10"></div>
+              <div className="absolute inset-0 bg-gradient-to-tr from-[#F4A62A]/15 to-transparent rounded-[3rem] -rotate-6 scale-105 -z-10" />
             </div>
           </div>
         </div>
