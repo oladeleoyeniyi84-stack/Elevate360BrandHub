@@ -10,6 +10,7 @@ import appBondedlove from "@/assets/images/app-bondedlove.png";
 import appHealthwise from "@/assets/images/app-healthwise.png";
 import appVideoCrafter from "@/assets/images/app-videocrafter.png";
 import brandLogo from "@assets/Elevate360_Brand_Logo_1772418122164.png";
+import artStudioImg from "@assets/Elevate360Art_Studio_Presentation_1772460961759.png";
 
 // Real Amazon Book Covers
 const bookMockup = "https://m.media-amazon.com/images/I/41Ih48BpUEL._SY445_SX342_FMwebp_.jpg";
@@ -237,23 +238,13 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="w-full md:w-1/2 grid grid-cols-2 gap-4">
-                <div className="space-y-4">
-                  <div className="rounded-2xl bg-gradient-to-br from-primary/20 to-orange-500/20 aspect-square flex items-center justify-center p-6 border border-primary/10">
-                    <Palette className="h-16 w-16 text-primary/60" />
-                  </div>
-                  <div className="rounded-2xl bg-gradient-to-br from-amber-500/20 to-red-500/20 aspect-[4/3] flex items-center justify-center p-6 border border-amber-500/10">
-                    <span className="text-4xl font-heading font-bold text-primary/40">ART</span>
-                  </div>
-                </div>
-                <div className="space-y-4 pt-8">
-                  <div className="rounded-2xl bg-gradient-to-br from-orange-500/20 to-yellow-500/20 aspect-[4/3] flex items-center justify-center p-6 border border-orange-500/10">
-                    <span className="text-4xl font-heading font-bold text-primary/40">360</span>
-                  </div>
-                  <div className="rounded-2xl bg-gradient-to-br from-rose-500/20 to-primary/20 aspect-square flex items-center justify-center p-6 border border-rose-500/10">
-                    <Palette className="h-16 w-16 text-primary/60 rotate-45" />
-                  </div>
-                </div>
+              <div className="w-full md:w-1/2">
+                <img
+                  src={artStudioImg}
+                  alt="Elevate360 Art Studio - Art speaks where words fall short"
+                  className="w-full h-auto rounded-2xl shadow-2xl"
+                  data-testid="img-art-studio"
+                />
               </div>
             </div>
           </div>
