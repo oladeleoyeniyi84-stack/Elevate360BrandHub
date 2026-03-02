@@ -1,0 +1,270 @@
+import { useState, useEffect } from "react";
+import { Link } from "wouter";
+import { Menu, X, ArrowRight, Smartphone, BookOpen } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+import heroBg from "@/assets/images/hero-bg.png";
+import appBondedlove from "@/assets/images/app-bondedlove.png";
+import appHealthwise from "@/assets/images/app-healthwise.png";
+import appVideoCrafter from "@/assets/images/app-videocrafter.png";
+import bookMockup from "@/assets/images/book-mockup.png";
+
+export default function Home() {
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 50);
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-background text-foreground font-sans">
+      {/* Navigation */}
+      <nav
+        className={`fixed top-0 w-full z-50 transition-all duration-300 border-b ${
+          isScrolled
+            ? "bg-background/80 backdrop-blur-md border-border py-4"
+            : "bg-transparent border-transparent py-6"
+        }`}
+      >
+        <div className="container mx-auto px-4 md:px-6 flex justify-between items-center">
+          <Link href="/">
+            <a className="text-2xl font-heading font-bold tracking-tighter">
+              Elevate<span className="text-primary">360</span>Official
+            </a>
+          </Link>
+          <div className="hidden md:flex items-center space-x-8">
+            <a href="#apps" className="text-sm font-medium hover:text-primary transition-colors">
+              Applications
+            </a>
+            <a href="#books" className="text-sm font-medium hover:text-primary transition-colors">
+              Publications
+            </a>
+            <Button className="rounded-full px-6">Get in Touch</Button>
+          </div>
+        </div>
+      </nav>
+
+      {/* Hero Section */}
+      <section className="relative min-h-[90vh] flex items-center pt-24 pb-12 overflow-hidden">
+        <div className="absolute inset-0 z-0">
+          <img 
+            src={heroBg} 
+            alt="Abstract Background" 
+            className="w-full h-full object-cover opacity-10"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-background/50 via-background to-background"></div>
+        </div>
+        
+        <div className="container relative z-10 mx-auto px-4 md:px-6">
+          <div className="max-w-4xl mx-auto text-center space-y-8">
+            <div className="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-sm font-medium text-primary mb-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
+              <span className="flex h-2 w-2 rounded-full bg-primary mr-2 animate-pulse"></span>
+              Innovating digital experiences
+            </div>
+            
+            <h1 className="text-5xl md:text-7xl font-heading font-extrabold tracking-tight leading-tight animate-in fade-in slide-in-from-bottom-8 duration-700 delay-100">
+              Empowering Lives Through <br className="hidden md:block" />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-blue-400">
+                Technology & Words
+              </span>
+            </h1>
+            
+            <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed animate-in fade-in slide-in-from-bottom-8 duration-700 delay-200">
+              Welcome to the official portfolio of Elevate360. Discover our suite of transformative mobile applications and insightful Amazon publications designed to elevate your everyday life.
+            </p>
+            
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-300">
+              <Button size="lg" className="rounded-full px-8 w-full sm:w-auto text-base h-14" asChild>
+                <a href="#apps">
+                  <Smartphone className="mr-2 h-5 w-5" />
+                  Explore Apps
+                </a>
+              </Button>
+              <Button size="lg" variant="outline" className="rounded-full px-8 w-full sm:w-auto text-base h-14" asChild>
+                <a href="#books">
+                  <BookOpen className="mr-2 h-5 w-5" />
+                  View Publications
+                </a>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Apps Section */}
+      <section id="apps" className="py-24 bg-muted/30">
+        <div className="container mx-auto px-4 md:px-6">
+          <div className="text-center max-w-3xl mx-auto mb-16 space-y-4">
+            <h2 className="text-3xl md:text-5xl font-heading font-bold tracking-tight">Our Digital Ecosystem</h2>
+            <p className="text-lg text-muted-foreground">
+              Purpose-built applications designed to connect, heal, and inspire creativity.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {/* Bondedlove */}
+            <div className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-2">
+              <div className="aspect-[4/3] w-full overflow-hidden bg-rose-50 flex items-center justify-center p-8">
+                <img 
+                  src={appBondedlove} 
+                  alt="Bondedlove App" 
+                  className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-105"
+                />
+              </div>
+              <div className="p-8">
+                <div className="w-12 h-12 rounded-2xl bg-rose-100 flex items-center justify-center mb-6">
+                  <div className="w-6 h-6 bg-rose-500 rounded-full"></div>
+                </div>
+                <h3 className="text-2xl font-bold font-heading mb-3">Bondedlove</h3>
+                <p className="text-muted-foreground mb-6 line-clamp-3">
+                  A revolutionary dating application focused on fostering genuine, lasting connections. Find your perfect match through meaningful interactions.
+                </p>
+                <a href="#" className="inline-flex items-center text-primary font-medium hover:text-primary/80 transition-colors">
+                  Learn more <ArrowRight className="ml-2 h-4 w-4" />
+                </a>
+              </div>
+            </div>
+
+            {/* Healthwisesupport */}
+            <div className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-2">
+              <div className="aspect-[4/3] w-full overflow-hidden bg-teal-50 flex items-center justify-center p-8">
+                <img 
+                  src={appHealthwise} 
+                  alt="Healthwisesupport App" 
+                  className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-105"
+                />
+              </div>
+              <div className="p-8">
+                <div className="w-12 h-12 rounded-2xl bg-teal-100 flex items-center justify-center mb-6">
+                  <div className="w-6 h-6 bg-teal-500 rounded-full"></div>
+                </div>
+                <h3 className="text-2xl font-bold font-heading mb-3">Healthwisesupport</h3>
+                <p className="text-muted-foreground mb-6 line-clamp-3">
+                  Your comprehensive health wellness companion. Access medical support, track your wellness journey, and connect with healthcare professionals.
+                </p>
+                <a href="#" className="inline-flex items-center text-primary font-medium hover:text-primary/80 transition-colors">
+                  Learn more <ArrowRight className="ml-2 h-4 w-4" />
+                </a>
+              </div>
+            </div>
+
+            {/* Video Crafter */}
+            <div className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-2">
+              <div className="aspect-[4/3] w-full overflow-hidden bg-indigo-50 flex items-center justify-center p-8">
+                <img 
+                  src={appVideoCrafter} 
+                  alt="Video Crafter App" 
+                  className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-105"
+                />
+              </div>
+              <div className="p-8">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-100 flex items-center justify-center mb-6">
+                  <div className="w-6 h-6 bg-indigo-500 rounded-full"></div>
+                </div>
+                <h3 className="text-2xl font-bold font-heading mb-3">Video Crafter</h3>
+                <p className="text-muted-foreground mb-6 line-clamp-3">
+                  Unleash your creativity with our intuitive video editing suite. Professional-grade tools made accessible for creators of all levels.
+                </p>
+                <a href="#" className="inline-flex items-center text-primary font-medium hover:text-primary/80 transition-colors">
+                  Learn more <ArrowRight className="ml-2 h-4 w-4" />
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Publications Section */}
+      <section id="books" className="py-24">
+        <div className="container mx-auto px-4 md:px-6">
+          <div className="flex flex-col md:flex-row items-center gap-16">
+            <div className="w-full md:w-1/2 space-y-8">
+              <div className="inline-flex items-center rounded-full border border-orange-500/20 bg-orange-500/10 px-3 py-1 text-sm font-medium text-orange-600 mb-2">
+                Available on Amazon KDP
+              </div>
+              <h2 className="text-3xl md:text-5xl font-heading font-bold tracking-tight">
+                Insights & Inspiration
+              </h2>
+              <p className="text-lg text-muted-foreground leading-relaxed">
+                Dive deep into our collection of eBooks and hardcover publications. Whether you're looking for guidance, knowledge, or inspiration, our carefully crafted books are designed to elevate your understanding.
+              </p>
+              
+              <ul className="space-y-4">
+                {[
+                  "Expertly researched content",
+                  "Available in digital and physical formats",
+                  "Actionable insights for personal growth",
+                  "Highly rated by readers globally"
+                ].map((item, i) => (
+                  <li key={i} className="flex items-center text-foreground font-medium">
+                    <div className="mr-3 h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                      ✓
+                    </div>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              
+              <div className="pt-4">
+                <Button size="lg" className="rounded-full px-8 h-14 bg-[#FF9900] hover:bg-[#FF9900]/90 text-black font-semibold" asChild>
+                  <a href="https://kdp.amazon.com/en_US/bookshelf?ref_=kdp_kdp_TAC_TN_bs" target="_blank" rel="noopener noreferrer">
+                    Visit Author Central on Amazon
+                  </a>
+                </Button>
+              </div>
+            </div>
+            
+            <div className="w-full md:w-1/2 relative">
+              <div className="absolute inset-0 bg-gradient-to-tr from-orange-100 to-transparent rounded-[3rem] -rotate-6 scale-105 -z-10"></div>
+              <img 
+                src={bookMockup} 
+                alt="Elevate360 Publications" 
+                className="w-full h-auto rounded-3xl shadow-2xl relative z-10"
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-24 bg-primary text-primary-foreground">
+        <div className="container mx-auto px-4 md:px-6 text-center">
+          <h2 className="text-3xl md:text-5xl font-heading font-bold tracking-tight mb-6 text-white">
+            Ready to Elevate Your Experience?
+          </h2>
+          <p className="text-lg md:text-xl text-primary-foreground/80 max-w-2xl mx-auto mb-10">
+            Join thousands of users who are already transforming their daily lives with our applications and publications.
+          </p>
+          <Button size="lg" variant="secondary" className="rounded-full px-10 h-14 text-base font-bold text-primary">
+            Explore All Products
+          </Button>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="bg-background border-t py-12">
+        <div className="container mx-auto px-4 md:px-6">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+            <div>
+              <a className="text-2xl font-heading font-bold tracking-tighter">
+                Elevate<span className="text-primary">360</span>Official
+              </a>
+              <p className="text-muted-foreground text-sm mt-2">
+                © {new Date().getFullYear()} Elevate360. All rights reserved.
+              </p>
+            </div>
+            <div className="flex items-center space-x-6">
+              <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">Privacy</a>
+              <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">Terms</a>
+              <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">Contact</a>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
