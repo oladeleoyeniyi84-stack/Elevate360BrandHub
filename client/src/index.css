@@ -140,3 +140,42 @@
   background: rgba(0, 0, 0, 0.2);
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
+
+:root {
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.safe-bottom {
+  padding-bottom: calc(24px + var(--safe-bottom));
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@layer utilities {
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-6 py-4 font-semibold
+      text-black bg-[#F4A62A] hover:bg-[#ffb84d] transition;
+    min-height: 52px;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-6 py-4 font-semibold
+      text-[#F4A62A] border border-[#F4A62A] hover:bg-white/5 transition;
+    min-height: 52px;
+  }
+
+  .btn-tertiary {
+    @apply inline-flex items-center gap-2 font-semibold text-[#F4A62A] hover:opacity-90 transition;
+  }
+
+  .badge-pill {
+    @apply inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold;
+  }
+
+  .badge-gold {
+    @apply inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold
+      bg-[#F4A62A]/15 text-[#F4A62A] border border-[#F4A62A]/30;
+  }
+}

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
-import { Menu, X, ArrowRight, Smartphone, BookOpen, Star, Instagram, Youtube, Palette, ExternalLink } from "lucide-react";
+import { Menu, X, ArrowRight, Smartphone, BookOpen, Instagram, Youtube, Palette, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ContactDialog } from "@/components/ContactDialog";
 import { NewsletterForm } from "@/components/NewsletterForm";
@@ -30,7 +30,7 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-background text-foreground font-sans">
+    <div className="min-h-screen bg-background text-foreground font-sans safe-bottom">
       {/* Navigation */}
       <nav
         className={`fixed top-0 w-full z-50 transition-all duration-300 border-b ${
@@ -94,18 +94,14 @@ export default function Home() {
             </p>
             
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-300">
-              <Button size="lg" className="rounded-full px-8 w-full sm:w-auto text-base h-14 bg-primary text-primary-foreground hover:bg-primary/90" asChild>
-                <a href="#apps" data-testid="button-explore-apps">
-                  <Smartphone className="mr-2 h-5 w-5" />
-                  Explore Apps
-                </a>
-              </Button>
-              <Button size="lg" variant="outline" className="rounded-full px-8 w-full sm:w-auto text-base h-14 border-secondary text-secondary hover:bg-secondary/10" asChild>
-                <a href="#books" data-testid="button-view-publications">
-                  <BookOpen className="mr-2 h-5 w-5" />
-                  View Publications
-                </a>
-              </Button>
+              <a href="#apps" data-testid="button-explore-apps" className="btn-primary w-full sm:w-auto">
+                <Smartphone className="h-5 w-5" />
+                Explore Apps
+              </a>
+              <a href="#books" data-testid="button-view-publications" className="btn-secondary w-full sm:w-auto">
+                <BookOpen className="h-5 w-5" />
+                View Publications
+              </a>
             </div>
           </div>
         </div>
@@ -121,9 +117,9 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
             {/* Bondedlove */}
-            <div className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-2">
+            <div className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-2 h-full flex flex-col">
               <div className="aspect-[4/3] w-full overflow-hidden bg-rose-50 flex items-center justify-center p-8">
                 <img 
                   src={appBondedlove} 
@@ -131,7 +127,7 @@ export default function Home() {
                   className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-105"
                 />
               </div>
-              <div className="p-8">
+              <div className="p-8 flex flex-col flex-1">
                 <div className="w-12 h-12 rounded-2xl bg-rose-100 flex items-center justify-center mb-6">
                   <div className="w-6 h-6 bg-rose-500 rounded-full"></div>
                 </div>
@@ -139,14 +135,14 @@ export default function Home() {
                 <p className="text-muted-foreground mb-6 line-clamp-3">
                   A revolutionary dating application focused on fostering genuine, lasting connections. Find your perfect match through meaningful interactions.
                 </p>
-                <a href="#" className="inline-flex items-center text-primary font-medium hover:text-primary/80 transition-colors">
-                  Learn more <ArrowRight className="ml-2 h-4 w-4" />
+                <a href="#" className="btn-tertiary mt-auto">
+                  Learn more <ArrowRight className="h-4 w-4" />
                 </a>
               </div>
             </div>
 
             {/* Healthwisesupport */}
-            <div className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-2">
+            <div className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-2 h-full flex flex-col">
               <div className="aspect-[4/3] w-full overflow-hidden bg-teal-50 flex items-center justify-center p-8">
                 <img 
                   src={appHealthwise} 
@@ -154,7 +150,7 @@ export default function Home() {
                   className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-105"
                 />
               </div>
-              <div className="p-8">
+              <div className="p-8 flex flex-col flex-1">
                 <div className="w-12 h-12 rounded-2xl bg-teal-100 flex items-center justify-center mb-6">
                   <div className="w-6 h-6 bg-teal-500 rounded-full"></div>
                 </div>
@@ -162,14 +158,14 @@ export default function Home() {
                 <p className="text-muted-foreground mb-6 line-clamp-3">
                   Your comprehensive health wellness companion. Access medical support, track your wellness journey, and connect with healthcare professionals.
                 </p>
-                <a href="#" className="inline-flex items-center text-primary font-medium hover:text-primary/80 transition-colors">
-                  Learn more <ArrowRight className="ml-2 h-4 w-4" />
+                <a href="#" className="btn-tertiary mt-auto">
+                  Learn more <ArrowRight className="h-4 w-4" />
                 </a>
               </div>
             </div>
 
             {/* Video Crafter */}
-            <div className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-2">
+            <div className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-2 h-full flex flex-col">
               <div className="aspect-[4/3] w-full overflow-hidden bg-indigo-50 flex items-center justify-center p-8">
                 <img 
                   src={appVideoCrafter} 
@@ -177,7 +173,7 @@ export default function Home() {
                   className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-105"
                 />
               </div>
-              <div className="p-8">
+              <div className="p-8 flex flex-col flex-1">
                 <div className="w-12 h-12 rounded-2xl bg-indigo-100 flex items-center justify-center mb-6">
                   <div className="w-6 h-6 bg-indigo-500 rounded-full"></div>
                 </div>
@@ -185,8 +181,8 @@ export default function Home() {
                 <p className="text-muted-foreground mb-6 line-clamp-3">
                   Unleash your creativity with our intuitive video editing suite. Professional-grade tools made accessible for creators of all levels.
                 </p>
-                <a href="#" className="inline-flex items-center text-primary font-medium hover:text-primary/80 transition-colors">
-                  Learn more <ArrowRight className="ml-2 h-4 w-4" />
+                <a href="#" className="btn-tertiary mt-auto">
+                  Learn more <ArrowRight className="h-4 w-4" />
                 </a>
               </div>
             </div>
@@ -229,12 +225,10 @@ export default function Home() {
                   ))}
                 </ul>
                 <div className="pt-4">
-                  <Button size="lg" className="rounded-full px-8 h-14 bg-[#F1641E] hover:bg-[#D35400] text-white font-semibold text-base shadow-lg hover:shadow-xl transition-all" asChild>
-                    <a href="https://www.etsy.com/shop/Elevate360Official?sort_order=date_desc" target="_blank" rel="noopener noreferrer" data-testid="link-etsy-shop">
-                      <ExternalLink className="mr-2 h-5 w-5" />
-                      Visit Art Studio on Etsy
-                    </a>
-                  </Button>
+                  <a href="https://www.etsy.com/shop/Elevate360Official?sort_order=date_desc" target="_blank" rel="noopener noreferrer" data-testid="link-etsy-shop" className="btn-primary !bg-[#F1641E] hover:!bg-[#D35400] !text-white shadow-lg hover:shadow-xl">
+                    <ExternalLink className="h-5 w-5" />
+                    Visit Art Studio on Etsy
+                  </a>
                 </div>
               </div>
 
@@ -283,11 +277,9 @@ export default function Home() {
               </ul>
               
               <div className="pt-4">
-                <Button size="lg" className="rounded-full px-8 h-14 bg-[#FF9900] hover:bg-[#FF9900]/90 text-black font-semibold" asChild>
-                  <a href="https://kdp.amazon.com/en_US/bookshelf?ref_=kdp_kdp_TAC_TN_bs" target="_blank" rel="noopener noreferrer" data-testid="link-amazon-author-central">
-                    Visit Author Central on Amazon
-                  </a>
-                </Button>
+                <a href="https://kdp.amazon.com/en_US/bookshelf?ref_=kdp_kdp_TAC_TN_bs" target="_blank" rel="noopener noreferrer" data-testid="link-amazon-author-central" className="btn-primary">
+                  Visit Author Central on Amazon
+                </a>
               </div>
             </div>
             
@@ -334,23 +326,20 @@ export default function Home() {
                     className="relative w-64 md:w-72 h-auto rounded-md shadow-2xl transition-transform duration-700 group-hover:scale-[1.02] group-hover:-rotate-2"
                   />
                   
-                  {/* Bestseller badge */}
-                  <div className="absolute -top-4 -right-4 bg-gradient-to-r from-orange-400 to-amber-500 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg transform rotate-12">
-                    #1 Bestseller
+                  <div className="absolute -top-4 -right-4">
+                    <span className="badge-gold shadow-lg transform rotate-12 inline-block">Featured Release</span>
                   </div>
                 </div>
               </div>
               
               <div className="w-full md:w-2/3 space-y-6">
-                <div className="flex items-center space-x-1 text-amber-500 mb-2">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="w-5 h-5 fill-current" />
-                  ))}
-                  <span className="text-muted-foreground text-sm ml-2 font-medium">(4.9/5 from 1.2k Reviews)</span>
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="badge-gold">Featured Release</span>
+                  <a href="https://www.amazon.com/dp/B0GMBNPZC9" target="_blank" rel="noopener noreferrer" className="text-muted-foreground text-sm font-medium hover:text-primary transition-colors">Rated on Amazon</a>
                 </div>
                 
                 <div>
-                  <h3 className="text-xs font-bold tracking-widest text-primary uppercase mb-3">Featured Release</h3>
+                  <h3 className="text-xs font-bold tracking-widest text-primary uppercase mb-3">Health & Wellness</h3>
                   <h4 className="text-3xl md:text-5xl font-heading font-extrabold tracking-tight mb-4">
                     Healthwise: <br className="hidden md:block" />
                     <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-teal-500">Stay Healthy</span>
@@ -362,14 +351,12 @@ export default function Home() {
                 </p>
                 
                 <div className="flex flex-col sm:flex-row gap-4 pt-6">
-                  <Button size="lg" className="rounded-full px-8 bg-[#232F3E] text-white hover:bg-[#131A22] h-14 text-base font-semibold border border-transparent shadow-lg hover:shadow-xl transition-all" asChild>
-                    <a href="https://www.amazon.com/dp/B0GMBNPZC9" target="_blank" rel="noopener noreferrer" data-testid="link-buy-healthwise">
-                      Buy on Amazon
-                    </a>
-                  </Button>
-                  <Button size="lg" variant="outline" className="rounded-full px-8 h-14 text-base font-medium">
+                  <a href="https://www.amazon.com/dp/B0GMBNPZC9" target="_blank" rel="noopener noreferrer" data-testid="link-buy-healthwise" className="btn-primary">
+                    Buy on Amazon
+                  </a>
+                  <a href="https://www.amazon.com/dp/B0GMBNPZC9" target="_blank" rel="noopener noreferrer" className="btn-secondary">
                     Read Sample Chapter
-                  </Button>
+                  </a>
                 </div>
               </div>
             </div>
@@ -392,18 +379,16 @@ export default function Home() {
                     alt="Together: Let There Be Love Cover" 
                     className="relative w-64 md:w-72 h-auto rounded-md shadow-2xl transition-transform duration-700 group-hover:scale-[1.02] group-hover:rotate-2"
                   />
-                  <div className="absolute -top-4 -left-4 bg-gradient-to-r from-rose-400 to-red-500 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg transform -rotate-12">
-                    5.0 ⭐ Rating
+                  <div className="absolute -top-4 -left-4">
+                    <span className="badge-gold shadow-lg transform -rotate-12 inline-block">Reader Favorite</span>
                   </div>
                 </div>
               </div>
               
               <div className="w-full md:w-2/3 space-y-6">
-                <div className="flex items-center space-x-1 text-amber-500 mb-2">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="w-5 h-5 fill-current" />
-                  ))}
-                  <span className="text-muted-foreground text-sm ml-2 font-medium">(5.0/5 Reviews)</span>
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="badge-gold">Reader Favorite</span>
+                  <a href="https://www.amazon.com/dp/B0G5DWG61V" target="_blank" rel="noopener noreferrer" className="text-muted-foreground text-sm font-medium hover:text-primary transition-colors">Rated on Amazon</a>
                 </div>
                 
                 <div>
@@ -419,11 +404,9 @@ export default function Home() {
                 </p>
                 
                 <div className="flex flex-col sm:flex-row gap-4 pt-6">
-                  <Button size="lg" className="rounded-full px-8 bg-[#232F3E] text-white hover:bg-[#131A22] h-14 text-base font-semibold border border-transparent shadow-lg hover:shadow-xl transition-all" asChild>
-                    <a href="https://www.amazon.com/dp/B0G5DWG61V" target="_blank" rel="noopener noreferrer" data-testid="link-buy-together">
-                      Buy on Amazon
-                    </a>
-                  </Button>
+                  <a href="https://www.amazon.com/dp/B0G5DWG61V" target="_blank" rel="noopener noreferrer" data-testid="link-buy-together" className="btn-primary">
+                    Buy on Amazon
+                  </a>
                 </div>
               </div>
             </div>
@@ -446,8 +429,8 @@ export default function Home() {
                     alt="One Clean Meal Cover" 
                     className="relative w-64 md:w-72 h-auto rounded-md shadow-2xl transition-transform duration-700 group-hover:scale-[1.02] group-hover:-rotate-2"
                   />
-                  <div className="absolute -bottom-4 -right-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg transform rotate-6">
-                    New Release
+                  <div className="absolute -bottom-4 -right-4">
+                    <span className="badge-gold shadow-lg transform rotate-6 inline-block">New Release</span>
                   </div>
                 </div>
               </div>
@@ -466,11 +449,9 @@ export default function Home() {
                 </p>
                 
                 <div className="flex flex-col sm:flex-row gap-4 pt-6">
-                  <Button size="lg" className="rounded-full px-8 bg-[#232F3E] text-white hover:bg-[#131A22] h-14 text-base font-semibold border border-transparent shadow-lg hover:shadow-xl transition-all" asChild>
-                    <a href="https://www.amazon.com/dp/B0FSDTPVJC" target="_blank" rel="noopener noreferrer" data-testid="link-buy-onecleanmeal">
-                      Buy on Amazon
-                    </a>
-                  </Button>
+                  <a href="https://www.amazon.com/dp/B0FSDTPVJC" target="_blank" rel="noopener noreferrer" data-testid="link-buy-onecleanmeal" className="btn-primary">
+                    Buy on Amazon
+                  </a>
                 </div>
               </div>
             </div>

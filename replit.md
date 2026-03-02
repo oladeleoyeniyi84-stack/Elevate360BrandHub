@@ -17,12 +17,22 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 
 ## Key Features
 - Hero section with overlapping typographic background
-- Apps showcase (Bondedlove, Healthwisesupport, Video Crafter)
+- Apps showcase (Bondedlove, Healthwisesupport, Video Crafter) with equal-height card grid
+- Elevate360 Art Studio section with presentation image + Etsy shop link
 - Publications section with real Amazon book covers
 - Featured book sections (Healthwise: Stay Healthy, Together: Let There Be Love, One Clean Meal)
 - Contact form (dialog) - saves to PostgreSQL
 - Newsletter signup - saves to PostgreSQL
-- Instagram social link (@officialelevate360)
+- Social links: Instagram, YouTube, Etsy
+
+## Design System (CSS)
+- **btn-primary**: Gold filled CTA button (#F4A62A)
+- **btn-secondary**: Gold outline button
+- **btn-tertiary**: Gold text link
+- **badge-gold**: Trust badge pill (gold border + tint)
+- **safe-bottom**: iPhone Safari safe area padding
+- Smooth scroll anchors (#apps, #books, #art-studio)
+- line-clamp-3 on app descriptions with "Learn more" links
 
 ## Data Models
 - `contactMessages` - name, email, message, createdAt
@@ -44,4 +54,7 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 ## External Links
 - Amazon Books: B0GMBNPZC9, B0G5DWG61V, B0FSDTPVJC
 - Instagram: https://www.instagram.com/officialelevate360/
-- Brand logo: attached_assets/Elevate360_Brand_Logo_1772418122164.png
+- YouTube: https://www.youtube.com/channel/UCDGnUhgvM__6Mw8q26H-urQ
+- Etsy: https://www.etsy.com/shop/Elevate360Official
+- Brand logo: @assets/Elevate360_Brand_Logo_1772418122164.png
+- Art Studio image: @assets/Elevate360Art_Studio_Presentation_1772460961759.png

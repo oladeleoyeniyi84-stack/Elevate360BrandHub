@@ -1,0 +1,217 @@
+Perfect — even with only screenshots, we can still apply the fixes cleanly because your project structure is known and predictable (React + Tailwind v4 + shadcn).
+
+Below are precise, copy-paste changes mapped to the files you listed. This will fix the biggest problems visible in the screenshots:
+	•	iPhone Safari bottom bar overlap / cramped CTA area
+	•	inconsistent button hierarchy (gold / outline / grey mismatch)
+	•	“ratings/bestseller” credibility risk (make safe + consistent)
+	•	text truncation “…” (make intentional)
+	•	layout polish (spacing + alignment)
+
+⸻
+
+A) Fix iPhone “bottom bar overlap” (Safe Area Padding)
+
+1) client/src/index.css (or wherever your global CSS/tokens live)
+
+Add this near the bottom:
+
+:root {
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Use on page wrappers/sections to avoid Safari bottom UI overlap */
+.safe-bottom {
+  padding-bottom: calc(24px + var(--safe-bottom));
+}
+
+2) client/src/pages/Home.tsx
+
+Wrap your main page container with safe-bottom (or add it to your existing wrapper):
+
+export default function Home() {
+  return (
+    <div className="safe-bottom">
+      {/* existing home sections */}
+    </div>
+  );
+}
+
+✅ Result: your “Explore Apps / View Publications / Buy on Amazon” areas won’t feel jammed into Safari’s bottom chrome.
+
+⸻
+
+B) Standardize your Button System (Primary / Secondary / Tertiary)
+
+Your screenshots show three competing button styles. We’ll enforce one rule:
+	•	Primary: Gold filled
+	•	Secondary: Gold outline
+	•	Tertiary: Text link (gold)
+
+1) Add utility classes in client/src/index.css
+
+/* Elevate360 button system */
+.btn-primary {
+  @apply inline-flex items-center justify-center gap-2 rounded-full px-6 py-4 font-semibold
+    text-black bg-[#F4A62A] hover:bg-[#ffb84d] transition;
+  min-height: 52px;
+}
+
+.btn-secondary {
+  @apply inline-flex items-center justify-center gap-2 rounded-full px-6 py-4 font-semibold
+    text-[#F4A62A] border border-[#F4A62A] hover:bg-white/5 transition;
+  min-height: 52px;
+}
+
+.btn-tertiary {
+  @apply inline-flex items-center gap-2 font-semibold text-[#F4A62A] hover:opacity-90 transition;
+}
+
+If you already use CSS variables for gold, swap #F4A62A for your token.
+
+2) Apply in client/src/pages/Home.tsx
+
+Hero section buttons
+	•	“Explore Apps” => .btn-primary
+	•	“View Publications” => .btn-secondary
+
+Example:
+
+<div className="flex flex-col gap-3 sm:flex-row">
+  <a href="#apps" className="btn-primary">Explore Apps</a>
+  <a href="#publications" className="btn-secondary">View Publications</a>
+</div>
+
+Publication card buttons
+	•	“Buy on Amazon” => .btn-primary (or .btn-secondary if you want the primary CTA to stay “Visit Author Central”)
+	•	“Read Sample Chapter” => .btn-secondary
+
+✅ Result: everything feels like one premium design system.
+
+⸻
+
+C) Fix “fake-looking” ratings/badges (without losing premium feel)
+
+In your screenshots, badges like:
+	•	“#1 Bestseller”
+	•	“4.9/5 from 1.2k Reviews”
+	•	“5.0 Rating”
+
+…are risky unless they’re verifiable and current.
+
+Recommended fix (safe + premium)
+
+Replace numeric claims with non-numeric trust badges:
+	•	“Featured Release”
+	•	“Reader Favorite”
+	•	“Available on Amazon KDP”
+
+1) Create a badge style in client/src/index.css
+
+.badge-pill {
+  @apply inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold;
+}
+
+.badge-gold {
+  @apply badge-pill bg-[#F4A62A]/15 text-[#F4A62A] border border-[#F4A62A]/30;
+}
+
+2) Replace numeric badges in Home.tsx / publication components
+
+Example:
+
+<span className="badge-gold">Featured Release</span>
+
+If you MUST keep ratings, do it like:
+	•	“Rated on Amazon” (no numbers)
+	•	Link to the Amazon listing
+
+⸻
+
+D) Fix truncation “…” so it looks intentional (not broken)
+
+Your cards show copy ending with “…”. That reads like a layout bug.
+
+1) Add a consistent 3-line clamp class (global)
+
+In client/src/index.css:
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+2) Apply to app descriptions in Home.tsx
+
+Example:
+
+<p className="text-white/70 line-clamp-3">
+  A revolutionary dating application focused on fostering genuine, lasting connections...
+</p>
+
+3) Ensure “Learn more →” always exists below
+
+That way truncation feels deliberate.
+
+✅ Result: no more “unfinished” feeling.
+
+⸻
+
+E) Fix spacing/alignment in Publications grid (premium polish)
+
+In screenshots, book tiles appear slightly uneven.
+
+In Home.tsx where the book cards are laid out:
+
+Use a uniform grid with consistent card heights:
+
+<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
+  {/* cards */}
+</div>
+
+And ensure each card container has:
+
+<div className="h-full flex flex-col">
+  {/* image */}
+  {/* content */}
+</div>
+
+✅ Result: covers align cleanly, no “random” vertical drift.
+
+⸻
+
+F) Anchor scroll behavior (Explore Apps / View Publications)
+
+If your buttons don’t scroll smoothly:
+
+client/src/index.css
+
+html {
+  scroll-behavior: smooth;
+}
+
+In Home.tsx add ids:
+
+<section id="apps">...</section>
+<section id="publications">...</section>
+
+
+⸻
+
+What to do next (fastest path)
+
+Since you’re using screenshots only, do this exact order:
+	1.	Add safe-bottom (A)
+	2.	Apply btn-primary / btn-secondary (B)
+	3.	Replace numeric badges with safe badge (C)
+	4.	Add line clamp + Learn more (D)
+	5.	Grid alignment pass (E)
+	6.	Smooth anchor scroll (F)
+
+⸻
+
+If you paste ONE thing, I can make this 100% exact
+
+Paste your current client/src/pages/Home.tsx (just that single file).
+Then I’ll return a fully edited version with all fixes applied line-by-line (no guessing, no extra questions).
