@@ -39,7 +39,7 @@ export default function Home() {
         <div className="container mx-auto px-4 md:px-6 flex justify-between items-center">
           <Link href="/">
             <a className="flex items-center gap-2">
-              <img src={brandLogo} alt="Elevate360" className="h-10 w-auto" />
+              <img src={brandLogo} alt="Elevate360" className="h-16 md:h-20 w-auto object-contain" />
             </a>
           </Link>
           <div className="hidden md:flex items-center space-x-8">
@@ -432,7 +432,7 @@ export default function Home() {
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <div>
               <a className="flex items-center gap-2 mb-4">
-                <img src={brandLogo} alt="Elevate360" className="h-8 w-auto" />
+                <img src={brandLogo} alt="Elevate360" className="h-12 md:h-16 w-auto object-contain" />
               </a>
               <p className="text-muted-foreground text-sm mt-2">
                 © {new Date().getFullYear()} Elevate360. All rights reserved.
