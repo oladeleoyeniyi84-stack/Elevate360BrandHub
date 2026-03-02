@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
-import { Menu, X, ArrowRight, Smartphone, BookOpen, Star, Instagram } from "lucide-react";
+import { Menu, X, ArrowRight, Smartphone, BookOpen, Star, Instagram, Youtube } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ContactDialog } from "@/components/ContactDialog";
 import { NewsletterForm } from "@/components/NewsletterForm";
@@ -449,6 +449,10 @@ export default function Home() {
               <a href="https://www.instagram.com/officialelevate360/" target="_blank" rel="noopener noreferrer" data-testid="link-instagram" className="text-muted-foreground hover:text-primary transition-colors flex items-center gap-2">
                 <Instagram className="h-5 w-5" />
                 <span className="sr-only">Instagram</span>
+              </a>
+              <a href="https://www.youtube.com/channel/UCDGnUhgvM__6Mw8q26H-urQ" target="_blank" rel="noopener noreferrer" data-testid="link-youtube" className="text-muted-foreground hover:text-primary transition-colors flex items-center gap-2">
+                <Youtube className="h-5 w-5" />
+                <span className="sr-only">YouTube</span>
               </a>
               <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">Privacy</a>
               <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">Terms</a>
