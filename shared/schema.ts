@@ -28,13 +28,19 @@ export const insertUserSchema = createInsertSchema(users).pick({
   password: true,
 });
 
-export const insertContactMessageSchema = createInsertSchema(contactMessages).pick({
+export const insertContactMessageSchema = createInsertSchema(contactMessages, {
+  name: z.string().min(1, "Name is required").max(200),
+  email: z.string().email("Please enter a valid email address"),
+  message: z.string().min(1, "Message is required").max(5000),
+}).pick({
   name: true,
   email: true,
   message: true,
 });
 
-export const insertNewsletterSubscriberSchema = createInsertSchema(newsletterSubscribers).pick({
+export const insertNewsletterSubscriberSchema = createInsertSchema(newsletterSubscribers, {
+  email: z.string().email("Please enter a valid email address"),
+}).pick({
   email: true,
 });
 

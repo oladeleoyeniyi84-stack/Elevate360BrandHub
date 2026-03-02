@@ -43,14 +43,14 @@ export default function Home() {
             <img src={brandLogo} alt="Elevate360" className="h-full w-full object-contain object-left scale-150 origin-left" />
           </Link>
           <div className="hidden md:flex items-center space-x-8">
-            <a href="#apps" className="text-sm font-medium hover:text-primary transition-colors">
+            <a href="#apps" data-testid="link-nav-apps" className="text-sm font-medium hover:text-primary transition-colors">
               Applications
             </a>
-            <a href="#books" className="text-sm font-medium hover:text-primary transition-colors">
+            <a href="#books" data-testid="link-nav-books" className="text-sm font-medium hover:text-primary transition-colors">
               Publications
             </a>
             <ContactDialog>
-              <Button className="rounded-full px-6">Get in Touch</Button>
+              <Button data-testid="button-get-in-touch" className="rounded-full px-6">Get in Touch</Button>
             </ContactDialog>
           </div>
         </div>
@@ -94,13 +94,13 @@ export default function Home() {
             
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-300">
               <Button size="lg" className="rounded-full px-8 w-full sm:w-auto text-base h-14 bg-primary text-primary-foreground hover:bg-primary/90" asChild>
-                <a href="#apps">
+                <a href="#apps" data-testid="button-explore-apps">
                   <Smartphone className="mr-2 h-5 w-5" />
                   Explore Apps
                 </a>
               </Button>
               <Button size="lg" variant="outline" className="rounded-full px-8 w-full sm:w-auto text-base h-14 border-secondary text-secondary hover:bg-secondary/10" asChild>
-                <a href="#books">
+                <a href="#books" data-testid="button-view-publications">
                   <BookOpen className="mr-2 h-5 w-5" />
                   View Publications
                 </a>
@@ -226,7 +226,7 @@ export default function Home() {
               
               <div className="pt-4">
                 <Button size="lg" className="rounded-full px-8 h-14 bg-[#FF9900] hover:bg-[#FF9900]/90 text-black font-semibold" asChild>
-                  <a href="https://kdp.amazon.com/en_US/bookshelf?ref_=kdp_kdp_TAC_TN_bs" target="_blank" rel="noopener noreferrer">
+                  <a href="https://kdp.amazon.com/en_US/bookshelf?ref_=kdp_kdp_TAC_TN_bs" target="_blank" rel="noopener noreferrer" data-testid="link-amazon-author-central">
                     Visit Author Central on Amazon
                   </a>
                 </Button>
@@ -305,7 +305,7 @@ export default function Home() {
                 
                 <div className="flex flex-col sm:flex-row gap-4 pt-6">
                   <Button size="lg" className="rounded-full px-8 bg-[#232F3E] text-white hover:bg-[#131A22] h-14 text-base font-semibold border border-transparent shadow-lg hover:shadow-xl transition-all" asChild>
-                    <a href="https://www.amazon.com/dp/B0GMBNPZC9" target="_blank" rel="noopener noreferrer">
+                    <a href="https://www.amazon.com/dp/B0GMBNPZC9" target="_blank" rel="noopener noreferrer" data-testid="link-buy-healthwise">
                       Buy on Amazon
                     </a>
                   </Button>
@@ -362,7 +362,7 @@ export default function Home() {
                 
                 <div className="flex flex-col sm:flex-row gap-4 pt-6">
                   <Button size="lg" className="rounded-full px-8 bg-[#232F3E] text-white hover:bg-[#131A22] h-14 text-base font-semibold border border-transparent shadow-lg hover:shadow-xl transition-all" asChild>
-                    <a href="https://www.amazon.com/dp/B0G5DWG61V" target="_blank" rel="noopener noreferrer">
+                    <a href="https://www.amazon.com/dp/B0G5DWG61V" target="_blank" rel="noopener noreferrer" data-testid="link-buy-together">
                       Buy on Amazon
                     </a>
                   </Button>
@@ -409,7 +409,7 @@ export default function Home() {
                 
                 <div className="flex flex-col sm:flex-row gap-4 pt-6">
                   <Button size="lg" className="rounded-full px-8 bg-[#232F3E] text-white hover:bg-[#131A22] h-14 text-base font-semibold border border-transparent shadow-lg hover:shadow-xl transition-all" asChild>
-                    <a href="https://www.amazon.com/dp/B0FSDTPVJC" target="_blank" rel="noopener noreferrer">
+                    <a href="https://www.amazon.com/dp/B0FSDTPVJC" target="_blank" rel="noopener noreferrer" data-testid="link-buy-onecleanmeal">
                       Buy on Amazon
                     </a>
                   </Button>
@@ -446,7 +446,7 @@ export default function Home() {
               </p>
             </div>
             <div className="flex items-center space-x-6">
-              <a href="https://www.instagram.com/officialelevate360/" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors flex items-center gap-2">
+              <a href="https://www.instagram.com/officialelevate360/" target="_blank" rel="noopener noreferrer" data-testid="link-instagram" className="text-muted-foreground hover:text-primary transition-colors flex items-center gap-2">
                 <Instagram className="h-5 w-5" />
                 <span className="sr-only">Instagram</span>
               </a>
