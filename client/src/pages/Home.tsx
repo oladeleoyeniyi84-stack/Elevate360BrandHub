@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
-import { Menu, X, ArrowRight, Smartphone, BookOpen, Star, Instagram, Youtube } from "lucide-react";
+import { Menu, X, ArrowRight, Smartphone, BookOpen, Star, Instagram, Youtube, Palette, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ContactDialog } from "@/components/ContactDialog";
 import { NewsletterForm } from "@/components/NewsletterForm";
@@ -187,6 +187,73 @@ export default function Home() {
                 <a href="#" className="inline-flex items-center text-primary font-medium hover:text-primary/80 transition-colors">
                   Learn more <ArrowRight className="ml-2 h-4 w-4" />
                 </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Art Studio Section */}
+      <section id="art-studio" className="py-24">
+        <div className="container mx-auto px-4 md:px-6">
+          <div className="relative rounded-[2.5rem] overflow-hidden bg-gradient-to-br from-amber-900/30 via-card to-card border border-amber-700/20 p-8 md:p-16">
+            <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-gradient-to-bl from-primary/10 to-transparent rounded-full blur-3xl -translate-y-1/3 translate-x-1/3 pointer-events-none"></div>
+
+            <div className="relative z-10 flex flex-col md:flex-row items-center gap-12 lg:gap-20">
+              <div className="w-full md:w-1/2 space-y-6">
+                <div className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary">
+                  <Palette className="h-4 w-4 mr-2" />
+                  Now on Etsy
+                </div>
+                <h2 className="text-3xl md:text-5xl font-heading font-bold tracking-tight">
+                  Elevate360 <br />
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-orange-400">Art Studio</span>
+                </h2>
+                <p className="text-lg text-muted-foreground leading-relaxed">
+                  Explore our exclusive collection of digital art, creative designs, and handcrafted visuals. From wall art to custom prints, each piece is designed to inspire and elevate your space.
+                </p>
+                <ul className="space-y-3">
+                  {[
+                    "Original digital artwork & prints",
+                    "Custom creative designs",
+                    "Unique handcrafted visuals",
+                    "New pieces added regularly"
+                  ].map((item, i) => (
+                    <li key={i} className="flex items-center text-foreground font-medium">
+                      <div className="mr-3 h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-primary text-sm">
+                        ✓
+                      </div>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+                <div className="pt-4">
+                  <Button size="lg" className="rounded-full px-8 h-14 bg-[#F1641E] hover:bg-[#D35400] text-white font-semibold text-base shadow-lg hover:shadow-xl transition-all" asChild>
+                    <a href="https://www.etsy.com/shop/Elevate360Official?sort_order=date_desc" target="_blank" rel="noopener noreferrer" data-testid="link-etsy-shop">
+                      <ExternalLink className="mr-2 h-5 w-5" />
+                      Visit Art Studio on Etsy
+                    </a>
+                  </Button>
+                </div>
+              </div>
+
+              <div className="w-full md:w-1/2 grid grid-cols-2 gap-4">
+                <div className="space-y-4">
+                  <div className="rounded-2xl bg-gradient-to-br from-primary/20 to-orange-500/20 aspect-square flex items-center justify-center p-6 border border-primary/10">
+                    <Palette className="h-16 w-16 text-primary/60" />
+                  </div>
+                  <div className="rounded-2xl bg-gradient-to-br from-amber-500/20 to-red-500/20 aspect-[4/3] flex items-center justify-center p-6 border border-amber-500/10">
+                    <span className="text-4xl font-heading font-bold text-primary/40">ART</span>
+                  </div>
+                </div>
+                <div className="space-y-4 pt-8">
+                  <div className="rounded-2xl bg-gradient-to-br from-orange-500/20 to-yellow-500/20 aspect-[4/3] flex items-center justify-center p-6 border border-orange-500/10">
+                    <span className="text-4xl font-heading font-bold text-primary/40">360</span>
+                  </div>
+                  <div className="rounded-2xl bg-gradient-to-br from-rose-500/20 to-primary/20 aspect-square flex items-center justify-center p-6 border border-rose-500/10">
+                    <Palette className="h-16 w-16 text-primary/60 rotate-45" />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -453,6 +520,10 @@ export default function Home() {
               <a href="https://www.youtube.com/channel/UCDGnUhgvM__6Mw8q26H-urQ" target="_blank" rel="noopener noreferrer" data-testid="link-youtube" className="text-muted-foreground hover:text-primary transition-colors flex items-center gap-2">
                 <Youtube className="h-5 w-5" />
                 <span className="sr-only">YouTube</span>
+              </a>
+              <a href="https://www.etsy.com/shop/Elevate360Official?sort_order=date_desc" target="_blank" rel="noopener noreferrer" data-testid="link-etsy" className="text-muted-foreground hover:text-primary transition-colors flex items-center gap-2">
+                <Palette className="h-5 w-5" />
+                <span className="sr-only">Etsy</span>
               </a>
               <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">Privacy</a>
               <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">Terms</a>
