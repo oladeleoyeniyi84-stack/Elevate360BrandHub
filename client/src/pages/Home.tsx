@@ -1,16 +1,19 @@
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
-import { Menu, X, ArrowRight, Smartphone, BookOpen, Star } from "lucide-react";
+import { Menu, X, ArrowRight, Smartphone, BookOpen, Star, Instagram } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 import heroBg from "@/assets/images/hero-bg.png";
 import appBondedlove from "@/assets/images/app-bondedlove.png";
 import appHealthwise from "@/assets/images/app-healthwise.png";
 import appVideoCrafter from "@/assets/images/app-videocrafter.png";
-import bookMockup from "@/assets/images/book-mockup.png";
-import featuredBook from "@/assets/images/featured-book.png";
-import bookTogether from "@/assets/images/book-together.png";
-import bookOneCleanMeal from "@/assets/images/book-onecleanmeal.png";
+import brandLogo from "@assets/Elevate360_Brand_Logo_1772418122164.png";
+
+// Real Amazon Book Covers
+const bookMockup = "https://m.media-amazon.com/images/I/41Ih48BpUEL._SY445_SX342_FMwebp_.jpg";
+const featuredBook = "https://m.media-amazon.com/images/I/41Ih48BpUEL._SY445_SX342_FMwebp_.jpg";
+const bookTogether = "https://m.media-amazon.com/images/I/61XmcRNAyTL._SY466_.jpg";
+const bookOneCleanMeal = "https://m.media-amazon.com/images/I/41zbjQDKkNL._SY466_.jpg";
 
 export default function Home() {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -35,8 +38,8 @@ export default function Home() {
       >
         <div className="container mx-auto px-4 md:px-6 flex justify-between items-center">
           <Link href="/">
-            <a className="text-2xl font-heading font-bold tracking-tighter">
-              Elevate<span className="text-primary">360</span>Official
+            <a className="flex items-center gap-2">
+              <img src={brandLogo} alt="Elevate360" className="h-10 w-auto" />
             </a>
           </Link>
           <div className="hidden md:flex items-center space-x-8">
@@ -81,13 +84,13 @@ export default function Home() {
             </p>
             
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-300">
-              <Button size="lg" className="rounded-full px-8 w-full sm:w-auto text-base h-14" asChild>
+              <Button size="lg" className="rounded-full px-8 w-full sm:w-auto text-base h-14 bg-primary text-primary-foreground hover:bg-primary/90" asChild>
                 <a href="#apps">
                   <Smartphone className="mr-2 h-5 w-5" />
                   Explore Apps
                 </a>
               </Button>
-              <Button size="lg" variant="outline" className="rounded-full px-8 w-full sm:w-auto text-base h-14" asChild>
+              <Button size="lg" variant="outline" className="rounded-full px-8 w-full sm:w-auto text-base h-14 border-secondary text-secondary hover:bg-secondary/10" asChild>
                 <a href="#books">
                   <BookOpen className="mr-2 h-5 w-5" />
                   View Publications
@@ -428,14 +431,18 @@ export default function Home() {
         <div className="container mx-auto px-4 md:px-6">
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <div>
-              <a className="text-2xl font-heading font-bold tracking-tighter">
-                Elevate<span className="text-primary">360</span>Official
+              <a className="flex items-center gap-2 mb-4">
+                <img src={brandLogo} alt="Elevate360" className="h-8 w-auto" />
               </a>
               <p className="text-muted-foreground text-sm mt-2">
                 © {new Date().getFullYear()} Elevate360. All rights reserved.
               </p>
             </div>
             <div className="flex items-center space-x-6">
+              <a href="https://www.instagram.com/officialelevate360/" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors flex items-center gap-2">
+                <Instagram className="h-5 w-5" />
+                <span className="sr-only">Instagram</span>
+              </a>
               <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">Privacy</a>
               <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">Terms</a>
               <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">Contact</a>
