@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { Menu, X, ArrowRight, Smartphone, BookOpen, Star, Instagram } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ContactDialog } from "@/components/ContactDialog";
+import { NewsletterForm } from "@/components/NewsletterForm";
 
 import heroBg from "@/assets/images/hero-bg.png";
 import appBondedlove from "@/assets/images/app-bondedlove.png";
@@ -37,10 +39,8 @@ export default function Home() {
         }`}
       >
         <div className="container mx-auto px-4 md:px-6 flex justify-between items-center h-24 md:h-36">
-          <Link href="/">
-            <a className="flex items-center h-full max-w-[250px] md:max-w-[400px] -ml-16 md:-ml-32">
-              <img src={brandLogo} alt="Elevate360" className="h-full w-full object-contain object-left scale-125 origin-left" />
-            </a>
+          <Link href="/" className="flex items-center h-full max-w-[250px] md:max-w-[400px] -ml-16 md:-ml-32">
+            <img src={brandLogo} alt="Elevate360" className="h-full w-full object-contain object-left scale-125 origin-left" />
           </Link>
           <div className="hidden md:flex items-center space-x-8">
             <a href="#apps" className="text-sm font-medium hover:text-primary transition-colors">
@@ -49,7 +49,9 @@ export default function Home() {
             <a href="#books" className="text-sm font-medium hover:text-primary transition-colors">
               Publications
             </a>
-            <Button className="rounded-full px-6">Get in Touch</Button>
+            <ContactDialog>
+              <Button className="rounded-full px-6">Get in Touch</Button>
+            </ContactDialog>
           </div>
         </div>
       </nav>
@@ -428,11 +430,9 @@ export default function Home() {
             Ready to Elevate Your Experience?
           </h2>
           <p className="text-lg md:text-xl text-primary-foreground/80 max-w-2xl mx-auto mb-10">
-            Join thousands of users who are already transforming their daily lives with our applications and publications.
+            Subscribe to stay updated on new apps, book releases, and exclusive content from Elevate360.
           </p>
-          <Button size="lg" variant="secondary" className="rounded-full px-10 h-14 text-base font-bold text-primary">
-            Explore All Products
-          </Button>
+          <NewsletterForm />
         </div>
       </section>
 
@@ -441,9 +441,9 @@ export default function Home() {
         <div className="container mx-auto px-4 md:px-6">
           <div className="flex flex-col md:flex-row justify-between items-center gap-12">
             <div className="flex flex-col items-center md:items-start text-center md:text-left w-full md:w-1/3">
-              <a className="flex items-center w-full max-w-[300px] md:max-w-[450px] mb-6">
+              <div className="flex items-center w-full max-w-[300px] md:max-w-[450px] mb-6">
                 <img src={brandLogo} alt="Elevate360" className="w-full h-auto object-contain scale-110 origin-left" />
-              </a>
+              </div>
               <p className="text-muted-foreground text-sm mt-4">
                 © {new Date().getFullYear()} Elevate360. All rights reserved.
               </p>
