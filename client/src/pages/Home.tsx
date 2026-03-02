@@ -38,7 +38,7 @@ export default function Home() {
       >
         <div className="container mx-auto px-4 md:px-6 flex justify-between items-center h-24 md:h-36">
           <Link href="/">
-            <a className="flex items-center h-full max-w-[250px] md:max-w-[400px]">
+            <a className="flex items-center h-full max-w-[250px] md:max-w-[400px] -ml-16 md:-ml-32">
               <img src={brandLogo} alt="Elevate360" className="h-full w-full object-contain object-left scale-125 origin-left" />
             </a>
           </Link>
@@ -66,8 +66,8 @@ export default function Home() {
         </div>
         
         {/* Giant Overlapping Background Words */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full text-center z-0 pointer-events-none flex justify-center opacity-[0.03] dark:opacity-[0.02]">
-          <span className="text-[12rem] md:text-[20rem] lg:text-[28rem] font-heading font-black leading-none whitespace-nowrap text-primary select-none -tracking-[0.05em]">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full text-center z-0 pointer-events-none flex justify-center opacity-[0.04] dark:opacity-[0.03]">
+          <span className="text-[16rem] md:text-[28rem] lg:text-[40rem] font-heading font-black leading-none whitespace-nowrap text-primary select-none -tracking-[0.05em]">
             ELEVATE
           </span>
         </div>
@@ -79,12 +79,12 @@ export default function Home() {
               Innovating digital experiences
             </div>
             
-            <h1 className="text-6xl md:text-8xl lg:text-9xl font-heading font-extrabold tracking-tighter leading-[0.9] animate-in fade-in slide-in-from-bottom-8 duration-700 delay-100">
+            <h1 className="text-7xl md:text-9xl lg:text-[10rem] font-heading font-extrabold tracking-tighter leading-[0.85] animate-in fade-in slide-in-from-bottom-8 duration-700 delay-100">
               <span className="relative inline-block">
                 Empowering
-                <span className="absolute -bottom-4 -right-12 text-primary/20 text-8xl md:text-9xl -z-10 blur-[2px]">Empowering</span>
+                <span className="absolute -bottom-8 -right-16 text-primary/30 text-8xl md:text-[10rem] lg:text-[12rem] -z-10 blur-[3px]">Empowering</span>
               </span><br />
-              <span className="relative inline-block mt-2">
+              <span className="relative inline-block mt-4">
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-orange-400 to-primary">Lives</span>
               </span>
             </h1>
