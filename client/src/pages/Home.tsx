@@ -39,8 +39,8 @@ export default function Home() {
       <nav
         className={`fixed top-0 w-full z-50 transition-all duration-300 border-b ${
           isScrolled
-            ? "bg-background/95 backdrop-blur-xl border-border py-2 shadow-sm"
-            : "bg-transparent border-transparent py-4"
+            ? "bg-background/70 backdrop-blur-2xl border-white/10 py-2 shadow-[0_10px_40px_rgba(0,0,0,0.35)]"
+            : "bg-transparent border-white/5 py-4"
         }`}
       >
         <div className="container mx-auto px-4 md:px-6 flex justify-between items-center h-16 md:h-20">
@@ -108,7 +108,7 @@ export default function Home() {
               </span>
             </h1>
 
-            <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto leading-relaxed animate-in fade-in slide-in-from-bottom-8 duration-700 delay-200 font-light mt-8">
+            <p className="text-lg md:text-xl text-white/70 max-w-2xl mx-auto leading-[1.9] animate-in fade-in slide-in-from-bottom-8 duration-700 delay-200 font-light mt-8">
               Welcome to the official portfolio of Elevate360. Discover our suite of transformative
               mobile applications and insightful Amazon publications designed to elevate your
               everyday life.
@@ -133,7 +133,7 @@ export default function Home() {
       </section>
 
       {/* Apps Section */}
-      <section id="apps" className="py-24 bg-background border-t border-white/10">
+      <section id="apps" className="py-20 bg-background border-t border-white/10">
         <div className="container mx-auto px-4 md:px-6">
           <div className="text-center max-w-3xl mx-auto mb-16 space-y-4">
             <h2 className="text-3xl md:text-5xl font-heading font-bold tracking-tight">Our Digital Ecosystem</h2>
@@ -219,7 +219,7 @@ export default function Home() {
       </section>
 
       {/* Art Studio Section */}
-      <section id="art-studio" className="py-24">
+      <section id="art-studio" className="py-20 border-t border-white/10">
         <div className="container mx-auto px-4 md:px-6">
           <div className="relative rounded-[2.5rem] overflow-hidden bg-gradient-to-br from-amber-900/30 via-card to-card border border-amber-700/20 p-8 md:p-16">
             <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-gradient-to-bl from-primary/10 to-transparent rounded-full blur-3xl -translate-y-1/3 translate-x-1/3 pointer-events-none"></div>
@@ -282,7 +282,7 @@ export default function Home() {
       </section>
 
       {/* Publications Section */}
-      <section id="books" className="pt-24 pb-12">
+      <section id="books" className="py-20 border-t border-white/10">
         <div className="container mx-auto px-4 md:px-6">
           <div className="flex flex-col md:flex-row items-center gap-16 mb-16">
             <div className="w-full md:w-1/2 space-y-8">
@@ -354,7 +354,7 @@ export default function Home() {
       </section>
 
       {/* Featured Book Section - Healthwise */}
-      <section className="pb-24 pt-12">
+      <section className="py-16 border-t border-white/10">
         <div className="container mx-auto px-4 md:px-6">
           <div className="lux-card rounded-[2.5rem] p-8 md:p-12 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-gradient-to-br from-primary/5 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
@@ -429,7 +429,7 @@ export default function Home() {
       </section>
 
       {/* Featured Book Section - Together: Let There Be Love */}
-      <section className="pb-24 pt-12">
+      <section className="py-16 border-t border-white/10">
         <div className="container mx-auto px-4 md:px-6">
           <div className="lux-card rounded-[2.5rem] p-8 md:p-12 relative overflow-hidden">
             <div className="absolute top-0 left-0 w-[800px] h-[800px] bg-gradient-to-br from-rose-400/5 to-transparent rounded-full blur-3xl -translate-y-1/2 -translate-x-1/3"></div>
@@ -468,7 +468,7 @@ export default function Home() {
                   </h3>
                   <h4 className="text-3xl md:text-5xl font-heading font-extrabold tracking-tight mb-4">
                     Together: <br className="hidden md:block" />
-                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-rose-500 to-orange-400">
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-[#ffe3a6] to-primary">
                       Let There Be Love
                     </span>
                   </h4>
@@ -498,7 +498,7 @@ export default function Home() {
       </section>
 
       {/* Featured Book Section - One Clean Meal */}
-      <section className="pb-24 pt-12">
+      <section className="py-16 border-t border-white/10">
         <div className="container mx-auto px-4 md:px-6">
           <div className="lux-card rounded-[2.5rem] p-8 md:p-12 relative overflow-hidden">
             <div className="absolute bottom-0 right-0 w-[800px] h-[800px] bg-gradient-to-tl from-emerald-400/5 to-transparent rounded-full blur-3xl translate-y-1/3 translate-x-1/3"></div>
@@ -525,7 +525,7 @@ export default function Home() {
                   </h3>
                   <h4 className="text-3xl md:text-5xl font-heading font-extrabold tracking-tight mb-4">
                     One Clean Meal: <br className="hidden md:block" />
-                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-500 to-teal-500">
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#9bd7c5] via-[#ffe3a6] to-[#9bd7c5]">
                       A 7-Day Reset
                     </span>
                   </h4>
@@ -555,7 +555,7 @@ export default function Home() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-24 bg-gradient-to-b from-background to-[#070b13] border-t border-white/10">
+      <section className="py-20 bg-gradient-to-b from-background to-[#070b13] border-t border-white/10">
         <div className="container mx-auto px-4 md:px-6 text-center">
           <h2 className="text-3xl md:text-5xl font-heading font-bold tracking-tight mb-6 text-white">
             Ready to Elevate Your Experience?

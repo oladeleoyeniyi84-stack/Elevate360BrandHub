@@ -1,0 +1,109 @@
+Here’s Luxury Pack v1.1 — still small, but it will push it from “premium web app” to “luxury brand site”.
+
+Luxury Pack v1.1 (tiny changes, big lift)
+1) Make the nav feel like premium glass (not plain)
+
+In your <nav> class toggle, change the scrolled state from:
+
+bg-background/95 ... shadow-sm
+
+to:
+
+glass + subtle shadow
+
+Use this exact replacement in the scrolled branch:
+
+"bg-background/70 backdrop-blur-2xl border-white/10 py-2 shadow-[0_10px_40px_rgba(0,0,0,0.35)]"
+
+And in the unscrolled branch, give it a faint line so it feels intentional:
+
+"bg-transparent border-white/5 py-4"
+
+✅ Result: the header looks “designed” rather than “default sticky nav”.
+
+2) Normalize book title gradients (the “Together” one reads neon)
+
+Right now some gradients are:
+
+gold (good)
+
+rose/orange (looks a bit loud)
+
+emerald/teal (fine but can be softened)
+
+For luxury: keep gradients within the palette (gold shimmer + muted accent), not neon.
+
+Together title: replace:
+
+bg-gradient-to-r from-rose-500 to-orange-400
+
+with:
+
+bg-gradient-to-r from-primary via-[#ffe3a6] to-primary
+
+One Clean Meal title (optional): replace:
+
+from-emerald-500 to-teal-500
+
+with:
+
+from-[#9bd7c5] via-[#ffe3a6] to-[#9bd7c5]
+
+✅ Result: your brand gold stays dominant everywhere (luxury consistency).
+
+3) Make body text slightly more “editorial” (premium readability)
+
+For the main paragraph blocks (hero paragraph + publication intros), add:
+
+slightly smaller sizing on desktop
+
+higher line height
+
+softer color
+
+Example (hero paragraph):
+Change:
+
+text-xl md:text-2xl text-muted-foreground ... leading-relaxed
+
+To:
+
+text-lg md:text-xl text-white/70 ... leading-[1.9]
+
+✅ Result: reads like a luxury brand site, not a SaaS landing page.
+
+4) Replace the big section padding jumps with consistent rhythm
+
+Luxury sites feel calm because spacing is consistent.
+
+Set these section paddings to a consistent scale:
+
+py-24 → py-20
+
+pt-24 pb-12 → py-20
+
+book feature sections pb-24 pt-12 → py-16
+
+✅ Result: smoother scroll, less “chunky” layout.
+
+5) Add one micro-detail: hairline dividers between major sections
+
+Add border-t border-white/10 on:
+
+Art Studio section
+
+Publications section
+
+each featured book section
+
+This is a subtle “luxury editorial layout” cue.
+
+Quick verification checklist (what to look for after v1.1)
+
+Header looks glassy and expensive when scrolling ✅
+
+No section has a random pastel/flat feel ✅
+
+Gold is the “boss color” across the whole page ✅
+
+Text blocks look calmer, not oversized ✅
