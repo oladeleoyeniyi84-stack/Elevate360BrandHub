@@ -48,20 +48,20 @@
   --popover: 220 40% 14%;
   --popover-foreground: 45 30% 95%;
   
-  /* Gold Primary */
-  --primary: 43 65% 55%;
+  /* Champagne Gold Primary */
+  --primary: 43 55% 58%;
   --primary-foreground: 220 50% 10%;
   
-  /* Orange Secondary */
-  --secondary: 30 90% 55%;
+  /* Muted Bronze Secondary */
+  --secondary: 32 35% 46%;
   --secondary-foreground: 45 30% 95%;
   
-  /* Brown / Muted */
-  --muted: 30 40% 25%;
-  --muted-foreground: 45 20% 70%;
+  /* Deep Navy Muted */
+  --muted: 220 28% 18%;
+  --muted-foreground: 45 18% 74%;
   
-  /* Orange Accent */
-  --accent: 30 90% 55%;
+  /* Champagne Gold Accent */
+  --accent: 43 55% 58%;
   --accent-foreground: 220 50% 10%;
   
   --destructive: 0 84.2% 60.2%;
@@ -91,16 +91,16 @@
   --popover: 220 40% 14%;
   --popover-foreground: 45 30% 95%;
   
-  --primary: 43 65% 55%;
+  --primary: 43 55% 58%;
   --primary-foreground: 220 50% 10%;
   
-  --secondary: 30 90% 55%;
+  --secondary: 32 35% 46%;
   --secondary-foreground: 45 30% 95%;
   
-  --muted: 30 40% 25%;
-  --muted-foreground: 45 20% 70%;
+  --muted: 220 28% 18%;
+  --muted-foreground: 45 18% 74%;
   
-  --accent: 30 90% 55%;
+  --accent: 43 55% 58%;
   --accent-foreground: 220 50% 10%;
   
   --destructive: 0 62.8% 30.6%;
@@ -178,4 +178,43 @@ html {
     @apply inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold
       bg-[#F4A62A]/15 text-[#F4A62A] border border-[#F4A62A]/30;
   }
+}
+
+.luxury-bg {
+  position: relative;
+  overflow: hidden;
+}
+
+.luxury-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(1200px 700px at 18% 8%, rgba(244,166,42,0.10), transparent 60%),
+    radial-gradient(900px 600px at 82% 22%, rgba(255,255,255,0.06), transparent 55%),
+    radial-gradient(900px 700px at 50% 100%, rgba(0,0,0,0.55), transparent 60%);
+}
+
+.luxury-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.07;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.35'/%3E%3C/svg%3E");
+}
+
+.lux-card {
+  background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+  border: 1px solid rgba(255,255,255,0.10);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 30px 120px rgba(0,0,0,0.45);
+}
+
+.lux-panel {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
 }

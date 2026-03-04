@@ -19,8 +19,6 @@ import appVideoCrafter from "@/assets/images/app-videocrafter.png";
 import brandLogo from "@assets/Elevate360_Brand_Logo_1772418122164.png";
 import artStudioImg from "@assets/Elevate360Art_Studio_Presentation_1772460961759.png";
 
-const bookMockup =
-  "https://m.media-amazon.com/images/I/41Ih48BpUEL._SY445_SX342_FMwebp_.jpg";
 const featuredBook =
   "https://m.media-amazon.com/images/I/41Ih48BpUEL._SY445_SX342_FMwebp_.jpg";
 const bookTogether = "https://m.media-amazon.com/images/I/61XmcRNAyTL._SY466_.jpg";
@@ -36,7 +34,7 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-background text-foreground font-sans safe-bottom">
+    <div className="min-h-screen bg-background text-foreground font-sans safe-bottom luxury-bg">
       {/* Navigation */}
       <nav
         className={`fixed top-0 w-full z-50 transition-all duration-300 border-b ${
@@ -105,7 +103,7 @@ export default function Home() {
             <h1 className="text-5xl md:text-7xl lg:text-8xl font-heading font-extrabold tracking-tight leading-tight animate-in fade-in slide-in-from-bottom-8 duration-700 delay-100">
               Empowering Lives Through
               <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-orange-400 to-primary">
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-[#ffe3a6] to-primary">
                 Technology & Words
               </span>
             </h1>
@@ -146,12 +144,12 @@ export default function Home() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
             {/* Bondedlove */}
-            <div className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-2 h-full flex flex-col">
-              <div className="aspect-[4/3] w-full overflow-hidden bg-rose-50 flex items-center justify-center p-8">
+            <div className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-1 h-full flex flex-col">
+              <div className="aspect-[4/3] w-full overflow-hidden lux-panel flex items-center justify-center p-8">
                 <img
                   src={appBondedlove}
                   alt="Bondedlove App"
-                  className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-105"
+                  className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-[1.02]"
                 />
               </div>
               <div className="p-8 flex flex-col flex-1">
@@ -170,12 +168,12 @@ export default function Home() {
             </div>
 
             {/* Healthwisesupport */}
-            <div className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-2 h-full flex flex-col">
-              <div className="aspect-[4/3] w-full overflow-hidden bg-teal-50 flex items-center justify-center p-8">
+            <div className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-1 h-full flex flex-col">
+              <div className="aspect-[4/3] w-full overflow-hidden lux-panel flex items-center justify-center p-8">
                 <img
                   src={appHealthwise}
                   alt="Healthwisesupport App"
-                  className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-105"
+                  className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-[1.02]"
                 />
               </div>
               <div className="p-8 flex flex-col flex-1">
@@ -194,12 +192,12 @@ export default function Home() {
             </div>
 
             {/* Video Crafter */}
-            <div className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-2 h-full flex flex-col">
-              <div className="aspect-[4/3] w-full overflow-hidden bg-indigo-50 flex items-center justify-center p-8">
+            <div className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-1 h-full flex flex-col">
+              <div className="aspect-[4/3] w-full overflow-hidden lux-panel flex items-center justify-center p-8">
                 <img
                   src={appVideoCrafter}
                   alt="Video Crafter App"
-                  className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-105"
+                  className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-[1.02]"
                 />
               </div>
               <div className="p-8 flex flex-col flex-1">
@@ -358,7 +356,7 @@ export default function Home() {
       {/* Featured Book Section - Healthwise */}
       <section className="pb-24 pt-12">
         <div className="container mx-auto px-4 md:px-6">
-          <div className="bg-card border rounded-[2.5rem] p-8 md:p-12 shadow-sm relative overflow-hidden">
+          <div className="lux-card rounded-[2.5rem] p-8 md:p-12 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-gradient-to-br from-primary/5 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
 
             <div className="relative z-10 flex flex-col md:flex-row items-center gap-12 lg:gap-20">
@@ -433,7 +431,7 @@ export default function Home() {
       {/* Featured Book Section - Together: Let There Be Love */}
       <section className="pb-24 pt-12">
         <div className="container mx-auto px-4 md:px-6">
-          <div className="bg-rose-50/50 dark:bg-rose-950/10 border border-rose-100 dark:border-rose-900 rounded-[2.5rem] p-8 md:p-12 shadow-sm relative overflow-hidden">
+          <div className="lux-card rounded-[2.5rem] p-8 md:p-12 relative overflow-hidden">
             <div className="absolute top-0 left-0 w-[800px] h-[800px] bg-gradient-to-br from-rose-400/5 to-transparent rounded-full blur-3xl -translate-y-1/2 -translate-x-1/3"></div>
 
             <div className="relative z-10 flex flex-col md:flex-row-reverse items-center gap-12 lg:gap-20">
@@ -502,7 +500,7 @@ export default function Home() {
       {/* Featured Book Section - One Clean Meal */}
       <section className="pb-24 pt-12">
         <div className="container mx-auto px-4 md:px-6">
-          <div className="bg-emerald-50/50 dark:bg-emerald-950/10 border border-emerald-100 dark:border-emerald-900 rounded-[2.5rem] p-8 md:p-12 shadow-sm relative overflow-hidden">
+          <div className="lux-card rounded-[2.5rem] p-8 md:p-12 relative overflow-hidden">
             <div className="absolute bottom-0 right-0 w-[800px] h-[800px] bg-gradient-to-tl from-emerald-400/5 to-transparent rounded-full blur-3xl translate-y-1/3 translate-x-1/3"></div>
 
             <div className="relative z-10 flex flex-col md:flex-row items-center gap-12 lg:gap-20">
