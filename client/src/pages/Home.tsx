@@ -39,7 +39,7 @@ export default function Home() {
       <nav
         className={`fixed top-0 w-full z-50 transition-all duration-300 border-b ${
           isScrolled
-            ? "bg-background/70 backdrop-blur-2xl border-white/10 py-2 shadow-[0_10px_40px_rgba(0,0,0,0.35)]"
+            ? "bg-gradient-to-b from-background/80 to-background/55 backdrop-blur-2xl border-white/10 py-2 shadow-[0_10px_40px_rgba(0,0,0,0.35)]"
             : "bg-transparent border-white/5 py-4"
         }`}
       >
@@ -144,12 +144,12 @@ export default function Home() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
             {/* Bondedlove */}
-            <div className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-1 h-full flex flex-col">
+            <div className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-[2px] h-full flex flex-col">
               <div className="aspect-[4/3] w-full overflow-hidden lux-panel flex items-center justify-center p-8">
                 <img
                   src={appBondedlove}
                   alt="Bondedlove App"
-                  className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-[1.02]"
+                  className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-[1.015]"
                 />
               </div>
               <div className="p-8 flex flex-col flex-1">
@@ -168,12 +168,12 @@ export default function Home() {
             </div>
 
             {/* Healthwisesupport */}
-            <div className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-1 h-full flex flex-col">
+            <div className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-[2px] h-full flex flex-col">
               <div className="aspect-[4/3] w-full overflow-hidden lux-panel flex items-center justify-center p-8">
                 <img
                   src={appHealthwise}
                   alt="Healthwisesupport App"
-                  className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-[1.02]"
+                  className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-[1.015]"
                 />
               </div>
               <div className="p-8 flex flex-col flex-1">
@@ -192,12 +192,12 @@ export default function Home() {
             </div>
 
             {/* Video Crafter */}
-            <div className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-1 h-full flex flex-col">
+            <div className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-[2px] h-full flex flex-col">
               <div className="aspect-[4/3] w-full overflow-hidden lux-panel flex items-center justify-center p-8">
                 <img
                   src={appVideoCrafter}
                   alt="Video Crafter App"
-                  className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-[1.02]"
+                  className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-[1.015]"
                 />
               </div>
               <div className="p-8 flex flex-col flex-1">
