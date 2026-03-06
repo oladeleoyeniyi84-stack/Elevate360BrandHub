@@ -333,7 +333,7 @@ export default function Home() {
 
               <div className="pt-4">
                 <a
-                  href="https://kdp.amazon.com/en_US/bookshelf?ref_=kdp_kdp_TAC_TN_bs"
+                  href="https://www.amazon.com/stores/Oladele-Oyeniyi/author/B0GCMSCWPV?ref=ap_rdr&shoppingPortalEnabled=true&ccs_id=6b61ffb3-1a86-4ecc-a3b9-bcb63f0525ae"
                   target="_blank"
                   rel="noopener noreferrer"
                   data-testid="link-amazon-author-central"
