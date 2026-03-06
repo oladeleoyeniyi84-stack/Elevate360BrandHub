@@ -1,0 +1,124 @@
+Replace your 3 app cards with this block (drop-in)
+
+Paste this inside your Apps grid (replacing the existing Bondedlove/Healthwise/Video Crafter card JSX):
+
+{/* Bondedlove */}
+<a
+  href="https://bondedlove.elevate360official.com"
+  target="_blank"
+  rel="noopener noreferrer"
+  aria-label="Open Bondedlove web app"
+  className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-[2px] h-full flex flex-col cursor-pointer"
+>
+  <div className="aspect-[4/3] w-full overflow-hidden lux-panel flex items-center justify-center p-8">
+    <img
+      src={appBondedlove}
+      alt="Bondedlove App"
+      className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-[1.015]"
+    />
+  </div>
+
+  <div className="p-8 flex flex-col flex-1">
+    <div className="w-12 h-12 rounded-2xl bg-rose-100 flex items-center justify-center mb-6">
+      <div className="w-6 h-6 bg-rose-500 rounded-full"></div>
+    </div>
+
+    <h3 className="text-2xl font-bold font-heading mb-3">Bondedlove</h3>
+
+    <p className="text-muted-foreground mb-6 line-clamp-3">
+      A revolutionary dating application focused on fostering genuine, lasting connections.
+      Find your perfect match through meaningful interactions.
+    </p>
+
+    <span className="btn-tertiary mt-auto">
+      Open app <ArrowRight className="h-4 w-4" />
+    </span>
+  </div>
+</a>
+
+{/* Healthwisesupport */}
+<a
+  href="https://health.elevate360official.com"
+  target="_blank"
+  rel="noopener noreferrer"
+  aria-label="Open Healthwisesupport web app"
+  className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-[2px] h-full flex flex-col cursor-pointer"
+>
+  <div className="aspect-[4/3] w-full overflow-hidden lux-panel flex items-center justify-center p-8">
+    <img
+      src={appHealthwise}
+      alt="Healthwisesupport App"
+      className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-[1.015]"
+    />
+  </div>
+
+  <div className="p-8 flex flex-col flex-1">
+    <div className="w-12 h-12 rounded-2xl bg-teal-100 flex items-center justify-center mb-6">
+      <div className="w-6 h-6 bg-teal-500 rounded-full"></div>
+    </div>
+
+    <h3 className="text-2xl font-bold font-heading mb-3">Healthwisesupport</h3>
+
+    <p className="text-muted-foreground mb-6 line-clamp-3">
+      Your comprehensive health wellness companion. Access medical support, track your wellness
+      journey, and connect with healthcare professionals.
+    </p>
+
+    <span className="btn-tertiary mt-auto">
+      Open app <ArrowRight className="h-4 w-4" />
+    </span>
+  </div>
+</a>
+
+{/* Video Crafter */}
+<a
+  href="https://crafter.elevate360official.com"
+  target="_blank"
+  rel="noopener noreferrer"
+  aria-label="Open Video Crafter web app"
+  className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-[2px] h-full flex flex-col cursor-pointer"
+>
+  <div className="aspect-[4/3] w-full overflow-hidden lux-panel flex items-center justify-center p-8">
+    <img
+      src={appVideoCrafter}
+      alt="Video Crafter App"
+      className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-[1.015]"
+    />
+  </div>
+
+  <div className="p-8 flex flex-col flex-1">
+    <div className="w-12 h-12 rounded-2xl bg-indigo-100 flex items-center justify-center mb-6">
+      <div className="w-6 h-6 bg-indigo-500 rounded-full"></div>
+    </div>
+
+    <h3 className="text-2xl font-bold font-heading mb-3">Video Crafter</h3>
+
+    <p className="text-muted-foreground mb-6 line-clamp-3">
+      Unleash your creativity with our intuitive video editing suite. Professional-grade tools made
+      accessible for creators of all levels.
+    </p>
+
+    <span className="btn-tertiary mt-auto">
+      Open app <ArrowRight className="h-4 w-4" />
+    </span>
+  </div>
+</a>
+Why this works
+
+Entire card is clickable ✅
+
+Opens app in new tab ✅
+
+No invalid nested <a> tags ✅
+
+Still shows a CTA at the bottom ✅
+
+Important DNS/SSL check (so the links actually load)
+
+Make sure each subdomain is live with HTTPS:
+
+bondedlove.elevate360official.com
+
+health.elevate360official.com
+
+crafter.elevate360official.com

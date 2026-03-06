@@ -144,7 +144,13 @@ export default function Home() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
             {/* Bondedlove */}
-            <div className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-[2px] h-full flex flex-col">
+            <a
+              href="https://bondedlove.elevate360official.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Open Bondedlove web app"
+              className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-[2px] h-full flex flex-col cursor-pointer"
+            >
               <div className="aspect-[4/3] w-full overflow-hidden lux-panel flex items-center justify-center p-8">
                 <img
                   src={appBondedlove}
@@ -161,14 +167,20 @@ export default function Home() {
                   A revolutionary dating application focused on fostering genuine, lasting connections.
                   Find your perfect match through meaningful interactions.
                 </p>
-                <a href="#" className="btn-tertiary mt-auto">
-                  Learn more <ArrowRight className="h-4 w-4" />
-                </a>
+                <span className="btn-tertiary mt-auto">
+                  Open app <ArrowRight className="h-4 w-4" />
+                </span>
               </div>
-            </div>
+            </a>
 
             {/* Healthwisesupport */}
-            <div className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-[2px] h-full flex flex-col">
+            <a
+              href="https://health.elevate360official.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Open Healthwisesupport web app"
+              className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-[2px] h-full flex flex-col cursor-pointer"
+            >
               <div className="aspect-[4/3] w-full overflow-hidden lux-panel flex items-center justify-center p-8">
                 <img
                   src={appHealthwise}
@@ -185,14 +197,20 @@ export default function Home() {
                   Your comprehensive health wellness companion. Access medical support, track your wellness
                   journey, and connect with healthcare professionals.
                 </p>
-                <a href="#" className="btn-tertiary mt-auto">
-                  Learn more <ArrowRight className="h-4 w-4" />
-                </a>
+                <span className="btn-tertiary mt-auto">
+                  Open app <ArrowRight className="h-4 w-4" />
+                </span>
               </div>
-            </div>
+            </a>
 
             {/* Video Crafter */}
-            <div className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-[2px] h-full flex flex-col">
+            <a
+              href="https://crafter.elevate360official.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Open Video Crafter web app"
+              className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-[2px] h-full flex flex-col cursor-pointer"
+            >
               <div className="aspect-[4/3] w-full overflow-hidden lux-panel flex items-center justify-center p-8">
                 <img
                   src={appVideoCrafter}
@@ -209,11 +227,11 @@ export default function Home() {
                   Unleash your creativity with our intuitive video editing suite. Professional-grade tools made
                   accessible for creators of all levels.
                 </p>
-                <a href="#" className="btn-tertiary mt-auto">
-                  Learn more <ArrowRight className="h-4 w-4" />
-                </a>
+                <span className="btn-tertiary mt-auto">
+                  Open app <ArrowRight className="h-4 w-4" />
+                </span>
               </div>
-            </div>
+            </a>
           </div>
         </div>
       </section>
