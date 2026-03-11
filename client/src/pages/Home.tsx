@@ -7,6 +7,7 @@ import {
   Instagram,
   Youtube,
   Palette,
+  Music,
   ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -293,6 +294,96 @@ export default function Home() {
                   className="w-full h-auto rounded-2xl shadow-2xl"
                   data-testid="img-art-studio"
                 />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Music Section */}
+      <section id="music" className="py-20 border-t border-white/10">
+        <div className="container mx-auto px-4 md:px-6">
+          <div className="relative rounded-[2.5rem] overflow-hidden bg-gradient-to-br from-violet-900/30 via-card to-card border border-violet-700/20 p-8 md:p-16">
+            <div className="absolute top-0 left-0 w-[600px] h-[600px] bg-gradient-to-br from-violet-500/10 to-transparent rounded-full blur-3xl -translate-y-1/3 -translate-x-1/3 pointer-events-none"></div>
+            <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-gradient-to-tl from-primary/8 to-transparent rounded-full blur-3xl translate-y-1/3 translate-x-1/3 pointer-events-none"></div>
+            <div className="relative z-10 flex flex-col md:flex-row items-center gap-12 lg:gap-20">
+              <div className="w-full md:w-1/2 space-y-6">
+                <div className="inline-flex items-center rounded-full border border-violet-400/30 bg-violet-500/10 px-4 py-1.5 text-sm font-medium text-violet-300">
+                  <Music className="h-4 w-4 mr-2" />
+                  Now on Audiomack
+                </div>
+                <h2 className="text-3xl md:text-5xl font-heading font-bold tracking-tight">
+                  Elevate360 <br />
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 via-[#ffe3a6] to-violet-400">
+                    Music
+                  </span>
+                </h2>
+                <p className="text-lg text-muted-foreground leading-relaxed">
+                  The sound of energy, elevation, and creative expression. Built under the Elevate360 brand, we release
+                  vibe-rich music crafted for inspiration, momentum, and atmosphere. Press play and elevate your world.
+                </p>
+                <ul className="space-y-3">
+                  {[
+                    "Afrobeat & Amapiano vibes",
+                    "Original productions & beats",
+                    "Crafted for energy & inspiration",
+                    "New tracks released regularly",
+                  ].map((item, i) => (
+                    <li key={i} className="flex items-center text-foreground font-medium">
+                      <div className="mr-3 h-6 w-6 rounded-full bg-violet-500/10 flex items-center justify-center text-violet-300 text-sm">
+                        ✓
+                      </div>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+                <div className="pt-4">
+                  <a
+                    href="https://audiomack.com/elevate360music"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-testid="link-audiomack"
+                    className="btn-primary shadow-lg hover:shadow-xl"
+                  >
+                    <ExternalLink className="h-5 w-5" />
+                    Listen on Audiomack
+                  </a>
+                </div>
+              </div>
+
+              <div className="w-full md:w-1/2 flex justify-center">
+                <div className="relative w-full max-w-md">
+                  <div className="lux-card rounded-3xl p-8 space-y-6">
+                    <div className="flex items-center gap-4">
+                      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500 to-primary flex items-center justify-center">
+                        <Music className="h-8 w-8 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-bold font-heading">Elevate360 Music</h3>
+                        <p className="text-sm text-muted-foreground">@elevate360music</p>
+                      </div>
+                    </div>
+                    <div className="space-y-4">
+                      {[
+                        { title: "Amapiano Groove", artist: "weareelevate360" },
+                        { title: "Elevate360AfroBeatVibeTrack", artist: "Elevate360" },
+                      ].map((track, i) => (
+                        <div key={i} className="flex items-center gap-4 p-3 rounded-xl bg-white/5 hover:bg-white/8 transition-colors">
+                          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-500/30 to-primary/30 flex items-center justify-center flex-shrink-0">
+                            <Music className="h-5 w-5 text-primary" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold truncate">{track.title}</p>
+                            <p className="text-xs text-muted-foreground">{track.artist}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground text-center pt-2">
+                      Top Tracks on Audiomack
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -634,6 +725,17 @@ export default function Home() {
               >
                 <Palette className="h-5 w-5" />
                 <span className="sr-only">Etsy</span>
+              </a>
+
+              <a
+                href="https://audiomack.com/elevate360music"
+                target="_blank"
+                rel="noopener noreferrer"
+                data-testid="link-audiomack"
+                className="text-muted-foreground hover:text-primary transition-colors flex items-center gap-2"
+              >
+                <Music className="h-5 w-5" />
+                <span className="sr-only">Audiomack</span>
               </a>
 
               <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
