@@ -324,9 +324,11 @@ export default function Home() {
                 </p>
                 <ul className="space-y-3">
                   {[
-                    "Afrobeat & Amapiano vibes",
-                    "Original productions & beats",
-                    "Crafted for energy & inspiration",
+                    "Afrobeat, Amapiano & Highlife grooves",
+                    "R&B, Neo-Soul & Chill vibes",
+                    "Hip-Hop, Trap & Lo-Fi beats",
+                    "Electronic, House & Dance energy",
+                    "Original productions for every mood",
                     "New tracks released regularly",
                   ].map((item, i) => (
                     <li key={i} className="flex items-center text-foreground font-medium">
