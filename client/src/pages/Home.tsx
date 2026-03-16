@@ -740,15 +740,11 @@ export default function Home() {
                 <span className="sr-only">Audiomack</span>
               </a>
 
-              <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
-                Privacy
-              </a>
-              <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
-                Terms
-              </a>
-              <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
-                Contact
-              </a>
+              <ContactDialog>
+                <button className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+                  Contact
+                </button>
+              </ContactDialog>
             </div>
           </div>
         </div>
