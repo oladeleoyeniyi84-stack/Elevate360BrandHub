@@ -42,6 +42,11 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 - `POST /api/contact` - Submit contact form
 - `POST /api/newsletter` - Subscribe to newsletter
 
+## Custom Domain
+- Canonical host: `www.elevate360official.com` (set via `CANONICAL_HOST` env var)
+- `server/canonicalRedirect.ts` middleware redirects non-canonical hosts and enforces HTTPS via 301 redirects
+- Dev bypass for localhost, 127.0.0.1, and .replit.dev domains
+
 ## File Structure
 - `client/src/pages/Home.tsx` - Main landing page
 - `client/src/components/ContactDialog.tsx` - Contact form dialog
@@ -50,6 +55,7 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 - `server/routes.ts` - API endpoints
 - `server/storage.ts` - Database CRUD operations
 - `server/db.ts` - Database connection
+- `server/canonicalRedirect.ts` - Canonical host redirect middleware
 
 ## External Links
 - Amazon Books: B0GMBNPZC9, B0G5DWG61V, B0FSDTPVJC
