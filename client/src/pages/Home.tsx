@@ -45,7 +45,7 @@ export default function Home() {
         }`}
       >
         <div className="container mx-auto px-4 md:px-6 flex justify-between items-center h-16 md:h-20">
-          <Link href="/" className="flex items-center">
+          <Link href="/" data-testid="link-nav-logo" className="flex items-center">
             <img
               src={brandLogo}
               alt="Elevate360"
@@ -88,7 +88,7 @@ export default function Home() {
           <div className="absolute inset-0 bg-gradient-to-b from-background/50 via-background to-background"></div>
         </div>
 
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full text-center z-0 pointer-events-none flex justify-center opacity-[0.04] dark:opacity-[0.03]">
+        <div aria-hidden="true" className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full text-center z-0 pointer-events-none flex justify-center opacity-[0.04] dark:opacity-[0.03]">
           <span className="text-[16rem] md:text-[28rem] lg:text-[40rem] font-heading font-black leading-none whitespace-nowrap text-primary select-none -tracking-[0.05em]">
             ELEVATE
           </span>
@@ -293,6 +293,7 @@ export default function Home() {
                   alt="Elevate360 Art Studio - Art speaks where words fall short"
                   className="w-full h-auto rounded-2xl shadow-2xl"
                   data-testid="img-art-studio"
+                  loading="lazy"
                 />
               </div>
             </div>
@@ -443,17 +444,20 @@ export default function Home() {
                   src={featuredBook}
                   alt="Healthwise: Stay Healthy"
                   className="w-full h-auto rounded-xl shadow-xl transform translate-y-8 hover:-translate-y-2 transition-transform duration-500"
+                  loading="lazy"
                 />
                 <div className="space-y-4">
                   <img
                     src={bookTogether}
                     alt="Together: Let There Be Love"
                     className="w-full h-auto rounded-xl shadow-xl hover:-translate-y-2 transition-transform duration-500"
+                    loading="lazy"
                   />
                   <img
                     src={bookOneCleanMeal}
                     alt="One Clean Meal"
                     className="w-full h-auto rounded-xl shadow-xl hover:-translate-y-2 transition-transform duration-500"
+                    loading="lazy"
                   />
                 </div>
               </div>
@@ -478,6 +482,7 @@ export default function Home() {
                     src={featuredBook}
                     alt="Featured Book Cover"
                     className="relative w-64 md:w-72 h-auto rounded-md shadow-2xl transition-transform duration-700 group-hover:scale-[1.02] group-hover:-rotate-2"
+                    loading="lazy"
                   />
                   <div className="absolute -top-4 -right-4">
                     <span className="badge-gold shadow-lg transform rotate-12 inline-block">Featured Release</span>
@@ -528,9 +533,10 @@ export default function Home() {
                     href="https://www.amazon.com/dp/B0GMBNPZC9"
                     target="_blank"
                     rel="noopener noreferrer"
+                    data-testid="link-preview-healthwise"
                     className="btn-secondary"
                   >
-                    Read Sample Chapter
+                    Preview on Amazon
                   </a>
                 </div>
               </div>
@@ -553,6 +559,7 @@ export default function Home() {
                     src={bookTogether}
                     alt="Together: Let There Be Love Cover"
                     className="relative w-64 md:w-72 h-auto rounded-md shadow-2xl transition-transform duration-700 group-hover:scale-[1.02] group-hover:rotate-2"
+                    loading="lazy"
                   />
                   <div className="absolute -top-4 -left-4">
                     <span className="badge-gold shadow-lg transform -rotate-12 inline-block">Reader Favorite</span>
@@ -622,6 +629,7 @@ export default function Home() {
                     src={bookOneCleanMeal}
                     alt="One Clean Meal Cover"
                     className="relative w-64 md:w-72 h-auto rounded-md shadow-2xl transition-transform duration-700 group-hover:scale-[1.02] group-hover:-rotate-2"
+                    loading="lazy"
                   />
                   <div className="absolute -bottom-4 -right-4">
                     <span className="badge-gold shadow-lg transform rotate-6 inline-block">New Release</span>
@@ -733,7 +741,7 @@ export default function Home() {
                 href="https://audiomack.com/elevate360music"
                 target="_blank"
                 rel="noopener noreferrer"
-                data-testid="link-audiomack"
+                data-testid="link-audiomack-footer"
                 className="text-muted-foreground hover:text-primary transition-colors flex items-center gap-2"
               >
                 <Music className="h-5 w-5" />
@@ -741,7 +749,7 @@ export default function Home() {
               </a>
 
               <ContactDialog>
-                <button className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+                <button data-testid="button-footer-contact" className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
                   Contact
                 </button>
               </ContactDialog>
