@@ -1,0 +1,3321 @@
+Here’s what “fully AI powered end-to-end” should mean for www.elevate360official.com
+:
+
+What the finished hub should do
+
+The site should act as one intelligent layer across your entire ecosystem: brand content, lead capture, services, apps, media, e-commerce, support, and automation. On the backend, the AI layer should be able to reason over your files and brand knowledge, use tools, search where needed, and generate text, images, and workflows through a unified API pattern. OpenAI’s current platform supports this kind of architecture through the Responses API, built-in tools, file search, web search, image generation, and embeddings/vector retrieval.
+
+The Elevate360 AI stack I recommend
+1. AI front door on the website
+
+Your homepage should immediately include an Elevate360 AI Concierge that can:
+
+answer questions about Elevate360
+
+guide visitors to services, apps, music, content, and contact pages
+
+recommend the right funnel based on intent
+
+collect lead details
+
+book consultations
+
+route users into product-specific journeys
+
+This is the conversion engine. Instead of static navigation only, users talk to the brand.
+
+2. Brand knowledge brain
+
+Create a private knowledge base containing:
+
+Elevate360 brand story
+
+service descriptions
+
+pricing
+
+media kit
+
+app info for BondedLove, Healthwise, Together, etc.
+
+FAQs
+
+founder bio
+
+policy pages
+
+case studies
+
+pitch decks
+
+ebooks
+
+testimonials
+
+That knowledge base should be indexed for semantic retrieval using file search and/or embeddings so the assistant answers from your actual brand materials rather than generic guesses. OpenAI’s docs explicitly support file retrieval and embeddings for this kind of semantic search flow.
+
+3. AI content engine
+
+The hub should generate and manage:
+
+social media captions
+
+campaign copy
+
+blog posts
+
+landing pages
+
+ad concepts
+
+email sequences
+
+product descriptions
+
+video prompts/storyboards
+
+image generation briefs
+
+OpenAI’s current API supports both multimodal generation and image generation/editing workflows, which makes this practical inside one brand hub.
+
+4. AI media studio
+
+For Elevate360 specifically, this should become a branded creation studio where you can:
+
+draft a post
+
+generate the campaign caption
+
+generate the matching image prompt
+
+create voiceover script
+
+create video scene prompts
+
+export platform-specific versions for Instagram, LinkedIn, X, YouTube, Audiomack, and blog
+
+This is where the brand hub becomes operational, not just informational.
+
+5. AI sales and monetization engine
+
+Every major page should feed into AI-assisted monetization:
+
+intelligent lead qualification
+
+consultation booking
+
+upsell and cross-sell logic
+
+app waitlist collection
+
+newsletter capture
+
+digital product recommendations
+
+premium membership flows
+
+Stripe checkout triggers
+
+abandoned inquiry follow-up
+
+The AI assistant should classify each visitor as one of these: prospect, collaborator, listener, app user, buyer, media contact, sponsor, or support request.
+
+6. AI CRM and automation layer
+
+When a user interacts with the hub, the system should automatically:
+
+capture the lead
+
+tag intent
+
+summarize the conversation
+
+send it to CRM / Airtable / Notion / database
+
+trigger email follow-up
+
+create tasks internally
+
+notify you for high-intent leads
+
+7. AI support and customer success
+
+For your apps and products, the hub should include:
+
+help center chatbot
+
+troubleshooting flows
+
+account guidance
+
+feature education
+
+escalation routing
+
+refund/contact workflow
+
+onboarding assistant
+
+Best architecture for Elevate360Official
+
+A strong production setup would look like this:
+
+Frontend
+
+Next.js or your current React stack for SEO + dynamic UX
+
+branded AI chat UI
+
+authenticated creator dashboard
+
+CMS-backed pages
+
+Backend
+
+Node/TypeScript API layer
+
+OpenAI Responses API for orchestration
+
+vector/file retrieval layer for brand knowledge
+
+PostgreSQL for users, leads, sessions, content logs
+
+object storage for PDFs, media, brand assets
+
+webhook/event system for automations
+
+AI subsystems
+
+brand concierge assistant
+
+content generation assistant
+
+support assistant
+
+analytics summarizer
+
+internal admin assistant
+
+The Responses API is specifically positioned as a unified interface for multi-turn, tool-using, multimodal AI apps, which makes it a sensible foundation for this architecture.
+
+The 5 most important AI modules to build first
+Module 1: Elevate360 AI Concierge
+
+This is the public-facing assistant on the homepage and across service pages.
+
+Module 2: Brand Knowledge Retrieval
+
+Upload your brand documents and make the assistant answer from them.
+
+Module 3: Creator Dashboard
+
+A private dashboard where you can generate:
+
+captions
+
+articles
+
+campaign ideas
+
+image prompts
+
+video prompts
+
+email copy
+
+Module 4: Lead Intelligence
+
+Every inquiry gets scored and routed automatically.
+
+Module 5: Analytics + Insight Agent
+
+AI summarizes:
+
+top pages
+
+top questions
+
+lead quality
+
+best-performing offers
+
+trending content topics
+
+User journeys the hub should support
+
+A visitor should be able to land on the site and say things like:
+
+“I want to work with Elevate360”
+
+“Show me your apps”
+
+“Help me create a social media campaign”
+
+“What is BondedLove?”
+
+“Book a consultation”
+
+“Show me music/content from the brand”
+
+“Which service fits my business?”
+
+“I need support”
+
+The AI should then take action, not just reply.
+
+E2E workflow example
+
+A complete end-to-end visitor journey should work like this:
+
+Discover → Converse → Qualify → Recommend → Capture → Convert → Follow up
+
+Example:
+
+Visitor lands on homepage
+
+AI assistant asks what they need
+
+Visitor says they want branding support
+
+AI qualifies budget, timeline, goals
+
+AI recommends the right Elevate360 package
+
+AI books a call or sends them to checkout
+
+CRM records the lead
+
+Automated email sequence starts
+
+Internal dashboard logs the conversation summary
+
+That is what “fully AI powered E2E” looks like in practice.
+
+What I would add to the site pages
+Homepage
+
+hero with AI concierge
+
+quick entry prompts
+
+dynamic featured services/apps
+
+proof/social proof
+
+CTA to consult, create, or explore
+
+Services
+
+AI package recommender
+
+smart proposal intake form
+
+Apps
+
+interactive app discovery
+
+waitlist + beta routing
+
+AI explainer for each app
+
+Media / Content
+
+AI-powered content explorer
+
+search by topic, platform, mood, or campaign
+
+Contact
+
+conversational intake instead of plain form
+
+auto-routing by inquiry type
+
+Admin dashboard
+
+content studio
+
+lead inbox
+
+AI analytics
+
+knowledge base manager
+
+automation logs
+
+Recommended phases
+Phase 1 — AI foundation
+
+add AI concierge
+
+build brand knowledge base
+
+connect lead capture
+
+deploy admin content studio
+
+Phase 2 — conversion automation
+
+booking integration
+
+CRM sync
+
+email automation
+
+lead scoring
+
+smart recommendations
+
+Phase 3 — media and app ecosystem
+
+AI content studio
+
+app support assistant
+
+campaign generator
+
+multi-channel publishing workflow
+
+Phase 4 — intelligence layer
+
+analytics summaries
+
+revenue insights
+
+content performance recommendations
+
+predictive lead/value scoring
+
+What “done right” would achieve for you
+
+When complete, Elevate360Official becomes:
+
+your brand headquarters
+
+your AI creative studio
+
+your sales funnel
+
+your support portal
+
+your app ecosystem gateway
+
+your content engine
+
+your automation layer
+
+So yes — the site can absolutely become fully AI powered end-to-end. The right implementation is not “add one chatbot.” It is to make AI the operating layer across navigation, content, sales, support, analytics, and creation.
+
+My direct recommendation
+
+For Elevate360, I would build this around three pillars:
+
+1. Public AI Concierge
+for visitors and conversion
+
+2. Private AI Creator Studio
+for your brand content, campaigns, prompts, captions, and assets
+
+3. AI Operations Layer
+for CRM, lead routing, automation, support, and analytics
+
+If you want, I’ll turn this into a 
+full implementation blueprint for Replit/production, including:
+
+site architecture
+
+feature map by page
+
+database schema
+
+AI tools map
+
+and the 
+exact rollout order for elevate360official.com
+
+Proceed 
+
+Below is the production blueprint to make Elevate360Official Brand Hub fully AI-powered end-to-end.
+
+Elevate360Official AI E2E Blueprint
+1) Core objective
+
+Turn www.elevate360official.com
+ into a unified AI platform that can:
+
+attract visitors
+
+understand intent
+
+answer from your brand knowledge
+
+recommend services, apps, and content
+
+generate branded assets
+
+capture and qualify leads
+
+automate follow-up
+
+support users
+
+give you an internal creator/admin workspace
+
+This should function as a brand hub + AI concierge + creator studio + ops center.
+
+2) Recommended stack for Replit / production
+Frontend
+
+React + Vite or Next.js
+
+Tailwind CSS
+
+Framer Motion for premium animation
+
+Responsive chat UI
+
+Role-based dashboard UI
+
+Backend
+
+Node.js + Express
+
+TypeScript
+
+REST + webhook endpoints
+
+Server-side AI orchestration layer
+
+Database
+
+PostgreSQL
+
+Drizzle ORM or Prisma
+
+Redis optional for caching/chat session speed
+
+AI layer
+
+OpenAI API for:
+
+conversational assistant
+
+brand knowledge retrieval
+
+text generation
+
+image prompt generation
+
+structured outputs
+
+workflow reasoning
+
+Storage
+
+Object storage / cloud bucket for:
+
+PDFs
+
+ebooks
+
+brand docs
+
+media kit
+
+logos
+
+screenshots
+
+campaign files
+
+Integrations
+
+Stripe
+
+Calendly or native booking
+
+Gmail / transactional email provider
+
+Meta/IG/X/LinkedIn publishing later
+
+Airtable/Notion optional
+
+analytics stack
+
+3) Site architecture
+Public site
+
+Homepage
+
+About Elevate360
+
+Services
+
+Apps / Products
+
+Media / Blog / Music
+
+Contact / Book a Call
+
+AI Concierge interface
+
+Help / Support
+
+Private admin area
+
+Dashboard
+
+AI Content Studio
+
+Leads Inbox
+
+Knowledge Base Manager
+
+Campaign Planner
+
+Media Prompt Generator
+
+Site Analytics Summary
+
+Support Console
+
+Automation Center
+
+Brand Assets Library
+
+4) Key AI systems
+A. Public AI Concierge
+
+Purpose:
+
+greet visitors
+
+answer questions
+
+recommend offers
+
+drive conversions
+
+Capabilities:
+
+“What does Elevate360 do?”
+
+“Show me your apps”
+
+“Which service fits my business?”
+
+“Book a consultation”
+
+“Help me choose a package”
+
+“How do I work with you?”
+
+Outputs:
+
+direct answers
+
+recommended CTA
+
+prefilled inquiry form
+
+booking route
+
+lead record
+
+B. Brand Knowledge Engine
+
+Purpose:
+
+ensure the AI answers from your actual materials
+
+Knowledge sources:
+
+brand story
+
+founder bio
+
+service sheets
+
+pricing
+
+FAQs
+
+app descriptions
+
+ebooks
+
+policies
+
+media kit
+
+sales decks
+
+testimonials
+
+platform instructions
+
+Functions:
+
+semantic search
+
+source-grounded answers
+
+internal summarization
+
+knowledge tagging by category
+
+C. AI Content Studio
+
+Purpose:
+
+internal creation of all branded content
+
+Tools inside:
+
+social caption generator
+
+ad copy generator
+
+landing page generator
+
+blog/article writer
+
+product description writer
+
+email sequence writer
+
+video prompt generator
+
+image prompt generator
+
+campaign calendar builder
+
+hashtag assistant
+
+CTA optimizer
+
+D. Lead Intelligence Engine
+
+Purpose:
+
+qualify and score visitors
+
+Captured fields:
+
+name
+
+email
+
+phone optional
+
+business / project type
+
+requested service
+
+budget range
+
+timeline
+
+urgency
+
+lead source
+
+conversation summary
+
+score
+
+Actions:
+
+assign score
+
+tag as hot/warm/cold
+
+recommend follow-up path
+
+notify admin
+
+E. Support Assistant
+
+Purpose:
+
+support users of apps, ebooks, or services
+
+Can handle:
+
+FAQs
+
+onboarding
+
+troubleshooting
+
+payment/support routing
+
+account guidance
+
+escalation to contact form/email
+
+F. Internal Analytics Agent
+
+Purpose:
+
+summarize what is happening in the hub
+
+Answers:
+
+top service inquiries this week
+
+most requested app
+
+highest converting CTA
+
+common support issues
+
+content topics people ask most
+
+which pages lead to bookings
+
+5) Page-by-page feature map
+Homepage
+Sections
+
+Hero banner
+
+AI Concierge entry
+
+Featured services
+
+Featured apps/products
+
+Brand statement
+
+Testimonials / proof
+
+CTA blocks
+
+footer with smart nav
+
+AI features
+
+conversational entry box
+
+quick prompts:
+
+Explore services
+
+Discover apps
+
+Create with Elevate360
+
+Book consultation
+
+intent detection
+
+personalized recommendations
+
+About page
+Content
+
+Elevate360 mission
+
+founder story
+
+vision
+
+ecosystem overview
+
+AI feature
+
+“Ask about the brand”
+
+“Which part of Elevate360 is right for me?”
+
+Services page
+Content
+
+service categories
+
+packages
+
+deliverables
+
+outcomes
+
+AI feature
+
+service recommendation wizard
+
+dynamic package fit assistant
+
+AI intake form
+
+Apps / Products page
+Content
+
+BondedLove
+
+Healthwise
+
+Together
+
+ebooks / media products
+
+waitlists / demos
+
+AI feature
+
+product discovery chatbot
+
+“Which app is right for me?”
+
+app comparison assistant
+
+Media / Content page
+Content
+
+music
+
+campaigns
+
+videos
+
+blogs
+
+social content
+
+announcements
+
+AI feature
+
+search by theme, mood, platform, audience
+
+ask AI to recommend content
+
+Contact / Book page
+Content
+
+booking CTA
+
+inquiry form
+
+support links
+
+AI feature
+
+conversational intake instead of static form
+
+AI summarization before submission
+
+routing to correct funnel
+
+Support page
+Content
+
+help categories
+
+FAQ blocks
+
+escalation contact
+
+AI feature
+
+support chatbot
+
+issue classification
+
+knowledge-grounded support answers
+
+6) Admin dashboard structure
+Dashboard home
+
+Widgets:
+
+new leads
+
+booked calls
+
+top inquiries
+
+support tickets
+
+content requests
+
+AI usage
+
+conversion snapshot
+
+AI Content Studio
+
+Tabs:
+
+captions
+
+blog posts
+
+landing pages
+
+emails
+
+ad copy
+
+prompts
+
+scripts
+
+Leads Inbox
+
+Functions:
+
+view all leads
+
+see summaries
+
+filter by score/status
+
+assign stage
+
+export CRM
+
+Knowledge Base Manager
+
+Functions:
+
+upload documents
+
+tag by category
+
+publish/unpublish
+
+refresh retrieval index
+
+Campaign Planner
+
+Functions:
+
+create campaign
+
+define audience
+
+choose platforms
+
+generate deliverables
+
+schedule ideas
+
+Support Console
+
+Functions:
+
+unresolved support chats
+
+AI escalations
+
+template replies
+
+knowledge gaps
+
+Automation Center
+
+Functions:
+
+email workflows
+
+webhook triggers
+
+lead routing
+
+booking actions
+
+AI summarizers
+
+7) Database schema blueprint
+users
+
+id
+
+name
+
+email
+
+role
+
+password_hash / auth_provider
+
+created_at
+
+sessions
+
+id
+
+user_id
+
+session_type
+
+started_at
+
+ended_at
+
+metadata
+
+leads
+
+id
+
+full_name
+
+email
+
+phone
+
+company
+
+source
+
+inquiry_type
+
+budget_range
+
+timeline
+
+urgency
+
+score
+
+status
+
+summary
+
+raw_conversation
+
+created_at
+
+lead_events
+
+id
+
+lead_id
+
+event_type
+
+note
+
+created_at
+
+services
+
+id
+
+name
+
+slug
+
+short_description
+
+long_description
+
+price_from
+
+active
+
+products
+
+id
+
+name
+
+category
+
+slug
+
+description
+
+cta_url
+
+status
+
+knowledge_documents
+
+id
+
+title
+
+category
+
+source_type
+
+file_url
+
+text_content
+
+tags
+
+published
+
+created_at
+
+updated_at
+
+ai_conversations
+
+id
+
+visitor_id
+
+user_id nullable
+
+channel
+
+intent
+
+summary
+
+transcript_json
+
+created_at
+
+content_projects
+
+id
+
+title
+
+type
+
+platform
+
+objective
+
+audience
+
+prompt
+
+output_text
+
+status
+
+created_by
+
+created_at
+
+campaign_assets
+
+id
+
+campaign_id
+
+asset_type
+
+title
+
+content
+
+file_url
+
+platform
+
+created_at
+
+support_requests
+
+id
+
+name
+
+email
+
+category
+
+issue_summary
+
+status
+
+priority
+
+ai_summary
+
+created_at
+
+bookings
+
+id
+
+lead_id
+
+booking_type
+
+time
+
+status
+
+notes
+
+automations
+
+id
+
+name
+
+trigger_type
+
+action_type
+
+config_json
+
+enabled
+
+analytics_daily
+
+id
+
+date
+
+visits
+
+chats_started
+
+leads_created
+
+bookings_created
+
+conversion_rate
+
+top_page
+
+top_intent
+
+8) AI routing logic
+
+Every incoming chat should be classified into one of these intents:
+
+general brand inquiry
+
+service inquiry
+
+product/app discovery
+
+sales lead
+
+support
+
+media request
+
+partnership
+
+booking
+
+creator-studio request
+
+unknown
+
+Example routing
+
+If user says:
+“Can you help me build my brand?”
+
+System should:
+
+classify as service inquiry
+
+ask 2–4 qualification questions
+
+recommend a service/package
+
+capture contact info
+
+store summary in leads
+
+show CTA to book a call
+
+If user says:
+“What is BondedLove?”
+
+System should:
+
+classify as product discovery
+
+answer from knowledge base
+
+suggest visit/demo/waitlist
+
+optionally collect interest
+
+If user says:
+“I need help with login”
+
+System should:
+
+classify as support
+
+search support knowledge
+
+answer or escalate
+
+9) Automations to deploy
+Lead automation
+
+Trigger: new qualified lead
+Actions:
+
+summarize inquiry
+
+assign score
+
+send acknowledgment email
+
+notify admin
+
+create follow-up task
+
+Booking automation
+
+Trigger: consultation booked
+Actions:
+
+update lead stage
+
+send confirmation
+
+generate meeting summary prep
+
+Support automation
+
+Trigger: unresolved issue
+Actions:
+
+classify severity
+
+escalate to inbox
+
+suggest answer draft
+
+Content automation
+
+Trigger: new campaign request
+Actions:
+
+generate caption
+
+generate visual prompt
+
+generate short CTA
+
+store outputs in campaign assets
+
+Knowledge automation
+
+Trigger: document upload
+Actions:
+
+extract text
+
+tag category
+
+summarize doc
+
+index for retrieval
+
+10) AI prompt architecture
+
+Use separate system instructions for each assistant.
+
+Concierge assistant
+
+Tone:
+
+premium
+
+warm
+
+concise
+
+conversion-aware
+
+brand-aligned
+
+Goals:
+
+help visitor quickly
+
+recommend next action
+
+capture qualified lead when relevant
+
+Support assistant
+
+Tone:
+
+calm
+
+precise
+
+reassuring
+
+Goals:
+
+solve known issues
+
+avoid hallucinations
+
+escalate when confidence is low
+
+Content assistant
+
+Tone:
+
+creative
+
+brand-aware
+
+platform-aware
+
+Goals:
+
+produce publish-ready content
+
+maintain Elevate360 identity
+
+adapt by channel
+
+Analytics assistant
+
+Tone:
+
+executive summary
+
+insight-first
+
+Goals:
+
+show trends
+
+flag opportunities
+
+identify weak points
+
+11) Access control / roles
+Public visitor
+
+browse pages
+
+use concierge
+
+submit inquiries
+
+book
+
+Admin
+
+full dashboard
+
+content generation
+
+leads
+
+automations
+
+analytics
+
+knowledge management
+
+Editor / Team member
+
+content studio
+
+campaign planner
+
+limited analytics
+
+not full settings
+
+Support agent
+
+support console
+
+knowledge base read
+
+not full business settings
+
+12) Design direction for brand hub
+
+Since Elevate360 is premium and brand-forward, use:
+
+Visual style
+
+dark navy / deep charcoal base
+
+gold accents
+
+white text
+
+subtle gradients
+
+glassmorphism in selected panels
+
+clean modern luxury layout
+
+UX style
+
+fast
+
+minimal friction
+
+premium spacing
+
+AI-first entry points
+
+strong CTA hierarchy
+
+Homepage hero example
+
+Headline:
+Elevate360Official — Where Brand, Creativity, and AI Work as One
+
+Subheadline:
+Explore services, apps, media, and intelligent solutions through one AI-powered brand hub.
+
+Buttons:
+
+Talk to Elevate360 AI
+
+Explore Services
+
+Discover Apps
+
+Book a Consultation
+
+13) API architecture blueprint
+Public endpoints
+
+POST /api/ai/chat
+
+POST /api/leads
+
+POST /api/contact
+
+POST /api/bookings
+
+GET /api/services
+
+GET /api/products
+
+GET /api/content
+
+POST /api/support
+
+Admin endpoints
+
+POST /api/admin/content/generate
+
+POST /api/admin/campaigns/create
+
+GET /api/admin/leads
+
+PATCH /api/admin/leads/:id
+
+POST /api/admin/knowledge/upload
+
+GET /api/admin/analytics/summary
+
+POST /api/admin/automations/run-test
+
+Internal service endpoints
+
+POST /api/internal/lead-score
+
+POST /api/internal/summarize-chat
+
+POST /api/internal/index-document
+
+POST /api/internal/generate-followup
+
+14) Replit deployment structure
+Replit project folders
+/client
+  /src
+    /components
+    /pages
+    /layouts
+    /hooks
+    /lib
+/server
+  /routes
+  /services
+  /ai
+  /middleware
+  /db
+  /utils
+/shared
+  /schema
+  /types
+/uploads
+Main service layers
+
+aiService.ts
+
+leadService.ts
+
+knowledgeService.ts
+
+contentStudioService.ts
+
+supportService.ts
+
+analyticsService.ts
+
+Environment variables
+DATABASE_URL=
+OPENAI_API_KEY=
+STRIPE_SECRET_KEY=
+APP_URL=https://www.elevate360official.com
+EMAIL_FROM=
+SMTP_HOST=
+SMTP_PORT=
+SMTP_USER=
+SMTP_PASS=
+CALENDLY_WEBHOOK_SECRET=
+SESSION_SECRET=
+STORAGE_BUCKET=
+STORAGE_KEY=
+STORAGE_SECRET=
+15) Priority rollout order
+Phase 1 — foundation
+
+Build first:
+
+premium homepage refresh
+
+AI concierge
+
+lead capture system
+
+service/app data model
+
+admin login
+
+basic dashboard
+
+Outcome:
+
+users can chat
+
+ask questions
+
+submit interest
+
+you can track leads
+
+Phase 2 — brand knowledge
+
+Build next:
+
+upload docs
+
+knowledge indexing
+
+grounded AI answers
+
+support FAQ retrieval
+
+source tagging by category
+
+Outcome:
+
+AI answers accurately from Elevate360 materials
+
+Phase 3 — creator studio
+
+Build next:
+
+caption generator
+
+blog/article generator
+
+landing page copy generator
+
+image/video prompt tools
+
+campaign workspace
+
+Outcome:
+
+hub becomes your internal content engine
+
+Phase 4 — monetization and ops
+
+Build next:
+
+booking integration
+
+lead scoring
+
+email automation
+
+Stripe/service checkout
+
+CRM export / sync
+
+Outcome:
+
+site moves from inquiry engine to revenue engine
+
+Phase 5 — intelligence layer
+
+Build next:
+
+analytics summary agent
+
+support trend analysis
+
+top-converting content insights
+
+AI suggestions for next actions
+
+Outcome:
+
+site becomes self-improving
+
+16) MVP definition
+
+A strong first release should include:
+
+redesigned homepage
+
+AI concierge widget
+
+services + apps pages
+
+conversational intake form
+
+admin dashboard
+
+leads inbox
+
+knowledge upload
+
+AI content studio lite
+
+analytics snapshot
+
+That is enough to call the brand hub AI-powered, with room to expand to full ops automation.
+
+17) Recommended first homepage AI prompts
+
+Use these as suggested quick actions:
+
+Help me choose the right Elevate360 service
+
+Show me Elevate360 apps and products
+
+I want to work with Elevate360
+
+Create a campaign with Elevate360
+
+Book a consultation
+
+I need support
+
+18) Success metrics
+
+Track these from day one:
+
+visitor-to-chat rate
+
+chat-to-lead rate
+
+lead-to-booking rate
+
+support resolution rate
+
+content generation usage
+
+top visitor intent
+
+average AI session depth
+
+conversion by page
+
+top requested service
+
+top requested app/product
+
+19) Technical non-negotiables
+
+server-side validation
+
+rate limiting on AI/chat endpoints
+
+conversation logging with consent-aware design
+
+fallback responses when AI confidence is low
+
+knowledge-first answering for factual brand questions
+
+admin auth and role protection
+
+analytics events on every key action
+
+clean mobile UX
+
+SEO-safe page structure
+
+20) Direct recommendation for Elevate360
+
+Build this as one central hub with 3 AI layers:
+
+Public Layer
+
+AI concierge for visitors
+
+Creative Layer
+
+AI studio for content and campaigns
+
+Operations Layer
+
+Leads, support, automations, analytics
+
+That structure fits your brand best because Elevate360 is not only a website. It is an ecosystem.
+
+21) Immediate build sequence
+
+Here is the exact order I recommend:
+
+Step 1: Redesign homepage into premium AI-first layout
+Step 2: Add AI concierge panel and chat endpoint
+Step 3: Add services/apps structured content database
+Step 4: Add conversational lead capture
+Step 5: Build admin dashboard + leads inbox
+Step 6: Add knowledge base upload and retrieval
+Step 7: Add AI content studio
+Step 8: Add booking + email automations
+Step 9: Add analytics insights
+Step 10: Polish mobile, SEO, and conversion flows
+
+22) What I should generate next for you
+
+I can next produce the full Replit implementation pack, including:
+
+production site map
+
+homepage wireframe
+
+database schema SQL
+
+backend route structure
+
+AI prompt system files
+
+dashboard module layout
+
+and the exact build prompt/code plan for your developer or Replit AI
+
+Reply with:
+
+“
+Generate the Replit implementation pack”
+
+and I’ll produce it in build-ready form.
+
+Generate the Replit implementation pack
+
+Below is the build-ready Replit implementation pack for Elevate360Official Brand Hub to become fully AI-powered end-to-end.
+
+Elevate360Official — Replit Implementation Pack
+1) Build target
+
+Create a production-ready web app for www.elevate360official.com
+ with:
+
+premium AI-first homepage
+
+public AI concierge
+
+services and apps discovery
+
+conversational lead capture
+
+admin dashboard
+
+knowledge base manager
+
+AI content studio
+
+support assistant
+
+analytics snapshot
+
+automation-ready backend
+
+2) Recommended Replit stack
+App stack
+
+Frontend: React + Vite + TypeScript + Tailwind
+
+Backend: Node.js + Express + TypeScript
+
+Database: PostgreSQL + Drizzle ORM
+
+Auth: session-based or Supabase/Auth provider
+
+AI: OpenAI API via server routes
+
+Storage: local upload path first, cloud storage later
+
+Deploy: Replit autoscale / reserved VM depending on traffic
+
+Why this stack
+
+It is fast to build in Replit, modular, easy to deploy, and good for your existing workflow.
+
+3) Product modules
+Public
+
+Homepage
+
+About
+
+Services
+
+Apps / Products
+
+Media / Content
+
+Contact / Book
+
+Support
+
+AI Concierge widget
+
+Private admin
+
+Dashboard
+
+Leads Inbox
+
+Knowledge Base
+
+AI Content Studio
+
+Campaign Planner
+
+Support Console
+
+Analytics
+
+Settings / Automations
+
+4) Replit project folder structure
+elevate360-brand-hub/
+├── client/
+│   ├── index.html
+│   └── src/
+│       ├── main.tsx
+│       ├── App.tsx
+│       ├── lib/
+│       │   ├── api.ts
+│       │   ├── auth.ts
+│       │   └── utils.ts
+│       ├── components/
+│       │   ├── layout/
+│       │   │   ├── Navbar.tsx
+│       │   │   ├── Footer.tsx
+│       │   │   └── AdminShell.tsx
+│       │   ├── ai/
+│       │   │   ├── ConciergeWidget.tsx
+│       │   │   ├── ChatMessage.tsx
+│       │   │   └── QuickPrompts.tsx
+│       │   ├── home/
+│       │   │   ├── Hero.tsx
+│       │   │   ├── FeaturedServices.tsx
+│       │   │   ├── FeaturedApps.tsx
+│       │   │   └── ProofSection.tsx
+│       │   ├── forms/
+│       │   │   ├── LeadForm.tsx
+│       │   │   ├── ContactForm.tsx
+│       │   │   └── SupportForm.tsx
+│       │   └── admin/
+│       │       ├── StatCard.tsx
+│       │       ├── LeadTable.tsx
+│       │       ├── KnowledgeUploader.tsx
+│       │       └── ContentGeneratorForm.tsx
+│       ├── pages/
+│       │   ├── HomePage.tsx
+│       │   ├── AboutPage.tsx
+│       │   ├── ServicesPage.tsx
+│       │   ├── AppsPage.tsx
+│       │   ├── MediaPage.tsx
+│       │   ├── ContactPage.tsx
+│       │   ├── SupportPage.tsx
+│       │   └── admin/
+│       │       ├── DashboardPage.tsx
+│       │       ├── LeadsPage.tsx
+│       │       ├── KnowledgePage.tsx
+│       │       ├── ContentStudioPage.tsx
+│       │       ├── AnalyticsPage.tsx
+│       │       └── SupportConsolePage.tsx
+│       ├── hooks/
+│       │   ├── useChat.ts
+│       │   └── useLeads.ts
+│       └── styles/
+│           └── globals.css
+├── server/
+│   ├── index.ts
+│   ├── routes/
+│   │   ├── ai.ts
+│   │   ├── leads.ts
+│   │   ├── services.ts
+│   │   ├── products.ts
+│   │   ├── contact.ts
+│   │   ├── support.ts
+│   │   ├── admin.ts
+│   │   ├── knowledge.ts
+│   │   ├── analytics.ts
+│   │   └── auth.ts
+│   ├── db/
+│   │   ├── index.ts
+│   │   ├── schema.ts
+│   │   └── seed.ts
+│   ├── ai/
+│   │   ├── client.ts
+│   │   ├── prompts.ts
+│   │   ├── concierge.ts
+│   │   ├── contentStudio.ts
+│   │   ├── leadScoring.ts
+│   │   ├── retrieval.ts
+│   │   └── support.ts
+│   ├── middleware/
+│   │   ├── auth.ts
+│   │   ├── admin.ts
+│   │   ├── rateLimit.ts
+│   │   └── errorHandler.ts
+│   ├── services/
+│   │   ├── leadService.ts
+│   │   ├── knowledgeService.ts
+│   │   ├── analyticsService.ts
+│   │   ├── contentService.ts
+│   │   └── supportService.ts
+│   ├── utils/
+│   │   ├── logger.ts
+│   │   ├── validation.ts
+│   │   └── summarizer.ts
+│   └── uploads/
+├── shared/
+│   ├── types.ts
+│   └── constants.ts
+├── drizzle.config.ts
+├── package.json
+├── tsconfig.json
+├── tailwind.config.ts
+├── vite.config.ts
+└── .env
+5) Environment variables for Replit secrets
+
+Add these in Replit Secrets:
+
+NODE_ENV=production
+PORT=5000
+DATABASE_URL=postgresql://...
+SESSION_SECRET=change_this_now
+OPENAI_API_KEY=sk-...
+APP_URL=https://www.elevate360official.com
+
+# Optional email
+SMTP_HOST=
+SMTP_PORT=
+SMTP_USER=
+SMTP_PASS=
+EMAIL_FROM=hello@elevate360official.com
+
+# Optional booking / external tools
+CALENDLY_LINK=
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+6) Database schema blueprint
+
+Use PostgreSQL with Drizzle.
+
+server/db/schema.ts
+import {
+  pgTable,
+  serial,
+  text,
+  timestamp,
+  integer,
+  boolean,
+  json,
+  varchar,
+} from "drizzle-orm/pg-core";
+
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 120 }).notNull(),
+  email: varchar("email", { length: 180 }).notNull().unique(),
+  role: varchar("role", { length: 40 }).notNull().default("admin"),
+  passwordHash: text("password_hash"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const services = pgTable("services", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 140 }).notNull(),
+  slug: varchar("slug", { length: 160 }).notNull().unique(),
+  shortDescription: text("short_description").notNull(),
+  longDescription: text("long_description").notNull(),
+  priceFrom: integer("price_from"),
+  active: boolean("active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const products = pgTable("products", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 140 }).notNull(),
+  slug: varchar("slug", { length: 160 }).notNull().unique(),
+  category: varchar("category", { length: 80 }).notNull(),
+  description: text("description").notNull(),
+  ctaUrl: text("cta_url"),
+  active: boolean("active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const leads = pgTable("leads", {
+  id: serial("id").primaryKey(),
+  fullName: varchar("full_name", { length: 160 }),
+  email: varchar("email", { length: 180 }),
+  phone: varchar("phone", { length: 40 }),
+  company: varchar("company", { length: 160 }),
+  source: varchar("source", { length: 80 }).default("website"),
+  inquiryType: varchar("inquiry_type", { length: 80 }),
+  budgetRange: varchar("budget_range", { length: 80 }),
+  timeline: varchar("timeline", { length: 80 }),
+  urgency: varchar("urgency", { length: 40 }),
+  score: integer("score").default(0).notNull(),
+  status: varchar("status", { length: 40 }).default("new").notNull(),
+  summary: text("summary"),
+  rawConversation: json("raw_conversation"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const knowledgeDocuments = pgTable("knowledge_documents", {
+  id: serial("id").primaryKey(),
+  title: varchar("title", { length: 180 }).notNull(),
+  category: varchar("category", { length: 80 }).notNull(),
+  sourceType: varchar("source_type", { length: 40 }).default("upload").notNull(),
+  fileUrl: text("file_url"),
+  textContent: text("text_content"),
+  tags: json("tags"),
+  published: boolean("published").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const aiConversations = pgTable("ai_conversations", {
+  id: serial("id").primaryKey(),
+  sessionId: varchar("session_id", { length: 120 }).notNull(),
+  channel: varchar("channel", { length: 80 }).default("public_chat").notNull(),
+  intent: varchar("intent", { length: 80 }),
+  summary: text("summary"),
+  transcriptJson: json("transcript_json"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const supportRequests = pgTable("support_requests", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 160 }),
+  email: varchar("email", { length: 180 }),
+  category: varchar("category", { length: 80 }),
+  issueSummary: text("issue_summary").notNull(),
+  status: varchar("status", { length: 40 }).default("open").notNull(),
+  priority: varchar("priority", { length: 20 }).default("normal").notNull(),
+  aiSummary: text("ai_summary"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const contentProjects = pgTable("content_projects", {
+  id: serial("id").primaryKey(),
+  title: varchar("title", { length: 180 }).notNull(),
+  type: varchar("type", { length: 80 }).notNull(),
+  platform: varchar("platform", { length: 80 }),
+  objective: text("objective"),
+  audience: text("audience"),
+  prompt: text("prompt"),
+  outputText: text("output_text"),
+  status: varchar("status", { length: 40 }).default("generated").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+7) Seed content for Elevate360
+server/db/seed.ts
+import { db } from "./index";
+import { services, products } from "./schema";
+
+export async function seedDatabase() {
+  await db.insert(services).values([
+    {
+      name: "Brand Strategy & Creative Direction",
+      slug: "brand-strategy-creative-direction",
+      shortDescription: "AI-enhanced brand strategy, positioning, and campaign direction.",
+      longDescription: "Elevate360 helps founders and brands clarify positioning, messaging, content direction, and digital presence.",
+      priceFrom: 500,
+    },
+    {
+      name: "AI Content & Media Production",
+      slug: "ai-content-media-production",
+      shortDescription: "Captions, campaign copy, prompts, scripts, and branded AI creative workflows.",
+      longDescription: "Generate platform-ready content systems for social, blog, ads, music promotions, and video planning.",
+      priceFrom: 250,
+    },
+  ]).onConflictDoNothing();
+
+  await db.insert(products).values([
+    {
+      name: "BondedLove",
+      slug: "bondedlove",
+      category: "app",
+      description: "Premium relationship-focused dating platform.",
+      ctaUrl: "https://www.bondedlove.net",
+    },
+    {
+      name: "Healthwise",
+      slug: "healthwise",
+      category: "app",
+      description: "AI-enhanced wellness and health support ecosystem.",
+      ctaUrl: "https://www.elevate360official.com",
+    },
+    {
+      name: "Together",
+      slug: "together",
+      category: "app",
+      description: "Relationship and marriage-centered product ecosystem.",
+      ctaUrl: "https://www.elevate360official.com",
+    },
+  ]).onConflictDoNothing();
+}
+8) Backend entry file
+server/index.ts
+import express from "express";
+import cors from "cors";
+import session from "express-session";
+import path from "path";
+import aiRoutes from "./routes/ai";
+import leadRoutes from "./routes/leads";
+import serviceRoutes from "./routes/services";
+import productRoutes from "./routes/products";
+import contactRoutes from "./routes/contact";
+import supportRoutes from "./routes/support";
+import adminRoutes from "./routes/admin";
+import knowledgeRoutes from "./routes/knowledge";
+import analyticsRoutes from "./routes/analytics";
+import { errorHandler } from "./middleware/errorHandler";
+
+const app = express();
+
+app.use(cors({
+  origin: true,
+  credentials: true,
+}));
+
+app.use(express.json({ limit: "2mb" }));
+app.use(express.urlencoded({ extended: true }));
+
+app.use(session({
+  secret: process.env.SESSION_SECRET || "fallback-secret",
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === "production",
+    httpOnly: true,
+    sameSite: "lax",
+  },
+}));
+
+app.use("/api/ai", aiRoutes);
+app.use("/api/leads", leadRoutes);
+app.use("/api/services", serviceRoutes);
+app.use("/api/products", productRoutes);
+app.use("/api/contact", contactRoutes);
+app.use("/api/support", supportRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/knowledge", knowledgeRoutes);
+app.use("/api/analytics", analyticsRoutes);
+
+app.use(express.static(path.join(process.cwd(), "dist/client")));
+
+app.get("*", (_req, res) => {
+  res.sendFile(path.join(process.cwd(), "dist/client/index.html"));
+});
+
+app.use(errorHandler);
+
+const port = Number(process.env.PORT || 5000);
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
+});
+9) OpenAI client wrapper
+server/ai/client.ts
+export async function callOpenAI(messages: Array<{ role: string; content: string }>) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error("Missing OPENAI_API_KEY");
+
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: "gpt-4.1-mini",
+      temperature: 0.7,
+      messages,
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`OpenAI error: ${text}`);
+  }
+
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content ?? "";
+}
+10) AI prompt system
+server/ai/prompts.ts
+export const conciergeSystemPrompt = `
+You are the Elevate360 AI Concierge for elevate360official.com.
+
+Goals:
+- Help website visitors quickly.
+- Answer only in a premium, clear, concise, brand-aligned style.
+- Detect intent: service inquiry, product discovery, support, booking, partnership, media, or general.
+- When there is buying intent, guide toward lead capture or booking.
+- When discussing brand facts, prefer provided knowledge snippets.
+- Never invent unavailable pricing, features, or policies.
+- Always end with the best next step.
+
+Brand tone:
+- premium
+- intelligent
+- warm
+- modern
+- confident
+`;
+
+export const contentStudioSystemPrompt = `
+You are Elevate360's internal AI Content Studio.
+
+You generate:
+- captions
+- campaign copy
+- blog drafts
+- ad copy
+- scripts
+- image prompts
+- video prompts
+
+Requirements:
+- keep the output brand-aligned
+- premium, inspiring, modern
+- practical and publish-ready
+- adapt to requested platform and audience
+`;
+
+export const supportSystemPrompt = `
+You are Elevate360 Support AI.
+
+Requirements:
+- calm, accurate, helpful
+- solve using known information only
+- if uncertain, recommend escalation through support contact
+- avoid guessing account-specific details
+`;
+11) Knowledge retrieval logic
+
+Start simple: use DB text search and pass best documents into the prompt.
+
+server/ai/retrieval.ts
+import { db } from "../db";
+import { knowledgeDocuments } from "../db/schema";
+import { ilike, and, eq } from "drizzle-orm";
+
+export async function searchKnowledge(query: string) {
+  const q = `%${query}%`;
+
+  const docs = await db
+    .select()
+    .from(knowledgeDocuments)
+    .where(and(
+      eq(knowledgeDocuments.published, true),
+      ilike(knowledgeDocuments.textContent, q)
+    ))
+    .limit(5);
+
+  return docs;
+}
+
+export function formatKnowledgeContext(docs: Array<{ title: string; textContent: string | null }>) {
+  return docs.map((doc, index) => {
+    return `Document ${index + 1}: ${doc.title}\n${doc.textContent ?? ""}`;
+  }).join("\n\n");
+}
+
+Later, replace this with embeddings/vector search.
+
+12) Concierge orchestration
+server/ai/concierge.ts
+import { callOpenAI } from "./client";
+import { conciergeSystemPrompt } from "./prompts";
+import { searchKnowledge, formatKnowledgeContext } from "./retrieval";
+
+export async function runConcierge(userMessage: string) {
+  const docs = await searchKnowledge(userMessage);
+  const context = formatKnowledgeContext(docs);
+
+  const reply = await callOpenAI([
+    { role: "system", content: conciergeSystemPrompt },
+    {
+      role: "system",
+      content: `Relevant brand knowledge:\n${context || "No direct knowledge found."}`,
+    },
+    { role: "user", content: userMessage },
+  ]);
+
+  return {
+    reply,
+    docsUsed: docs.map((d) => d.title),
+  };
+}
+13) Lead scoring logic
+server/ai/leadScoring.ts
+type LeadInput = {
+  inquiryType?: string;
+  budgetRange?: string;
+  timeline?: string;
+  urgency?: string;
+  email?: string;
+};
+
+export function scoreLead(input: LeadInput): number {
+  let score = 0;
+
+  if (input.email) score += 10;
+  if (input.inquiryType && ["service", "booking", "partnership"].includes(input.inquiryType)) score += 20;
+  if (input.budgetRange && !/low|unknown/i.test(input.budgetRange)) score += 20;
+  if (input.timeline && /immediate|this week|this month/i.test(input.timeline)) score += 20;
+  if (input.urgency && /high|urgent/i.test(input.urgency)) score += 15;
+
+  return Math.min(score, 100);
+}
+14) AI chat API route
+server/routes/ai.ts
+import { Router } from "express";
+import { runConcierge } from "../ai/concierge";
+
+const router = Router();
+
+router.post("/chat", async (req, res, next) => {
+  try {
+    const { message } = req.body;
+
+    if (!message || typeof message !== "string") {
+      return res.status(400).json({ error: "Message is required" });
+    }
+
+    const result = await runConcierge(message);
+
+    res.json({
+      ok: true,
+      reply: result.reply,
+      docsUsed: result.docsUsed,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+export default router;
+15) Leads API route
+server/routes/leads.ts
+import { Router } from "express";
+import { db } from "../db";
+import { leads } from "../db/schema";
+import { scoreLead } from "../ai/leadScoring";
+
+const router = Router();
+
+router.post("/", async (req, res, next) => {
+  try {
+    const payload = req.body ?? {};
+    const score = scoreLead(payload);
+
+    const [lead] = await db.insert(leads).values({
+      fullName: payload.fullName,
+      email: payload.email,
+      phone: payload.phone,
+      company: payload.company,
+      source: payload.source || "website",
+      inquiryType: payload.inquiryType,
+      budgetRange: payload.budgetRange,
+      timeline: payload.timeline,
+      urgency: payload.urgency,
+      summary: payload.summary,
+      rawConversation: payload.rawConversation ?? null,
+      score,
+      status: "new",
+    }).returning();
+
+    res.json({ ok: true, lead });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/", async (_req, res, next) => {
+  try {
+    const all = await db.select().from(leads);
+    res.json({ ok: true, leads: all });
+  } catch (error) {
+    next(error);
+  }
+});
+
+export default router;
+16) Services and products routes
+server/routes/services.ts
+import { Router } from "express";
+import { db } from "../db";
+import { services } from "../db/schema";
+
+const router = Router();
+
+router.get("/", async (_req, res, next) => {
+  try {
+    const rows = await db.select().from(services);
+    res.json({ ok: true, services: rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+export default router;
+server/routes/products.ts
+import { Router } from "express";
+import { db } from "../db";
+import { products } from "../db/schema";
+
+const router = Router();
+
+router.get("/", async (_req, res, next) => {
+  try {
+    const rows = await db.select().from(products);
+    res.json({ ok: true, products: rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+export default router;
+17) Content Studio generation route
+server/ai/contentStudio.ts
+import { callOpenAI } from "./client";
+import { contentStudioSystemPrompt } from "./prompts";
+
+export async function generateContent(input: {
+  type: string;
+  platform?: string;
+  audience?: string;
+  objective?: string;
+  prompt: string;
+}) {
+  const userPrompt = `
+Type: ${input.type}
+Platform: ${input.platform ?? "general"}
+Audience: ${input.audience ?? "general"}
+Objective: ${input.objective ?? "brand growth"}
+
+Task:
+${input.prompt}
+  `;
+
+  return callOpenAI([
+    { role: "system", content: contentStudioSystemPrompt },
+    { role: "user", content: userPrompt },
+  ]);
+}
+server/routes/admin.ts
+import { Router } from "express";
+import { generateContent } from "../ai/contentStudio";
+import { db } from "../db";
+import { contentProjects } from "../db/schema";
+
+const router = Router();
+
+router.post("/content/generate", async (req, res, next) => {
+  try {
+    const { title, type, platform, audience, objective, prompt } = req.body;
+
+    const output = await generateContent({
+      type,
+      platform,
+      audience,
+      objective,
+      prompt,
+    });
+
+    const [saved] = await db.insert(contentProjects).values({
+      title,
+      type,
+      platform,
+      audience,
+      objective,
+      prompt,
+      outputText: output,
+      status: "generated",
+    }).returning();
+
+    res.json({ ok: true, project: saved });
+  } catch (error) {
+    next(error);
+  }
+});
+
+export default router;
+18) Analytics snapshot route
+server/routes/analytics.ts
+import { Router } from "express";
+import { db } from "../db";
+import { leads, supportRequests, contentProjects } from "../db/schema";
+import { count } from "drizzle-orm";
+
+const router = Router();
+
+router.get("/summary", async (_req, res, next) => {
+  try {
+    const [leadCount] = await db.select({ value: count() }).from(leads);
+    const [supportCount] = await db.select({ value: count() }).from(supportRequests);
+    const [contentCount] = await db.select({ value: count() }).from(contentProjects);
+
+    res.json({
+      ok: true,
+      summary: {
+        totalLeads: leadCount.value,
+        totalSupportRequests: supportCount.value,
+        totalContentProjects: contentCount.value,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+export default router;
+19) Frontend API client
+client/src/lib/api.ts
+export async function apiGet<T>(url: string): Promise<T> {
+  const res = await fetch(url, {
+    credentials: "include",
+    headers: { "Accept": "application/json" },
+  });
+
+  if (!res.ok) throw new Error(`GET ${url} failed`);
+  return res.json();
+}
+
+export async function apiPost<T>(url: string, body: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      "Accept": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) throw new Error(`POST ${url} failed`);
+  return res.json();
+}
+20) AI Concierge React component
+client/src/components/ai/ConciergeWidget.tsx
+import { useState } from "react";
+import { apiPost } from "../../lib/api";
+
+type ChatItem = {
+  role: "user" | "assistant";
+  content: string;
+};
+
+export default function ConciergeWidget() {
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [chat, setChat] = useState<ChatItem[]>([
+    {
+      role: "assistant",
+      content: "Welcome to Elevate360Official. Ask about services, apps, media, support, or booking.",
+    },
+  ]);
+
+  async function sendMessage() {
+    if (!message.trim()) return;
+    const userText = message.trim();
+
+    setChat((prev) => [...prev, { role: "user", content: userText }]);
+    setMessage("");
+    setLoading(true);
+
+    try {
+      const data = await apiPost<{ ok: boolean; reply: string }>("/api/ai/chat", {
+        message: userText,
+      });
+
+      setChat((prev) => [...prev, { role: "assistant", content: data.reply }]);
+    } catch {
+      setChat((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "I’m sorry — the AI concierge is temporarily unavailable. Please try again shortly.",
+        },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur">
+      <h3 className="mb-3 text-lg font-semibold text-white">Elevate360 AI Concierge</h3>
+
+      <div className="mb-3 max-h-96 space-y-3 overflow-y-auto rounded-xl bg-black/20 p-3">
+        {chat.map((item, idx) => (
+          <div
+            key={idx}
+            className={item.role === "user" ? "text-right" : "text-left"}
+          >
+            <div className="inline-block max-w-[85%] rounded-xl px-3 py-2 text-sm text-white bg-white/10">
+              {item.content}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex gap-2">
+        <input
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          placeholder="Ask Elevate360 AI..."
+          className="flex-1 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-white outline-none"
+          onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+        />
+        <button
+          onClick={sendMessage}
+          disabled={loading}
+          className="rounded-xl bg-yellow-500 px-4 py-2 font-medium text-black disabled:opacity-60"
+        >
+          {loading ? "..." : "Send"}
+        </button>
+      </div>
+    </div>
+  );
+}
+21) Homepage layout
+client/src/pages/HomePage.tsx
+import ConciergeWidget from "../components/ai/ConciergeWidget";
+
+export default function HomePage() {
+  return (
+    <main className="min-h-screen bg-[#07111f] text-white">
+      <section className="mx-auto grid max-w-7xl gap-10 px-6 py-20 lg:grid-cols-2">
+        <div className="space-y-6">
+          <p className="text-sm uppercase tracking-[0.3em] text-yellow-400">
+            Elevate360Official Brand Hub
+          </p>
+
+          <h1 className="text-4xl font-bold leading-tight lg:text-6xl">
+            Where Brand, Creativity, and AI Work as One
+          </h1>
+
+          <p className="max-w-2xl text-lg text-white/80">
+            Explore Elevate360 services, apps, media, and intelligent solutions through one premium AI-powered hub.
+          </p>
+
+          <div className="flex flex-wrap gap-3">
+            <a href="/services" className="rounded-xl bg-yellow-500 px-5 py-3 font-semibold text-black">
+              Explore Services
+            </a>
+            <a href="/apps" className="rounded-xl border border-white/15 px-5 py-3">
+              Discover Apps
+            </a>
+            <a href="/contact" className="rounded-xl border border-white/15 px-5 py-3">
+              Book a Consultation
+            </a>
+          </div>
+        </div>
+
+        <div>
+          <ConciergeWidget />
+        </div>
+      </section>
+    </main>
+  );
+}
+22) Leads dashboard page
+client/src/pages/admin/LeadsPage.tsx
+import { useEffect, useState } from "react";
+import { apiGet } from "../../lib/api";
+
+type Lead = {
+  id: number;
+  fullName?: string;
+  email?: string;
+  inquiryType?: string;
+  score: number;
+  status: string;
+  createdAt: string;
+};
+
+export default function LeadsPage() {
+  const [leads, setLeads] = useState<Lead[]>([]);
+
+  useEffect(() => {
+    apiGet<{ ok: boolean; leads: Lead[] }>("/api/leads")
+      .then((data) => setLeads(data.leads))
+      .catch(() => setLeads([]));
+  }, []);
+
+  return (
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold">Leads Inbox</h1>
+
+      <div className="overflow-hidden rounded-2xl border border-black/10 bg-white">
+        <table className="w-full text-left">
+          <thead className="bg-slate-50">
+            <tr>
+              <th className="px-4 py-3">Name</th>
+              <th className="px-4 py-3">Email</th>
+              <th className="px-4 py-3">Type</th>
+              <th className="px-4 py-3">Score</th>
+              <th className="px-4 py-3">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {leads.map((lead) => (
+              <tr key={lead.id} className="border-t">
+                <td className="px-4 py-3">{lead.fullName || "—"}</td>
+                <td className="px-4 py-3">{lead.email || "—"}</td>
+                <td className="px-4 py-3">{lead.inquiryType || "—"}</td>
+                <td className="px-4 py-3">{lead.score}</td>
+                <td className="px-4 py-3">{lead.status}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+23) Knowledge upload route
+
+Start with JSON/text/manual input first. File parsing can be added after.
+
+server/routes/knowledge.ts
+import { Router } from "express";
+import { db } from "../db";
+import { knowledgeDocuments } from "../db/schema";
+
+const router = Router();
+
+router.post("/", async (req, res, next) => {
+  try {
+    const { title, category, textContent, tags } = req.body;
+
+    const [doc] = await db.insert(knowledgeDocuments).values({
+      title,
+      category,
+      textContent,
+      tags: tags || [],
+      published: true,
+    }).returning();
+
+    res.json({ ok: true, document: doc });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/", async (_req, res, next) => {
+  try {
+    const docs = await db.select().from(knowledgeDocuments);
+    res.json({ ok: true, documents: docs });
+  } catch (error) {
+    next(error);
+  }
+});
+
+export default router;
+24) Support route
+server/routes/support.ts
+import { Router } from "express";
+import { db } from "../db";
+import { supportRequests } from "../db/schema";
+
+const router = Router();
+
+router.post("/", async (req, res, next) => {
+  try {
+    const { name, email, category, issueSummary } = req.body;
+
+    const [ticket] = await db.insert(supportRequests).values({
+      name,
+      email,
+      category,
+      issueSummary,
+      status: "open",
+      priority: "normal",
+      aiSummary: issueSummary,
+    }).returning();
+
+    res.json({ ok: true, ticket });
+  } catch (error) {
+    next(error);
+  }
+});
+
+export default router;
+25) Error handler
+server/middleware/errorHandler.ts
+import { Request, Response, NextFunction } from "express";
+
+export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction) {
+  console.error(err);
+  const message = err instanceof Error ? err.message : "Unknown server error";
+  res.status(500).json({ ok: false, error: message });
+}
+26) Package.json baseline
+package.json
+{
+  "name": "elevate360-brand-hub",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx server/index.ts",
+    "build": "vite build && tsc -p tsconfig.json",
+    "start": "node dist/server/index.js",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "drizzle-orm": "^0.36.0",
+    "express": "^4.21.0",
+    "express-session": "^1.18.0",
+    "pg": "^8.12.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/express-session": "^1.18.0",
+    "@types/node": "^22.10.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "drizzle-kit": "^0.27.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10"
+  }
+}
+27) Tailwind starter
+tailwind.config.ts
+import type { Config } from "tailwindcss";
+
+export default {
+  content: ["./client/index.html", "./client/src/**/*.{ts,tsx}"],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+} satisfies Config;
+28) Brand design tokens
+
+Use this style system:
+
+Colors
+
+Background: #07111f
+
+Panel: rgba(255,255,255,0.05)
+
+Gold accent: #f4c542
+
+Text primary: #ffffff
+
+Text muted: rgba(255,255,255,0.78)
+
+Typography
+
+Heading: clean luxury sans
+
+Body: modern readable sans
+
+Buttons: semibold, rounded-xl
+
+Cards: glass + subtle border
+
+29) AI intent model
+
+The concierge should classify these intents:
+
+general_brand
+
+service_inquiry
+
+product_discovery
+
+booking
+
+support
+
+partnership
+
+media_request
+
+content_help
+
+unknown
+
+Add this later as a structured response model, but for MVP simple prompt logic is enough.
+
+30) First MVP pages to build in order
+Sprint 1
+
+Homepage
+
+Services page
+
+Apps page
+
+AI concierge widget
+
+Leads API
+
+Admin leads inbox
+
+Sprint 2
+
+Knowledge base
+
+Support page
+
+Content studio
+
+Analytics summary
+
+Sprint 3
+
+Email notifications
+
+Booking integration
+
+improved knowledge retrieval
+
+role-based auth
+
+content export
+
+31) Replit build prompt for AI agent / developer
+
+Use this prompt inside Replit AI or for your developer:
+
+Build a production-ready full-stack web application called "Elevate360Official Brand Hub" using React + Vite + TypeScript on the frontend and Node + Express + TypeScript on the backend.
+
+Requirements:
+1. Create a premium dark navy and gold luxury design.
+2. Add a homepage hero with CTA buttons and a live AI concierge widget.
+3. Create pages: Home, About, Services, Apps, Media, Contact, Support.
+4. Add backend APIs for:
+   - POST /api/ai/chat
+   - POST /api/leads
+   - GET /api/leads
+   - GET /api/services
+   - GET /api/products
+   - POST /api/support
+   - POST /api/admin/content/generate
+   - GET /api/analytics/summary
+   - POST /api/knowledge
+   - GET /api/knowledge
+5. Use PostgreSQL and Drizzle ORM for schema management.
+6. Add database tables for users, services, products, leads, knowledge_documents, ai_conversations, support_requests, and content_projects.
+7. Build an admin dashboard with pages for dashboard summary, leads inbox, knowledge manager, content studio, and analytics.
+8. Use an OpenAI API server wrapper for AI chat and content generation.
+9. Add strong error handling, typed responses, and clean component structure.
+10. Make the app mobile responsive and deployable on Replit.
+
+Do not use placeholder lorem ipsum. Seed the site with Elevate360-related services and products.
+32) Homepage copy pack
+Hero headline
+
+Where Brand, Creativity, and AI Work as One
+
+Hero subheadline
+
+Explore services, apps, media, and intelligent solutions through one premium AI-powered brand hub.
+
+Buttons
+
+Talk to Elevate360 AI
+
+Explore Services
+
+Discover Apps
+
+Book a Consultation
+
+Quick prompts
+
+Help me choose the right service
+
+Show me Elevate360 apps
+
+I want to work with Elevate360
+
+I need support
+
+Create a campaign with Elevate360
+
+33) Knowledge base starter documents to upload first
+
+Add these first into the Knowledge Manager:
+
+Elevate360 brand story
+
+founder bio
+
+service descriptions
+
+service pricing guide
+
+BondedLove app overview
+
+Healthwise overview
+
+Together overview
+
+contact/support FAQ
+
+consultation process
+
+media/press bio
+
+content style guide
+
+logo usage notes
+
+34) Security and production hardening
+
+Before launch, add:
+
+input validation on all POST routes
+
+rate limiting on /api/ai/chat
+
+admin route protection
+
+secure cookies
+
+bot protection on forms
+
+audit logging for admin actions
+
+upload size limits
+
+database backups
+
+email error logging
+
+35) Phase 2 upgrade path
+
+After MVP is live, add:
+
+vector search for knowledge base
+
+conversational memory by session
+
+Stripe-powered service checkout
+
+booking calendar sync
+
+email automation
+
+branded PDF proposal generation
+
+social publishing workflow
+
+analytics charts
+
+AI-generated weekly summary email
+
+36) Exact launch checklist
+Technical
+
+Replit secrets added
+
+database connected
+
+migrations run
+
+seed run
+
+homepage live
+
+admin pages reachable
+
+AI route tested
+
+lead capture tested
+
+support tested
+
+content studio tested
+
+Brand
+
+logo in navbar and footer
+
+premium hero section
+
+service descriptions finalized
+
+apps/product cards finalized
+
+contact email and booking link set
+
+support wording finalized
+
+Conversion
+
+AI quick prompts working
+
+CTA buttons working
+
+lead form saving
+
+admin sees leads instantly
+
+analytics counts updating
+
+37) What to build immediately first
+
+Your first production-safe milestone should be this exact subset:
+
+homepage redesign
+
+AI concierge chat
+
+services and apps pages
+
+lead submission endpoint
+
+admin leads page
+
+knowledge manager
+
+content studio basic generator
+
+That gives you a real AI-powered brand hub fast.
