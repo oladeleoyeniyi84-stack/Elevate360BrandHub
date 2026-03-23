@@ -1,9 +1,15 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertContactMessageSchema, insertNewsletterSubscriberSchema } from "@shared/schema";
+import {
+  insertContactMessageSchema,
+  insertNewsletterSubscriberSchema,
+  chatRequestSchema,
+  type ChatMessage,
+} from "@shared/schema";
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
+import { getConciergeReply } from "./openai";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -35,6 +41,33 @@ export async function registerRoutes(
         res.status(409).json({ message: "This email is already subscribed!" });
       } else {
         res.status(500).json({ message: "Failed to subscribe. Please try again." });
+      }
+    }
+  });
+
+  app.post("/api/chat", async (req, res) => {
+    try {
+      const { sessionId, message, leadName, leadEmail } = chatRequestSchema.parse(req.body);
+
+      const conversation = await storage.getOrCreateChatSession(sessionId);
+      const history = (conversation.messages as ChatMessage[]) ?? [];
+
+      const reply = await getConciergeReply(history, message);
+
+      await storage.appendChatMessage(sessionId, { role: "user", content: message });
+      await storage.appendChatMessage(sessionId, { role: "assistant", content: reply });
+
+      if (leadName || leadEmail) {
+        await storage.updateChatLead(sessionId, leadName, leadEmail);
+      }
+
+      res.json({ reply });
+    } catch (error: any) {
+      if (error instanceof ZodError) {
+        res.status(400).json({ message: fromZodError(error).message });
+      } else {
+        console.error("Chat error:", error?.message ?? error);
+        res.status(500).json({ message: "The concierge is temporarily unavailable. Please try again." });
       }
     }
   });

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { AIConcierge } from "@/components/AIConcierge";
 import { Link } from "wouter";
 import {
   ArrowRight,
@@ -757,6 +758,8 @@ export default function Home() {
           </div>
         </div>
       </footer>
+
+      <AIConcierge />
     </div>
   );
 }

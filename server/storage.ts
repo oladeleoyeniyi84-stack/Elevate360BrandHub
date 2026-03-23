@@ -2,7 +2,8 @@ import {
   type User, type InsertUser,
   type ContactMessage, type InsertContactMessage,
   type NewsletterSubscriber, type InsertNewsletterSubscriber,
-  users, contactMessages, newsletterSubscribers
+  type ChatConversation, type ChatMessage,
+  users, contactMessages, newsletterSubscribers, chatConversations
 } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
@@ -15,6 +16,10 @@ export interface IStorage {
   getContactMessages(): Promise<ContactMessage[]>;
   createNewsletterSubscriber(subscriber: InsertNewsletterSubscriber): Promise<NewsletterSubscriber>;
   getNewsletterSubscribers(): Promise<NewsletterSubscriber[]>;
+  getOrCreateChatSession(sessionId: string): Promise<ChatConversation>;
+  appendChatMessage(sessionId: string, message: ChatMessage): Promise<void>;
+  updateChatLead(sessionId: string, name?: string, email?: string): Promise<void>;
+  getChatConversation(sessionId: string): Promise<ChatConversation | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -49,6 +54,52 @@ export class DatabaseStorage implements IStorage {
 
   async getNewsletterSubscribers(): Promise<NewsletterSubscriber[]> {
     return db.select().from(newsletterSubscribers);
+  }
+
+  async getOrCreateChatSession(sessionId: string): Promise<ChatConversation> {
+    const [existing] = await db
+      .select()
+      .from(chatConversations)
+      .where(eq(chatConversations.sessionId, sessionId));
+
+    if (existing) return existing;
+
+    const [created] = await db
+      .insert(chatConversations)
+      .values({ sessionId, messages: [] })
+      .returning();
+
+    return created;
+  }
+
+  async appendChatMessage(sessionId: string, message: ChatMessage): Promise<void> {
+    const conversation = await this.getOrCreateChatSession(sessionId);
+    const currentMessages = (conversation.messages as ChatMessage[]) ?? [];
+    const updatedMessages = [...currentMessages, message];
+
+    await db
+      .update(chatConversations)
+      .set({ messages: updatedMessages, updatedAt: new Date() })
+      .where(eq(chatConversations.sessionId, sessionId));
+  }
+
+  async updateChatLead(sessionId: string, name?: string, email?: string): Promise<void> {
+    const updates: Partial<ChatConversation> = { updatedAt: new Date() };
+    if (name) updates.leadName = name;
+    if (email) updates.leadEmail = email;
+
+    await db
+      .update(chatConversations)
+      .set(updates)
+      .where(eq(chatConversations.sessionId, sessionId));
+  }
+
+  async getChatConversation(sessionId: string): Promise<ChatConversation | undefined> {
+    const [conversation] = await db
+      .select()
+      .from(chatConversations)
+      .where(eq(chatConversations.sessionId, sessionId));
+    return conversation;
   }
 }
 
