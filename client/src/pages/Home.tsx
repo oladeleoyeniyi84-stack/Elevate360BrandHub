@@ -803,73 +803,116 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-background border-t py-16 mt-12">
+      <footer className="bg-[#070b13] border-t border-white/8 pt-16 pb-8">
         <div className="container mx-auto px-4 md:px-6">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-12">
-            <div className="flex flex-col items-center md:items-start text-center md:text-left w-full md:w-1/3">
-              <div className="flex items-center w-full max-w-[300px] md:max-w-[450px] mb-6">
-                <img
-                  src={brandLogo}
-                  alt="Elevate360"
-                  className="w-full h-auto object-contain scale-110 origin-left"
-                />
-              </div>
-              <p className="text-muted-foreground text-sm mt-4">
-                © {new Date().getFullYear()} Elevate360. All rights reserved.
+
+          {/* Main grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-10 mb-14">
+
+            {/* Brand column */}
+            <div className="col-span-2 md:col-span-1 flex flex-col gap-5">
+              <img
+                src={brandLogo}
+                alt="Elevate360Official"
+                className="h-14 w-auto object-contain object-left"
+              />
+              <p className="text-sm text-muted-foreground leading-relaxed max-w-[220px]">
+                Empowering lives through technology, creativity, and words. By Oladele Oyeniyi.
               </p>
+              <Link
+                href="/links"
+                data-testid="link-footer-linkinbio"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-[#ffb84d] transition-colors"
+              >
+                🔗 All Links · elevate360official.com/links
+              </Link>
+              {/* Social icons */}
+              <div className="flex items-center gap-3 pt-1">
+                {[
+                  { href: "https://www.instagram.com/officialelevate360/", Icon: Instagram, label: "Instagram", testid: "link-instagram" },
+                  { href: "https://www.youtube.com/channel/UCDGnUhgvM__6Mw8q26H-urQ", Icon: Youtube, label: "YouTube", testid: "link-youtube" },
+                  { href: "https://audiomack.com/elevate360music", Icon: Music, label: "Audiomack", testid: "link-audiomack-footer" },
+                  { href: "https://www.etsy.com/shop/Elevate360Official", Icon: Palette, label: "Etsy", testid: "link-etsy" },
+                ].map(({ href, Icon, label, testid }) => (
+                  <a
+                    key={label}
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={label}
+                    data-testid={testid}
+                    className="w-9 h-9 rounded-full border border-white/12 flex items-center justify-center text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors"
+                  >
+                    <Icon className="h-4 w-4" />
+                  </a>
+                ))}
+              </div>
             </div>
 
-            <div className="flex items-center space-x-6">
-              <a
-                href="https://www.instagram.com/officialelevate360/"
-                target="_blank"
-                rel="noopener noreferrer"
-                data-testid="link-instagram"
-                className="text-muted-foreground hover:text-primary transition-colors flex items-center gap-2"
-              >
-                <Instagram className="h-5 w-5" />
-                <span className="sr-only">Instagram</span>
-              </a>
-
-              <a
-                href="https://www.youtube.com/channel/UCDGnUhgvM__6Mw8q26H-urQ"
-                target="_blank"
-                rel="noopener noreferrer"
-                data-testid="link-youtube"
-                className="text-muted-foreground hover:text-primary transition-colors flex items-center gap-2"
-              >
-                <Youtube className="h-5 w-5" />
-                <span className="sr-only">YouTube</span>
-              </a>
-
-              <a
-                href="https://www.etsy.com/shop/Elevate360Official?sort_order=date_desc"
-                target="_blank"
-                rel="noopener noreferrer"
-                data-testid="link-etsy"
-                className="text-muted-foreground hover:text-primary transition-colors flex items-center gap-2"
-              >
-                <Palette className="h-5 w-5" />
-                <span className="sr-only">Etsy</span>
-              </a>
-
-              <a
-                href="https://audiomack.com/elevate360music"
-                target="_blank"
-                rel="noopener noreferrer"
-                data-testid="link-audiomack-footer"
-                className="text-muted-foreground hover:text-primary transition-colors flex items-center gap-2"
-              >
-                <Music className="h-5 w-5" />
-                <span className="sr-only">Audiomack</span>
-              </a>
-
+            {/* Explore column */}
+            <div className="flex flex-col gap-3">
+              <p className="text-[11px] font-bold tracking-[0.14em] text-muted-foreground uppercase mb-1">Explore</p>
+              {[
+                { href: "#apps", label: "Applications" },
+                { href: "#art-studio", label: "Art Studio" },
+                { href: "#music", label: "Music" },
+                { href: "#books", label: "Publications" },
+              ].map(({ href, label }) => (
+                <a key={label} href={href} data-testid={`link-footer-${label.toLowerCase()}`}
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors">{label}</a>
+              ))}
               <ContactDialog>
-                <button data-testid="button-footer-contact" className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
-                  Contact
+                <button data-testid="button-footer-contact"
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors text-left cursor-pointer">
+                  Get in Touch
                 </button>
               </ContactDialog>
             </div>
+
+            {/* Apps column */}
+            <div className="flex flex-col gap-3">
+              <p className="text-[11px] font-bold tracking-[0.14em] text-muted-foreground uppercase mb-1">Our Apps</p>
+              {[
+                { href: "https://bondedlove.elevate360official.com", label: "Bondedlove" },
+                { href: "https://health.elevate360official.com", label: "Healthwisesupport" },
+                { href: "https://crafter.elevate360official.com", label: "Video Crafter" },
+              ].map(({ href, label }) => (
+                <a key={label} href={href} target="_blank" rel="noopener noreferrer"
+                  data-testid={`link-footer-app-${label.toLowerCase().replace(/\s+/g, "-")}`}
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 group">
+                  {label}
+                  <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity" />
+                </a>
+              ))}
+            </div>
+
+            {/* Books column */}
+            <div className="flex flex-col gap-3">
+              <p className="text-[11px] font-bold tracking-[0.14em] text-muted-foreground uppercase mb-1">Books</p>
+              {[
+                { href: "https://www.amazon.com/dp/B0GMBNPZC9", label: "Healthwise: Stay Healthy" },
+                { href: "https://www.amazon.com/dp/B0G5DWG61V", label: "Together: Let There Be Love" },
+                { href: "https://www.amazon.com/dp/B0FSDTPVJC", label: "One Clean Meal" },
+                { href: "https://www.amazon.com/stores/Oladele-Oyeniyi/author/B0GCMSCWPV", label: "Author Central →" },
+              ].map(({ href, label }) => (
+                <a key={label} href={href} target="_blank" rel="noopener noreferrer"
+                  data-testid={`link-footer-book-${label.toLowerCase().replace(/[\s:]+/g, "-")}`}
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 group">
+                  {label}
+                  <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity" />
+                </a>
+              ))}
+            </div>
+          </div>
+
+          {/* Bottom bar */}
+          <div className="border-t border-white/8 pt-8 flex flex-col sm:flex-row justify-between items-center gap-3">
+            <p className="text-xs text-muted-foreground/60">
+              © {new Date().getFullYear()} Elevate360Official · Oladele Oyeniyi · All rights reserved.
+            </p>
+            <p className="text-xs text-muted-foreground/40 italic">
+              Elevate the world, one product at a time.
+            </p>
           </div>
         </div>
       </footer>

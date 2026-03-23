@@ -65,6 +65,15 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 - 10 content types: instagram_caption, newsletter, tweet, youtube_description, product_description, book_promo, music_release, press_release, email_subject_lines, blog_intro
 - `server/openai.ts` exports both `getConciergeReply` (visitor chat) and `generateBrandCopy` (creator tool)
 
+## Rich Footer (Phase 16)
+- Replaced minimal 2-element footer with a full 4-column branded footer in `Home.tsx`
+- **Brand column** (spans 2 on mobile): logo, tagline "Empowering lives through technology, creativity, and words", `/links` page shortcut, 4 circular social icon buttons (Instagram, YouTube, Audiomack, Etsy)
+- **Explore column**: smooth-scroll links to #apps, #art-studio, #music, #books + Get in Touch (ContactDialog)
+- **Our Apps column**: Bondedlove, Healthwisesupport, Video Crafter (external links with hover ExternalLink icon)
+- **Books column**: 3 book titles + Author Central page (external links)
+- **Bottom bar**: copyright · "Elevate the world, one product at a time." tagline
+- Background: `#070b13` (slightly deeper navy than main bg) for visual depth
+
 ## Scroll Utilities (Phase 15)
 - `client/src/components/ScrollUtilities.tsx` — two UX polish elements rendered globally via `App.tsx`
 - **Reading progress bar**: fixed `top-0`, 3px high, gold→champagne gradient, width = scrollY / total scroll × 100%; updates at 75ms throttle via passive scroll listener; `z-[60]` so sits above nav
