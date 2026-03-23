@@ -5,7 +5,7 @@ import {
   Eye, EyeOff, LogOut, Sparkles, Wand2, Copy, Check,
   Instagram, Newspaper, Twitter, Youtube, Package,
   BookOpen, Music, FileText, AtSign, PenLine, ChevronDown, ChevronUp,
-  BarChart3,
+  BarChart3, Reply, Send, CheckCircle2,
 } from "lucide-react";
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
@@ -56,6 +56,100 @@ interface ContactMessage {
   email: string;
   message: string;
   createdAt: string;
+  repliedAt: string | null;
+}
+
+function ContactCard({ contact, onReplied }: { contact: ContactMessage; onReplied: (updated: ContactMessage) => void }) {
+  const [replyOpen, setReplyOpen] = useState(false);
+  const [replyText, setReplyText] = useState("");
+  const [localRepliedAt, setLocalRepliedAt] = useState(contact.repliedAt);
+
+  const replyMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/dashboard/contacts/${contact.id}/reply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ replyText }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || "Failed to send reply");
+      }
+      return res.json() as Promise<ContactMessage>;
+    },
+    onSuccess: (updated) => {
+      setLocalRepliedAt(updated.repliedAt);
+      setReplyOpen(false);
+      setReplyText("");
+      onReplied(updated);
+    },
+  });
+
+  return (
+    <div className="lux-card space-y-3" data-testid={`contact-card-${contact.id}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="text-sm font-semibold text-white">{contact.name}</p>
+          <p className="text-xs text-white/40">{contact.email}</p>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {localRepliedAt ? (
+            <span className="flex items-center gap-1 text-[10px] font-semibold text-green-400 bg-green-400/10 border border-green-400/20 rounded-full px-2 py-0.5">
+              <CheckCircle2 className="h-3 w-3" /> Replied
+            </span>
+          ) : (
+            <button
+              data-testid={`button-reply-${contact.id}`}
+              onClick={() => setReplyOpen((v) => !v)}
+              className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-[#F4A62A]/30 text-[#F4A62A] hover:bg-[#F4A62A]/10 transition"
+            >
+              <Reply className="h-3 w-3" />
+              Reply
+            </button>
+          )}
+          <span className="text-xs text-white/30">{formatDate(contact.createdAt)}</span>
+        </div>
+      </div>
+
+      <p className="text-sm text-white/60 leading-relaxed border-t border-white/6 pt-2">{contact.message}</p>
+
+      {replyOpen && !localRepliedAt && (
+        <div className="border-t border-white/6 pt-3 space-y-2">
+          <textarea
+            data-testid={`input-reply-${contact.id}`}
+            value={replyText}
+            onChange={(e) => setReplyText(e.target.value)}
+            rows={4}
+            placeholder={`Write your reply to ${contact.name}…`}
+            className="w-full bg-white/6 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#F4A62A]/50 resize-none"
+          />
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs text-white/30">Reply will be sent to {contact.email}</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setReplyOpen(false); setReplyText(""); }}
+                className="text-xs px-3 py-1.5 rounded-lg border border-white/10 text-white/40 hover:text-white/70 transition"
+              >
+                Cancel
+              </button>
+              <button
+                data-testid={`button-send-reply-${contact.id}`}
+                onClick={() => replyMutation.mutate()}
+                disabled={!replyText.trim() || replyMutation.isPending}
+                className="flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-lg bg-[#F4A62A] text-black font-semibold hover:bg-[#ffb84d] transition disabled:opacity-50"
+              >
+                <Send className="h-3 w-3" />
+                {replyMutation.isPending ? "Sending…" : "Send Reply"}
+              </button>
+            </div>
+          </div>
+          {replyMutation.isError && (
+            <p className="text-red-400 text-xs">{(replyMutation.error as Error)?.message}</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 interface NewsletterSubscriber {
@@ -692,16 +786,13 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
               </div>
             ) : (
               contacts.map((c) => (
-                <div key={c.id} className="lux-card space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-white">{c.name}</p>
-                      <p className="text-xs text-white/40">{c.email}</p>
-                    </div>
-                    <span className="text-xs text-white/30">{formatDate(c.createdAt)}</span>
-                  </div>
-                  <p className="text-sm text-white/60 leading-relaxed border-t border-white/6 pt-2">{c.message}</p>
-                </div>
+                <ContactCard
+                  key={c.id}
+                  contact={c}
+                  onReplied={(updated) => {
+                    contactsQuery.refetch();
+                  }}
+                />
               ))
             )}
           </div>

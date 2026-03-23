@@ -10,7 +10,7 @@ import {
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { getConciergeReply, generateBrandCopy, type ContentType } from "./openai";
-import { notifyNewContact, notifyNewLead, notifyNewSubscriber } from "./email";
+import { notifyNewContact, notifyNewLead, notifyNewSubscriber, sendContactReply } from "./email";
 import { generateSitemap } from "./sitemap";
 import { z } from "zod";
 
@@ -121,6 +121,31 @@ export async function registerRoutes(
     if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
     const contacts = await storage.getContactMessages();
     res.json(contacts);
+  });
+
+  app.post("/api/dashboard/contacts/:id/reply", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).json({ message: "Invalid contact ID" });
+
+    const replySchema = z.object({ replyText: z.string().min(1).max(5000) });
+    try {
+      const { replyText } = replySchema.parse(req.body);
+      const contacts = await storage.getContactMessages();
+      const contact = contacts.find((c) => c.id === id);
+      if (!contact) return res.status(404).json({ message: "Contact not found" });
+
+      await sendContactReply(contact.name, contact.email, replyText);
+      const updated = await storage.replyContactMessage(id);
+      res.json(updated);
+    } catch (error: any) {
+      if (error instanceof ZodError) {
+        res.status(400).json({ message: fromZodError(error).message });
+      } else {
+        console.error("Reply error:", error?.message ?? error);
+        res.status(500).json({ message: "Failed to send reply. Please try again." });
+      }
+    }
   });
 
   app.get("/api/dashboard/subscribers", async (req, res) => {

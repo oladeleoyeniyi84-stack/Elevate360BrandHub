@@ -65,6 +65,18 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 - 10 content types: instagram_caption, newsletter, tweet, youtube_description, product_description, book_promo, music_release, press_release, email_subject_lines, blog_intro
 - `server/openai.ts` exports both `getConciergeReply` (visitor chat) and `generateBrandCopy` (creator tool)
 
+## Reply to Contacts from Dashboard (Phase 17)
+- Schema: Added `repliedAt timestamp` column to `contact_messages` table; migration applied via `npm run db:push`
+- `server/email.ts`: New `sendContactReply(toName, toEmail, replyText)` — sends branded HTML reply email directly to the visitor
+- `server/storage.ts`: New `replyContactMessage(id)` — stamps `repliedAt = now()` and returns updated row
+- `server/routes.ts`: `POST /api/dashboard/contacts/:id/reply` — auth-guarded; validates `replyText` (1–5000 chars), sends email, marks replied
+- `Dashboard.tsx`: New `ContactCard` component with:
+  - Gold "Reply" pill button → expands inline textarea + Send button
+  - "Sending…" loading state during mutation
+  - On success: reply drawer closes, green "✓ Replied" badge appears immediately (optimistic local state)
+  - `onReplied` callback triggers `contactsQuery.refetch()` to sync badge across page refreshes
+  - Error message shown inline if send fails
+
 ## Rich Footer (Phase 16)
 - Replaced minimal 2-element footer with a full 4-column branded footer in `Home.tsx`
 - **Brand column** (spans 2 on mobile): logo, tagline "Empowering lives through technology, creativity, and words", `/links` page shortcut, 4 circular social icon buttons (Instagram, YouTube, Audiomack, Etsy)

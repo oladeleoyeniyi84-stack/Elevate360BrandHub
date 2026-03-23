@@ -14,6 +14,7 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   createContactMessage(message: InsertContactMessage): Promise<ContactMessage>;
   getContactMessages(): Promise<ContactMessage[]>;
+  replyContactMessage(id: number): Promise<ContactMessage | undefined>;
   createNewsletterSubscriber(subscriber: InsertNewsletterSubscriber): Promise<NewsletterSubscriber>;
   getNewsletterSubscribers(): Promise<NewsletterSubscriber[]>;
   getOrCreateChatSession(sessionId: string): Promise<ChatConversation>;
@@ -45,7 +46,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getContactMessages(): Promise<ContactMessage[]> {
-    return db.select().from(contactMessages);
+    return db.select().from(contactMessages).orderBy(contactMessages.createdAt);
+  }
+
+  async replyContactMessage(id: number): Promise<ContactMessage | undefined> {
+    const [updated] = await db
+      .update(contactMessages)
+      .set({ repliedAt: new Date() })
+      .where(eq(contactMessages.id, id))
+      .returning();
+    return updated;
   }
 
   async createNewsletterSubscriber(subscriber: InsertNewsletterSubscriber): Promise<NewsletterSubscriber> {

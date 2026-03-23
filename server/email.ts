@@ -147,6 +147,29 @@ export async function notifyNewLead(
   );
 }
 
+export async function sendContactReply(
+  toName: string,
+  toEmail: string,
+  replyText: string
+): Promise<void> {
+  const body = `
+    <h2 style="margin:0 0 12px;font-size:20px;font-weight:700;color:#111827;">Hello ${toName},</h2>
+    <p style="margin:0 0 24px;font-size:14px;color:#6b7280;">Thank you for reaching out to Elevate360. Here's our reply to your message:</p>
+    <div style="padding:20px 24px;background:#f9fafb;border-left:4px solid ${BRAND_GOLD};border-radius:0 12px 12px 0;margin-bottom:28px;">
+      <p style="margin:0;font-size:15px;color:#374151;line-height:1.8;white-space:pre-wrap;">${replyText.replace(/\n/g, "<br>")}</p>
+    </div>
+    <p style="margin:0;font-size:14px;color:#6b7280;line-height:1.7;">
+      Feel free to reply to this email if you have further questions. We look forward to hearing from you.
+    </p>
+    <p style="margin:20px 0 0;font-size:14px;color:#374151;font-weight:600;">— The Elevate360 Team</p>`;
+
+  await sendEmail(
+    toEmail,
+    `Re: Your message to Elevate360`,
+    baseTemplate("Reply from Elevate360", body)
+  );
+}
+
 export async function notifyNewSubscriber(email: string): Promise<void> {
   const welcomeBody = `
     <h2 style="margin:0 0 12px;font-size:22px;font-weight:800;color:#111827;">Welcome to Elevate360! 🎉</h2>
