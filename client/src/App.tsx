@@ -8,6 +8,7 @@ import Home from "@/pages/Home";
 import Dashboard from "@/pages/Dashboard";
 import Links from "@/pages/Links";
 import { CookieBanner } from "@/components/CookieBanner";
+import { ScrollUtilities } from "@/components/ScrollUtilities";
 
 function Router() {
   return (
@@ -26,6 +27,7 @@ function App() {
       <TooltipProvider>
         <Toaster />
         <Router />
+        <ScrollUtilities />
         <CookieBanner />
       </TooltipProvider>
     </QueryClientProvider>

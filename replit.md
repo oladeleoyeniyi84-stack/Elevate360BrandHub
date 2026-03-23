@@ -65,6 +65,11 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 - 10 content types: instagram_caption, newsletter, tweet, youtube_description, product_description, book_promo, music_release, press_release, email_subject_lines, blog_intro
 - `server/openai.ts` exports both `getConciergeReply` (visitor chat) and `generateBrandCopy` (creator tool)
 
+## Scroll Utilities (Phase 15)
+- `client/src/components/ScrollUtilities.tsx` — two UX polish elements rendered globally via `App.tsx`
+- **Reading progress bar**: fixed `top-0`, 3px high, gold→champagne gradient, width = scrollY / total scroll × 100%; updates at 75ms throttle via passive scroll listener; `z-[60]` so sits above nav
+- **Back-to-top button**: fixed `bottom-6 right-6`, circular 44px gold button with ArrowUp icon; fades + slides in after 420px scroll; fades + slides out when near top; hover scales 110%; active scales 95%; `prefers-reduced-motion` uses `'auto'` instead of `'smooth'` for scroll behavior
+
 ## Animated Stats Section (Phase 14)
 - `client/src/hooks/useCountUp.ts` — count-up hook using IntersectionObserver + requestAnimationFrame; ease-out cubic easing; respects `prefers-reduced-motion`
 - `StatCard` component inline in `Home.tsx` — emoji, large animated number, label, description
