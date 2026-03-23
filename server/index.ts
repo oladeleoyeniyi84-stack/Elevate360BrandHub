@@ -1,4 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
+import session from "express-session";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
@@ -9,6 +10,19 @@ const httpServer = createServer(app);
 
 app.set("trust proxy", 1);
 app.use(canonicalRedirect);
+
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || process.env.DASHBOARD_PIN || "e360-secret-fallback",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 1000 * 60 * 60 * 8,
+    },
+  })
+);
 
 declare module "http" {
   interface IncomingMessage {

@@ -37,10 +37,27 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 ## Data Models
 - `contactMessages` - name, email, message, createdAt
 - `newsletterSubscribers` - email (unique), subscribedAt
+- `chatConversations` - sessionId (unique), messages (JSONB), leadName, leadEmail, createdAt, updatedAt
 
 ## API Routes
 - `POST /api/contact` - Submit contact form
 - `POST /api/newsletter` - Subscribe to newsletter
+- `POST /api/chat` - AI Concierge chat (OpenAI GPT-4o, stores history in DB)
+- `POST /api/dashboard/auth` - PIN-based dashboard login (session-based)
+- `POST /api/dashboard/logout` - Clear dashboard session
+- `GET /api/dashboard/leads` - All chat conversations (auth required)
+- `GET /api/dashboard/contacts` - All contact form messages (auth required)
+- `GET /api/dashboard/subscribers` - All newsletter subscribers (auth required)
+
+## AI Concierge
+- `client/src/components/AIConcierge.tsx` - Chat widget (floating button, panel, quick prompts, lead capture form)
+- `server/openai.ts` - OpenAI GPT-4o integration with full Elevate360 brand system prompt
+- Sessions stored per visitor using sessionStorage; full conversation saved to PostgreSQL
+
+## Creator Dashboard
+- Private route at `/dashboard` — PIN-protected via `DASHBOARD_PIN` env var
+- `client/src/pages/Dashboard.tsx` - Stats overview, chat leads explorer, contact forms, newsletter list
+- Server sessions via `express-session` (8-hour duration)
 
 ## Custom Domain
 - Canonical host: `www.elevate360official.com` (set via `CANONICAL_HOST` env var)

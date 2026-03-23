@@ -10,6 +10,13 @@ import {
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { getConciergeReply } from "./openai";
+import { z } from "zod";
+
+const DASHBOARD_PIN = process.env.DASHBOARD_PIN;
+
+function isDashboardAuthed(req: any): boolean {
+  return req.session?.dashboardAuthed === true;
+}
 
 export async function registerRoutes(
   httpServer: Server,
@@ -70,6 +77,43 @@ export async function registerRoutes(
         res.status(500).json({ message: "The concierge is temporarily unavailable. Please try again." });
       }
     }
+  });
+
+  // Dashboard auth
+  app.post("/api/dashboard/auth", (req, res) => {
+    const { pin } = req.body ?? {};
+    if (!DASHBOARD_PIN) {
+      return res.status(500).json({ message: "Dashboard PIN not configured." });
+    }
+    if (pin === DASHBOARD_PIN) {
+      (req as any).session.dashboardAuthed = true;
+      return res.json({ ok: true });
+    }
+    return res.status(401).json({ message: "Invalid PIN." });
+  });
+
+  app.post("/api/dashboard/logout", (req, res) => {
+    (req as any).session.dashboardAuthed = false;
+    res.json({ ok: true });
+  });
+
+  // Dashboard data routes (session-protected)
+  app.get("/api/dashboard/leads", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    const leads = await storage.getAllChatConversations();
+    res.json(leads);
+  });
+
+  app.get("/api/dashboard/contacts", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    const contacts = await storage.getContactMessages();
+    res.json(contacts);
+  });
+
+  app.get("/api/dashboard/subscribers", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    const subscribers = await storage.getNewsletterSubscribers();
+    res.json(subscribers);
   });
 
   return httpServer;

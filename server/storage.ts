@@ -20,6 +20,7 @@ export interface IStorage {
   appendChatMessage(sessionId: string, message: ChatMessage): Promise<void>;
   updateChatLead(sessionId: string, name?: string, email?: string): Promise<void>;
   getChatConversation(sessionId: string): Promise<ChatConversation | undefined>;
+  getAllChatConversations(): Promise<ChatConversation[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -100,6 +101,13 @@ export class DatabaseStorage implements IStorage {
       .from(chatConversations)
       .where(eq(chatConversations.sessionId, sessionId));
     return conversation;
+  }
+
+  async getAllChatConversations(): Promise<ChatConversation[]> {
+    return db
+      .select()
+      .from(chatConversations)
+      .orderBy(chatConversations.updatedAt);
   }
 }
 
