@@ -65,6 +65,15 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 - 10 content types: instagram_caption, newsletter, tweet, youtube_description, product_description, book_promo, music_release, press_release, email_subject_lines, blog_intro
 - `server/openai.ts` exports both `getConciergeReply` (visitor chat) and `generateBrandCopy` (creator tool)
 
+## Cookie Consent Banner (Phase 13)
+- `client/src/components/CookieBanner.tsx` — GDPR-aware cookie notice
+- Appears 1.8 s after first visit (only if no stored consent); never shown again once decided
+- "Accept All" → stores `accepted` in localStorage, GA4 opt-out disabled (tracking on)
+- "Decline" / ✕ → stores `declined`, sets `window['ga-disable-G-5N80T0FN54'] = true` (GA4 off)
+- On every page load, stored `declined` immediately fires GA opt-out before any events
+- Design: navy card, bottom-full on mobile / bottom-right floating card on ≥md; gold accept button, ghost decline button; 300 ms slide-up dismiss animation
+- Rendered in `App.tsx` so it appears on all routes (/, /links, /dashboard)
+
 ## Link in Bio Page (Phase 12)
 - Route: `/links` — mobile-first standalone page, perfect for Instagram bio / YouTube description
 - `client/src/pages/Links.tsx` — branded link hub with all Elevate360 destinations
