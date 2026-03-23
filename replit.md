@@ -65,6 +65,13 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 - 10 content types: instagram_caption, newsletter, tweet, youtube_description, product_description, book_promo, music_release, press_release, email_subject_lines, blog_intro
 - `server/openai.ts` exports both `getConciergeReply` (visitor chat) and `generateBrandCopy` (creator tool)
 
+## SEO & Structured Data (Phase 4)
+- `client/index.html` — Full JSON-LD schema markup: Organization, WebSite, SoftwareApplication ×3, Book ×3, MusicGroup, Person
+- `client/public/robots.txt` — `Allow: /` with Sitemap reference
+- `server/sitemap.ts` — Dynamic XML sitemap generator with all pages and anchor sections
+- `/sitemap.xml` route — serves sitemap with 24-hour cache header
+- Enhanced meta: keywords, author, robots, theme-color, og:locale, twitter:creator
+
 ## Custom Domain
 - Canonical host: `www.elevate360official.com` (set via `CANONICAL_HOST` env var)
 - `server/canonicalRedirect.ts` middleware redirects non-canonical hosts and enforces HTTPS via 301 redirects

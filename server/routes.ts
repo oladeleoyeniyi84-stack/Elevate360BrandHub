@@ -10,6 +10,7 @@ import {
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { getConciergeReply, generateBrandCopy, type ContentType } from "./openai";
+import { generateSitemap } from "./sitemap";
 import { z } from "zod";
 
 const DASHBOARD_PIN = process.env.DASHBOARD_PIN;
@@ -22,6 +23,12 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  app.get("/sitemap.xml", (_req, res) => {
+    res.header("Content-Type", "application/xml");
+    res.header("Cache-Control", "public, max-age=86400");
+    res.send(generateSitemap());
+  });
+
   app.post("/api/contact", async (req, res) => {
     try {
       const data = insertContactMessageSchema.parse(req.body);
