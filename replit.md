@@ -65,6 +65,17 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 - 10 content types: instagram_caption, newsletter, tweet, youtube_description, product_description, book_promo, music_release, press_release, email_subject_lines, blog_intro
 - `server/openai.ts` exports both `getConciergeReply` (visitor chat) and `generateBrandCopy` (creator tool)
 
+## Dashboard Digest Email (Phase 31)
+- `POST /api/dashboard/digest` (dashboard-authenticated) — gathers all stats in parallel, derives leads from chat sessions with `leadEmail`, computes last-7-day counts, calls `sendDigestEmail()`
+- `sendDigestEmail(stats: DigestStats)` added to `server/email.ts` — sends a richly formatted HTML digest to `CREATOR_EMAIL` with:
+  - **Traffic & Engagement table**: Page Views, Chat Sessions, Leads, Contact Forms, Newsletter Subscribers — each shows all-time total + "+N this week" trend in colour
+  - **Top 5 Clicked Products** leaderboard (colour-coded by product type: gold=app, blue=book, purple=music, green=art)
+  - **"Open Dashboard →"** gold CTA button linking to live dashboard
+- **DigestButton component** added above the Analytics charts in Dashboard Analytics tab:
+  - Gold-tinted inbox icon + description + "Send Digest" button
+  - Button cycles through states: idle → Sending… (pulsing icon) → Sent! (green checkmark)
+  - Stays in sent state until re-clicked for a new send
+
 ## "Work With Me" Collaboration Section (Phase 30)
 - New `id="collaborate"` section in `Home.tsx`, inserted between the FAQ section and the Newsletter CTA
 - **4 collaboration cards** in a responsive 2-column grid (`sm:grid-cols-2`), each with a tinted icon badge and description:

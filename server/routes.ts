@@ -10,7 +10,7 @@ import {
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { getConciergeReply, generateBrandCopy, type ContentType } from "./openai";
-import { notifyNewContact, notifyNewLead, notifyNewSubscriber, sendContactReply } from "./email";
+import { notifyNewContact, notifyNewLead, notifyNewSubscriber, sendContactReply, sendDigestEmail } from "./email";
 import { generateSitemap } from "./sitemap";
 import { z } from "zod";
 
@@ -203,6 +203,46 @@ export async function registerRoutes(
     if (!isDashboardAuthed(req)) return res.status(401).json({ error: "Unauthorized" });
     const stats = await storage.getClickStats();
     res.json(stats);
+  });
+
+  app.post("/api/dashboard/digest", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ error: "Unauthorized" });
+    try {
+      const now = new Date();
+      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const after7d = (d: Date | null | undefined) => d ? new Date(d) >= sevenDaysAgo : false;
+
+      const [pageViews, chats, contacts, subscribers, clickStats] = await Promise.all([
+        storage.getPageViews(),
+        storage.getAllChatConversations(),
+        storage.getContactMessages(),
+        storage.getNewsletterSubscribers(),
+        storage.getClickStats(),
+      ]);
+
+      const leads = chats.filter((c) => !!c.leadEmail);
+
+      const stats = {
+        pageViewsTotal: pageViews.length,
+        pageViews7d: pageViews.filter((v) => after7d(v.createdAt)).length,
+        chatTotal: chats.length,
+        chat7d: chats.filter((c) => after7d(c.createdAt)).length,
+        leadsTotal: leads.length,
+        leads7d: leads.filter((l) => after7d(l.createdAt)).length,
+        contactsTotal: contacts.length,
+        contacts7d: contacts.filter((c) => after7d(c.createdAt)).length,
+        subscribersTotal: subscribers.length,
+        subscribers7d: subscribers.filter((s) => after7d(s.subscribedAt)).length,
+        topClicks: [...clickStats].sort((a, b) => b.count - a.count).slice(0, 5),
+        generatedAt: now.toLocaleDateString("en-US", { weekday: "short", month: "long", day: "numeric", year: "numeric" }),
+      };
+
+      await sendDigestEmail(stats);
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("Digest error:", err);
+      res.status(500).json({ error: "Failed to send digest" });
+    }
   });
 
   app.get("/api/config/public", (_req, res) => {

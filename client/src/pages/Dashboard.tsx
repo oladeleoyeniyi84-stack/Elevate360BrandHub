@@ -5,7 +5,7 @@ import {
   Eye, EyeOff, LogOut, Sparkles, Wand2, Copy, Check,
   Instagram, Newspaper, Twitter, Youtube, Package,
   BookOpen, Music, FileText, AtSign, PenLine, ChevronDown, ChevronUp,
-  BarChart3, Reply, Send, CheckCircle2,
+  BarChart3, Reply, Send, CheckCircle2, Inbox,
 } from "lucide-react";
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
@@ -237,6 +237,51 @@ const CHART_TOOLTIP_STYLE = {
   itemStyle: { color: "#F4A62A" },
   labelStyle: { color: "rgba(255,255,255,0.5)" },
 };
+
+function DigestButton() {
+  const [sent, setSent] = useState(false);
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/dashboard/digest", { method: "POST", credentials: "include" });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    onSuccess: () => setSent(true),
+  });
+
+  return (
+    <div
+      className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-2xl border border-white/8"
+      style={{ background: "rgba(244,166,42,0.05)" }}
+    >
+      <div className="flex items-start gap-3">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(244,166,42,0.12)" }}>
+          <Inbox className="h-5 w-5 text-primary" />
+        </div>
+        <div>
+          <p className="text-sm font-bold text-white">Email Digest</p>
+          <p className="text-xs text-white/40 mt-0.5">Send a snapshot of all key stats to weareelevate360@gmail.com</p>
+        </div>
+      </div>
+      <button
+        data-testid="button-send-digest"
+        onClick={() => { setSent(false); mutation.mutate(); }}
+        disabled={mutation.isPending}
+        className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all disabled:opacity-50"
+        style={{ background: sent ? "rgba(34,197,94,0.15)" : "rgba(244,166,42,0.15)", color: sent ? "#22c55e" : "#F4A62A", border: `1px solid ${sent ? "rgba(34,197,94,0.3)" : "rgba(244,166,42,0.3)"}` }}
+      >
+        {mutation.isPending ? (
+          <><Send className="h-4 w-4 animate-pulse" />Sending…</>
+        ) : sent ? (
+          <><CheckCircle2 className="h-4 w-4" />Sent!</>
+        ) : (
+          <><Send className="h-4 w-4" />Send Digest</>
+        )}
+      </button>
+    </div>
+  );
+}
 
 function Analytics({
   leads, contacts, subscribers, clicks, pageViewData,
@@ -842,7 +887,10 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
         </div>
 
         {tab === "analytics" && (
-          <Analytics leads={leads} contacts={contacts} subscribers={subscribers} clicks={clicks} pageViewData={pageViewData} />
+          <div className="space-y-6">
+            <DigestButton />
+            <Analytics leads={leads} contacts={contacts} subscribers={subscribers} clicks={clicks} pageViewData={pageViewData} />
+          </div>
         )}
 
         {tab === "voice" && <BrandVoiceGenerator />}

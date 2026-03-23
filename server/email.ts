@@ -218,3 +218,83 @@ export async function notifyNewSubscriber(email: string): Promise<void> {
       : Promise.resolve(),
   ]);
 }
+
+export interface DigestStats {
+  pageViewsTotal: number;
+  pageViews7d: number;
+  chatTotal: number;
+  chat7d: number;
+  leadsTotal: number;
+  leads7d: number;
+  contactsTotal: number;
+  contacts7d: number;
+  subscribersTotal: number;
+  subscribers7d: number;
+  topClicks: { label: string; product: string; count: number }[];
+  generatedAt: string;
+}
+
+export async function sendDigestEmail(stats: DigestStats): Promise<void> {
+  if (!RESEND_API_KEY || !CREATOR_EMAIL) return;
+
+  const PRODUCT_COLORS: Record<string, string> = {
+    app: BRAND_GOLD,
+    book: "#38bdf8",
+    music: "#a78bfa",
+    art: "#22c55e",
+  };
+
+  function statRow(label: string, total: number, week: number, color: string): string {
+    const trend = week > 0 ? `<span style="color:${color};font-weight:700;">+${week} this week</span>` : `<span style="color:#9ca3af;">0 this week</span>`;
+    return `
+      <tr>
+        <td style="padding:10px 0;border-bottom:1px solid #f3f4f6;">
+          <span style="font-size:14px;color:#374151;font-weight:600;">${label}</span><br/>
+          <span style="font-size:22px;font-weight:800;color:#111827;">${total.toLocaleString()}</span>
+          &nbsp;&nbsp;${trend}
+        </td>
+      </tr>`;
+  }
+
+  const clickRows = stats.topClicks.slice(0, 5).map((c, i) => {
+    const color = PRODUCT_COLORS[c.product] ?? BRAND_GOLD;
+    return `
+      <tr>
+        <td style="padding:8px 0;border-bottom:1px solid #f3f4f6;">
+          <span style="font-size:13px;color:#6b7280;">#${i + 1}</span>
+          &nbsp;
+          <span style="font-size:14px;font-weight:600;color:#111827;">${c.label}</span>
+          <span style="float:right;font-size:14px;font-weight:700;color:${color};">${c.count} click${c.count !== 1 ? "s" : ""}</span>
+        </td>
+      </tr>`;
+  }).join("");
+
+  const body = `
+    <h2 style="margin:0 0 4px;font-size:22px;font-weight:800;color:#111827;">Your Site Digest</h2>
+    <p style="margin:0 0 28px;font-size:14px;color:#6b7280;">Generated ${stats.generatedAt} · Dashboard: <a href="https://www.elevate360official.com/dashboard" style="color:${BRAND_GOLD};">View Dashboard</a></p>
+
+    <h3 style="margin:0 0 12px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#9ca3af;">Traffic & Engagement</h3>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:28px;">
+      ${statRow("Page Views", stats.pageViewsTotal, stats.pageViews7d, "#fb923c")}
+      ${statRow("Chat Sessions", stats.chatTotal, stats.chat7d, BRAND_GOLD)}
+      ${statRow("Leads Captured", stats.leadsTotal, stats.leads7d, "#22c55e")}
+      ${statRow("Contact Forms", stats.contactsTotal, stats.contacts7d, "#a78bfa")}
+      ${statRow("Newsletter Subscribers", stats.subscribersTotal, stats.subscribers7d, "#38bdf8")}
+    </table>
+
+    ${stats.topClicks.length > 0 ? `
+    <h3 style="margin:0 0 12px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#9ca3af;">Top Clicked Products</h3>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:28px;">
+      ${clickRows}
+    </table>` : ""}
+
+    <div style="background:#f9fafb;border-radius:12px;padding:20px;text-align:center;">
+      <a href="https://www.elevate360official.com/dashboard" style="display:inline-block;padding:12px 28px;background:${BRAND_GOLD};color:#0d1a2e;font-weight:800;border-radius:8px;text-decoration:none;font-size:14px;">Open Dashboard →</a>
+    </div>`;
+
+  await sendEmail(
+    CREATOR_EMAIL,
+    `📊 Elevate360 Site Digest — ${stats.generatedAt}`,
+    baseTemplate("Creator Digest", body),
+  );
+}
