@@ -3,10 +3,10 @@ import {
   type ContactMessage, type InsertContactMessage,
   type NewsletterSubscriber, type InsertNewsletterSubscriber,
   type ChatConversation, type ChatMessage,
-  users, contactMessages, newsletterSubscribers, chatConversations
+  users, contactMessages, newsletterSubscribers, chatConversations, clickEvents,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -22,6 +22,8 @@ export interface IStorage {
   updateChatLead(sessionId: string, name?: string, email?: string): Promise<void>;
   getChatConversation(sessionId: string): Promise<ChatConversation | undefined>;
   getAllChatConversations(): Promise<ChatConversation[]>;
+  recordClick(product: string, label: string): Promise<void>;
+  getClickStats(): Promise<{ product: string; label: string; count: number }[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -118,6 +120,22 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(chatConversations)
       .orderBy(chatConversations.updatedAt);
+  }
+
+  async recordClick(product: string, label: string): Promise<void> {
+    await db.insert(clickEvents).values({ product, label });
+  }
+
+  async getClickStats(): Promise<{ product: string; label: string; count: number }[]> {
+    return db
+      .select({
+        product: clickEvents.product,
+        label: clickEvents.label,
+        count: sql<number>`cast(count(*) as int)`,
+      })
+      .from(clickEvents)
+      .groupBy(clickEvents.product, clickEvents.label)
+      .orderBy(sql`count(*) desc`);
   }
 }
 

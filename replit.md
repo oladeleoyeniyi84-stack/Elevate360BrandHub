@@ -65,6 +65,19 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 - 10 content types: instagram_caption, newsletter, tweet, youtube_description, product_description, book_promo, music_release, press_release, email_subject_lines, blog_intro
 - `server/openai.ts` exports both `getConciergeReply` (visitor chat) and `generateBrandCopy` (creator tool)
 
+## Link Click Analytics (Phase 28)
+- `click_events` table in DB: `{ id, product, label, createdAt }` — pushed via `npm run db:push`
+- `POST /api/track/click` — public, no auth; records product + label; fire-and-forget from frontend
+- `GET /api/dashboard/clicks` — dashboard-authenticated; returns aggregated `{ product, label, count }[]` sorted by count desc
+- `client/src/hooks/useTrackClick.ts` — `useCallback` hook that calls the tracking endpoint silently (errors swallowed)
+- **8 tracked CTAs in Home.tsx**:
+  - Apps: Bondedlove card, Healthwisesupport card, Video Crafter card (`product="app"`)
+  - Music: "Listen on Audiomack" button (`product="music"`)
+  - Art: "Visit Art Studio on Etsy" button (`product="art"`)
+  - Books: "Buy on Amazon" for all 3 titles (`product="book"`)
+- **Dashboard Analytics tab** — new "Link Clicks — All Time" section with a colour-coded progress bar leaderboard (gold=apps, blue=books, purple=music, green=art) and product category totals
+- Empty state message shown until first clicks are recorded
+
 ## Site-wide Announcement Banner (Phase 27)
 - `client/src/components/AnnouncementBanner.tsx` — dismissible gold strip mounted in `App.tsx`
 - **Activation**: reads `announcementText` and `announcementUrl` from `GET /api/config/public` (env vars `ANNOUNCEMENT_TEXT` / `ANNOUNCEMENT_URL`); completely invisible when neither var is set — zero impact on the default experience

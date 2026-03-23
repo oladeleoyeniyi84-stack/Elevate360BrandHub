@@ -179,6 +179,19 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/track/click", async (req, res) => {
+    const { product, label } = req.body ?? {};
+    if (!product || !label) return res.status(400).json({ error: "Missing fields" });
+    await storage.recordClick(String(product), String(label));
+    res.json({ ok: true });
+  });
+
+  app.get("/api/dashboard/clicks", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ error: "Unauthorized" });
+    const stats = await storage.getClickStats();
+    res.json(stats);
+  });
+
   app.get("/api/config/public", (_req, res) => {
     res.json({
       whatsappNumber: process.env.WHATSAPP_NUMBER || null,

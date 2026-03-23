@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useScrollReveal } from "@/hooks/useScrollReveal";
 import { useCountUp } from "@/hooks/useCountUp";
+import { useTrackClick } from "@/hooks/useTrackClick";
 import { AIConcierge } from "@/components/AIConcierge";
 import { Link } from "wouter";
 import {
@@ -66,6 +67,7 @@ export default function Home() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [commissionOpen, setCommissionOpen] = useState(false);
+  const trackClick = useTrackClick();
   useScrollReveal();
 
   useEffect(() => {
@@ -440,6 +442,7 @@ export default function Home() {
               href="https://bondedlove.elevate360official.com"
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() => trackClick("app", "Bondedlove")}
               aria-label="Open Bondedlove web app"
               className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-[2px] h-full flex flex-col cursor-pointer reveal reveal-delay-1"
             >
@@ -477,6 +480,7 @@ export default function Home() {
               href="https://health.elevate360official.com"
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() => trackClick("app", "Healthwisesupport")}
               aria-label="Open Healthwisesupport web app"
               className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-[2px] h-full flex flex-col cursor-pointer reveal reveal-delay-2"
             >
@@ -514,6 +518,7 @@ export default function Home() {
               href="https://crafter.elevate360official.com"
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() => trackClick("app", "Video Crafter")}
               aria-label="Open Video Crafter web app"
               className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-[2px] h-full flex flex-col cursor-pointer reveal reveal-delay-3"
             >
@@ -590,6 +595,7 @@ export default function Home() {
                     href="https://www.etsy.com/shop/Elevate360Official?sort_order=date_desc"
                     target="_blank"
                     rel="noopener noreferrer"
+                    onClick={() => trackClick("art", "Etsy Art Studio")}
                     data-testid="link-etsy-shop"
                     className="btn-primary shadow-lg hover:shadow-xl"
                   >
@@ -665,6 +671,7 @@ export default function Home() {
                     href="https://audiomack.com/elevate360music"
                     target="_blank"
                     rel="noopener noreferrer"
+                    onClick={() => trackClick("music", "Audiomack")}
                     data-testid="link-audiomack"
                     className="btn-primary shadow-lg hover:shadow-xl"
                   >
@@ -831,6 +838,7 @@ export default function Home() {
                     href="https://www.amazon.com/dp/B0GMBNPZC9"
                     target="_blank"
                     rel="noopener noreferrer"
+                    onClick={() => trackClick("book", "Healthwise: Stay Healthy")}
                     data-testid="link-buy-healthwise"
                     className="btn-primary"
                   >
@@ -915,6 +923,7 @@ export default function Home() {
                     href="https://www.amazon.com/dp/B0G5DWG61V"
                     target="_blank"
                     rel="noopener noreferrer"
+                    onClick={() => trackClick("book", "Together: Let There Be Love")}
                     data-testid="link-buy-together"
                     className="btn-primary"
                   >
@@ -978,6 +987,7 @@ export default function Home() {
                     href="https://www.amazon.com/dp/B0FSDTPVJC"
                     target="_blank"
                     rel="noopener noreferrer"
+                    onClick={() => trackClick("book", "One Clean Meal")}
                     data-testid="link-buy-onecleanmeal"
                     className="btn-primary"
                   >

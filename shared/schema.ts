@@ -67,6 +67,21 @@ export const chatRequestSchema = z.object({
   leadEmail: z.string().email().optional(),
 });
 
+export const clickEvents = pgTable("click_events", {
+  id: serial("id").primaryKey(),
+  product: text("product").notNull(),
+  label: text("label").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertClickEventSchema = createInsertSchema(clickEvents).pick({
+  product: true,
+  label: true,
+});
+
+export type InsertClickEvent = z.infer<typeof insertClickEventSchema>;
+export type ClickEvent = typeof clickEvents.$inferSelect;
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type InsertContactMessage = z.infer<typeof insertContactMessageSchema>;

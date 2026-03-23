@@ -40,6 +40,12 @@ function ExportButton({ onClick, label }: { onClick: () => void; label: string }
   );
 }
 
+interface ClickStat {
+  product: string;
+  label: string;
+  count: number;
+}
+
 interface Lead {
   id: number;
   sessionId: string;
@@ -229,11 +235,12 @@ const CHART_TOOLTIP_STYLE = {
 };
 
 function Analytics({
-  leads, contacts, subscribers,
+  leads, contacts, subscribers, clicks,
 }: {
   leads: Lead[];
   contacts: ContactMessage[];
   subscribers: NewsletterSubscriber[];
+  clicks: ClickStat[];
 }) {
   const capturedLeads = leads.filter((l) => l.leadEmail);
   const activeLeads = leads.filter((l) => (l.messages as any[]).length > 0);
@@ -387,6 +394,67 @@ function Analytics({
             />
           </LineChart>
         </ResponsiveContainer>
+      </div>
+
+      {/* Link Click Leaderboard */}
+      <div className="lux-card">
+        <h3 className="text-sm font-semibold text-white/70 mb-5 flex items-center gap-2">
+          <TrendingUp className="h-4 w-4 text-[#F4A62A]" />
+          Link Clicks — All Time
+        </h3>
+        {clicks.length === 0 ? (
+          <p className="text-white/30 text-sm text-center py-6">No link clicks recorded yet — they appear here as visitors explore your products.</p>
+        ) : (
+          <div className="space-y-3">
+            {clicks.map(({ label, product, count }) => {
+              const max = clicks[0]?.count ?? 1;
+              const pct = Math.round((count / max) * 100);
+              const COLOR_MAP: Record<string, string> = {
+                app: "#F4A62A",
+                book: "#38bdf8",
+                music: "#a78bfa",
+                art: "#22c55e",
+              };
+              const fill = COLOR_MAP[product] ?? "#F4A62A";
+              return (
+                <div key={label}>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-white/60 flex items-center gap-1.5">
+                      <span
+                        className="inline-block w-2 h-2 rounded-full"
+                        style={{ background: fill }}
+                      />
+                      {label}
+                    </span>
+                    <span className="font-semibold" style={{ color: fill }}>{count} click{count !== 1 ? "s" : ""}</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-white/6 overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-700"
+                      style={{ width: `${pct}%`, background: fill }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+            <div className="pt-3 flex flex-wrap gap-3 border-t border-white/8">
+              {[
+                { key: "app", label: "Apps", color: "#F4A62A" },
+                { key: "book", label: "Books", color: "#38bdf8" },
+                { key: "music", label: "Music", color: "#a78bfa" },
+                { key: "art", label: "Art", color: "#22c55e" },
+              ].map(({ key, label, color }) => {
+                const total = clicks.filter((c) => c.product === key).reduce((s, c) => s + c.count, 0);
+                if (total === 0) return null;
+                return (
+                  <span key={key} className="text-xs px-2 py-1 rounded-full border" style={{ borderColor: `${color}40`, color }}>
+                    {label}: {total}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
     </div>
@@ -665,9 +733,19 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
     },
   });
 
+  const clicksQuery = useQuery<ClickStat[]>({
+    queryKey: ["/api/dashboard/clicks"],
+    queryFn: async () => {
+      const res = await fetch("/api/dashboard/clicks");
+      if (!res.ok) throw new Error("Unauthorized");
+      return res.json();
+    },
+  });
+
   const leads = leadsQuery.data ?? [];
   const contacts = contactsQuery.data ?? [];
   const subscribers = subscribersQuery.data ?? [];
+  const clicks = clicksQuery.data ?? [];
   const capturedLeads = leads.filter((l) => l.leadEmail);
 
   const tabs = [
@@ -718,7 +796,7 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
         </div>
 
         {tab === "analytics" && (
-          <Analytics leads={leads} contacts={contacts} subscribers={subscribers} />
+          <Analytics leads={leads} contacts={contacts} subscribers={subscribers} clicks={clicks} />
         )}
 
         {tab === "voice" && <BrandVoiceGenerator />}
