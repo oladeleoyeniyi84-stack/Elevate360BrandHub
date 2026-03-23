@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, serial, boolean, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, serial, boolean, jsonb, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -87,6 +87,28 @@ export const insertClickEventSchema = createInsertSchema(clickEvents).pick({
 
 export type InsertClickEvent = z.infer<typeof insertClickEventSchema>;
 export type ClickEvent = typeof clickEvents.$inferSelect;
+
+export const testimonials = pgTable("testimonials", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  handle: text("handle"),
+  rating: integer("rating").notNull().default(5),
+  body: text("body").notNull(),
+  product: text("product").notNull(),
+  approved: boolean("approved").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertTestimonialSchema = createInsertSchema(testimonials, {
+  name: z.string().min(1, "Name required").max(100),
+  rating: z.number().int().min(1).max(5).default(5),
+  body: z.string().min(1, "Review text required").max(1000),
+  product: z.string().min(1, "Product required").max(100),
+  handle: z.string().max(80).optional(),
+}).pick({ name: true, handle: true, rating: true, body: true, product: true });
+
+export type InsertTestimonial = z.infer<typeof insertTestimonialSchema>;
+export type Testimonial = typeof testimonials.$inferSelect;
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;

@@ -5,6 +5,7 @@ import {
   insertContactMessageSchema,
   insertNewsletterSubscriberSchema,
   chatRequestSchema,
+  insertTestimonialSchema,
   type ChatMessage,
 } from "@shared/schema";
 import { ZodError } from "zod";
@@ -243,6 +244,42 @@ export async function registerRoutes(
       console.error("Digest error:", err);
       res.status(500).json({ error: "Failed to send digest" });
     }
+  });
+
+  app.get("/api/testimonials", async (_req, res) => {
+    const items = await storage.getTestimonials(false);
+    res.json(items);
+  });
+
+  app.get("/api/dashboard/testimonials", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ error: "Unauthorized" });
+    const items = await storage.getTestimonials(true);
+    res.json(items);
+  });
+
+  app.post("/api/dashboard/testimonials", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ error: "Unauthorized" });
+    try {
+      const data = insertTestimonialSchema.parse(req.body);
+      const item = await storage.createTestimonial(data);
+      res.json(item);
+    } catch (err) {
+      if (err instanceof ZodError) return res.status(400).json({ error: fromZodError(err).message });
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.patch("/api/dashboard/testimonials/:id/toggle", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ error: "Unauthorized" });
+    const item = await storage.toggleTestimonialApproval(Number(req.params.id));
+    if (!item) return res.status(404).json({ error: "Not found" });
+    res.json(item);
+  });
+
+  app.delete("/api/dashboard/testimonials/:id", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ error: "Unauthorized" });
+    await storage.deleteTestimonial(Number(req.params.id));
+    res.json({ ok: true });
   });
 
   app.get("/api/config/public", (_req, res) => {

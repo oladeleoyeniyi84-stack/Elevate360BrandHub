@@ -65,6 +65,22 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 - 10 content types: instagram_caption, newsletter, tweet, youtube_description, product_description, book_promo, music_release, press_release, email_subject_lines, blog_intro
 - `server/openai.ts` exports both `getConciergeReply` (visitor chat) and `generateBrandCopy` (creator tool)
 
+## Testimonials System (Phase 32)
+- **Schema**: `testimonials` table (`id`, `name`, `handle`, `rating`, `body`, `product`, `approved`, `createdAt`) — pushed to DB via `npm run db:push`
+- **Storage**: `getTestimonials(all?)`, `createTestimonial()`, `deleteTestimonial()`, `toggleTestimonialApproval()` in `DatabaseStorage`
+- **API Routes**:
+  - `GET /api/testimonials` — public, returns only approved; used by home page
+  - `GET /api/dashboard/testimonials` — auth, returns all (for Dashboard)
+  - `POST /api/dashboard/testimonials` — auth, validated with `insertTestimonialSchema`
+  - `PATCH /api/dashboard/testimonials/:id/toggle` — auth, toggles `approved`
+  - `DELETE /api/dashboard/testimonials/:id` — auth, hard delete
+- **Home page**: `id="reviews"` section renders only if there are approved testimonials (hidden otherwise). 3-column responsive grid with star ratings, product badges (colour-coded per product), reviewer name, handle, and review body. Fetched via `useQuery` from `/api/testimonials`.
+- **Dashboard "Reviews" tab**: 6th tab added to DashboardContent with `Star` icon. Self-contained `ReviewsTab` component with:
+  - "Add Review" toggle button → inline form (name, handle, product select, 5-star interactive rating, textarea)
+  - List of all testimonials with approve toggle (`ToggleLeft`/`ToggleRight`) and delete (`Trash2`)
+  - Query cache invalidation updates both dashboard and public site views instantly
+- Products supported: Bondedlove, Healthwisesupport, Video Crafter, Amazon KDP, Etsy, Music
+
 ## Dashboard Digest Email (Phase 31)
 - `POST /api/dashboard/digest` (dashboard-authenticated) — gathers all stats in parallel, derives leads from chat sessions with `leadEmail`, computes last-7-day counts, calls `sendDigestEmail()`
 - `sendDigestEmail(stats: DigestStats)` added to `server/email.ts` — sends a richly formatted HTML digest to `CREATOR_EMAIL` with:

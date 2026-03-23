@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
+import type { Testimonial } from "@shared/schema";
 import { useScrollReveal } from "@/hooks/useScrollReveal";
 import { useCountUp } from "@/hooks/useCountUp";
 import { useTrackClick } from "@/hooks/useTrackClick";
@@ -74,6 +76,15 @@ export default function Home() {
   const [commissionOpen, setCommissionOpen] = useState(false);
   const trackClick = useTrackClick();
   useTrackPageView("home");
+
+  const { data: testimonialData = [] } = useQuery<Testimonial[]>({
+    queryKey: ["/api/testimonials"],
+    queryFn: async () => {
+      const res = await fetch("/api/testimonials");
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
   useScrollReveal();
 
   useEffect(() => {
@@ -1272,6 +1283,65 @@ export default function Home() {
 
         </div>
       </section>
+
+      {/* Testimonials Section */}
+      {testimonialData.length > 0 && (() => {
+        const PRODUCT_COLORS: Record<string, { bg: string; color: string }> = {
+          Bondedlove:         { bg: "rgba(244,166,42,0.12)",  color: "#F4A62A" },
+          Healthwisesupport:  { bg: "rgba(34,197,94,0.12)",   color: "#22c55e" },
+          "Video Crafter":    { bg: "rgba(56,189,248,0.12)",  color: "#38bdf8" },
+          "Amazon KDP":       { bg: "rgba(251,146,60,0.12)",  color: "#fb923c" },
+          Etsy:               { bg: "rgba(167,139,250,0.12)", color: "#a78bfa" },
+          Music:              { bg: "rgba(244,166,42,0.10)",  color: "#F4A62A" },
+        };
+        return (
+          <section id="reviews" className="py-20 border-t border-white/8" style={{ background: "hsl(220 50% 7%)" }}>
+            <div className="container mx-auto px-4 md:px-6">
+              <div className="text-center mb-14 reveal">
+                <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold tracking-widest uppercase mb-4"
+                  style={{ background: "rgba(244,166,42,0.12)", color: "#F4A62A", border: "1px solid rgba(244,166,42,0.25)" }}>
+                  <Star className="h-3 w-3 fill-primary" />
+                  Reviews
+                </span>
+                <h2 className="text-3xl md:text-4xl font-heading font-bold text-white mb-4">
+                  What People Are{" "}
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-amber-300">Saying</span>
+                </h2>
+                <p className="text-white/50 max-w-xl mx-auto">Real feedback from real users across our apps, books, music, and art.</p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
+                {testimonialData.map((t) => {
+                  const style = PRODUCT_COLORS[t.product] ?? { bg: "rgba(244,166,42,0.10)", color: "#F4A62A" };
+                  return (
+                    <div
+                      key={t.id}
+                      className="lux-card reveal flex flex-col gap-4"
+                      data-testid={`card-testimonial-${t.id}`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex gap-0.5">
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <Star key={i} className={`h-4 w-4 ${i < t.rating ? "text-primary fill-primary" : "text-white/15"}`} />
+                          ))}
+                        </div>
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: style.bg, color: style.color }}>
+                          {t.product}
+                        </span>
+                      </div>
+                      <p className="text-white/70 text-sm leading-relaxed flex-1">"{t.body}"</p>
+                      <div>
+                        <p className="text-white font-bold text-sm">{t.name}</p>
+                        {t.handle && <p className="text-white/40 text-xs mt-0.5">{t.handle}</p>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+        );
+      })()}
 
       {/* CTA Section */}
       <section className="py-20 bg-gradient-to-b from-background to-[#070b13] border-t border-white/10">

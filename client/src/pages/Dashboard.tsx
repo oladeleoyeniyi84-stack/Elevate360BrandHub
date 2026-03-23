@@ -1,11 +1,13 @@
 import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import type { Testimonial } from "@shared/schema";
 import {
   Lock, Users, MessageSquare, Mail, TrendingUp,
   Eye, EyeOff, LogOut, Sparkles, Wand2, Copy, Check,
   Instagram, Newspaper, Twitter, Youtube, Package,
   BookOpen, Music, FileText, AtSign, PenLine, ChevronDown, ChevronUp,
   BarChart3, Reply, Send, CheckCircle2, Inbox,
+  Star, Trash2, ToggleLeft, ToggleRight, PlusCircle,
 } from "lucide-react";
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
@@ -783,8 +785,205 @@ function BrandVoiceGenerator() {
   );
 }
 
+const PRODUCTS = ["Bondedlove", "Healthwisesupport", "Video Crafter", "Amazon KDP", "Etsy", "Music"];
+
+function ReviewsTab() {
+  const qc = useQueryClient();
+  const [form, setForm] = useState({ name: "", handle: "", product: "Bondedlove", rating: 5, body: "" });
+  const [showForm, setShowForm] = useState(false);
+
+  const allQuery = useQuery<Testimonial[]>({
+    queryKey: ["/api/dashboard/testimonials"],
+    queryFn: async () => {
+      const res = await fetch("/api/dashboard/testimonials");
+      if (!res.ok) throw new Error("Unauthorized");
+      return res.json();
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/dashboard/testimonials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ ...form }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/dashboard/testimonials"] });
+      qc.invalidateQueries({ queryKey: ["/api/testimonials"] });
+      setForm({ name: "", handle: "", product: "Bondedlove", rating: 5, body: "" });
+      setShowForm(false);
+    },
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/dashboard/testimonials/${id}/toggle`, { method: "PATCH", credentials: "include" });
+      if (!res.ok) throw new Error("Failed");
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/dashboard/testimonials"] });
+      qc.invalidateQueries({ queryKey: ["/api/testimonials"] });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/dashboard/testimonials/${id}`, { method: "DELETE", credentials: "include" });
+      if (!res.ok) throw new Error("Failed");
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/dashboard/testimonials"] });
+      qc.invalidateQueries({ queryKey: ["/api/testimonials"] });
+    },
+  });
+
+  const items = allQuery.data ?? [];
+
+  return (
+    <div className="space-y-6">
+      {/* Add button */}
+      <div className="flex items-center justify-between">
+        <p className="text-white/40 text-sm">{items.length} testimonial{items.length !== 1 ? "s" : ""} · {items.filter(i => i.approved).length} visible on site</p>
+        <button
+          data-testid="button-add-testimonial"
+          onClick={() => setShowForm(v => !v)}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all"
+          style={{ background: "rgba(244,166,42,0.12)", color: "#F4A62A", border: "1px solid rgba(244,166,42,0.25)" }}
+        >
+          <PlusCircle className="h-4 w-4" />
+          {showForm ? "Cancel" : "Add Review"}
+        </button>
+      </div>
+
+      {/* Add form */}
+      {showForm && (
+        <div className="lux-card space-y-4">
+          <h3 className="text-sm font-bold text-white">New Testimonial</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-white/40 mb-1 block">Name *</label>
+              <input
+                data-testid="input-testimonial-name"
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-primary/50"
+                placeholder="Reviewer name"
+                value={form.name}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-white/40 mb-1 block">Handle / Source</label>
+              <input
+                data-testid="input-testimonial-handle"
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-primary/50"
+                placeholder="@username or App Store"
+                value={form.handle}
+                onChange={e => setForm(f => ({ ...f, handle: e.target.value }))}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-white/40 mb-1 block">Product *</label>
+              <select
+                data-testid="select-testimonial-product"
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary/50"
+                value={form.product}
+                onChange={e => setForm(f => ({ ...f, product: e.target.value }))}
+              >
+                {PRODUCTS.map(p => <option key={p} value={p} className="bg-[#0d1a2e]">{p}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-white/40 mb-1 block">Rating *</label>
+              <div className="flex gap-1 mt-1">
+                {[1,2,3,4,5].map(n => (
+                  <button key={n} type="button" onClick={() => setForm(f => ({ ...f, rating: n }))}
+                    data-testid={`button-star-${n}`}>
+                    <Star className={`h-6 w-6 ${n <= form.rating ? "text-primary fill-primary" : "text-white/20"}`} />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-white/40 mb-1 block">Review Text *</label>
+            <textarea
+              data-testid="textarea-testimonial-body"
+              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-primary/50 resize-none"
+              rows={3}
+              placeholder="What did they say?"
+              value={form.body}
+              onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
+            />
+          </div>
+          <button
+            data-testid="button-submit-testimonial"
+            onClick={() => createMutation.mutate()}
+            disabled={!form.name || !form.body || createMutation.isPending}
+            className="btn-primary text-sm py-2 px-6 disabled:opacity-50"
+          >
+            {createMutation.isPending ? "Saving…" : "Save Testimonial"}
+          </button>
+          {createMutation.isError && <p className="text-red-400 text-xs">{String(createMutation.error)}</p>}
+        </div>
+      )}
+
+      {/* List */}
+      {items.length === 0 ? (
+        <div className="text-center py-16 text-white/25 text-sm">
+          No testimonials yet. Add your first one above.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {items.map(t => (
+            <div key={t.id} className="lux-card flex items-start gap-4" data-testid={`row-testimonial-${t.id}`}>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap mb-1">
+                  <span className="text-sm font-bold text-white">{t.name}</span>
+                  {t.handle && <span className="text-xs text-white/40">{t.handle}</span>}
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-white/8 text-white/50">{t.product}</span>
+                  <div className="flex gap-0.5">
+                    {Array.from({length:5}).map((_,i) => (
+                      <Star key={i} className={`h-3 w-3 ${i < t.rating ? "text-primary fill-primary" : "text-white/15"}`} />
+                    ))}
+                  </div>
+                </div>
+                <p className="text-white/55 text-sm leading-relaxed line-clamp-2">"{t.body}"</p>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button
+                  data-testid={`button-toggle-testimonial-${t.id}`}
+                  onClick={() => toggleMutation.mutate(t.id)}
+                  title={t.approved ? "Hide from site" : "Show on site"}
+                  className="transition-opacity hover:opacity-80"
+                >
+                  {t.approved
+                    ? <ToggleRight className="h-6 w-6 text-green-400" />
+                    : <ToggleLeft className="h-6 w-6 text-white/25" />}
+                </button>
+                <button
+                  data-testid={`button-delete-testimonial-${t.id}`}
+                  onClick={() => deleteMutation.mutate(t.id)}
+                  className="text-white/25 hover:text-red-400 transition-colors"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DashboardContent({ onLogout }: { onLogout: () => void }) {
-  const [tab, setTab] = useState<"analytics" | "voice" | "leads" | "contacts" | "newsletter">("analytics");
+  const [tab, setTab] = useState<"analytics" | "voice" | "leads" | "contacts" | "newsletter" | "reviews">("analytics");
 
   const leadsQuery = useQuery<Lead[]>({
     queryKey: ["/api/dashboard/leads"],
@@ -831,11 +1030,21 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
     },
   });
 
+  const testimonialQuery = useQuery<Testimonial[]>({
+    queryKey: ["/api/dashboard/testimonials"],
+    queryFn: async () => {
+      const res = await fetch("/api/dashboard/testimonials");
+      if (!res.ok) throw new Error("Unauthorized");
+      return res.json();
+    },
+  });
+
   const leads = leadsQuery.data ?? [];
   const contacts = contactsQuery.data ?? [];
   const subscribers = subscribersQuery.data ?? [];
   const clicks = clicksQuery.data ?? [];
   const pageViewData = pageViewsQuery.data ?? [];
+  const allTestimonials = testimonialQuery.data ?? [];
   const capturedLeads = leads.filter((l) => l.leadEmail);
 
   const tabs = [
@@ -844,6 +1053,7 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
     { key: "leads", label: "Chat Leads", icon: MessageSquare },
     { key: "contacts", label: "Contacts", icon: Users },
     { key: "newsletter", label: "Newsletter", icon: Mail },
+    { key: "reviews", label: "Reviews", icon: Star },
   ] as const;
 
   return (
@@ -1010,6 +1220,9 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
             )}
           </div>
         )}
+
+        {tab === "reviews" && <ReviewsTab />}
+
       </div>
     </div>
   );

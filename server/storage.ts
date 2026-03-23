@@ -3,7 +3,8 @@ import {
   type ContactMessage, type InsertContactMessage,
   type NewsletterSubscriber, type InsertNewsletterSubscriber,
   type ChatConversation, type ChatMessage,
-  users, contactMessages, newsletterSubscribers, chatConversations, clickEvents, pageViews,
+  type Testimonial, type InsertTestimonial,
+  users, contactMessages, newsletterSubscribers, chatConversations, clickEvents, pageViews, testimonials,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, sql } from "drizzle-orm";
@@ -26,6 +27,10 @@ export interface IStorage {
   getPageViews(): Promise<{ createdAt: Date }[]>;
   recordClick(product: string, label: string): Promise<void>;
   getClickStats(): Promise<{ product: string; label: string; count: number }[]>;
+  getTestimonials(all?: boolean): Promise<Testimonial[]>;
+  createTestimonial(t: InsertTestimonial): Promise<Testimonial>;
+  deleteTestimonial(id: number): Promise<void>;
+  toggleTestimonialApproval(id: number): Promise<Testimonial | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -146,6 +151,34 @@ export class DatabaseStorage implements IStorage {
       .from(clickEvents)
       .groupBy(clickEvents.product, clickEvents.label)
       .orderBy(sql`count(*) desc`);
+  }
+
+  async getTestimonials(all = false): Promise<Testimonial[]> {
+    if (all) {
+      return db.select().from(testimonials).orderBy(testimonials.createdAt);
+    }
+    return db.select().from(testimonials)
+      .where(eq(testimonials.approved, true))
+      .orderBy(testimonials.createdAt);
+  }
+
+  async createTestimonial(t: InsertTestimonial): Promise<Testimonial> {
+    const [row] = await db.insert(testimonials).values(t).returning();
+    return row;
+  }
+
+  async deleteTestimonial(id: number): Promise<void> {
+    await db.delete(testimonials).where(eq(testimonials.id, id));
+  }
+
+  async toggleTestimonialApproval(id: number): Promise<Testimonial | undefined> {
+    const [existing] = await db.select().from(testimonials).where(eq(testimonials.id, id));
+    if (!existing) return undefined;
+    const [updated] = await db.update(testimonials)
+      .set({ approved: !existing.approved })
+      .where(eq(testimonials.id, id))
+      .returning();
+    return updated;
   }
 }
 
