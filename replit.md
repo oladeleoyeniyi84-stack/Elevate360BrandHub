@@ -65,6 +65,13 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 - 10 content types: instagram_caption, newsletter, tweet, youtube_description, product_description, book_promo, music_release, press_release, email_subject_lines, blog_intro
 - `server/openai.ts` exports both `getConciergeReply` (visitor chat) and `generateBrandCopy` (creator tool)
 
+## PWA — Progressive Web App (Phase 7)
+- `client/public/manifest.json` — app name, short_name, theme_color (#F4A62A), background (#0d1a2e), standalone display, 3 shortcuts (Apps, Books, Music)
+- `client/public/sw.js` — service worker: cache-first for static assets, network-first for API/dashboard, offline fallback to "/"
+- `client/index.html` — manifest link, apple-touch-icon, apple-mobile-web-app meta tags
+- `client/src/main.tsx` — service worker registration on window load
+- Install prompt: Chrome/Android will show "Add to Home Screen" automatically when PWA criteria are met
+
 ## SEO & Structured Data (Phase 4)
 - `client/index.html` — Full JSON-LD schema markup: Organization, WebSite, SoftwareApplication ×3, Book ×3, MusicGroup, Person
 - `client/public/robots.txt` — `Allow: /` with Sitemap reference
