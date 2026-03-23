@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { ContactDialog } from "@/components/ContactDialog";
 import { NewsletterForm } from "@/components/NewsletterForm";
 import { ShareButton } from "@/components/ShareButton";
+import { FAQSection } from "@/components/FAQSection";
 import heroBg from "@/assets/images/hero-bg.png";
 import appBondedlove from "@/assets/images/app-bondedlove.png";
 import appHealthwise from "@/assets/images/app-healthwise.png";
@@ -1102,6 +1103,56 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* FAQ Section */}
+      {(() => {
+        const faqs = [
+          {
+            q: "What is Elevate360Official?",
+            a: "Elevate360Official is a multi-disciplinary digital brand founded by Oladele Oyeniyi. It spans mobile apps, Amazon KDP books, original music on Audiomack, and a visual art studio on Etsy — all built around the mission of empowering lives through technology, creativity, and words.",
+          },
+          {
+            q: "Who is behind the brand?",
+            a: "The brand is founded and led by Oladele Oyeniyi — an entrepreneur, author, app developer, visual artist, and music producer. Every product under Elevate360 is personally crafted with intention and purpose.",
+          },
+          {
+            q: "Are the mobile apps free to use?",
+            a: "Yes, all three apps — Bondedlove, Healthwisesupport, and Video Crafter — are free to download and use. Some premium features may require an in-app upgrade.",
+          },
+          {
+            q: "What platforms are the apps available on?",
+            a: "The apps are available on both iOS (iPhone) and Android devices. Visit the app pages through the links on this site to download from the App Store or Google Play.",
+          },
+          {
+            q: "Where can I buy Elevate360 books?",
+            a: "All books are available on Amazon in both paperback and Kindle formats. Visit the Publications section above or search for the titles on Amazon — Healthwise: Stay Healthy, Together: Let There Be Love, and One Clean Meal.",
+          },
+          {
+            q: "Are the books available as ebooks?",
+            a: "Yes. All three titles are available as Kindle ebooks on Amazon, making them instantly accessible on any device. Paperback editions are also available for those who prefer a physical copy.",
+          },
+          {
+            q: "Can I commission custom artwork?",
+            a: "Absolutely! The Elevate360 Art Studio accepts commissions for custom digital art and prints. Visit the Etsy shop at elevate360official.com/links or use the contact form on this site to discuss your project.",
+          },
+          {
+            q: "What art formats are available?",
+            a: "Digital downloads and print-on-demand physical prints are both available through the Etsy shop. Custom sizes and formats can be arranged — reach out via the contact form to discuss your needs.",
+          },
+          {
+            q: "Where can I listen to Elevate360 music?",
+            a: "Elevate360 music is available on Audiomack under the name Elevate360Music. The site features a live embedded player in the Music section above, or you can visit Audiomack directly.",
+          },
+          {
+            q: "How do I stay updated on new releases?",
+            a: "Subscribe to the Elevate360 newsletter using the form at the bottom of this page. You'll be the first to know about new app features, book launches, music drops, and exclusive content.",
+          },
+        ];
+
+        return (
+          <FAQSection faqs={faqs} />
+        );
+      })()}
 
       {/* CTA Section */}
       <section className="py-20 bg-gradient-to-b from-background to-[#070b13] border-t border-white/10">

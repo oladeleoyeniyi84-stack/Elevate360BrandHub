@@ -65,6 +65,18 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 - 10 content types: instagram_caption, newsletter, tweet, youtube_description, product_description, book_promo, music_release, press_release, email_subject_lines, blog_intro
 - `server/openai.ts` exports both `getConciergeReply` (visitor chat) and `generateBrandCopy` (creator tool)
 
+## FAQ / Accordion Section (Phase 22)
+- `client/src/components/FAQSection.tsx` — reusable accordion component
+- **10 questions** across 5 topics: Brand/General (×2), Apps (×2), Books (×2), Art Studio (×2), Music + Newsletter (×2)
+- **Layout**: 2-column grid on md+ (5 items per column), single column on mobile — no carousel needed
+- **Accordion behaviour**: only one item open at a time; first item open by default; click to toggle; clicking same item closes it
+- **Animation**: `maxHeight` + `opacity` CSS transitions (300 ms ease-in-out) driven by `scrollHeight` ref — no max-height guessing
+- **ChevronDown** icon rotates 180° when open (300 ms CSS transition)
+- Each item: `border border-white/10 rounded-2xl`, hover highlights to `border-primary/30`; question in semi-bold; answer in `text-muted-foreground`
+- "Still have questions?" footer row triggers the ContactDialog via `#contact-trigger` element click
+- Section anchored at `id="faq"` for smooth-scroll linking from nav/footer
+- **FAQ structured data** (`@type: FAQPage`) added to `client/index.html` as a second JSON-LD block — 9 Q&A pairs eligible for Google rich results / FAQ snippets in search
+
 ## Meet the Creator Section (Phase 21)
 - New section in `Home.tsx` between the last book section and the final CTA
 - **Two-column layout** (stacks on mobile): left = avatar/identity, right = story + timeline
