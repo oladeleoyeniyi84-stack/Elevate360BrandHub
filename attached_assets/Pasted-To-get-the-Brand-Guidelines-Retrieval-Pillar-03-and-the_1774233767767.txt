@@ -1,0 +1,63 @@
+To get the Brand Guidelines Retrieval (Pillar 03) and the Voice Engine (Pillar 01) running on Replit, follow these steps:
+
+1. Set up your Secrets (Environment Variables)
+In your Replit sidebar, click on Tools > Secrets and add the following keys. This keeps your credentials safe:
+
+ANTHROPIC_API_KEY: From your Anthropic Console.
+
+SUPABASE_URL: From your Supabase Project Settings.
+
+SUPABASE_SERVICE_ROLE_KEY: From Supabase (needed for vector queries).
+
+2. The Retrieval Logic (Pillar 03)
+Create a file named lib/brand-knowledge.ts. This function will "search" your brand guidelines to give Claude the correct context.
+
+TypeScript
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+export async function getBrandContext(userQuery: string) {
+  // 1. Convert the user's request into a math vector
+  // Note: You'll need an embedding logic here (e.g., OpenAI or HuggingFace)
+  
+  // 2. Query Supabase for the most relevant brand rules
+  const { data: documents, error } = await supabase.rpc('match_brand_rules', {
+    query_embedding: await generateEmbedding(userQuery), // helper function
+    match_threshold: 0.5,
+    match_count: 5,
+  });
+
+  if (error) throw error;
+
+  // 3. Join the rules into a single string for the AI
+  return documents.map((doc: any) => doc.content).join("\n---\n");
+}
+3. Integrate with the Voice Engine
+Now, update your api/brand-voice/route.ts to use this knowledge. This ensures that if a user asks for an email, Claude first "reads" your email style guidelines from the database.
+
+TypeScript
+import { getBrandContext } from '@/lib/brand-knowledge';
+
+export async function POST(req: Request) {
+  const { prompt } = await req.json();
+
+  // Dynamically pull relevant brand rules based on the prompt
+  const context = await getBrandContext(prompt);
+
+  const response = await anthropic.messages.create({
+    model: "claude-3-5-sonnet-20240620",
+    system: `You are the Elevate360 Voice Engine. Use these rules: ${context}`,
+    messages: [{ role: "user", content: prompt }],
+    stream: true,
+  });
+  
+  // ... rest of streaming logic
+}
+Next Step
+To make this work, we need to set up the Database Schema in Supabase so it can handle these vector searches.
+
+Would you like me to provide the SQL command you need to run in your Supabase SQL Editor to create the brand_rules table and the match_brand_rules function?
