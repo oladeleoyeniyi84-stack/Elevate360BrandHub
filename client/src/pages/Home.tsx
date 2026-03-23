@@ -17,6 +17,10 @@ import {
   Menu,
   X,
   Star,
+  Handshake,
+  Mic,
+  TrendingUp,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ContactDialog } from "@/components/ContactDialog";
@@ -1175,6 +1179,99 @@ export default function Home() {
           <FAQSection faqs={faqs} />
         );
       })()}
+
+      {/* Work With Me Section */}
+      <section id="collaborate" className="py-20 border-t border-white/8" style={{ background: "linear-gradient(180deg, hsl(220 50% 8%) 0%, hsl(220 50% 6%) 100%)" }}>
+        <div className="container mx-auto px-4 md:px-6">
+
+          {/* Heading */}
+          <div className="text-center mb-14 reveal">
+            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold tracking-widest uppercase mb-4"
+              style={{ background: "rgba(244,166,42,0.12)", color: "#F4A62A", border: "1px solid rgba(244,166,42,0.25)" }}>
+              <Zap className="h-3 w-3" />
+              Collaborate
+            </span>
+            <h2 className="text-3xl md:text-5xl font-heading font-bold tracking-tight text-white mb-4">
+              Let's Build Something<br className="hidden md:block" />{" "}
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-amber-300">Together</span>
+            </h2>
+            <p className="text-lg text-white/60 max-w-2xl mx-auto">
+              Elevate360Official is open to meaningful partnerships across apps, music, books, and art.
+              Whether you're a brand, creator, or organisation — let's create real impact.
+            </p>
+          </div>
+
+          {/* Collaboration cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-4xl mx-auto mb-12">
+            {[
+              {
+                Icon: Handshake,
+                color: "#F4A62A",
+                bg: "rgba(244,166,42,0.08)",
+                title: "Brand Partnerships",
+                desc: "Reach an engaged global audience of wellness seekers, couples, creators, and book lovers across our apps, publications, and social channels.",
+              },
+              {
+                Icon: Music,
+                color: "#a78bfa",
+                bg: "rgba(167,139,250,0.08)",
+                title: "Music Features & Licensing",
+                desc: "Collaborate on original tracks, license existing music for your projects, or co-create with Elevate360Music on upcoming releases.",
+              },
+              {
+                Icon: Smartphone,
+                color: "#38bdf8",
+                bg: "rgba(56,189,248,0.08)",
+                title: "App Development Consulting",
+                desc: "Leverage hands-on experience building Bondedlove, Healthwisesupport, and Video Crafter to get strategic guidance on your own digital product.",
+              },
+              {
+                Icon: Mic,
+                color: "#22c55e",
+                bg: "rgba(34,197,94,0.08)",
+                title: "Media & Speaking",
+                desc: "Book Oladele Oyeniyi for podcast interviews, blog features, panel discussions, or keynote talks on entrepreneurship, tech, and creative business.",
+              },
+            ].map(({ Icon, color, bg, title, desc }) => (
+              <div
+                key={title}
+                className="lux-card reveal group hover:-translate-y-1 transition-transform duration-300"
+                data-testid={`card-collaborate-${title.toLowerCase().replace(/\s+/g, "-")}`}
+              >
+                <div className="flex items-start gap-4">
+                  <div
+                    className="flex-shrink-0 w-12 h-12 rounded-2xl flex items-center justify-center"
+                    style={{ background: bg, border: `1px solid ${color}30` }}
+                  >
+                    <Icon className="h-6 w-6" style={{ color }} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white font-heading mb-2">{title}</h3>
+                    <p className="text-white/55 text-sm leading-relaxed">{desc}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* CTA strip */}
+          <div className="text-center reveal">
+            <p className="text-white/50 text-sm mb-5">
+              All enquiries welcome — response within 48 hours.
+            </p>
+            <ContactDialog>
+              <button
+                data-testid="button-collaboration-cta"
+                className="btn-primary text-base px-8 py-3 shadow-lg shadow-primary/20 hover:shadow-primary/40"
+              >
+                <Handshake className="h-5 w-5" />
+                Start a Conversation
+              </button>
+            </ContactDialog>
+          </div>
+
+        </div>
+      </section>
 
       {/* CTA Section */}
       <section className="py-20 bg-gradient-to-b from-background to-[#070b13] border-t border-white/10">

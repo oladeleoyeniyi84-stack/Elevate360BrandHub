@@ -65,6 +65,18 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 - 10 content types: instagram_caption, newsletter, tweet, youtube_description, product_description, book_promo, music_release, press_release, email_subject_lines, blog_intro
 - `server/openai.ts` exports both `getConciergeReply` (visitor chat) and `generateBrandCopy` (creator tool)
 
+## "Work With Me" Collaboration Section (Phase 30)
+- New `id="collaborate"` section in `Home.tsx`, inserted between the FAQ section and the Newsletter CTA
+- **4 collaboration cards** in a responsive 2-column grid (`sm:grid-cols-2`), each with a tinted icon badge and description:
+  - **Brand Partnerships** (gold) — audience reach across apps, books, music, art
+  - **Music Features & Licensing** (purple) — collab on tracks, licensing, co-creation
+  - **App Development Consulting** (blue) — strategic guidance from experience building the 3 Elevate360 apps
+  - **Media & Speaking** (green) — podcasts, panels, keynote talks on entrepreneurship & tech
+- **Heading**: "Let's Build Something Together" with gold gradient on "Together"; "Collaborate" pill badge above
+- **CTA**: "Start a Conversation" gold primary button wrapping `<ContactDialog>` — opens the existing contact form; sub-copy notes "response within 48 hours"
+- Cards have scroll-reveal animation + subtle hover lift (`-translate-y-1`)
+- New icons added: `Handshake`, `Mic`, `TrendingUp`, `Zap` from lucide-react
+
 ## Page View Analytics (Phase 29)
 - `page_views` table in DB: `{ id, page, createdAt }` — pushed via `npm run db:push`
 - `POST /api/track/visit` — public, no auth; records page name; called once on every home page mount via `useTrackPageView("home")`
