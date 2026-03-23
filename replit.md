@@ -65,6 +65,12 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 - 10 content types: instagram_caption, newsletter, tweet, youtube_description, product_description, book_promo, music_release, press_release, email_subject_lines, blog_intro
 - `server/openai.ts` exports both `getConciergeReply` (visitor chat) and `generateBrandCopy` (creator tool)
 
+## Audiomack Live Player (Phase 8)
+- Music section on homepage: replaced static mock track list with a live Audiomack embed player
+- Embed URL: `https://audiomack.com/embed/artist-page/elevate360music`
+- iframe styled with rounded-3xl border, violet glow shadow; 420px height; autoplay allowed
+- "Streaming live · Powered by Audiomack" label beneath the player
+
 ## PWA — Progressive Web App (Phase 7)
 - `client/public/manifest.json` — app name, short_name, theme_color (#F4A62A), background (#0d1a2e), standalone display, 3 shortcuts (Apps, Books, Music)
 - `client/public/sw.js` — service worker: cache-first for static assets, network-first for API/dashboard, offline fallback to "/"

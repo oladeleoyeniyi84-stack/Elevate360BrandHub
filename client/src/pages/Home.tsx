@@ -356,37 +356,24 @@ export default function Home() {
               </div>
 
               <div className="w-full md:w-1/2 flex justify-center">
-                <div className="relative w-full max-w-md">
-                  <div className="lux-card rounded-3xl p-8 space-y-6">
-                    <div className="flex items-center gap-4">
-                      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500 to-primary flex items-center justify-center">
-                        <Music className="h-8 w-8 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="text-xl font-bold font-heading">Elevate360 Music</h3>
-                        <p className="text-sm text-muted-foreground">@elevate360music</p>
-                      </div>
-                    </div>
-                    <div className="space-y-4">
-                      {[
-                        { title: "Amapiano Groove", artist: "weareelevate360" },
-                        { title: "Elevate360AfroBeatVibeTrack", artist: "Elevate360" },
-                      ].map((track, i) => (
-                        <div key={i} className="flex items-center gap-4 p-3 rounded-xl bg-white/5 hover:bg-white/8 transition-colors">
-                          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-500/30 to-primary/30 flex items-center justify-center flex-shrink-0">
-                            <Music className="h-5 w-5 text-primary" />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-sm font-semibold truncate">{track.title}</p>
-                            <p className="text-xs text-muted-foreground">{track.artist}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    <p className="text-xs text-muted-foreground text-center pt-2">
-                      Top Tracks on Audiomack
-                    </p>
+                <div className="relative w-full max-w-md space-y-3">
+                  <div className="overflow-hidden rounded-3xl border border-violet-500/20 shadow-2xl shadow-violet-900/30">
+                    <iframe
+                      src="https://audiomack.com/embed/artist-page/elevate360music"
+                      width="100%"
+                      height="420"
+                      scrolling="no"
+                      allow="autoplay"
+                      title="Elevate360 Music on Audiomack"
+                      className="block"
+                      style={{ border: 0 }}
+                      data-testid="iframe-audiomack-player"
+                    />
                   </div>
+                  <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1.5">
+                    <Music className="h-3 w-3 text-violet-400" />
+                    Streaming live · Powered by Audiomack
+                  </p>
                 </div>
               </div>
             </div>
