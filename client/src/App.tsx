@@ -9,6 +9,7 @@ import Dashboard from "@/pages/Dashboard";
 import Links from "@/pages/Links";
 import { CookieBanner } from "@/components/CookieBanner";
 import { ScrollUtilities } from "@/components/ScrollUtilities";
+import { NewsletterPopup } from "@/components/NewsletterPopup";
 
 function Router() {
   return (
@@ -28,6 +29,7 @@ function App() {
         <Toaster />
         <Router />
         <ScrollUtilities />
+        <NewsletterPopup />
         <CookieBanner />
       </TooltipProvider>
     </QueryClientProvider>

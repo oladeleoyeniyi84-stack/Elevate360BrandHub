@@ -65,6 +65,17 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 - 10 content types: instagram_caption, newsletter, tweet, youtube_description, product_description, book_promo, music_release, press_release, email_subject_lines, blog_intro
 - `server/openai.ts` exports both `getConciergeReply` (visitor chat) and `generateBrandCopy` (creator tool)
 
+## Scroll-Triggered Newsletter Popup (Phase 23)
+- `client/src/components/NewsletterPopup.tsx` — self-contained popup, registered globally in `App.tsx`
+- **Trigger**: fires once the user has scrolled ≥60% of the page (genuine engagement signal), then waits 800ms before appearing — never jarring
+- **Session gating**: stores a `e360_popup_dismissed` flag in `sessionStorage` — shows at most once per browser session; never shown on `/dashboard` or `/links` (route-checked via `useLocation`)
+- **Dismiss paths**: ✕ button, backdrop click, Escape key — all set the session flag
+- **Design**: `lux-card` rounded-3xl panel, Sparkles icon, headline + subtext, email input with Mail icon, gold "Subscribe — It's Free" CTA; slides up + fades in from bottom (`animate-in slide-in-from-bottom-8`)
+- **Success state**: green ✓ circle, "You're in!" message, auto-closes after 2.2s — no manual dismissal needed
+- **Error state**: inline red error message beneath the input field
+- **API**: reuses `POST /api/newsletter` — same backend as the inline form; toast-free (feedback shown inline inside the popup)
+- Escape key listener cleaned up on unmount; scroll listener removed after first threshold crossing to avoid memory leaks
+
 ## FAQ / Accordion Section (Phase 22)
 - `client/src/components/FAQSection.tsx` — reusable accordion component
 - **10 questions** across 5 topics: Brand/General (×2), Apps (×2), Books (×2), Art Studio (×2), Music + Newsletter (×2)
