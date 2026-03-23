@@ -5,7 +5,12 @@ import {
   Eye, EyeOff, LogOut, Sparkles, Wand2, Copy, Check,
   Instagram, Newspaper, Twitter, Youtube, Package,
   BookOpen, Music, FileText, AtSign, PenLine, ChevronDown, ChevronUp,
+  BarChart3,
 } from "lucide-react";
+import {
+  LineChart, Line, AreaChart, Area, BarChart, Bar,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+} from "recharts";
 
 interface Lead {
   id: number;
@@ -54,6 +59,216 @@ function formatDate(iso: string) {
     month: "short", day: "numeric", year: "numeric",
     hour: "2-digit", minute: "2-digit",
   });
+}
+
+function groupByDay(dates: string[], days = 30): { date: string; count: number }[] {
+  const now = new Date();
+  const result: { date: string; count: number }[] = [];
+
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const label = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const dayStr = d.toISOString().split("T")[0];
+    const count = dates.filter((dt) => dt.startsWith(dayStr)).length;
+    result.push({ date: label, count });
+  }
+
+  return result;
+}
+
+function cumulativeByDay(dates: string[], days = 30): { date: string; total: number }[] {
+  const allDates = dates.map((d) => d.split("T")[0]).sort();
+  const now = new Date();
+  const result: { date: string; total: number }[] = [];
+
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const dayStr = d.toISOString().split("T")[0];
+    const label = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const total = allDates.filter((dt) => dt <= dayStr).length;
+    result.push({ date: label, total });
+  }
+
+  return result;
+}
+
+const CHART_TOOLTIP_STYLE = {
+  contentStyle: {
+    background: "hsl(220 50% 13%)",
+    border: "1px solid rgba(255,255,255,0.1)",
+    borderRadius: "12px",
+    color: "white",
+    fontSize: "12px",
+  },
+  itemStyle: { color: "#F4A62A" },
+  labelStyle: { color: "rgba(255,255,255,0.5)" },
+};
+
+function Analytics({
+  leads, contacts, subscribers,
+}: {
+  leads: Lead[];
+  contacts: ContactMessage[];
+  subscribers: NewsletterSubscriber[];
+}) {
+  const capturedLeads = leads.filter((l) => l.leadEmail);
+  const activeLeads = leads.filter((l) => (l.messages as any[]).length > 0);
+
+  const chatByDay = groupByDay(leads.map((l) => l.createdAt));
+  const subCumulative = cumulativeByDay(subscribers.map((s) => s.subscribedAt));
+  const contactByDay = groupByDay(contacts.map((c) => c.createdAt));
+
+  const funnelData = [
+    { stage: "Chat Sessions", value: leads.length, fill: "#F4A62A" },
+    { stage: "Had Conversation", value: activeLeads.length, fill: "#fb923c" },
+    { stage: "Email Captured", value: capturedLeads.length, fill: "#22c55e" },
+  ];
+
+  const captureRate = leads.length > 0
+    ? Math.round((capturedLeads.length / leads.length) * 100)
+    : 0;
+
+  return (
+    <div className="space-y-6">
+
+      {/* KPI Row */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {[
+          { label: "Lead Capture Rate", value: `${captureRate}%`, sub: "of all chat sessions", color: "#22c55e" },
+          { label: "Avg Messages/Chat", value: leads.length > 0 ? (leads.reduce((s, l) => s + ((l.messages as any[]).length), 0) / leads.length).toFixed(1) : "0", sub: "messages per session", color: "#F4A62A" },
+          { label: "Newsletter Total", value: subscribers.length, sub: "all-time subscribers", color: "#38bdf8" },
+          { label: "Contact Forms", value: contacts.length, sub: "all-time submissions", color: "#a78bfa" },
+        ].map(({ label, value, sub, color }) => (
+          <div key={label} className="lux-card">
+            <p className="text-2xl font-bold font-heading" style={{ color }}>{value}</p>
+            <p className="text-white text-sm font-medium mt-0.5">{label}</p>
+            <p className="text-white/30 text-xs mt-0.5">{sub}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Lead Funnel */}
+      <div className="lux-card">
+        <h3 className="text-sm font-semibold text-white/70 mb-5 flex items-center gap-2">
+          <TrendingUp className="h-4 w-4 text-[#F4A62A]" />
+          Lead Conversion Funnel
+        </h3>
+        {leads.length === 0 ? (
+          <p className="text-white/30 text-sm text-center py-6">No data yet — start getting visitors!</p>
+        ) : (
+          <div className="space-y-3">
+            {funnelData.map(({ stage, value, fill }) => {
+              const pct = leads.length > 0 ? Math.round((value / leads.length) * 100) : 0;
+              return (
+                <div key={stage}>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-white/60">{stage}</span>
+                    <span className="font-semibold" style={{ color: fill }}>{value} ({pct}%)</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-white/6 overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-700"
+                      style={{ width: `${pct}%`, background: fill }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Chat Sessions Over Time */}
+      <div className="lux-card">
+        <h3 className="text-sm font-semibold text-white/70 mb-5 flex items-center gap-2">
+          <MessageSquare className="h-4 w-4 text-[#F4A62A]" />
+          Chat Sessions — Last 30 Days
+        </h3>
+        <ResponsiveContainer width="100%" height={180}>
+          <BarChart data={chatByDay} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+            <XAxis
+              dataKey="date"
+              tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 10 }}
+              tickLine={false}
+              interval={6}
+            />
+            <YAxis tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 10 }} tickLine={false} allowDecimals={false} />
+            <Tooltip {...CHART_TOOLTIP_STYLE} />
+            <Bar dataKey="count" name="Sessions" fill="#F4A62A" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Newsletter Growth */}
+      <div className="lux-card">
+        <h3 className="text-sm font-semibold text-white/70 mb-5 flex items-center gap-2">
+          <Mail className="h-4 w-4 text-[#38bdf8]" />
+          Newsletter Subscribers — Cumulative Growth
+        </h3>
+        <ResponsiveContainer width="100%" height={180}>
+          <AreaChart data={subCumulative} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+            <defs>
+              <linearGradient id="subGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#38bdf8" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="#38bdf8" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+            <XAxis
+              dataKey="date"
+              tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 10 }}
+              tickLine={false}
+              interval={6}
+            />
+            <YAxis tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 10 }} tickLine={false} allowDecimals={false} />
+            <Tooltip {...CHART_TOOLTIP_STYLE} itemStyle={{ color: "#38bdf8" }} />
+            <Area
+              type="monotone"
+              dataKey="total"
+              name="Subscribers"
+              stroke="#38bdf8"
+              strokeWidth={2}
+              fill="url(#subGradient)"
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Contact Forms Over Time */}
+      <div className="lux-card">
+        <h3 className="text-sm font-semibold text-white/70 mb-5 flex items-center gap-2">
+          <Users className="h-4 w-4 text-[#a78bfa]" />
+          Contact Form Submissions — Last 30 Days
+        </h3>
+        <ResponsiveContainer width="100%" height={160}>
+          <LineChart data={contactByDay} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+            <XAxis
+              dataKey="date"
+              tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 10 }}
+              tickLine={false}
+              interval={6}
+            />
+            <YAxis tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 10 }} tickLine={false} allowDecimals={false} />
+            <Tooltip {...CHART_TOOLTIP_STYLE} itemStyle={{ color: "#a78bfa" }} />
+            <Line
+              type="monotone"
+              dataKey="count"
+              name="Submissions"
+              stroke="#a78bfa"
+              strokeWidth={2}
+              dot={false}
+              activeDot={{ r: 4, fill: "#a78bfa" }}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
+    </div>
+  );
 }
 
 function PinLogin({ onLogin }: { onLogin: () => void }) {
@@ -299,7 +514,7 @@ function BrandVoiceGenerator() {
 }
 
 function DashboardContent({ onLogout }: { onLogout: () => void }) {
-  const [tab, setTab] = useState<"leads" | "contacts" | "newsletter" | "voice">("voice");
+  const [tab, setTab] = useState<"analytics" | "voice" | "leads" | "contacts" | "newsletter">("analytics");
 
   const leadsQuery = useQuery<Lead[]>({
     queryKey: ["/api/dashboard/leads"],
@@ -334,6 +549,7 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
   const capturedLeads = leads.filter((l) => l.leadEmail);
 
   const tabs = [
+    { key: "analytics", label: "Analytics", icon: BarChart3 },
     { key: "voice", label: "Brand Voice", icon: Wand2 },
     { key: "leads", label: "Chat Leads", icon: MessageSquare },
     { key: "contacts", label: "Contacts", icon: Users },
@@ -344,7 +560,6 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
     <div className="min-h-screen px-4 py-8" style={{ background: "hsl(220 50% 8%)" }}>
       <div className="max-w-4xl mx-auto space-y-8">
 
-        {/* Header */}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-white font-heading">Creator Dashboard</h1>
@@ -357,7 +572,6 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
           </button>
         </div>
 
-        {/* Stats */}
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <StatCard label="Chat Sessions" value={leads.length} icon={MessageSquare} />
           <StatCard label="Leads Captured" value={capturedLeads.length} icon={TrendingUp} color="#22c55e" />
@@ -365,14 +579,13 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
           <StatCard label="Newsletter" value={subscribers.length} icon={Mail} color="#38bdf8" />
         </div>
 
-        {/* Tabs */}
         <div className="flex gap-1 bg-white/4 rounded-2xl p-1 overflow-x-auto">
           {tabs.map(({ key, label, icon: Icon }) => (
             <button
               key={key}
               data-testid={`button-tab-${key}`}
               onClick={() => setTab(key)}
-              className={`flex items-center gap-1.5 flex-shrink-0 py-2.5 px-4 rounded-xl text-sm font-medium transition-all ${
+              className={`flex items-center gap-1.5 flex-shrink-0 py-2.5 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-medium transition-all ${
                 tab === key ? "bg-[#F4A62A] text-black" : "text-white/50 hover:text-white/80"
               }`}
             >
@@ -382,7 +595,10 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
           ))}
         </div>
 
-        {/* Tab Content */}
+        {tab === "analytics" && (
+          <Analytics leads={leads} contacts={contacts} subscribers={subscribers} />
+        )}
+
         {tab === "voice" && <BrandVoiceGenerator />}
 
         {tab === "leads" && (
