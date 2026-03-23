@@ -179,6 +179,19 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/track/visit", async (req, res) => {
+    const { page } = req.body ?? {};
+    if (!page) return res.status(400).json({ error: "Missing page" });
+    await storage.recordPageView(String(page));
+    res.json({ ok: true });
+  });
+
+  app.get("/api/dashboard/visits", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ error: "Unauthorized" });
+    const views = await storage.getPageViews();
+    res.json(views);
+  });
+
   app.post("/api/track/click", async (req, res) => {
     const { product, label } = req.body ?? {};
     if (!product || !label) return res.status(400).json({ error: "Missing fields" });

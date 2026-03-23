@@ -67,6 +67,12 @@ export const chatRequestSchema = z.object({
   leadEmail: z.string().email().optional(),
 });
 
+export const pageViews = pgTable("page_views", {
+  id: serial("id").primaryKey(),
+  page: text("page").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const clickEvents = pgTable("click_events", {
   id: serial("id").primaryKey(),
   product: text("product").notNull(),

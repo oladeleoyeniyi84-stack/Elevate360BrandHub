@@ -46,6 +46,10 @@ interface ClickStat {
   count: number;
 }
 
+interface PageViewRecord {
+  createdAt: string;
+}
+
 interface Lead {
   id: number;
   sessionId: string;
@@ -235,12 +239,13 @@ const CHART_TOOLTIP_STYLE = {
 };
 
 function Analytics({
-  leads, contacts, subscribers, clicks,
+  leads, contacts, subscribers, clicks, pageViewData,
 }: {
   leads: Lead[];
   contacts: ContactMessage[];
   subscribers: NewsletterSubscriber[];
   clicks: ClickStat[];
+  pageViewData: PageViewRecord[];
 }) {
   const capturedLeads = leads.filter((l) => l.leadEmail);
   const activeLeads = leads.filter((l) => (l.messages as any[]).length > 0);
@@ -248,6 +253,7 @@ function Analytics({
   const chatByDay = groupByDay(leads.map((l) => l.createdAt));
   const subCumulative = cumulativeByDay(subscribers.map((s) => s.subscribedAt));
   const contactByDay = groupByDay(contacts.map((c) => c.createdAt));
+  const pageViewsByDay = groupByDay(pageViewData.map((v) => v.createdAt));
 
   const funnelData = [
     { stage: "Chat Sessions", value: leads.length, fill: "#F4A62A" },
@@ -263,8 +269,9 @@ function Analytics({
     <div className="space-y-6">
 
       {/* KPI Row */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         {[
+          { label: "Page Views", value: pageViewData.length, sub: "all-time visits", color: "#fb923c" },
           { label: "Lead Capture Rate", value: `${captureRate}%`, sub: "of all chat sessions", color: "#22c55e" },
           { label: "Avg Messages/Chat", value: leads.length > 0 ? (leads.reduce((s, l) => s + ((l.messages as any[]).length), 0) / leads.length).toFixed(1) : "0", sub: "messages per session", color: "#F4A62A" },
           { label: "Newsletter Total", value: subscribers.length, sub: "all-time subscribers", color: "#38bdf8" },
@@ -364,6 +371,34 @@ function Analytics({
             />
           </AreaChart>
         </ResponsiveContainer>
+      </div>
+
+      {/* Page Views Over Time */}
+      <div className="lux-card">
+        <h3 className="text-sm font-semibold text-white/70 mb-5 flex items-center gap-2">
+          <Eye className="h-4 w-4 text-[#fb923c]" />
+          Page Views — Last 30 Days
+          <span className="ml-auto text-xs font-normal text-white/30">{pageViewData.length} total</span>
+        </h3>
+        {pageViewData.length === 0 ? (
+          <p className="text-white/30 text-sm text-center py-6">No visits recorded yet — tracking starts automatically on each page load.</p>
+        ) : (
+          <ResponsiveContainer width="100%" height={180}>
+            <AreaChart data={pageViewsByDay} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+              <defs>
+                <linearGradient id="pvGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#fb923c" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#fb923c" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+              <XAxis dataKey="date" tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 10 }} tickLine={false} interval={6} />
+              <YAxis tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 10 }} tickLine={false} allowDecimals={false} />
+              <Tooltip {...CHART_TOOLTIP_STYLE} itemStyle={{ color: "#fb923c" }} />
+              <Area type="monotone" dataKey="count" name="Views" stroke="#fb923c" strokeWidth={2} fill="url(#pvGradient)" />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
       </div>
 
       {/* Contact Forms Over Time */}
@@ -742,10 +777,20 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
     },
   });
 
+  const pageViewsQuery = useQuery<PageViewRecord[]>({
+    queryKey: ["/api/dashboard/visits"],
+    queryFn: async () => {
+      const res = await fetch("/api/dashboard/visits");
+      if (!res.ok) throw new Error("Unauthorized");
+      return res.json();
+    },
+  });
+
   const leads = leadsQuery.data ?? [];
   const contacts = contactsQuery.data ?? [];
   const subscribers = subscribersQuery.data ?? [];
   const clicks = clicksQuery.data ?? [];
+  const pageViewData = pageViewsQuery.data ?? [];
   const capturedLeads = leads.filter((l) => l.leadEmail);
 
   const tabs = [
@@ -772,7 +817,8 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
           </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+          <StatCard label="Page Views" value={pageViewData.length} icon={Eye} color="#fb923c" />
           <StatCard label="Chat Sessions" value={leads.length} icon={MessageSquare} />
           <StatCard label="Leads Captured" value={capturedLeads.length} icon={TrendingUp} color="#22c55e" />
           <StatCard label="Contact Forms" value={contacts.length} icon={Users} color="#a78bfa" />
@@ -796,7 +842,7 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
         </div>
 
         {tab === "analytics" && (
-          <Analytics leads={leads} contacts={contacts} subscribers={subscribers} clicks={clicks} />
+          <Analytics leads={leads} contacts={contacts} subscribers={subscribers} clicks={clicks} pageViewData={pageViewData} />
         )}
 
         {tab === "voice" && <BrandVoiceGenerator />}

@@ -3,7 +3,7 @@ import {
   type ContactMessage, type InsertContactMessage,
   type NewsletterSubscriber, type InsertNewsletterSubscriber,
   type ChatConversation, type ChatMessage,
-  users, contactMessages, newsletterSubscribers, chatConversations, clickEvents,
+  users, contactMessages, newsletterSubscribers, chatConversations, clickEvents, pageViews,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, sql } from "drizzle-orm";
@@ -22,6 +22,8 @@ export interface IStorage {
   updateChatLead(sessionId: string, name?: string, email?: string): Promise<void>;
   getChatConversation(sessionId: string): Promise<ChatConversation | undefined>;
   getAllChatConversations(): Promise<ChatConversation[]>;
+  recordPageView(page: string): Promise<void>;
+  getPageViews(): Promise<{ createdAt: Date }[]>;
   recordClick(product: string, label: string): Promise<void>;
   getClickStats(): Promise<{ product: string; label: string; count: number }[]>;
 }
@@ -120,6 +122,14 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(chatConversations)
       .orderBy(chatConversations.updatedAt);
+  }
+
+  async recordPageView(page: string): Promise<void> {
+    await db.insert(pageViews).values({ page });
+  }
+
+  async getPageViews(): Promise<{ createdAt: Date }[]> {
+    return db.select({ createdAt: pageViews.createdAt }).from(pageViews).orderBy(pageViews.createdAt);
   }
 
   async recordClick(product: string, label: string): Promise<void> {

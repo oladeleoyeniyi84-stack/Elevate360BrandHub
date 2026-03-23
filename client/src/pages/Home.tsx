@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useScrollReveal } from "@/hooks/useScrollReveal";
 import { useCountUp } from "@/hooks/useCountUp";
 import { useTrackClick } from "@/hooks/useTrackClick";
+import { useTrackPageView } from "@/hooks/useTrackPageView";
 import { AIConcierge } from "@/components/AIConcierge";
 import { Link } from "wouter";
 import {
@@ -68,6 +69,7 @@ export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [commissionOpen, setCommissionOpen] = useState(false);
   const trackClick = useTrackClick();
+  useTrackPageView("home");
   useScrollReveal();
 
   useEffect(() => {

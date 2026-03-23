@@ -65,6 +65,15 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 - 10 content types: instagram_caption, newsletter, tweet, youtube_description, product_description, book_promo, music_release, press_release, email_subject_lines, blog_intro
 - `server/openai.ts` exports both `getConciergeReply` (visitor chat) and `generateBrandCopy` (creator tool)
 
+## Page View Analytics (Phase 29)
+- `page_views` table in DB: `{ id, page, createdAt }` — pushed via `npm run db:push`
+- `POST /api/track/visit` — public, no auth; records page name; called once on every home page mount via `useTrackPageView("home")`
+- `GET /api/dashboard/visits` — dashboard-authenticated; returns all `{ createdAt }` records; frontend groups by day using existing `groupByDay()` utility
+- `client/src/hooks/useTrackPageView.ts` — `useEffect`-based hook, fires once on mount, errors swallowed
+- **Dashboard stat card row** expanded to 5 cards (`grid-cols-2 sm:grid-cols-3 lg:grid-cols-5`): Page Views (orange), Chat Sessions (gold), Leads Captured (green), Contact Forms (purple), Newsletter (blue)
+- **Analytics tab** gains a new "Page Views — Last 30 Days" orange area chart (with gradient fill) and "Page Views" KPI tile; chart shows empty state until first visit is recorded
+- All-time total shown inline in the chart title as `N total`
+
 ## Link Click Analytics (Phase 28)
 - `click_events` table in DB: `{ id, product, label, createdAt }` — pushed via `npm run db:push`
 - `POST /api/track/click` — public, no auth; records product + label; fire-and-forget from frontend
