@@ -65,6 +65,19 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 - 10 content types: instagram_caption, newsletter, tweet, youtube_description, product_description, book_promo, music_release, press_release, email_subject_lines, blog_intro
 - `server/openai.ts` exports both `getConciergeReply` (visitor chat) and `generateBrandCopy` (creator tool)
 
+## Social Share Buttons (Phase 19)
+- `client/src/components/ShareButton.tsx` — universal share component
+- On mobile / Chromium: invokes `navigator.share()` (native OS share sheet)
+- On desktop: falls back to a floating dropdown (bottom-up, 150ms animate-in) with 3 options:
+  - 💬 WhatsApp — `wa.me/?text=...` deep link
+  - 𝕏 X / Twitter — `twitter.com/intent/tweet` with pre-filled text + URL
+  - Copy Link — `navigator.clipboard.writeText`, shows green "Copied!" for 1.8 s then auto-closes
+- Click-outside closes dropdown (document `mousedown` listener)
+- All clicks stop propagation so inner share button never triggers parent `<a>` card navigation
+- Added to **3 app cards** (Bondedlove, Healthwisesupport, Video Crafter) — sits beside "Open app" button
+- Added to **3 book cards** (Healthwise, Together, One Clean Meal) — sits beside "Buy on Amazon" button
+- Each card has a unique pre-written share message with book/app title and relevant description
+
 ## Custom 404 Page (Phase 18)
 - `client/src/pages/not-found.tsx` fully replaced — removed generic gray card with developer message
 - Full-screen navy branded page matching the site design system

@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ContactDialog } from "@/components/ContactDialog";
 import { NewsletterForm } from "@/components/NewsletterForm";
+import { ShareButton } from "@/components/ShareButton";
 import heroBg from "@/assets/images/hero-bg.png";
 import appBondedlove from "@/assets/images/app-bondedlove.png";
 import appHealthwise from "@/assets/images/app-healthwise.png";
@@ -297,9 +298,16 @@ export default function Home() {
                   A revolutionary dating application focused on fostering genuine, lasting connections.
                   Find your perfect match through meaningful interactions.
                 </p>
-                <span className="btn-tertiary mt-auto">
-                  Open app <ArrowRight className="h-4 w-4" />
-                </span>
+                <div className="flex items-center gap-2 mt-auto">
+                  <span className="btn-tertiary flex-1 justify-center">
+                    Open app <ArrowRight className="h-4 w-4" />
+                  </span>
+                  <ShareButton
+                    url="https://bondedlove.elevate360official.com"
+                    title="Bondedlove — Dating App"
+                    text="Check out Bondedlove, a dating app built for real connections by Elevate360!"
+                  />
+                </div>
               </div>
             </a>
 
@@ -327,9 +335,16 @@ export default function Home() {
                   Your comprehensive health wellness companion. Access medical support, track your wellness
                   journey, and connect with healthcare professionals.
                 </p>
-                <span className="btn-tertiary mt-auto">
-                  Open app <ArrowRight className="h-4 w-4" />
-                </span>
+                <div className="flex items-center gap-2 mt-auto">
+                  <span className="btn-tertiary flex-1 justify-center">
+                    Open app <ArrowRight className="h-4 w-4" />
+                  </span>
+                  <ShareButton
+                    url="https://health.elevate360official.com"
+                    title="Healthwisesupport — Wellness App"
+                    text="Check out Healthwisesupport, your wellness companion app by Elevate360!"
+                  />
+                </div>
               </div>
             </a>
 
@@ -357,9 +372,16 @@ export default function Home() {
                   Unleash your creativity with our intuitive video editing suite. Professional-grade tools made
                   accessible for creators of all levels.
                 </p>
-                <span className="btn-tertiary mt-auto">
-                  Open app <ArrowRight className="h-4 w-4" />
-                </span>
+                <div className="flex items-center gap-2 mt-auto">
+                  <span className="btn-tertiary flex-1 justify-center">
+                    Open app <ArrowRight className="h-4 w-4" />
+                  </span>
+                  <ShareButton
+                    url="https://crafter.elevate360official.com"
+                    title="Video Crafter — Video Editor"
+                    text="Check out Video Crafter, a professional video editing suite by Elevate360!"
+                  />
+                </div>
               </div>
             </a>
           </div>
@@ -654,6 +676,11 @@ export default function Home() {
                   >
                     Preview on Amazon
                   </a>
+                  <ShareButton
+                    url="https://www.amazon.com/dp/B0GMBNPZC9"
+                    title="Healthwise: Stay Healthy"
+                    text="Check out 'Healthwise: Stay Healthy' on Amazon — a guide to understanding your body by Oladele Oyeniyi!"
+                  />
                 </div>
               </div>
             </div>
@@ -714,7 +741,7 @@ export default function Home() {
                   healthier communication, and a love that actually lasts.
                 </p>
 
-                <div className="flex flex-col sm:flex-row gap-4 pt-6">
+                <div className="flex flex-col sm:flex-row items-center gap-4 pt-6">
                   <a
                     href="https://www.amazon.com/dp/B0G5DWG61V"
                     target="_blank"
@@ -724,6 +751,11 @@ export default function Home() {
                   >
                     Buy on Amazon
                   </a>
+                  <ShareButton
+                    url="https://www.amazon.com/dp/B0G5DWG61V"
+                    title="Together: Let There Be Love"
+                    text="Check out 'Together: Let There Be Love' on Amazon — a relationship handbook for couples by Oladele Oyeniyi!"
+                  />
                 </div>
               </div>
             </div>
@@ -772,7 +804,7 @@ export default function Home() {
                   reset their health through manageable, one-meal-at-a-time changes.
                 </p>
 
-                <div className="flex flex-col sm:flex-row gap-4 pt-6">
+                <div className="flex flex-col sm:flex-row items-center gap-4 pt-6">
                   <a
                     href="https://www.amazon.com/dp/B0FSDTPVJC"
                     target="_blank"
@@ -782,6 +814,11 @@ export default function Home() {
                   >
                     Buy on Amazon
                   </a>
+                  <ShareButton
+                    url="https://www.amazon.com/dp/B0FSDTPVJC"
+                    title="One Clean Meal: A 7-Day Reset"
+                    text="Check out 'One Clean Meal: A 7-Day Reset' on Amazon — simple habits for better health by Oladele Oyeniyi!"
+                  />
                 </div>
               </div>
             </div>
