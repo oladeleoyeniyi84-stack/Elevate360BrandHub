@@ -21,6 +21,7 @@ import { ContactDialog } from "@/components/ContactDialog";
 import { NewsletterForm } from "@/components/NewsletterForm";
 import { ShareButton } from "@/components/ShareButton";
 import { FAQSection } from "@/components/FAQSection";
+import { CommissionDialog } from "@/components/CommissionDialog";
 import heroBg from "@/assets/images/hero-bg.png";
 import appBondedlove from "@/assets/images/app-bondedlove.png";
 import appHealthwise from "@/assets/images/app-healthwise.png";
@@ -64,6 +65,7 @@ function StatCard({ target, suffix = "", label, description, emoji, delay = "0ms
 export default function Home() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [commissionOpen, setCommissionOpen] = useState(false);
   useScrollReveal();
 
   useEffect(() => {
@@ -583,7 +585,7 @@ export default function Home() {
                     </li>
                   ))}
                 </ul>
-                <div className="pt-4">
+                <div className="pt-4 flex flex-col sm:flex-row gap-3">
                   <a
                     href="https://www.etsy.com/shop/Elevate360Official?sort_order=date_desc"
                     target="_blank"
@@ -594,6 +596,14 @@ export default function Home() {
                     <ExternalLink className="h-5 w-5" />
                     Visit Art Studio on Etsy
                   </a>
+                  <button
+                    onClick={() => setCommissionOpen(true)}
+                    data-testid="button-open-commission"
+                    className="btn-secondary"
+                  >
+                    <Palette className="h-5 w-5" />
+                    Commission Custom Art
+                  </button>
                 </div>
               </div>
 
@@ -1283,6 +1293,7 @@ export default function Home() {
       </footer>
 
       <AIConcierge />
+      <CommissionDialog open={commissionOpen} onClose={() => setCommissionOpen(false)} />
     </div>
   );
 }

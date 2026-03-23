@@ -65,6 +65,19 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 - 10 content types: instagram_caption, newsletter, tweet, youtube_description, product_description, book_promo, music_release, press_release, email_subject_lines, blog_intro
 - `server/openai.ts` exports both `getConciergeReply` (visitor chat) and `generateBrandCopy` (creator tool)
 
+## Art Commission Request Form (Phase 25)
+- `client/src/components/CommissionDialog.tsx` — 3-step commission request dialog, triggered from the Art Studio section
+- **Step 1 — Contact Details**: Name + email fields with live validation; Continue button disabled until both are valid
+- **Step 2 — Project Info**: Click-to-select grid tiles for Project Type (7 options), Art Style (7 options), Budget Range (6 options); all required before advancing
+- **Step 3 — Description**: Textarea (min 10 chars) + a read-only summary card showing selected type/style/budget
+- **Submission**: POSTs to existing `/api/contact` with message prefixed `[ART COMMISSION REQUEST]` and all details formatted — no new DB table needed; appears in the Contacts tab of the Creator Dashboard clearly labelled
+- **Success state**: Green checkmark, personalised thank-you with name + email shown, auto-close button
+- **Error state**: Inline red message beneath the form if submission fails
+- **Dismiss**: ✕ button, backdrop click, or Escape — all reset form state on close (300ms delay so animation completes)
+- Step indicator bar with numbered circles + labels ("Your Details", "Project Info", "Description") — completed steps show gold ✓
+- "Commission Custom Art" gold outline button added to Art Studio section alongside existing "Visit Art Studio on Etsy" CTA
+- `commissionOpen` state in `Home.tsx`; dialog mounted at bottom of Home component
+
 ## WhatsApp Floating Button (Phase 24)
 - `client/src/components/WhatsAppButton.tsx` — floating green WhatsApp button, globally registered in `App.tsx`
 - **Activation**: reads `WHATSAPP_NUMBER` from `GET /api/config/public` (server env var) — button is completely hidden if the number is not set; safe to ship without it configured
