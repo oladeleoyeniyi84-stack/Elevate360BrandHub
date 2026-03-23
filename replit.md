@@ -65,6 +65,17 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 - 10 content types: instagram_caption, newsletter, tweet, youtube_description, product_description, book_promo, music_release, press_release, email_subject_lines, blog_intro
 - `server/openai.ts` exports both `getConciergeReply` (visitor chat) and `generateBrandCopy` (creator tool)
 
+## WhatsApp Floating Button (Phase 24)
+- `client/src/components/WhatsAppButton.tsx` — floating green WhatsApp button, globally registered in `App.tsx`
+- **Activation**: reads `WHATSAPP_NUMBER` from `GET /api/config/public` (server env var) — button is completely hidden if the number is not set; safe to ship without it configured
+- **Positioning**: `fixed bottom-24 left-4 z-[150]` — sits above the mobile nav safe area, left side (back-to-top is on the right — no overlap)
+- **Link format**: `https://wa.me/{number}?text=ENCODED_MESSAGE` with pre-filled message "Hi Elevate360! I visited your website and would love to connect. 👋"
+- **Phone cleaning**: strips all non-digit characters from env var before building URL (supports +234, spaces, dashes, etc.)
+- **Tooltip bubble**: appears on hover/focus — "Chat with us on WhatsApp" — slides in from left with `animate-in`; triangular pointer arrow on the right
+- **Entrance animation**: fades up 1.2s after the number is loaded — never jarring; hidden on `/dashboard` route
+- **Design**: 56×56px circle, WhatsApp brand gradient (135° #25D366→#128C7E), green glow box-shadow, hover scale 110%, active scale 95%
+- **Server route**: `GET /api/config/public` returns `{ whatsappNumber: string | null }` — extensible for future public config values
+
 ## Scroll-Triggered Newsletter Popup (Phase 23)
 - `client/src/components/NewsletterPopup.tsx` — self-contained popup, registered globally in `App.tsx`
 - **Trigger**: fires once the user has scrolled ≥60% of the page (genuine engagement signal), then waits 800ms before appearing — never jarring

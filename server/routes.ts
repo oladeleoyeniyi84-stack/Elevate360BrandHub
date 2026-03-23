@@ -179,5 +179,11 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/config/public", (_req, res) => {
+    res.json({
+      whatsappNumber: process.env.WHATSAPP_NUMBER || null,
+    });
+  });
+
   return httpServer;
 }

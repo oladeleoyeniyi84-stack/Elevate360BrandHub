@@ -10,6 +10,7 @@ import Links from "@/pages/Links";
 import { CookieBanner } from "@/components/CookieBanner";
 import { ScrollUtilities } from "@/components/ScrollUtilities";
 import { NewsletterPopup } from "@/components/NewsletterPopup";
+import { WhatsAppButton } from "@/components/WhatsAppButton";
 
 function Router() {
   return (
@@ -30,6 +31,7 @@ function App() {
         <Router />
         <ScrollUtilities />
         <NewsletterPopup />
+        <WhatsAppButton />
         <CookieBanner />
       </TooltipProvider>
     </QueryClientProvider>
