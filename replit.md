@@ -65,6 +65,13 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 - 10 content types: instagram_caption, newsletter, tweet, youtube_description, product_description, book_promo, music_release, press_release, email_subject_lines, blog_intro
 - `server/openai.ts` exports both `getConciergeReply` (visitor chat) and `generateBrandCopy` (creator tool)
 
+## Animated Stats Section (Phase 14)
+- `client/src/hooks/useCountUp.ts` — count-up hook using IntersectionObserver + requestAnimationFrame; ease-out cubic easing; respects `prefers-reduced-motion`
+- `StatCard` component inline in `Home.tsx` — emoji, large animated number, label, description
+- Stats section between hero and apps: 3 Mobile Apps · 3 Books Published · 1 Art Studio · 4 Music Genres
+- 2-column grid on mobile, 4-column on desktop; each card has staggered reveal-scale animation
+- Section labeled "Elevate360 By The Numbers" in small caps tracking
+
 ## Cookie Consent Banner (Phase 13)
 - `client/src/components/CookieBanner.tsx` — GDPR-aware cookie notice
 - Appears 1.8 s after first visit (only if no stored consent); never shown again once decided

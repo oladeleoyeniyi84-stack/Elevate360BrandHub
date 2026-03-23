@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useScrollReveal } from "@/hooks/useScrollReveal";
+import { useCountUp } from "@/hooks/useCountUp";
 import { AIConcierge } from "@/components/AIConcierge";
 import { Link } from "wouter";
 import {
@@ -28,6 +29,34 @@ const featuredBook =
   "https://m.media-amazon.com/images/I/41Ih48BpUEL._SY445_SX342_FMwebp_.jpg";
 const bookTogether = "https://m.media-amazon.com/images/I/61XmcRNAyTL._SY466_.jpg";
 const bookOneCleanMeal = "https://m.media-amazon.com/images/I/41zbjQDKkNL._SY466_.jpg";
+
+interface StatCardProps {
+  target: number;
+  suffix?: string;
+  label: string;
+  description: string;
+  emoji: string;
+  delay?: string;
+}
+
+function StatCard({ target, suffix = "", label, description, emoji, delay = "0ms" }: StatCardProps) {
+  const { count, ref } = useCountUp({ target, duration: 1600 });
+  return (
+    <div
+      ref={ref as React.RefObject<HTMLDivElement>}
+      style={{ transitionDelay: delay }}
+      className="reveal-scale flex flex-col items-center text-center gap-2 p-6 rounded-2xl border border-white/8 bg-white/3 hover:bg-white/6 hover:border-white/15 transition-colors duration-300"
+      data-testid={`stat-card-${label.toLowerCase().replace(/\s+/g, "-")}`}
+    >
+      <span className="text-3xl mb-1">{emoji}</span>
+      <p className="text-4xl md:text-5xl font-heading font-extrabold text-primary tabular-nums leading-none">
+        {count}{suffix}
+      </p>
+      <p className="text-sm font-semibold text-foreground">{label}</p>
+      <p className="text-xs text-muted-foreground leading-relaxed">{description}</p>
+    </div>
+  );
+}
 
 export default function Home() {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -190,6 +219,45 @@ export default function Home() {
                 View Publications
               </a>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Stats Section */}
+      <section className="py-16 bg-background border-t border-white/8">
+        <div className="container mx-auto px-4 md:px-6">
+          <p className="text-center text-xs font-bold tracking-[0.18em] text-muted-foreground uppercase mb-8">
+            Elevate360 By The Numbers
+          </p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard
+              target={3}
+              label="Mobile Apps"
+              description="Purpose-built apps connecting, healing & inspiring"
+              emoji="📱"
+              delay="0ms"
+            />
+            <StatCard
+              target={3}
+              label="Books Published"
+              description="Health, relationships & clean living on Amazon"
+              emoji="📚"
+              delay="100ms"
+            />
+            <StatCard
+              target={1}
+              label="Art Studio"
+              description="Original digital art & prints on Etsy"
+              emoji="🎨"
+              delay="200ms"
+            />
+            <StatCard
+              target={4}
+              label="Music Genres"
+              description="Afrobeat · Amapiano · R&B · Hip-Hop on Audiomack"
+              emoji="🎵"
+              delay="300ms"
+            />
           </div>
         </div>
       </section>
