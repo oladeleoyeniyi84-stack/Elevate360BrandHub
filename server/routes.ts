@@ -9,7 +9,7 @@ import {
 } from "@shared/schema";
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
-import { getConciergeReply } from "./openai";
+import { getConciergeReply, generateBrandCopy, type ContentType } from "./openai";
 import { z } from "zod";
 
 const DASHBOARD_PIN = process.env.DASHBOARD_PIN;
@@ -114,6 +114,31 @@ export async function registerRoutes(
     if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
     const subscribers = await storage.getNewsletterSubscribers();
     res.json(subscribers);
+  });
+
+  const generateSchema = z.object({
+    contentType: z.enum([
+      "instagram_caption", "newsletter", "tweet", "youtube_description",
+      "product_description", "book_promo", "music_release", "press_release",
+      "email_subject_lines", "blog_intro",
+    ]),
+    brief: z.string().min(5).max(1000),
+  });
+
+  app.post("/api/dashboard/generate", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    try {
+      const { contentType, brief } = generateSchema.parse(req.body);
+      const copy = await generateBrandCopy(contentType as ContentType, brief);
+      res.json({ copy });
+    } catch (error: any) {
+      if (error instanceof ZodError) {
+        res.status(400).json({ message: fromZodError(error).message });
+      } else {
+        console.error("Generate error:", error?.message ?? error);
+        res.status(500).json({ message: "Content generation failed. Please try again." });
+      }
+    }
   });
 
   return httpServer;

@@ -47,6 +47,82 @@ Visitors can reach the team through the contact form at https://www.elevate360of
 - If asked something outside the brand scope, kindly redirect back to Elevate360 topics
 - Always be positive and encouraging about the brand's mission`;
 
+const VOICE_SYSTEM_PROMPT = `You are the Elevate360 Brand Voice Engine — an expert copywriter who creates compelling, on-brand content for Elevate360Official.
+
+## Brand Identity
+- **Brand**: Elevate360Official by Oladele Oyeniyi
+- **Tagline**: "Empowering Lives Through Technology & Words"
+- **Tone**: Premium, warm, inspiring, confident, empowering — luxury meets accessibility
+- **Voice**: Bold headlines, clean sentences, active verbs, emotional resonance
+
+## Products & Links
+- **Bondedlove** (dating app): https://bondedlove.elevate360official.com
+- **Healthwisesupport** (wellness app): https://health.elevate360official.com
+- **Video Crafter** (video editing app): https://crafter.elevate360official.com
+- **Healthwise: Stay Healthy** (book): https://www.amazon.com/dp/B0GMBNPZC9
+- **Together: Let There Be Love** (book): https://www.amazon.com/dp/B0G5DWG61V
+- **One Clean Meal: A 7-Day Reset** (book): https://www.amazon.com/dp/B0FSDTPVJC
+- **Art Studio** (Etsy): https://www.etsy.com/shop/Elevate360Official
+- **Music** (Audiomack): https://audiomack.com/elevate360music
+- **Instagram**: https://www.instagram.com/officialelevate360/
+- **Website**: https://www.elevate360official.com
+
+## Writing Rules
+- Use power words that evoke emotion and action
+- Use relevant emojis sparingly for social content
+- Always end CTAs with a clear action (link, DM, comment, etc.)
+- Match the content type format precisely
+- Do NOT invent pricing, statistics, or claims not provided
+- Output ONLY the finished copy — no preamble, no labels, no explanations`;
+
+export type ContentType =
+  | "instagram_caption"
+  | "newsletter"
+  | "tweet"
+  | "youtube_description"
+  | "product_description"
+  | "book_promo"
+  | "music_release"
+  | "press_release"
+  | "email_subject_lines"
+  | "blog_intro";
+
+const CONTENT_TYPE_INSTRUCTIONS: Record<ContentType, string> = {
+  instagram_caption: "Write an engaging Instagram caption with 3–5 relevant hashtags. Include a clear CTA. Max 200 words.",
+  newsletter: "Write a full newsletter email with a subject line, greeting, body (2–3 paragraphs), and sign-off. Keep it warm and personal.",
+  tweet: "Write 3 tweet/X post variations (each under 280 characters). Number them 1, 2, 3.",
+  youtube_description: "Write a YouTube video description with a hook first line, 2–3 paragraph summary, timestamps placeholder section, and links. SEO-optimized.",
+  product_description: "Write a compelling product/app description for a listing page. Include headline, 2–3 benefit bullets, and a CTA. Max 150 words.",
+  book_promo: "Write a persuasive book promotional post for social media. Include a hook, key benefit, target reader, and Amazon purchase CTA.",
+  music_release: "Write a music release announcement for Instagram/social media. Include the vibe, genre, and Audiomack link CTA.",
+  press_release: "Write a concise press release with headline, dateline, 3 paragraphs (news, context, quote), and boilerplate about Elevate360.",
+  email_subject_lines: "Generate 10 email subject line variations for this topic. Make them punchy, curiosity-driven, or benefit-focused. Numbered list.",
+  blog_intro: "Write an engaging blog post introduction (150–200 words) with a hook, problem statement, and teaser of what the post will cover.",
+};
+
+export async function generateBrandCopy(
+  contentType: ContentType,
+  brief: string
+): Promise<string> {
+  const instruction = CONTENT_TYPE_INSTRUCTIONS[contentType];
+  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+    { role: "system", content: VOICE_SYSTEM_PROMPT },
+    {
+      role: "user",
+      content: `Content type: ${contentType.replace(/_/g, " ").toUpperCase()}\n\nInstructions: ${instruction}\n\nBrief from the creator:\n${brief}`,
+    },
+  ];
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o",
+    messages,
+    max_tokens: 800,
+    temperature: 0.8,
+  });
+
+  return response.choices[0]?.message?.content ?? "Unable to generate content. Please try again.";
+}
+
 export async function getConciergeReply(
   history: ChatMessage[],
   userMessage: string

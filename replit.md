@@ -48,6 +48,7 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 - `GET /api/dashboard/leads` - All chat conversations (auth required)
 - `GET /api/dashboard/contacts` - All contact form messages (auth required)
 - `GET /api/dashboard/subscribers` - All newsletter subscribers (auth required)
+- `POST /api/dashboard/generate` - Brand voice content generation via GPT-4o (auth required)
 
 ## AI Concierge
 - `client/src/components/AIConcierge.tsx` - Chat widget (floating button, panel, quick prompts, lead capture form)
@@ -56,8 +57,13 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 
 ## Creator Dashboard
 - Private route at `/dashboard` — PIN-protected via `DASHBOARD_PIN` env var
-- `client/src/pages/Dashboard.tsx` - Stats overview, chat leads explorer, contact forms, newsletter list
+- `client/src/pages/Dashboard.tsx` — 4 tabs: Brand Voice Generator, Chat Leads, Contacts, Newsletter
 - Server sessions via `express-session` (8-hour duration)
+
+## Brand Voice Generator (Phase 3)
+- `POST /api/dashboard/generate` — session-protected, calls GPT-4o with brand voice system prompt
+- 10 content types: instagram_caption, newsletter, tweet, youtube_description, product_description, book_promo, music_release, press_release, email_subject_lines, blog_intro
+- `server/openai.ts` exports both `getConciergeReply` (visitor chat) and `generateBrandCopy` (creator tool)
 
 ## Custom Domain
 - Canonical host: `www.elevate360official.com` (set via `CANONICAL_HOST` env var)

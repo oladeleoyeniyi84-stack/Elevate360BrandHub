@@ -1,6 +1,11 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Lock, Users, MessageSquare, Mail, TrendingUp, Eye, EyeOff, LogOut, Sparkles } from "lucide-react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import {
+  Lock, Users, MessageSquare, Mail, TrendingUp,
+  Eye, EyeOff, LogOut, Sparkles, Wand2, Copy, Check,
+  Instagram, Newspaper, Twitter, Youtube, Package,
+  BookOpen, Music, FileText, AtSign, PenLine, ChevronDown, ChevronUp,
+} from "lucide-react";
 
 interface Lead {
   id: number;
@@ -26,13 +31,28 @@ interface NewsletterSubscriber {
   subscribedAt: string;
 }
 
+type ContentType =
+  | "instagram_caption" | "newsletter" | "tweet" | "youtube_description"
+  | "product_description" | "book_promo" | "music_release" | "press_release"
+  | "email_subject_lines" | "blog_intro";
+
+const CONTENT_TYPES: { key: ContentType; label: string; icon: React.ElementType; placeholder: string }[] = [
+  { key: "instagram_caption", label: "Instagram Caption", icon: Instagram, placeholder: "e.g. Announcing Bondedlove app — the dating app for real connections" },
+  { key: "newsletter", label: "Newsletter Email", icon: Newspaper, placeholder: "e.g. Monthly update about new app features and book releases" },
+  { key: "tweet", label: "Tweets / X Posts", icon: Twitter, placeholder: "e.g. Promote the Healthwise: Stay Healthy book for wellness readers" },
+  { key: "youtube_description", label: "YouTube Description", icon: Youtube, placeholder: "e.g. Tutorial video showing how to use Video Crafter to edit reels" },
+  { key: "product_description", label: "Product Description", icon: Package, placeholder: "e.g. Description for Healthwisesupport app on the App Store" },
+  { key: "book_promo", label: "Book Promo Post", icon: BookOpen, placeholder: "e.g. Promo post for 'Together: Let There Be Love' targeting couples" },
+  { key: "music_release", label: "Music Release Post", icon: Music, placeholder: "e.g. Announcing a new Afrobeat track on Audiomack" },
+  { key: "press_release", label: "Press Release", icon: FileText, placeholder: "e.g. Announcing the launch of the Bondedlove dating app" },
+  { key: "email_subject_lines", label: "Email Subject Lines", icon: AtSign, placeholder: "e.g. Newsletter promoting the new book collection" },
+  { key: "blog_intro", label: "Blog Post Intro", icon: PenLine, placeholder: "e.g. Blog post about how wellness apps are transforming healthcare" },
+];
+
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
+    month: "short", day: "numeric", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
   });
 }
 
@@ -68,7 +88,6 @@ function PinLogin({ onLogin }: { onLogin: () => void }) {
           <h1 className="text-2xl font-bold text-white font-heading">Creator Dashboard</h1>
           <p className="text-white/50 text-sm mt-1">Elevate360Official · Private Access</p>
         </div>
-
         <form onSubmit={handleSubmit} className="lux-card space-y-4">
           <div className="relative">
             <input
@@ -81,24 +100,13 @@ function PinLogin({ onLogin }: { onLogin: () => void }) {
               required
               className="w-full bg-white/6 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-[#F4A62A]/50 pr-12"
             />
-            <button
-              type="button"
-              onClick={() => setShowPin((v) => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 transition"
-            >
+            <button type="button" onClick={() => setShowPin((v) => !v)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 transition">
               {showPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
-
-          {error && (
-            <p data-testid="text-login-error" className="text-red-400 text-sm text-center">{error}</p>
-          )}
-
-          <button
-            type="submit"
-            data-testid="button-dashboard-login"
-            className="btn-primary w-full py-3"
-          >
+          {error && <p data-testid="text-login-error" className="text-red-400 text-sm text-center">{error}</p>}
+          <button type="submit" data-testid="button-dashboard-login" className="btn-primary w-full py-3">
             Access Dashboard
           </button>
         </form>
@@ -130,10 +138,8 @@ function ChatLeadRow({ lead }: { lead: Lead }) {
 
   return (
     <div className="border border-white/8 rounded-2xl overflow-hidden">
-      <button
-        onClick={() => setExpanded((v) => !v)}
-        className="w-full flex items-center justify-between px-5 py-4 hover:bg-white/4 transition text-left"
-      >
+      <button onClick={() => setExpanded((v) => !v)}
+        className="w-full flex items-center justify-between px-5 py-4 hover:bg-white/4 transition text-left">
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-8 h-8 rounded-full bg-[#F4A62A]/15 flex items-center justify-center flex-shrink-0">
             <Sparkles className="h-4 w-4 text-[#F4A62A]" />
@@ -147,18 +153,17 @@ function ChatLeadRow({ lead }: { lead: Lead }) {
             </p>
           </div>
         </div>
-        <span className="text-xs text-white/30 flex-shrink-0 ml-4">{formatDate(lead.updatedAt)}</span>
+        <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+          <span className="text-xs text-white/30 hidden sm:block">{formatDate(lead.updatedAt)}</span>
+          {expanded ? <ChevronUp className="h-4 w-4 text-white/30" /> : <ChevronDown className="h-4 w-4 text-white/30" />}
+        </div>
       </button>
-
       {expanded && msgCount > 0 && (
         <div className="px-5 pb-4 space-y-2 border-t border-white/6 pt-3">
           {(lead.messages as { role: string; content: string }[]).map((msg, i) => (
             <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
               <div className={`max-w-[75%] rounded-2xl px-3 py-2 text-xs leading-relaxed ${
-                msg.role === "user"
-                  ? "bg-[#F4A62A]/20 text-[#F4A62A]"
-                  : "bg-white/6 text-white/70"
-              }`}>
+                msg.role === "user" ? "bg-[#F4A62A]/20 text-[#F4A62A]" : "bg-white/6 text-white/70"}`}>
                 {msg.content}
               </div>
             </div>
@@ -169,8 +174,132 @@ function ChatLeadRow({ lead }: { lead: Lead }) {
   );
 }
 
+function BrandVoiceGenerator() {
+  const [contentType, setContentType] = useState<ContentType>("instagram_caption");
+  const [brief, setBrief] = useState("");
+  const [result, setResult] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  const selected = CONTENT_TYPES.find((c) => c.key === contentType)!;
+
+  const generateMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/dashboard/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contentType, brief }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || "Generation failed");
+      }
+      return res.json() as Promise<{ copy: string }>;
+    },
+    onSuccess: ({ copy }) => {
+      setResult(copy);
+      setCopied(false);
+    },
+  });
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(result);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="lux-card space-y-5">
+        <div>
+          <label className="text-sm font-semibold text-white/70 block mb-3">Content Type</label>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {CONTENT_TYPES.map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                data-testid={`button-content-type-${key}`}
+                onClick={() => { setContentType(key); setResult(""); }}
+                className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-xs font-medium transition-all text-left ${
+                  contentType === key
+                    ? "bg-[#F4A62A] text-black border-[#F4A62A]"
+                    : "border-white/10 text-white/60 hover:border-white/20 hover:text-white/80"
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5 flex-shrink-0" />
+                <span className="truncate">{label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className="text-sm font-semibold text-white/70 block mb-2">
+            Brief — tell the AI what to write
+          </label>
+          <textarea
+            data-testid="input-voice-brief"
+            value={brief}
+            onChange={(e) => setBrief(e.target.value)}
+            rows={3}
+            placeholder={selected.placeholder}
+            className="w-full bg-white/6 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#F4A62A]/50 resize-none"
+          />
+        </div>
+
+        <button
+          data-testid="button-generate-copy"
+          onClick={() => generateMutation.mutate()}
+          disabled={!brief.trim() || generateMutation.isPending}
+          className="btn-primary w-full py-3 flex items-center justify-center gap-2 disabled:opacity-50"
+        >
+          <Wand2 className={`h-4 w-4 ${generateMutation.isPending ? "animate-spin" : ""}`} />
+          {generateMutation.isPending ? "Generating…" : "Generate Copy"}
+        </button>
+
+        {generateMutation.isError && (
+          <p className="text-red-400 text-sm text-center">
+            {(generateMutation.error as Error)?.message || "Something went wrong."}
+          </p>
+        )}
+      </div>
+
+      {result && (
+        <div className="lux-card space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-white flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-[#F4A62A]" />
+              Generated Copy
+            </p>
+            <button
+              data-testid="button-copy-result"
+              onClick={handleCopy}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-white/10 text-white/60 hover:text-white hover:border-white/20 transition"
+            >
+              {copied ? <Check className="h-3.5 w-3.5 text-green-400" /> : <Copy className="h-3.5 w-3.5" />}
+              {copied ? "Copied!" : "Copy"}
+            </button>
+          </div>
+          <div
+            data-testid="text-generated-copy"
+            className="whitespace-pre-wrap text-sm text-white/80 leading-relaxed bg-white/4 rounded-xl px-4 py-4 border border-white/6"
+          >
+            {result}
+          </div>
+          <button
+            onClick={() => generateMutation.mutate()}
+            disabled={generateMutation.isPending}
+            className="btn-secondary w-full py-2.5 text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            <Wand2 className="h-3.5 w-3.5" />
+            Regenerate
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DashboardContent({ onLogout }: { onLogout: () => void }) {
-  const [tab, setTab] = useState<"leads" | "contacts" | "newsletter">("leads");
+  const [tab, setTab] = useState<"leads" | "contacts" | "newsletter" | "voice">("voice");
 
   const leadsQuery = useQuery<Lead[]>({
     queryKey: ["/api/dashboard/leads"],
@@ -205,9 +334,10 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
   const capturedLeads = leads.filter((l) => l.leadEmail);
 
   const tabs = [
-    { key: "leads", label: "Chat Leads", count: capturedLeads.length },
-    { key: "contacts", label: "Contact Forms", count: contacts.length },
-    { key: "newsletter", label: "Newsletter", count: subscribers.length },
+    { key: "voice", label: "Brand Voice", icon: Wand2 },
+    { key: "leads", label: "Chat Leads", icon: MessageSquare },
+    { key: "contacts", label: "Contacts", icon: Users },
+    { key: "newsletter", label: "Newsletter", icon: Mail },
   ] as const;
 
   return (
@@ -218,13 +348,10 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-white font-heading">Creator Dashboard</h1>
-            <p className="text-white/40 text-sm mt-0.5">Elevate360Official · Analytics & Leads</p>
+            <p className="text-white/40 text-sm mt-0.5">Elevate360Official · Analytics & Tools</p>
           </div>
-          <button
-            onClick={onLogout}
-            data-testid="button-dashboard-logout"
-            className="flex items-center gap-2 text-sm text-white/40 hover:text-white/70 transition"
-          >
+          <button onClick={onLogout} data-testid="button-dashboard-logout"
+            className="flex items-center gap-2 text-sm text-white/40 hover:text-white/70 transition">
             <LogOut className="h-4 w-4" />
             Logout
           </button>
@@ -239,27 +366,25 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 bg-white/4 rounded-2xl p-1">
-          {tabs.map((t) => (
+        <div className="flex gap-1 bg-white/4 rounded-2xl p-1 overflow-x-auto">
+          {tabs.map(({ key, label, icon: Icon }) => (
             <button
-              key={t.key}
-              data-testid={`button-tab-${t.key}`}
-              onClick={() => setTab(t.key)}
-              className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-medium transition-all ${
-                tab === t.key
-                  ? "bg-[#F4A62A] text-black"
-                  : "text-white/50 hover:text-white/80"
+              key={key}
+              data-testid={`button-tab-${key}`}
+              onClick={() => setTab(key)}
+              className={`flex items-center gap-1.5 flex-shrink-0 py-2.5 px-4 rounded-xl text-sm font-medium transition-all ${
+                tab === key ? "bg-[#F4A62A] text-black" : "text-white/50 hover:text-white/80"
               }`}
             >
-              {t.label}
-              <span className={`ml-1.5 text-xs ${tab === t.key ? "text-black/60" : "text-white/30"}`}>
-                ({t.count})
-              </span>
+              <Icon className="h-3.5 w-3.5" />
+              {label}
             </button>
           ))}
         </div>
 
         {/* Tab Content */}
+        {tab === "voice" && <BrandVoiceGenerator />}
+
         {tab === "leads" && (
           <div className="space-y-3">
             {leads.length === 0 ? (
@@ -268,9 +393,7 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
                 <p className="text-white/40 text-sm">No chat sessions yet</p>
               </div>
             ) : (
-              leads.map((lead) => (
-                <ChatLeadRow key={lead.id} lead={lead} />
-              ))
+              leads.map((lead) => <ChatLeadRow key={lead.id} lead={lead} />)
             )}
           </div>
         )}
