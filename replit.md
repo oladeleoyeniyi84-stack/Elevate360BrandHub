@@ -65,6 +65,16 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 - 10 content types: instagram_caption, newsletter, tweet, youtube_description, product_description, book_promo, music_release, press_release, email_subject_lines, blog_intro
 - `server/openai.ts` exports both `getConciergeReply` (visitor chat) and `generateBrandCopy` (creator tool)
 
+## Site-wide Announcement Banner (Phase 27)
+- `client/src/components/AnnouncementBanner.tsx` — dismissible gold strip mounted in `App.tsx`
+- **Activation**: reads `announcementText` and `announcementUrl` from `GET /api/config/public` (env vars `ANNOUNCEMENT_TEXT` / `ANNOUNCEMENT_URL`); completely invisible when neither var is set — zero impact on the default experience
+- **Positioning**: `fixed top-16 z-[49]` — sits just below the 64 px navbar, above all page content; the hero's generous `pt-56/pt-64` means it never hides real content
+- **Design**: gold gradient strip (`#F4A62A → #ffcc6e → #F4A62A`), Megaphone icon, navy text; optional URL makes the whole text a clickable link with "Learn more →" label
+- **Dismiss**: ✕ button on the right; dismissed state stored in `sessionStorage` keyed by a hash of the announcement text — a new message text automatically re-shows the banner even in the same session
+- **Route guard**: returns `null` on `/dashboard` and `/links` — home page only
+- **Server**: `GET /api/config/public` extended to include `announcementText` and `announcementUrl` fields alongside existing `whatsappNumber`
+- **How to activate**: set `ANNOUNCEMENT_TEXT` env var (e.g. "New book just launched — grab it on Amazon! 🎉") and optionally `ANNOUNCEMENT_URL` to the destination link; restart the server
+
 ## Mobile Bottom Navigation Bar (Phase 26)
 - `client/src/components/MobileBottomNav.tsx` — fixed tab bar visible only on mobile (`md:hidden`)
 - **5 tabs**: Home (scrolls to top), Apps (`#apps`), Books (`#books`), Music (`#music`), Art (`#art-studio`)

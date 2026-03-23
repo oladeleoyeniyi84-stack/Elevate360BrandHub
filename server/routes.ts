@@ -182,6 +182,8 @@ export async function registerRoutes(
   app.get("/api/config/public", (_req, res) => {
     res.json({
       whatsappNumber: process.env.WHATSAPP_NUMBER || null,
+      announcementText: process.env.ANNOUNCEMENT_TEXT || null,
+      announcementUrl: process.env.ANNOUNCEMENT_URL || null,
     });
   });
 
