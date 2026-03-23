@@ -65,6 +65,17 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 - 10 content types: instagram_caption, newsletter, tweet, youtube_description, product_description, book_promo, music_release, press_release, email_subject_lines, blog_intro
 - `server/openai.ts` exports both `getConciergeReply` (visitor chat) and `generateBrandCopy` (creator tool)
 
+## Meet the Creator Section (Phase 21)
+- New section in `Home.tsx` between the last book section and the final CTA
+- **Two-column layout** (stacks on mobile): left = avatar/identity, right = story + timeline
+- **Avatar block**: 208×208 rounded-2.5rem card with gold gradient monogram "OO", ambient gold glow shadow, "✦ Verified Creator" pill badge
+- **Role chips**: 5 `badge-gold` pills — Entrepreneur, Author, App Developer, Visual Artist, Music Producer
+- **Social row**: Instagram, YouTube, Etsy icon buttons (rounded, border-hover gold)
+- **Bio copy**: 3 paragraphs covering brand mission and philosophy; italic brand quote "Elevate the world, one product at a time."
+- **Milestone timeline**: left-bordered list (4 entries: 2023–2026) with gold dot markers, year labels in primary uppercase, event text
+- **Mini stat row**: 3 `lux-card` tiles — "3 Apps Built", "3 Books Published", "10K+ Lives Reached"
+- Ambient centre-glow blob behind entire section; scroll-reveal animations (reveal-left / reveal-right)
+
 ## Testimonials & Social Proof Section (Phase 20)
 - New section inserted in `Home.tsx` between the Stats and Apps sections
 - **6 testimonial cards** — one per product (Bondedlove, Healthwisesupport, Healthwise book, Together book, Video Crafter, One Clean Meal)

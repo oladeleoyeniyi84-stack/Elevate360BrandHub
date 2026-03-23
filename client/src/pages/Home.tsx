@@ -984,6 +984,125 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Meet the Creator Section */}
+      <section className="py-24 border-t border-white/10 relative overflow-hidden">
+        {/* ambient glow */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-primary/5 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="container mx-auto px-4 md:px-6 relative z-10">
+          {/* eyebrow */}
+          <div className="text-center mb-14 reveal">
+            <p className="text-xs font-bold tracking-widest text-primary uppercase mb-3">The Founder</p>
+            <h2 className="text-3xl md:text-5xl font-heading font-bold tracking-tight">Meet Oladele Oyeniyi</h2>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-12 lg:gap-20 items-center max-w-5xl mx-auto">
+
+            {/* Left — avatar + identity card */}
+            <div className="flex flex-col items-center md:items-start gap-7 reveal-left">
+              {/* Avatar */}
+              <div className="relative">
+                <div className="w-44 h-44 md:w-52 md:h-52 rounded-[2.5rem] bg-gradient-to-br from-primary/30 via-primary/10 to-transparent border border-primary/30 flex items-center justify-center shadow-[0_0_60px_rgba(244,166,42,0.15)]">
+                  <span className="text-6xl md:text-7xl font-heading font-extrabold bg-gradient-to-br from-primary to-amber-300 bg-clip-text text-transparent select-none">OO</span>
+                </div>
+                {/* verified badge */}
+                <div className="absolute -bottom-3 -right-3 bg-primary text-[#070b13] text-xs font-bold px-3 py-1.5 rounded-full shadow-lg">
+                  ✦ Verified Creator
+                </div>
+              </div>
+
+              {/* Role chips */}
+              <div className="flex flex-wrap gap-2 justify-center md:justify-start">
+                {["Entrepreneur", "Author", "App Developer", "Visual Artist", "Music Producer"].map((role) => (
+                  <span key={role} className="badge-gold text-xs px-3 py-1">{role}</span>
+                ))}
+              </div>
+
+              {/* Social row */}
+              <div className="flex items-center gap-3">
+                <a
+                  href="https://www.instagram.com/officialelevate360/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-testid="link-creator-instagram"
+                  className="w-10 h-10 rounded-full border border-white/20 flex items-center justify-center hover:border-primary hover:text-primary transition-colors"
+                  aria-label="Instagram"
+                >
+                  <Instagram className="w-4 h-4" />
+                </a>
+                <a
+                  href="https://www.youtube.com/channel/UCDGnUhgvM__6Mw8q26H-urQ"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-testid="link-creator-youtube"
+                  className="w-10 h-10 rounded-full border border-white/20 flex items-center justify-center hover:border-primary hover:text-primary transition-colors"
+                  aria-label="YouTube"
+                >
+                  <Youtube className="w-4 h-4" />
+                </a>
+                <a
+                  href="https://www.etsy.com/shop/Elevate360Official"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-testid="link-creator-etsy"
+                  className="w-10 h-10 rounded-full border border-white/20 flex items-center justify-center hover:border-primary hover:text-primary transition-colors"
+                  aria-label="Etsy"
+                >
+                  <Palette className="w-4 h-4" />
+                </a>
+              </div>
+            </div>
+
+            {/* Right — story + timeline */}
+            <div className="space-y-8 reveal-right">
+              <div className="space-y-4">
+                <p className="text-lg md:text-xl text-foreground/90 leading-relaxed">
+                  Oladele Oyeniyi is the creative force behind <span className="text-primary font-semibold">Elevate360Official</span> — a multi-disciplinary brand built on a single belief: that technology, words, and art can genuinely improve people's lives.
+                </p>
+                <p className="text-base text-muted-foreground leading-relaxed">
+                  From building mobile apps that strengthen relationships and support wellness, to writing books that guide readers toward healthier bodies and stronger bonds — and crafting visual art that speaks where words can't — every Elevate360 product is designed with intention, not just ambition.
+                </p>
+                <p className="text-base text-muted-foreground leading-relaxed">
+                  "Elevate the world, one product at a time." That's not a slogan — it's the operating principle behind everything we build.
+                </p>
+              </div>
+
+              {/* Milestone timeline */}
+              <div className="space-y-0 border-l-2 border-primary/30 pl-5">
+                {[
+                  { year: "2023", event: "Founded Elevate360Official and launched the first mobile app, Bondedlove." },
+                  { year: "2024", event: "Published first Amazon KDP book. Opened the Elevate360 Art Studio on Etsy." },
+                  { year: "2025", event: "Released two more apps — Healthwisesupport & Video Crafter. Published 2 additional books. Launched Audiomack music channel." },
+                  { year: "2026", event: "Scaling the brand globally. 10,000+ users across all products and growing." },
+                ].map(({ year, event }) => (
+                  <div key={year} className="relative pb-7 last:pb-0">
+                    <div className="absolute -left-[1.65rem] top-1 w-4 h-4 rounded-full bg-primary/30 border-2 border-primary flex items-center justify-center">
+                      <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                    </div>
+                    <p className="text-xs font-bold text-primary tracking-widest uppercase mb-1">{year}</p>
+                    <p className="text-sm text-muted-foreground leading-relaxed">{event}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Mini stat row */}
+              <div className="grid grid-cols-3 gap-4 pt-2">
+                {[
+                  { n: "3", label: "Apps Built" },
+                  { n: "3", label: "Books Published" },
+                  { n: "10K+", label: "Lives Reached" },
+                ].map(({ n, label }) => (
+                  <div key={label} className="lux-card rounded-2xl p-4 text-center">
+                    <p className="text-2xl font-heading font-extrabold text-primary">{n}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* CTA Section */}
       <section className="py-20 bg-gradient-to-b from-background to-[#070b13] border-t border-white/10">
         <div className="container mx-auto px-4 md:px-6 text-center">
