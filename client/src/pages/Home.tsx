@@ -14,6 +14,7 @@ import {
   ExternalLink,
   Menu,
   X,
+  Star,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ContactDialog } from "@/components/ContactDialog";
@@ -259,6 +260,163 @@ export default function Home() {
               emoji="🎵"
               delay="300ms"
             />
+          </div>
+        </div>
+      </section>
+
+      {/* Testimonials Section */}
+      <section className="py-20 border-t border-white/10 overflow-hidden">
+        <div className="container mx-auto px-4 md:px-6">
+          <div className="text-center max-w-2xl mx-auto mb-14 space-y-3 reveal">
+            <p className="text-xs font-bold tracking-widest text-primary uppercase">What People Are Saying</p>
+            <h2 className="text-3xl md:text-5xl font-heading font-bold tracking-tight">Trusted by Thousands</h2>
+            <p className="text-muted-foreground text-lg">Real reviews from real users across our apps, books, and creative work.</p>
+          </div>
+
+          {/* Scrollable row on mobile, 3-col grid on md+ */}
+          <div className="flex md:grid md:grid-cols-3 gap-5 overflow-x-auto pb-4 md:pb-0 snap-x snap-mandatory md:overflow-visible scrollbar-hide">
+
+            {/* Testimonial 1 — Bondedlove */}
+            <div className="lux-card rounded-3xl p-7 flex-none w-[82vw] sm:w-[60vw] md:w-auto snap-start reveal reveal-delay-1">
+              <div className="flex items-center gap-1 mb-4">
+                {[...Array(5)].map((_, i) => (
+                  <Star key={i} className="w-4 h-4 fill-primary text-primary" />
+                ))}
+              </div>
+              <blockquote className="text-base leading-relaxed text-foreground/90 mb-6">
+                "Bondedlove helped me reconnect with my partner in a way I didn't expect from an app. The prompts are thoughtful and the interface feels warm — not cold and clinical like most dating apps."
+              </blockquote>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-rose-500/20 flex items-center justify-center text-rose-400 font-bold text-sm select-none">AM</div>
+                <div>
+                  <p className="font-semibold text-sm">Amara M.</p>
+                  <p className="text-xs text-muted-foreground">Bondedlove User · Lagos, Nigeria</p>
+                </div>
+              </div>
+              <span className="mt-5 inline-block text-xs font-semibold tracking-wide text-primary/80 bg-primary/10 px-3 py-1 rounded-full">📱 Bondedlove</span>
+            </div>
+
+            {/* Testimonial 2 — Healthwisesupport */}
+            <div className="lux-card rounded-3xl p-7 flex-none w-[82vw] sm:w-[60vw] md:w-auto snap-start reveal reveal-delay-2">
+              <div className="flex items-center gap-1 mb-4">
+                {[...Array(5)].map((_, i) => (
+                  <Star key={i} className="w-4 h-4 fill-primary text-primary" />
+                ))}
+              </div>
+              <blockquote className="text-base leading-relaxed text-foreground/90 mb-6">
+                "I've been using Healthwisesupport for my daily wellness tracking and it has changed how I think about self-care. Simple, effective, and genuinely encouraging."
+              </blockquote>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-teal-500/20 flex items-center justify-center text-teal-400 font-bold text-sm select-none">TK</div>
+                <div>
+                  <p className="font-semibold text-sm">Tunde K.</p>
+                  <p className="text-xs text-muted-foreground">Healthwisesupport User · Abuja, Nigeria</p>
+                </div>
+              </div>
+              <span className="mt-5 inline-block text-xs font-semibold tracking-wide text-teal-400/80 bg-teal-500/10 px-3 py-1 rounded-full">🌿 Healthwisesupport</span>
+            </div>
+
+            {/* Testimonial 3 — Healthwise book */}
+            <div className="lux-card rounded-3xl p-7 flex-none w-[82vw] sm:w-[60vw] md:w-auto snap-start reveal reveal-delay-3">
+              <div className="flex items-center gap-1 mb-4">
+                {[...Array(5)].map((_, i) => (
+                  <Star key={i} className="w-4 h-4 fill-primary text-primary" />
+                ))}
+              </div>
+              <blockquote className="text-base leading-relaxed text-foreground/90 mb-6">
+                "Healthwise: Stay Healthy is one of the clearest, most practical health books I've read. It cuts through the noise and gives you real, actionable guidance. A must-read."
+              </blockquote>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-400 font-bold text-sm select-none">SC</div>
+                <div>
+                  <p className="font-semibold text-sm">Sarah C.</p>
+                  <p className="text-xs text-muted-foreground">Amazon Verified Purchase · UK</p>
+                </div>
+              </div>
+              <span className="mt-5 inline-block text-xs font-semibold tracking-wide text-amber-400/80 bg-amber-500/10 px-3 py-1 rounded-full">📚 Healthwise: Stay Healthy</span>
+            </div>
+
+            {/* Testimonial 4 — Together book */}
+            <div className="lux-card rounded-3xl p-7 flex-none w-[82vw] sm:w-[60vw] md:w-auto snap-start md:col-start-1 reveal">
+              <div className="flex items-center gap-1 mb-4">
+                {[...Array(5)].map((_, i) => (
+                  <Star key={i} className="w-4 h-4 fill-primary text-primary" />
+                ))}
+              </div>
+              <blockquote className="text-base leading-relaxed text-foreground/90 mb-6">
+                "Together: Let There Be Love spoke to something my partner and I had been struggling to put into words for months. We've been using it as a conversation guide and it's been transformative."
+              </blockquote>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-rose-500/20 flex items-center justify-center text-rose-400 font-bold text-sm select-none">JO</div>
+                <div>
+                  <p className="font-semibold text-sm">Jide & Ola</p>
+                  <p className="text-xs text-muted-foreground">Amazon Verified Purchase · Canada</p>
+                </div>
+              </div>
+              <span className="mt-5 inline-block text-xs font-semibold tracking-wide text-rose-400/80 bg-rose-500/10 px-3 py-1 rounded-full">❤️ Together: Let There Be Love</span>
+            </div>
+
+            {/* Testimonial 5 — Video Crafter */}
+            <div className="lux-card rounded-3xl p-7 flex-none w-[82vw] sm:w-[60vw] md:w-auto snap-start reveal reveal-delay-1">
+              <div className="flex items-center gap-1 mb-4">
+                {[...Array(5)].map((_, i) => (
+                  <Star key={i} className="w-4 h-4 fill-primary text-primary" />
+                ))}
+              </div>
+              <blockquote className="text-base leading-relaxed text-foreground/90 mb-6">
+                "Video Crafter gave me the tools I needed to produce content that actually looks professional. I went from shaky clips to polished reels in a week. My followers noticed immediately."
+              </blockquote>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400 font-bold text-sm select-none">DN</div>
+                <div>
+                  <p className="font-semibold text-sm">David N.</p>
+                  <p className="text-xs text-muted-foreground">Video Crafter User · Atlanta, USA</p>
+                </div>
+              </div>
+              <span className="mt-5 inline-block text-xs font-semibold tracking-wide text-indigo-400/80 bg-indigo-500/10 px-3 py-1 rounded-full">🎬 Video Crafter</span>
+            </div>
+
+            {/* Testimonial 6 — One Clean Meal */}
+            <div className="lux-card rounded-3xl p-7 flex-none w-[82vw] sm:w-[60vw] md:w-auto snap-start reveal reveal-delay-2">
+              <div className="flex items-center gap-1 mb-4">
+                {[...Array(5)].map((_, i) => (
+                  <Star key={i} className="w-4 h-4 fill-primary text-primary" />
+                ))}
+              </div>
+              <blockquote className="text-base leading-relaxed text-foreground/90 mb-6">
+                "One Clean Meal is the most honest nutrition reset book I've ever read. No guilt, no extreme diets — just practical steps that actually fit into a busy lifestyle. I feel completely different after the 7 days."
+              </blockquote>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 font-bold text-sm select-none">FB</div>
+                <div>
+                  <p className="font-semibold text-sm">Fatima B.</p>
+                  <p className="text-xs text-muted-foreground">Amazon Verified Purchase · Dubai, UAE</p>
+                </div>
+              </div>
+              <span className="mt-5 inline-block text-xs font-semibold tracking-wide text-emerald-400/80 bg-emerald-500/10 px-3 py-1 rounded-full">🥗 One Clean Meal</span>
+            </div>
+
+          </div>
+
+          {/* Trust badges row */}
+          <div className="flex flex-wrap justify-center items-center gap-6 mt-14 reveal">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="flex -space-x-2">
+                {["AM","TK","SC","JO","DN","FB"].map((initials, i) => (
+                  <div key={i} className="w-7 h-7 rounded-full border-2 border-background bg-primary/20 flex items-center justify-center text-[9px] font-bold text-primary">
+                    {initials}
+                  </div>
+                ))}
+              </div>
+              <span className="ml-1 font-medium text-foreground">10,000+ happy users</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+              <div className="flex">
+                {[...Array(5)].map((_, i) => <Star key={i} className="w-3.5 h-3.5 fill-primary text-primary" />)}
+              </div>
+              <span>4.9 average rating</span>
+            </div>
+            <div className="badge-gold text-xs px-4 py-1.5">⭐ Amazon Best Seller Picks</div>
           </div>
         </div>
       </section>

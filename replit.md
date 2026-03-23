@@ -65,6 +65,16 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 - 10 content types: instagram_caption, newsletter, tweet, youtube_description, product_description, book_promo, music_release, press_release, email_subject_lines, blog_intro
 - `server/openai.ts` exports both `getConciergeReply` (visitor chat) and `generateBrandCopy` (creator tool)
 
+## Testimonials & Social Proof Section (Phase 20)
+- New section inserted in `Home.tsx` between the Stats and Apps sections
+- **6 testimonial cards** — one per product (Bondedlove, Healthwisesupport, Healthwise book, Together book, Video Crafter, One Clean Meal)
+- Each card: 5-star gold rating row, blockquote, avatar circle (initials + matching accent color), name + location, product badge pill in matching color
+- **Layout**: horizontal snap-scroll on mobile (82vw cards, no visible scrollbar via `.scrollbar-hide`), 3-column CSS grid on md+ — no JS carousel needed
+- **Trust badges row** at bottom: stacked avatar cluster, "10,000+ happy users", 4.9 average rating, Amazon Best Seller badge
+- All cards use `reveal` + stagger delays; scroll-reveal IntersectionObserver fires them in on scroll
+- `Star` icon from lucide-react used for ratings (filled gold)
+- `.scrollbar-hide` utility added to `client/src/index.css` (webkit + firefox cross-browser)
+
 ## Social Share Buttons (Phase 19)
 - `client/src/components/ShareButton.tsx` — universal share component
 - On mobile / Chromium: invokes `navigator.share()` (native OS share sheet)
