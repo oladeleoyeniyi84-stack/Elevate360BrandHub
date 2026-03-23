@@ -65,6 +65,14 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 - 10 content types: instagram_caption, newsletter, tweet, youtube_description, product_description, book_promo, music_release, press_release, email_subject_lines, blog_intro
 - `server/openai.ts` exports both `getConciergeReply` (visitor chat) and `generateBrandCopy` (creator tool)
 
+## Mobile Navigation (Phase 11)
+- Hamburger button added to nav bar (visible md:hidden), toggles `mobileMenuOpen` state
+- Slide-down mobile drawer: smooth `max-h` CSS transition, 300ms ease-in-out
+- Drawer links: Applications (→ #apps), Art Studio (→ #art-studio), Music (→ #music), Publications (→ #books) — each with a gold icon
+- Full-width "Get in Touch" button at bottom of drawer (opens ContactDialog)
+- Auto-closes on scroll past 80px or on any link/button click
+- All links have `data-testid` attributes for testing
+
 ## Email Notifications (Phase 10)
 - `server/email.ts` — Resend REST API helper (no SDK, native fetch); branded HTML email templates in gold/navy
 - `RESEND_API_KEY` secret + `CREATOR_EMAIL=weareelevate360@gmail.com` env var

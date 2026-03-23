@@ -11,6 +11,8 @@ import {
   Palette,
   Music,
   ExternalLink,
+  Menu,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ContactDialog } from "@/components/ContactDialog";
@@ -29,10 +31,14 @@ const bookOneCleanMeal = "https://m.media-amazon.com/images/I/41zbjQDKkNL._SY466
 
 export default function Home() {
   const [isScrolled, setIsScrolled] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   useScrollReveal();
 
   useEffect(() => {
-    const handleScroll = () => setIsScrolled(window.scrollY > 50);
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 50);
+      if (window.scrollY > 80) setMobileMenuOpen(false);
+    };
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
@@ -76,6 +82,58 @@ export default function Home() {
                 Get in Touch
               </Button>
             </ContactDialog>
+          </div>
+
+          {/* Hamburger — mobile only */}
+          <button
+            className="md:hidden flex items-center justify-center w-10 h-10 rounded-full border border-white/15 hover:bg-white/8 transition-colors"
+            onClick={() => setMobileMenuOpen((o) => !o)}
+            aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+            data-testid="button-mobile-menu"
+          >
+            {mobileMenuOpen ? (
+              <X className="h-5 w-5" />
+            ) : (
+              <Menu className="h-5 w-5" />
+            )}
+          </button>
+        </div>
+
+        {/* Mobile drawer */}
+        <div
+          className={`md:hidden overflow-hidden transition-all duration-300 ease-in-out ${
+            mobileMenuOpen ? "max-h-96 border-t border-white/10" : "max-h-0"
+          }`}
+        >
+          <div className="container mx-auto px-4 py-4 flex flex-col gap-1 bg-background/95 backdrop-blur-2xl">
+            {[
+              { href: "#apps", label: "Applications", icon: <Smartphone className="h-4 w-4" /> },
+              { href: "#art-studio", label: "Art Studio", icon: <Palette className="h-4 w-4" /> },
+              { href: "#music", label: "Music", icon: <Music className="h-4 w-4" /> },
+              { href: "#books", label: "Publications", icon: <BookOpen className="h-4 w-4" /> },
+            ].map(({ href, label, icon }) => (
+              <a
+                key={href}
+                href={href}
+                data-testid={`link-mobile-nav-${label.toLowerCase().replace(" ", "-")}`}
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/5 text-sm font-medium text-foreground/80 hover:text-primary transition-colors"
+              >
+                <span className="text-primary">{icon}</span>
+                {label}
+              </a>
+            ))}
+            <div className="pt-2 pb-1">
+              <ContactDialog>
+                <Button
+                  data-testid="button-mobile-get-in-touch"
+                  className="w-full rounded-full"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Get in Touch
+                </Button>
+              </ContactDialog>
+            </div>
           </div>
         </div>
       </nav>
