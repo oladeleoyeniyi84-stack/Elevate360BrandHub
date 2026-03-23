@@ -65,6 +65,16 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 - 10 content types: instagram_caption, newsletter, tweet, youtube_description, product_description, book_promo, music_release, press_release, email_subject_lines, blog_intro
 - `server/openai.ts` exports both `getConciergeReply` (visitor chat) and `generateBrandCopy` (creator tool)
 
+## Custom 404 Page (Phase 18)
+- `client/src/pages/not-found.tsx` fully replaced — removed generic gray card with developer message
+- Full-screen navy branded page matching the site design system
+- Ambient gold glow blob behind content
+- Gradient "404" numeral in gold (10rem/14rem) with `bg-clip-text` gradient
+- "This page doesn't exist" heading + friendly description
+- Two CTA buttons: "Go to Homepage" (gold pill) and "All Links → /links" (ghost pill)
+- 2×2 quick-nav grid: Mobile Apps, Publications, Music, Art Studio (all link back into the main page sections)
+- Minimal header with logo + Home link; footer with copyright
+
 ## Reply to Contacts from Dashboard (Phase 17)
 - Schema: Added `repliedAt timestamp` column to `contact_messages` table; migration applied via `npm run db:push`
 - `server/email.ts`: New `sendContactReply(toName, toEmail, replyText)` — sends branded HTML reply email directly to the visitor
