@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useScrollReveal } from "@/hooks/useScrollReveal";
 import { AIConcierge } from "@/components/AIConcierge";
 import { Link } from "wouter";
 import {
@@ -28,6 +29,7 @@ const bookOneCleanMeal = "https://m.media-amazon.com/images/I/41zbjQDKkNL._SY466
 
 export default function Home() {
   const [isScrolled, setIsScrolled] = useState(false);
+  useScrollReveal();
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 50);
@@ -137,7 +139,7 @@ export default function Home() {
       {/* Apps Section */}
       <section id="apps" className="py-20 bg-background border-t border-white/10">
         <div className="container mx-auto px-4 md:px-6">
-          <div className="text-center max-w-3xl mx-auto mb-16 space-y-4">
+          <div className="text-center max-w-3xl mx-auto mb-16 space-y-4 reveal">
             <h2 className="text-3xl md:text-5xl font-heading font-bold tracking-tight">Our Digital Ecosystem</h2>
             <p className="text-lg text-muted-foreground">
               Purpose-built applications designed to connect, heal, and inspire creativity.
@@ -151,7 +153,7 @@ export default function Home() {
               target="_blank"
               rel="noopener noreferrer"
               aria-label="Open Bondedlove web app"
-              className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-[2px] h-full flex flex-col cursor-pointer"
+              className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-[2px] h-full flex flex-col cursor-pointer reveal reveal-delay-1"
             >
               <div className="aspect-[4/3] w-full overflow-hidden lux-panel flex items-center justify-center p-8">
                 <img
@@ -181,7 +183,7 @@ export default function Home() {
               target="_blank"
               rel="noopener noreferrer"
               aria-label="Open Healthwisesupport web app"
-              className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-[2px] h-full flex flex-col cursor-pointer"
+              className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-[2px] h-full flex flex-col cursor-pointer reveal reveal-delay-2"
             >
               <div className="aspect-[4/3] w-full overflow-hidden lux-panel flex items-center justify-center p-8">
                 <img
@@ -211,7 +213,7 @@ export default function Home() {
               target="_blank"
               rel="noopener noreferrer"
               aria-label="Open Video Crafter web app"
-              className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-[2px] h-full flex flex-col cursor-pointer"
+              className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-[2px] h-full flex flex-col cursor-pointer reveal reveal-delay-3"
             >
               <div className="aspect-[4/3] w-full overflow-hidden lux-panel flex items-center justify-center p-8">
                 <img
@@ -244,7 +246,7 @@ export default function Home() {
           <div className="relative rounded-[2.5rem] overflow-hidden bg-gradient-to-br from-amber-900/30 via-card to-card border border-amber-700/20 p-8 md:p-16">
             <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-gradient-to-bl from-primary/10 to-transparent rounded-full blur-3xl -translate-y-1/3 translate-x-1/3 pointer-events-none"></div>
             <div className="relative z-10 flex flex-col md:flex-row items-center gap-12 lg:gap-20">
-              <div className="w-full md:w-1/2 space-y-6">
+              <div className="w-full md:w-1/2 space-y-6 reveal-left">
                 <div className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary">
                   <Palette className="h-4 w-4 mr-2" />
                   Now on Etsy
@@ -288,7 +290,7 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="w-full md:w-1/2">
+              <div className="w-full md:w-1/2 reveal-right">
                 <img
                   src={artStudioImg}
                   alt="Elevate360 Art Studio - Art speaks where words fall short"
@@ -309,7 +311,7 @@ export default function Home() {
             <div className="absolute top-0 left-0 w-[600px] h-[600px] bg-gradient-to-br from-violet-500/10 to-transparent rounded-full blur-3xl -translate-y-1/3 -translate-x-1/3 pointer-events-none"></div>
             <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-gradient-to-tl from-primary/8 to-transparent rounded-full blur-3xl translate-y-1/3 translate-x-1/3 pointer-events-none"></div>
             <div className="relative z-10 flex flex-col md:flex-row items-center gap-12 lg:gap-20">
-              <div className="w-full md:w-1/2 space-y-6">
+              <div className="w-full md:w-1/2 space-y-6 reveal-left">
                 <div className="inline-flex items-center rounded-full border border-violet-400/30 bg-violet-500/10 px-4 py-1.5 text-sm font-medium text-violet-300">
                   <Music className="h-4 w-4 mr-2" />
                   Now on Audiomack
@@ -355,7 +357,7 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="w-full md:w-1/2 flex justify-center">
+              <div className="w-full md:w-1/2 flex justify-center reveal-right">
                 <div className="relative w-full max-w-md space-y-3">
                   <div className="overflow-hidden rounded-3xl border border-violet-500/20 shadow-2xl shadow-violet-900/30">
                     <iframe
@@ -385,7 +387,7 @@ export default function Home() {
       <section id="books" className="py-20 border-t border-white/10">
         <div className="container mx-auto px-4 md:px-6">
           <div className="flex flex-col md:flex-row items-center gap-16 mb-16">
-            <div className="w-full md:w-1/2 space-y-8">
+            <div className="w-full md:w-1/2 space-y-8 reveal-left">
               <div className="inline-flex items-center rounded-full border border-orange-500/20 bg-orange-500/10 px-3 py-1 text-sm font-medium text-orange-600 mb-2">
                 Available on Amazon KDP
               </div>
@@ -426,7 +428,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="w-full md:w-1/2 relative">
+            <div className="w-full md:w-1/2 relative reveal-right">
               <div className="grid grid-cols-2 gap-4 relative z-10">
                 <img
                   src={featuredBook}
@@ -459,7 +461,7 @@ export default function Home() {
       {/* Featured Book Section - Healthwise */}
       <section className="py-16 border-t border-white/10">
         <div className="container mx-auto px-4 md:px-6">
-          <div className="lux-card rounded-[2.5rem] p-8 md:p-12 relative overflow-hidden">
+          <div className="lux-card rounded-[2.5rem] p-8 md:p-12 relative overflow-hidden reveal-scale">
             <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-gradient-to-br from-primary/5 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
 
             <div className="relative z-10 flex flex-col md:flex-row items-center gap-12 lg:gap-20">
@@ -536,7 +538,7 @@ export default function Home() {
       {/* Featured Book Section - Together: Let There Be Love */}
       <section className="py-16 border-t border-white/10">
         <div className="container mx-auto px-4 md:px-6">
-          <div className="lux-card rounded-[2.5rem] p-8 md:p-12 relative overflow-hidden">
+          <div className="lux-card rounded-[2.5rem] p-8 md:p-12 relative overflow-hidden reveal-scale reveal-delay-1">
             <div className="absolute top-0 left-0 w-[800px] h-[800px] bg-gradient-to-br from-rose-400/5 to-transparent rounded-full blur-3xl -translate-y-1/2 -translate-x-1/3"></div>
 
             <div className="relative z-10 flex flex-col md:flex-row-reverse items-center gap-12 lg:gap-20">
@@ -606,7 +608,7 @@ export default function Home() {
       {/* Featured Book Section - One Clean Meal */}
       <section className="py-16 border-t border-white/10">
         <div className="container mx-auto px-4 md:px-6">
-          <div className="lux-card rounded-[2.5rem] p-8 md:p-12 relative overflow-hidden">
+          <div className="lux-card rounded-[2.5rem] p-8 md:p-12 relative overflow-hidden reveal-scale reveal-delay-2">
             <div className="absolute bottom-0 right-0 w-[800px] h-[800px] bg-gradient-to-tl from-emerald-400/5 to-transparent rounded-full blur-3xl translate-y-1/3 translate-x-1/3"></div>
 
             <div className="relative z-10 flex flex-col md:flex-row items-center gap-12 lg:gap-20">
@@ -664,7 +666,7 @@ export default function Home() {
       {/* CTA Section */}
       <section className="py-20 bg-gradient-to-b from-background to-[#070b13] border-t border-white/10">
         <div className="container mx-auto px-4 md:px-6 text-center">
-          <h2 className="text-3xl md:text-5xl font-heading font-bold tracking-tight mb-6 text-white">
+          <h2 className="text-3xl md:text-5xl font-heading font-bold tracking-tight mb-6 text-white reveal">
             Ready to Elevate Your Experience?
           </h2>
           <p className="text-lg md:text-xl text-white/70 max-w-2xl mx-auto mb-10">

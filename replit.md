@@ -65,6 +65,11 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 - 10 content types: instagram_caption, newsletter, tweet, youtube_description, product_description, book_promo, music_release, press_release, email_subject_lines, blog_intro
 - `server/openai.ts` exports both `getConciergeReply` (visitor chat) and `generateBrandCopy` (creator tool)
 
+## Scroll-Reveal Animations (Phase 9)
+- `client/src/hooks/useScrollReveal.ts` — lightweight IntersectionObserver hook, fires once per element when 10% visible + 60px root margin
+- `client/src/index.css` — 4 animation classes: `.reveal` (fade up), `.reveal-left` (slide right), `.reveal-right` (slide left), `.reveal-scale` (zoom in); `.in-view` triggers via JS; stagger via `.reveal-delay-1/2/3/4`; `prefers-reduced-motion` respected
+- Applied to: Apps section header, 3 app cards (staggered), Art Studio left/right, Music left/right, Publications left/right, 3 featured book lux-cards (staggered scale-in), CTA heading
+
 ## Audiomack Live Player (Phase 8)
 - Music section on homepage: replaced static mock track list with a live Audiomack embed player
 - Embed URL: `https://audiomack.com/embed/artist-page/elevate360music`
