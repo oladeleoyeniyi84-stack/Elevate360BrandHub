@@ -12,6 +12,34 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 
+function downloadCSV(filename: string, rows: string[][]): void {
+  const escape = (v: string) =>
+    `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const csv = rows.map((r) => r.map(escape).join(",")).join("\r\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function ExportButton({ onClick, label }: { onClick: () => void; label: string }) {
+  return (
+    <button
+      onClick={onClick}
+      data-testid={`button-export-${label.toLowerCase().replace(/\s+/g, "-")}`}
+      className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-[#F4A62A]/30 text-[#F4A62A] hover:bg-[#F4A62A]/10 transition"
+    >
+      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+      </svg>
+      {label}
+    </button>
+  );
+}
+
 interface Lead {
   id: number;
   sessionId: string;
@@ -603,6 +631,27 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
 
         {tab === "leads" && (
           <div className="space-y-3">
+            {leads.length > 0 && (
+              <div className="flex justify-between items-center">
+                <p className="text-sm text-white/40">{leads.length} session{leads.length !== 1 ? "s" : ""} · {capturedLeads.length} with email</p>
+                <ExportButton
+                  label="Export Leads CSV"
+                  onClick={() => {
+                    const rows = [
+                      ["Name", "Email", "Messages", "Session ID", "Captured Date"],
+                      ...capturedLeads.map((l) => [
+                        l.leadName ?? "",
+                        l.leadEmail ?? "",
+                        String((l.messages as any[]).length),
+                        l.sessionId,
+                        new Date(l.updatedAt).toISOString().split("T")[0],
+                      ]),
+                    ];
+                    downloadCSV(`elevate360-leads-${new Date().toISOString().split("T")[0]}.csv`, rows);
+                  }}
+                />
+              </div>
+            )}
             {leads.length === 0 ? (
               <div className="lux-card text-center py-10">
                 <MessageSquare className="h-8 w-8 text-white/20 mx-auto mb-3" />
@@ -616,6 +665,26 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
 
         {tab === "contacts" && (
           <div className="space-y-3">
+            {contacts.length > 0 && (
+              <div className="flex justify-between items-center">
+                <p className="text-sm text-white/40">{contacts.length} submission{contacts.length !== 1 ? "s" : ""}</p>
+                <ExportButton
+                  label="Export Contacts CSV"
+                  onClick={() => {
+                    const rows = [
+                      ["Name", "Email", "Message", "Date"],
+                      ...contacts.map((c) => [
+                        c.name,
+                        c.email,
+                        c.message,
+                        new Date(c.createdAt).toISOString().split("T")[0],
+                      ]),
+                    ];
+                    downloadCSV(`elevate360-contacts-${new Date().toISOString().split("T")[0]}.csv`, rows);
+                  }}
+                />
+              </div>
+            )}
             {contacts.length === 0 ? (
               <div className="lux-card text-center py-10">
                 <Users className="h-8 w-8 text-white/20 mx-auto mb-3" />
@@ -640,6 +709,24 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
 
         {tab === "newsletter" && (
           <div className="space-y-2">
+            {subscribers.length > 0 && (
+              <div className="flex justify-between items-center">
+                <p className="text-sm text-white/40">{subscribers.length} subscriber{subscribers.length !== 1 ? "s" : ""}</p>
+                <ExportButton
+                  label="Export Subscribers CSV"
+                  onClick={() => {
+                    const rows = [
+                      ["Email", "Subscribed Date"],
+                      ...subscribers.map((s) => [
+                        s.email,
+                        new Date(s.subscribedAt).toISOString().split("T")[0],
+                      ]),
+                    ];
+                    downloadCSV(`elevate360-subscribers-${new Date().toISOString().split("T")[0]}.csv`, rows);
+                  }}
+                />
+              </div>
+            )}
             {subscribers.length === 0 ? (
               <div className="lux-card text-center py-10">
                 <Mail className="h-8 w-8 text-white/20 mx-auto mb-3" />
