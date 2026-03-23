@@ -65,6 +65,15 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 - 10 content types: instagram_caption, newsletter, tweet, youtube_description, product_description, book_promo, music_release, press_release, email_subject_lines, blog_intro
 - `server/openai.ts` exports both `getConciergeReply` (visitor chat) and `generateBrandCopy` (creator tool)
 
+## Link in Bio Page (Phase 12)
+- Route: `/links` — mobile-first standalone page, perfect for Instagram bio / YouTube description
+- `client/src/pages/Links.tsx` — branded link hub with all Elevate360 destinations
+- Sections: Website CTA (gold highlight), 3 Apps, 4 Book links + Author Central, Audiomack, Etsy, compact newsletter subscribe form, Contact
+- `LinkCard` component with press animation (scale-down on tap) and highlight variant
+- `SectionLabel` grouping headings with uppercase tracking
+- `NewsletterForm` updated with `compact` prop → stacked layout with rounded-xl styling
+- Social icons row: Instagram, YouTube, Audiomack, Etsy
+
 ## Mobile Navigation (Phase 11)
 - Hamburger button added to nav bar (visible md:hidden), toggles `mobileMenuOpen` state
 - Slide-down mobile drawer: smooth `max-h` CSS transition, 300ms ease-in-out

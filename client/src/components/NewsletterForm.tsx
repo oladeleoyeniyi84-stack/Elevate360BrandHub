@@ -5,7 +5,11 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { Mail } from "lucide-react";
 
-export function NewsletterForm() {
+interface NewsletterFormProps {
+  compact?: boolean;
+}
+
+export function NewsletterForm({ compact }: NewsletterFormProps = {}) {
   const [email, setEmail] = useState("");
   const { toast } = useToast();
 
@@ -37,7 +41,13 @@ export function NewsletterForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3 w-full max-w-md mx-auto">
+    <form
+      onSubmit={handleSubmit}
+      className={compact
+        ? "flex flex-col gap-2 w-full"
+        : "flex flex-col sm:flex-row gap-3 w-full max-w-md mx-auto"
+      }
+    >
       <div className="relative flex-1">
         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
         <Input
@@ -46,14 +56,20 @@ export function NewsletterForm() {
           placeholder="Enter your email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="pl-10 h-14 rounded-full bg-background/50 border-border text-foreground"
+          className={compact
+            ? "pl-10 h-11 rounded-xl bg-white/5 border-white/10 text-foreground text-sm"
+            : "pl-10 h-14 rounded-full bg-background/50 border-border text-foreground"
+          }
           required
         />
       </div>
       <Button
         type="submit"
         data-testid="button-subscribe-newsletter"
-        className="rounded-full h-14 px-8 text-base font-semibold"
+        className={compact
+          ? "rounded-xl h-11 px-6 text-sm font-semibold"
+          : "rounded-full h-14 px-8 text-base font-semibold"
+        }
         disabled={mutation.isPending}
       >
         {mutation.isPending ? "Subscribing..." : "Subscribe"}
