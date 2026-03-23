@@ -10,6 +10,7 @@ import {
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { getConciergeReply, generateBrandCopy, type ContentType } from "./openai";
+import { notifyNewContact, notifyNewLead, notifyNewSubscriber } from "./email";
 import { generateSitemap } from "./sitemap";
 import { z } from "zod";
 
@@ -34,6 +35,7 @@ export async function registerRoutes(
       const data = insertContactMessageSchema.parse(req.body);
       const message = await storage.createContactMessage(data);
       res.status(201).json(message);
+      notifyNewContact(data.name, data.email, data.message).catch(() => {});
     } catch (error) {
       if (error instanceof ZodError) {
         res.status(400).json({ message: fromZodError(error).message });
@@ -48,6 +50,7 @@ export async function registerRoutes(
       const data = insertNewsletterSubscriberSchema.parse(req.body);
       const subscriber = await storage.createNewsletterSubscriber(data);
       res.status(201).json(subscriber);
+      notifyNewSubscriber(data.email).catch(() => {});
     } catch (error: any) {
       if (error instanceof ZodError) {
         res.status(400).json({ message: fromZodError(error).message });
@@ -73,6 +76,9 @@ export async function registerRoutes(
 
       if (leadName || leadEmail) {
         await storage.updateChatLead(sessionId, leadName, leadEmail);
+        if (leadEmail) {
+          notifyNewLead(sessionId, leadName, leadEmail).catch(() => {});
+        }
       }
 
       res.json({ reply });
