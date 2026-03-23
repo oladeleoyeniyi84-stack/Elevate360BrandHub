@@ -73,7 +73,7 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 - **Dismiss**: ✕ button on the right; dismissed state stored in `sessionStorage` keyed by a hash of the announcement text — a new message text automatically re-shows the banner even in the same session
 - **Route guard**: returns `null` on `/dashboard` and `/links` — home page only
 - **Server**: `GET /api/config/public` extended to include `announcementText` and `announcementUrl` fields alongside existing `whatsappNumber`
-- **How to activate**: set `ANNOUNCEMENT_TEXT` env var (e.g. "New book just launched — grab it on Amazon! 🎉") and optionally `ANNOUNCEMENT_URL` to the destination link; restart the server
+- **How to activate**: set `ANNOUNCEMENT_TEXT` env var (e.g. "New book just launched — grab it on Amazon!") and optionally `ANNOUNCEMENT_URL` to the destination link; restart the server
 
 ## Mobile Bottom Navigation Bar (Phase 26)
 - `client/src/components/MobileBottomNav.tsx` — fixed tab bar visible only on mobile (`md:hidden`)
