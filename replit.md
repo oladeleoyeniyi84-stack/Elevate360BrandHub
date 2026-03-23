@@ -65,6 +65,16 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 - 10 content types: instagram_caption, newsletter, tweet, youtube_description, product_description, book_promo, music_release, press_release, email_subject_lines, blog_intro
 - `server/openai.ts` exports both `getConciergeReply` (visitor chat) and `generateBrandCopy` (creator tool)
 
+## Mobile Bottom Navigation Bar (Phase 26)
+- `client/src/components/MobileBottomNav.tsx` — fixed tab bar visible only on mobile (`md:hidden`)
+- **5 tabs**: Home (scrolls to top), Apps (`#apps`), Books (`#books`), Music (`#music`), Art (`#art-studio`)
+- **Active section detection**: IntersectionObserver watches each section with a centred rootMargin (`-40% 0px -55% 0px`); scroll listener resets to Home when within 200px of the top
+- **Design**: frosted glass panel (`rgba(7,11,19,0.88)` + `backdrop-filter: blur(20px)`), top border `border-white/10`; active tab renders gold icon + label (`#F4A62A`) + tiny dot indicator; inactive tabs dimmed white at 35% opacity
+- **Tap behaviour**: smooth `scrollTo` with 72px nav offset for each section; "Home" tab hard-scrolls to `scrollY=0`
+- **iOS/Android safe area**: `safe-bottom` class on outer `<nav>` adds padding for home indicator bar
+- **Route guard**: returns `null` on `/dashboard` and `/links` — only shown on the home page
+- **Floating button adjustments**: back-to-top lifted to `bottom-20 md:bottom-6` on mobile; WhatsApp button lifted to `bottom-36 md:bottom-24` — no overlap with the nav bar
+
 ## Art Commission Request Form (Phase 25)
 - `client/src/components/CommissionDialog.tsx` — 3-step commission request dialog, triggered from the Art Studio section
 - **Step 1 — Contact Details**: Name + email fields with live validation; Continue button disabled until both are valid

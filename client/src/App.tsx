@@ -11,6 +11,7 @@ import { CookieBanner } from "@/components/CookieBanner";
 import { ScrollUtilities } from "@/components/ScrollUtilities";
 import { NewsletterPopup } from "@/components/NewsletterPopup";
 import { WhatsAppButton } from "@/components/WhatsAppButton";
+import { MobileBottomNav } from "@/components/MobileBottomNav";
 
 function Router() {
   return (
@@ -32,6 +33,7 @@ function App() {
         <ScrollUtilities />
         <NewsletterPopup />
         <WhatsAppButton />
+        <MobileBottomNav />
         <CookieBanner />
       </TooltipProvider>
     </QueryClientProvider>
