@@ -65,6 +65,17 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 - 10 content types: instagram_caption, newsletter, tweet, youtube_description, product_description, book_promo, music_release, press_release, email_subject_lines, blog_intro
 - `server/openai.ts` exports both `getConciergeReply` (visitor chat) and `generateBrandCopy` (creator tool)
 
+## Email Notifications (Phase 10)
+- `server/email.ts` — Resend REST API helper (no SDK, native fetch); branded HTML email templates in gold/navy
+- `RESEND_API_KEY` secret + `CREATOR_EMAIL=weareelevate360@gmail.com` env var
+- 3 notification functions:
+  - `notifyNewContact(name, email, message)` — fires after contact form submission; includes reply button
+  - `notifyNewLead(sessionId, name?, email?)` — fires when AI concierge captures a lead email
+  - `notifyNewSubscriber(email)` — fires on newsletter signup; sends welcome email to subscriber + admin alert to creator
+- All notifications fire **after** the HTTP response (non-blocking, `.catch(() => {})` so errors never break the API)
+- Graceful degradation: if `RESEND_API_KEY` not set, logs warning and skips silently
+- From address: `onboarding@resend.dev` (Resend free default); upgrade by verifying `elevate360official.com` domain in Resend dashboard
+
 ## Scroll-Reveal Animations (Phase 9)
 - `client/src/hooks/useScrollReveal.ts` — lightweight IntersectionObserver hook, fires once per element when 10% visible + 60px root margin
 - `client/src/index.css` — 4 animation classes: `.reveal` (fade up), `.reveal-left` (slide right), `.reveal-right` (slide left), `.reveal-scale` (zoom in); `.in-view` triggers via JS; stagger via `.reveal-delay-1/2/3/4`; `prefers-reduced-motion` respected

@@ -48,3 +48,4 @@ mockupState = "FULLSTACK"
 [userenv.shared]
 CANONICAL_HOST = "www.elevate360official.com"
 APP_URL = "https://www.elevate360official.com"
+CREATOR_EMAIL = "weareelevate360@gmail.com"
