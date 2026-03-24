@@ -170,6 +170,53 @@ When it feels natural and relevant, guide the conversation toward this offer at 
   return prompt;
 }
 
+// Phase 42 — Follow-Up Draft Generator
+export async function generateFollowupDraft(lead: {
+  leadName?: string | null;
+  leadEmail?: string | null;
+  intent?: string | null;
+  sessionSummary?: string | null;
+  recommendedOffer?: string | null;
+  daysSilent: number;
+}): Promise<{ subject: string; body: string }> {
+  const prompt = `You are writing a personalised follow-up email on behalf of Oladele Oyeniyi at Elevate360Official.
+
+Lead profile:
+- Name: ${lead.leadName ?? "this visitor"}
+- Interest: ${lead.intent ? lead.intent.replace(/_/g, " ") : "general enquiry"}
+- Summary: ${lead.sessionSummary ?? "No summary available"}
+- Days since last contact: ${lead.daysSilent}
+- Recommended offer: ${lead.recommendedOffer ?? "none"}
+
+Write a short, warm, personal follow-up email. Rules:
+- Subject line: concise, specific to their interest (max 8 words)
+- Body: max 3 sentences. Reference their specific interest. If recommendedOffer is set, mention it naturally in one sentence. Close with a clear soft CTA ("reply to this email", "book a free call", etc.)
+- Tone: warm, confident, not salesy. Sign off as "Oladele, Elevate360Official"
+- Return ONLY a JSON object: { "subject": "...", "body": "..." }`;
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o",
+    messages: [{ role: "user", content: prompt }],
+    max_tokens: 300,
+    temperature: 0.75,
+    response_format: { type: "json_object" },
+  });
+
+  try {
+    const raw = response.choices[0]?.message?.content ?? "{}";
+    const parsed = JSON.parse(raw);
+    return {
+      subject: parsed.subject ?? "Following up — Elevate360Official",
+      body: parsed.body ?? "Hi, just following up on our recent chat. Let me know if you have any questions!",
+    };
+  } catch {
+    return {
+      subject: "Following up — Elevate360Official",
+      body: "Hi, just following up on our recent conversation. Would love to connect further — feel free to reply here or book a call. Oladele, Elevate360Official",
+    };
+  }
+}
+
 export async function getConciergeReply(
   history: ChatMessage[],
   userMessage: string,

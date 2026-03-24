@@ -703,6 +703,60 @@ export async function registerRoutes(
     }
   });
 
+  // Phase 42 — Follow-Up Automation: Reminder Queue
+  app.get("/api/dashboard/reminder-queue", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    try {
+      const queue = await storage.getReminderQueue();
+      res.json(queue);
+    } catch (e: any) {
+      console.error("[reminder-queue] error:", e.message);
+      res.status(500).json({ message: "Could not load reminder queue." });
+    }
+  });
+
+  // Phase 42 — Generate AI Follow-Up Draft
+  app.post("/api/dashboard/leads/:sessionId/followup-draft", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    const { sessionId } = req.params;
+    try {
+      const conv = await storage.getChatConversation(sessionId);
+      if (!conv) return res.status(404).json({ message: "Lead not found" });
+      const { generateFollowupDraft } = await import("./openai");
+      const now = new Date();
+      const lastActivity = conv.lastActivityAt ?? conv.updatedAt;
+      const daysSilent = lastActivity
+        ? Math.floor((now.getTime() - new Date(lastActivity).getTime()) / (1000 * 60 * 60 * 24))
+        : 0;
+      const draft = await generateFollowupDraft({
+        leadName: conv.leadName ?? conv.capturedName,
+        leadEmail: conv.leadEmail ?? conv.capturedEmail,
+        intent: conv.intent,
+        sessionSummary: conv.sessionSummary,
+        recommendedOffer: conv.recommendedOffer,
+        daysSilent,
+      });
+      res.json(draft);
+    } catch (e: any) {
+      console.error("[followup-draft] error:", e.message);
+      res.status(500).json({ message: "Could not generate follow-up draft." });
+    }
+  });
+
+  // Phase 42 — Mark Follow-Up Sent (extends due date by 5 days)
+  app.post("/api/dashboard/leads/:sessionId/followup-sent", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    const { sessionId } = req.params;
+    try {
+      const newDueDate = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
+      await storage.markFollowupSent(sessionId, newDueDate);
+      res.json({ ok: true, newDueDate });
+    } catch (e: any) {
+      console.error("[followup-sent] error:", e.message);
+      res.status(500).json({ message: "Could not mark follow-up sent." });
+    }
+  });
+
   // Phase 41 — Conversion Funnel
   app.get("/api/dashboard/funnel", async (req, res) => {
     if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });

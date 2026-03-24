@@ -82,6 +82,9 @@ export interface IStorage {
   updateOrderStatus(stripeSessionId: string, status: string, extra?: any): Promise<Order | undefined>;
   getAllOrders(): Promise<Order[]>;
   getOrderStats(): Promise<{ total: number; paid: number; revenue: number; abandoned: number }>;
+  // Phase 42 — Follow-Up Automation
+  markFollowupSent(sessionId: string, newDueDate: Date): Promise<void>;
+  getReminderQueue(): Promise<{ overdue: ChatConversation[]; silentHot: ChatConversation[] }>;
   // Phase 41 — Conversion Analytics
   markOfferAccepted(sessionId: string, offerSlug: string, source: string): Promise<void>;
   getConversionFunnel(): Promise<{
@@ -584,6 +587,45 @@ export class DatabaseStorage implements IStorage {
       revenue: paid.reduce((s, o) => s + (o.amountPaid ?? 0), 0),
       abandoned: all.filter((o) => o.status === "initiated").length,
     };
+  }
+
+  // Phase 42 — Follow-Up Automation
+  async markFollowupSent(sessionId: string, newDueDate: Date): Promise<void> {
+    const conv = await db.select({ followupCount: chatConversations.followupCount })
+      .from(chatConversations).where(eq(chatConversations.sessionId, sessionId)).limit(1);
+    const currentCount = conv[0]?.followupCount ?? 0;
+    await db.update(chatConversations)
+      .set({
+        lastFollowupSentAt: new Date(),
+        followupCount: currentCount + 1,
+        followupDueDate: newDueDate,
+      })
+      .where(eq(chatConversations.sessionId, sessionId));
+  }
+
+  async getReminderQueue(): Promise<{ overdue: ChatConversation[]; silentHot: ChatConversation[] }> {
+    const now = new Date();
+    const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+    const all = await db.select().from(chatConversations)
+      .where(sql`(${chatConversations.leadEmail} IS NOT NULL OR ${chatConversations.capturedEmail} IS NOT NULL)`)
+      .orderBy(desc(chatConversations.leadScore));
+
+    const overdue = all.filter((s) =>
+      s.followupDueDate &&
+      new Date(s.followupDueDate) < now &&
+      !["won", "lost", "closed"].includes(s.pipelineStage ?? "")
+    );
+
+    const silentHot = all.filter((s) => {
+      const isHot = (s.leadScore ?? 0) >= 50;
+      const lastActivity = s.lastActivityAt ?? s.updatedAt;
+      const isSilent = lastActivity && new Date(lastActivity) < threeDaysAgo;
+      const notAlreadyOverdue = !(s.followupDueDate && new Date(s.followupDueDate) < now);
+      const notWon = !["won", "lost", "closed"].includes(s.pipelineStage ?? "");
+      return isHot && isSilent && notAlreadyOverdue && notWon;
+    });
+
+    return { overdue, silentHot };
   }
 
   // Phase 41 — Conversion Analytics

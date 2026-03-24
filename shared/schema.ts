@@ -71,6 +71,10 @@ export const chatConversations = pgTable("chat_conversations", {
   recommendedOfferAccepted: boolean("recommended_offer_accepted").default(false),
   acceptedOfferSlug: varchar("accepted_offer_slug", { length: 120 }),
   acceptedOfferSource: varchar("accepted_offer_source", { length: 40 }),
+
+  // Phase 42 — Follow-Up Automation
+  lastFollowupSentAt: timestamp("last_followup_sent_at"),
+  followupCount: integer("followup_count").default(0).notNull(),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({

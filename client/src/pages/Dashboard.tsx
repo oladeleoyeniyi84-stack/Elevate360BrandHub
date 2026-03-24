@@ -89,6 +89,10 @@ interface Lead {
   wonValue: number | null;
   lostReason: string | null;
   stageHistory: { stage: string; at: string; note?: string }[];
+  // Phase 42 — Follow-Up Automation
+  lastFollowupSentAt: string | null;
+  followupCount: number | null;
+  recommendedOffer: string | null;
 }
 
 interface ContactMessage {
@@ -1038,11 +1042,22 @@ function ScoreBadge({ score }: { score: number }) {
 
 function ChatLeadRow({ lead, onConverted }: { lead: Lead; onConverted: () => void }) {
   const [expanded, setExpanded] = useState(false);
+  const [showDraft, setShowDraft] = useState(false);
+  const [draft, setDraft] = useState<{ subject: string; body: string } | null>(null);
+  const [draftCopied, setDraftCopied] = useState(false);
+  const [sentDone, setSentDone] = useState(false);
   const msgCount = lead.messages?.length ?? 0;
   const temp = lead.leadTemperature ?? "cold";
   const score = lead.leadScore ?? 0;
   const isConverted = lead.assignedStage === "converted" || lead.conversionOutcome === "converted";
   const outcome = lead.conversionOutcome ? OUTCOME_LABELS[lead.conversionOutcome] : null;
+
+  const now = new Date();
+  const lastActivity = lead.lastActivityAt ?? lead.updatedAt;
+  const daysSilent = lastActivity
+    ? Math.floor((now.getTime() - new Date(lastActivity).getTime()) / (1000 * 60 * 60 * 24))
+    : 0;
+  const isSilentHot = (lead.leadScore ?? 0) >= 50 && daysSilent >= 3 && !isConverted;
 
   const convertMutation = useMutation({
     mutationFn: async () => {
@@ -1053,8 +1068,32 @@ function ChatLeadRow({ lead, onConverted }: { lead: Lead; onConverted: () => voi
     onSuccess: onConverted,
   });
 
+  const draftMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/dashboard/leads/${lead.sessionId}/followup-draft`, { method: "POST" });
+      if (!res.ok) throw new Error("Draft failed");
+      return res.json() as Promise<{ subject: string; body: string }>;
+    },
+    onSuccess: (data) => { setDraft(data); setShowDraft(true); setSentDone(false); setDraftCopied(false); },
+  });
+
+  const markSentMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/dashboard/leads/${lead.sessionId}/followup-sent`, { method: "POST" });
+      if (!res.ok) throw new Error("Mark sent failed");
+      return res.json();
+    },
+    onSuccess: () => { setSentDone(true); },
+  });
+
   return (
-    <div className={`border rounded-2xl overflow-hidden transition ${isConverted ? "border-green-500/20 bg-green-500/3" : "border-white/8"}`}
+    <div className={`border rounded-2xl overflow-hidden transition ${
+      isConverted
+        ? "border-green-500/20 bg-green-500/3"
+        : isSilentHot
+          ? "border-orange-500/30 bg-orange-500/4"
+          : "border-white/8"
+    }`}
       data-testid={`card-lead-${lead.id}`}>
       <button onClick={() => setExpanded((v) => !v)}
         className="w-full flex items-center justify-between px-5 py-4 hover:bg-white/4 transition text-left">
@@ -1069,9 +1108,14 @@ function ChatLeadRow({ lead, onConverted }: { lead: Lead; onConverted: () => voi
               </p>
               <TemperatureBadge temp={temp} />
               {lead.intent && <IntentBadge intent={lead.intent} />}
-              {lead.requiresFollowup && !isConverted && (
+              {lead.requiresFollowup && !isConverted && !isSilentHot && (
                 <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-purple-500/15 text-purple-400">
                   Follow-up needed
+                </span>
+              )}
+              {isSilentHot && (
+                <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-orange-500/15 text-orange-400">
+                  🔔 Silent {daysSilent}d
                 </span>
               )}
               {isConverted && (
@@ -1148,18 +1192,81 @@ function ChatLeadRow({ lead, onConverted }: { lead: Lead; onConverted: () => voi
             )}
           </div>
 
-          {/* Convert to lead button */}
+          {/* Follow-Up Draft Panel */}
           {!isConverted && (
-            <div className="flex justify-end pt-1">
-              <button
-                onClick={(e) => { e.stopPropagation(); convertMutation.mutate(); }}
-                disabled={convertMutation.isPending}
-                data-testid={`button-convert-lead-${lead.id}`}
-                className="flex items-center gap-2 text-xs font-semibold px-4 py-2 rounded-xl bg-green-500/10 text-green-400 hover:bg-green-500/20 border border-green-500/20 transition disabled:opacity-50"
-              >
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                {convertMutation.isPending ? "Marking…" : "Mark as Converted"}
-              </button>
+            <div className="pt-1 space-y-2">
+              <div className="flex flex-wrap gap-2 justify-end items-center">
+                <button
+                  onClick={(e) => { e.stopPropagation(); draftMutation.mutate(); }}
+                  disabled={draftMutation.isPending}
+                  data-testid={`button-followup-draft-${lead.id}`}
+                  className="flex items-center gap-2 text-xs font-semibold px-4 py-2 rounded-xl bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 border border-orange-500/20 transition disabled:opacity-50"
+                >
+                  <Mail className="h-3.5 w-3.5" />
+                  {draftMutation.isPending ? "Generating…" : "AI Follow-Up Draft"}
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); convertMutation.mutate(); }}
+                  disabled={convertMutation.isPending}
+                  data-testid={`button-convert-lead-${lead.id}`}
+                  className="flex items-center gap-2 text-xs font-semibold px-4 py-2 rounded-xl bg-green-500/10 text-green-400 hover:bg-green-500/20 border border-green-500/20 transition disabled:opacity-50"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  {convertMutation.isPending ? "Marking…" : "Mark as Converted"}
+                </button>
+              </div>
+
+              {showDraft && draft && (
+                <div className="bg-orange-500/8 border border-orange-500/20 rounded-xl p-4 space-y-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-[10px] text-orange-400/70 uppercase tracking-wide font-semibold">AI Follow-Up Draft</p>
+                    {lead.followupCount != null && lead.followupCount > 0 && (
+                      <span className="text-[10px] text-white/40">{lead.followupCount} sent so far</span>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-white/40 mb-0.5">Subject</p>
+                    <p className="text-xs font-semibold text-white/90">{draft.subject}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-white/40 mb-0.5">Body</p>
+                    <p className="text-xs text-white/75 whitespace-pre-wrap leading-relaxed">{draft.body}</p>
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(`Subject: ${draft.subject}\n\n${draft.body}`);
+                        setDraftCopied(true);
+                        setTimeout(() => setDraftCopied(false), 2000);
+                      }}
+                      data-testid={`button-copy-draft-${lead.id}`}
+                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-white/6 text-white/60 hover:bg-white/10 transition border border-white/8"
+                    >
+                      <Copy className="h-3 w-3" />
+                      {draftCopied ? "Copied!" : "Copy"}
+                    </button>
+                    {sentDone ? (
+                      <span className="flex items-center gap-1.5 text-xs px-3 py-1.5 text-green-400">
+                        <CheckCircle2 className="h-3 w-3" /> Sent logged · due in 5 days
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => markSentMutation.mutate()}
+                        disabled={markSentMutation.isPending}
+                        data-testid={`button-mark-sent-${lead.id}`}
+                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 transition border border-green-500/20 disabled:opacity-50"
+                      >
+                        <CheckCircle2 className="h-3 w-3" />
+                        {markSentMutation.isPending ? "Saving…" : "Mark as Sent"}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setShowDraft(false)}
+                      className="ml-auto text-xs text-white/30 hover:text-white/60 transition"
+                    >Dismiss</button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1178,6 +1285,86 @@ function ChatLeadRow({ lead, onConverted }: { lead: Lead; onConverted: () => voi
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// Phase 42 — Reminder Queue Panel
+function ReminderQueuePanel({ onNavigate }: { onNavigate?: (sessionId: string) => void }) {
+  const { data, isLoading, refetch } = useQuery<{
+    overdue: Lead[];
+    silentHot: Lead[];
+  }>({
+    queryKey: ["/api/dashboard/reminder-queue"],
+    refetchInterval: 60_000,
+  });
+
+  const overdue = data?.overdue ?? [];
+  const silentHot = data?.silentHot ?? [];
+  const total = overdue.length + silentHot.length;
+
+  if (isLoading) return null;
+  if (total === 0) return null;
+
+  const renderItem = (lead: Lead, badge: React.ReactNode) => {
+    const name = lead.leadName ?? lead.capturedName ?? "Anonymous";
+    const email = lead.leadEmail ?? lead.capturedEmail ?? null;
+    const lastActivity = lead.lastActivityAt ?? lead.updatedAt;
+    const daysSilent = lastActivity
+      ? Math.floor((Date.now() - new Date(lastActivity).getTime()) / (1000 * 60 * 60 * 24))
+      : 0;
+
+    return (
+      <div key={lead.sessionId}
+        className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-white/3 border border-white/6">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-xs font-semibold text-white truncate">{name}</p>
+            {badge}
+          </div>
+          {email && <p className="text-[10px] text-white/40 truncate">{email}</p>}
+          {lead.intent && (
+            <p className="text-[10px] text-white/30 capitalize mt-0.5">{lead.intent.replace(/_/g, " ")}</p>
+          )}
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <span className="text-[10px] text-white/30">{daysSilent}d silent</span>
+          <ScoreBadge score={lead.leadScore ?? 0} />
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="lux-card border border-orange-500/20 bg-orange-500/4 mb-4" data-testid="panel-reminder-queue">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <p className="text-sm font-bold text-orange-400">🔔 Follow-Up Queue</p>
+          <p className="text-[10px] text-white/40 mt-0.5">{total} lead{total !== 1 ? "s" : ""} need attention</p>
+        </div>
+        <button onClick={() => refetch()} className="text-[10px] text-white/30 hover:text-white/60 transition">Refresh</button>
+      </div>
+
+      <div className="space-y-2">
+        {overdue.map((lead) =>
+          renderItem(lead, (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-400 font-semibold">
+              Overdue
+            </span>
+          ))
+        )}
+        {silentHot.map((lead) => {
+          const lastActivity = lead.lastActivityAt ?? lead.updatedAt;
+          const daysSilent = lastActivity
+            ? Math.floor((Date.now() - new Date(lastActivity).getTime()) / (1000 * 60 * 60 * 24))
+            : 0;
+          return renderItem(lead, (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-500/15 text-orange-400 font-semibold">
+              Hot · {daysSilent}d silent
+            </span>
+          ));
+        })}
+      </div>
     </div>
   );
 }
@@ -2047,9 +2234,17 @@ function PipelineLeadCard({ lead, onStageChange }: { lead: Lead; onStageChange: 
   const score = lead.leadScore ?? 0;
   const scoreColor = score >= 75 ? "#f87171" : score >= 50 ? "#fb923c" : score >= 25 ? "#facc15" : "#60a5fa";
   const isOverdue = lead.followupDueDate && new Date(lead.followupDueDate) < new Date();
+  const lastActivity = lead.lastActivityAt ?? lead.updatedAt;
+  const pipelineDaysSilent = lastActivity
+    ? Math.floor((Date.now() - new Date(lastActivity).getTime()) / (1000 * 60 * 60 * 24))
+    : 0;
+  const isRedAlert = pipelineDaysSilent >= 7 && !["won", "lost", "closed"].includes(lead.pipelineStage ?? "");
+  const isAmberAlert = !isRedAlert && pipelineDaysSilent >= 3 && !["won", "lost", "closed"].includes(lead.pipelineStage ?? "");
 
   return (
-    <div className="bg-white/4 border border-white/8 rounded-xl p-3 space-y-2" data-testid={`pipeline-card-${lead.id}`}>
+    <div className={`rounded-xl p-3 space-y-2 border ${
+      isRedAlert ? "bg-red-500/6 border-red-500/25" : isAmberAlert ? "bg-amber-500/6 border-amber-500/25" : "bg-white/4 border-white/8"
+    }`} data-testid={`pipeline-card-${lead.id}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-xs font-semibold text-white truncate">
@@ -2067,6 +2262,16 @@ function PipelineLeadCard({ lead, onStageChange }: { lead: Lead; onStageChange: 
           </span>
         )}
         <TemperatureBadge temp={lead.leadTemperature ?? "cold"} />
+        {isRedAlert && (
+          <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold bg-red-500/15 text-red-400">
+            🔴 {pipelineDaysSilent}d silent
+          </span>
+        )}
+        {isAmberAlert && (
+          <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold bg-amber-500/15 text-amber-400">
+            🟡 {pipelineDaysSilent}d silent
+          </span>
+        )}
       </div>
 
       {lead.sessionSummary && (
@@ -3208,6 +3413,7 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
 
         {tab === "leads" && (
           <div className="space-y-3">
+            <ReminderQueuePanel />
             {/* Temperature Filters */}
             <div className="flex gap-1.5 flex-wrap">
               {(["all", "priority", "hot", "warm", "cold"] as const).map((f) => {
