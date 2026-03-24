@@ -31,13 +31,22 @@ function isDashboardAuthed(req: any): boolean {
   return req.session?.dashboardAuthed === true;
 }
 
+// ─── IP resolution ────────────────────────────────────────────────────────────
+// In production the stack is: Client → Cloudflare → Replit proxy → Express.
+// Cloudflare injects CF-Connecting-IP (the real client IP, cannot be spoofed
+// by the browser). We prefer that header; fall back to Express req.ip which is
+// already hardened by trust proxy: 1 set in index.ts.
+function getClientIp(req: any): string {
+  const cf = req.headers["cf-connecting-ip"];
+  if (cf && typeof cf === "string" && cf.trim()) return cf.trim();
+  return req.ip ?? req.socket?.remoteAddress ?? "unknown";
+}
+
 // ─── Phase 45: In-memory rate limiter ────────────────────────────────────────
-// Uses req.ip which Express resolves via trust proxy: 1 (set in index.ts).
-// In production on Replit, req.ip is the real client IP from X-Forwarded-For.
 const rateLimitStore: Record<string, { count: number; resetAt: number }> = {};
 function rateLimit(maxReq: number, windowSec: number) {
   return (req: any, res: any, next: any) => {
-    const ip = req.ip ?? req.socket?.remoteAddress ?? "unknown";
+    const ip = getClientIp(req);
     const key = `${req.path}::${ip}`;
     const now = Date.now();
     const bucket = rateLimitStore[key];
@@ -67,18 +76,24 @@ setInterval(() => {
 //   2. User-Agent must be present — blocks the most primitive headless clients
 //   3. Honeypot field `website` must be empty — if filled, we silently "succeed"
 //      (returning 200 without saving anything) so bots don't know they're blocked
+// Every block is console.warn-logged with IP, path, and reason for visibility.
 function botGuard(req: any, res: any, next: any) {
+  const ip = getClientIp(req);
+
   // 1. Require application/json Content-Type
   const ct = req.headers["content-type"] ?? "";
   if (!ct.includes("application/json")) {
+    console.warn(`[botGuard] BLOCKED ip=${ip} path=${req.path} reason=bad_content_type ct="${ct}"`);
     return res.status(415).json({ message: "Unsupported content type." });
   }
   // 2. Require a User-Agent header
   if (!req.headers["user-agent"]) {
+    console.warn(`[botGuard] BLOCKED ip=${ip} path=${req.path} reason=missing_user_agent`);
     return res.status(400).json({ message: "Invalid request." });
   }
   // 3. Honeypot: if the hidden `website` field is filled, pretend success
   if (req.body?.website) {
+    console.warn(`[botGuard] HONEYPOT ip=${ip} path=${req.path} website="${String(req.body.website).slice(0, 80)}"`);
     return res.status(200).json({ ok: true });
   }
   next();
@@ -172,10 +187,10 @@ export async function registerRoutes(
     }
     if (pin === DASHBOARD_PIN) {
       (req as any).session.dashboardAuthed = true;
-      storage.createAuditLog({ action: "dashboard_login", resourceType: "session", meta: { ip: req.socket?.remoteAddress } }).catch(() => {});
+      storage.createAuditLog({ action: "dashboard_login", resourceType: "session", meta: { ip: getClientIp(req) } }).catch(() => {});
       return res.json({ ok: true });
     }
-    storage.createAuditLog({ action: "dashboard_login_failed", resourceType: "session", meta: { ip: req.socket?.remoteAddress } }).catch(() => {});
+    storage.createAuditLog({ action: "dashboard_login_failed", resourceType: "session", meta: { ip: getClientIp(req) } }).catch(() => {});
     return res.status(401).json({ message: "Invalid PIN." });
   });
 

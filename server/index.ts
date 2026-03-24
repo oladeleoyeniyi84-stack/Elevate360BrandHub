@@ -8,6 +8,11 @@ import { canonicalRedirect } from "./canonicalRedirect";
 const app = express();
 const httpServer = createServer(app);
 
+// trust proxy: 1 trusts exactly one hop from the right of X-Forwarded-For.
+// In production: Client → Cloudflare → Replit proxy → Express.
+// Rate-limiting uses CF-Connecting-IP (see getClientIp in routes.ts) which
+// Cloudflare injects and the client cannot spoof, so the proxy count here
+// matters only for req.ip fallback paths (e.g. cookie secure, canonical redirect).
 app.set("trust proxy", 1);
 app.use(canonicalRedirect);
 
