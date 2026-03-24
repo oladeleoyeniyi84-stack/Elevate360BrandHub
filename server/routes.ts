@@ -703,6 +703,54 @@ export async function registerRoutes(
     }
   });
 
+  // Phase 41 — Conversion Funnel
+  app.get("/api/dashboard/funnel", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    try {
+      const data = await storage.getConversionFunnel();
+      res.json(data);
+    } catch (e: any) {
+      console.error("[funnel] error:", e.message);
+      res.status(500).json({ message: "Could not compute funnel." });
+    }
+  });
+
+  // Phase 41 — Conversion Analytics (intent × offer × consultation)
+  app.get("/api/dashboard/conversion", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    try {
+      const data = await storage.getConversionAnalytics();
+      res.json(data);
+    } catch (e: any) {
+      console.error("[conversion] error:", e.message);
+      res.status(500).json({ message: "Could not compute conversion analytics." });
+    }
+  });
+
+  // Phase 41 — Urgency Dashboard (top action-items row)
+  app.get("/api/dashboard/urgency", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    try {
+      const data = await storage.getUrgencyDashboard();
+      res.json(data);
+    } catch (e: any) {
+      console.error("[urgency] error:", e.message);
+      res.status(500).json({ message: "Could not compute urgency data." });
+    }
+  });
+
+  // Phase 41 — Mark offer accepted (called from checkout success)
+  app.post("/api/checkout/offer-accepted", async (req, res) => {
+    const { sessionId, offerSlug, source } = req.body;
+    if (!sessionId || !offerSlug) return res.status(400).json({ message: "sessionId and offerSlug required" });
+    try {
+      await storage.markOfferAccepted(sessionId, offerSlug, source ?? "page");
+      res.json({ ok: true });
+    } catch {
+      res.json({ ok: false });
+    }
+  });
+
   // Phase 39 — Dashboard Intelligence KPIs
   app.get("/api/dashboard/intelligence", async (req, res) => {
     if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });

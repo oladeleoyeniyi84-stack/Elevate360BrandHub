@@ -10,6 +10,7 @@ import {
   Star, Trash2, ToggleLeft, ToggleRight, PlusCircle,
   Database, Edit2, Zap, Calendar, DollarSign, Phone, Trophy, XCircle, AlertCircle, GripVertical,
   Clock, Tag, RefreshCw, ExternalLink, BrainCircuit, AlertTriangle, FileBarChart2, Target,
+  Filter, Percent, ArrowDown, TrendingDown, Flame,
 } from "lucide-react";
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
@@ -2684,9 +2685,296 @@ function BookingsTab() {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
+// Phase 41 — Conversion Analytics (Funnel Tab)
+// ──────────────────────────────────────────────────────────────────────────────
+
+interface FunnelStage { name: string; count: number; rate: number; }
+interface FunnelData {
+  totalSessions: number; withIntent: number; emailCaptured: number;
+  qualified: number; booked: number; paidOrders: number;
+  stages: FunnelStage[];
+}
+interface IntentRow {
+  total: number; qualified: number; qualifiedRate: number;
+  booked: number; bookedRate: number; won: number; wonRate: number;
+  offered: number; accepted: number; offerAcceptanceRate: number;
+}
+interface OfferRow {
+  timesRecommended: number; timesAccepted: number; acceptanceRate: number;
+  bySource: Record<string, number>;
+}
+interface ConversionData {
+  byIntent: Record<string, IntentRow>;
+  offerAcceptance: Record<string, OfferRow>;
+  byConsultation: Record<string, { title: string; total: number; confirmed: number; confirmRate: number }>;
+}
+
+const STAGE_COLORS: Record<string, string> = {
+  "Chat Sessions": "#F4A62A",
+  "Intent Classified": "#a78bfa",
+  "Email Captured": "#38bdf8",
+  "Qualified": "#22c55e",
+  "Booked": "#fb923c",
+  "Won / Paid": "#f43f5e",
+};
+const INTENT_HEX: Record<string, string> = {
+  art_commission: "#f43f5e", sales_consultation: "#F4A62A", sales_service: "#fb923c",
+  app_interest: "#a78bfa", book_interest: "#38bdf8", music_interest: "#22c55e",
+  support_request: "#94a3b8", general_brand: "#64748b", unclassified: "#374151",
+};
+
+function FunnelTab() {
+  const funnelQ = useQuery<FunnelData>({
+    queryKey: ["/api/dashboard/funnel"],
+    queryFn: async () => {
+      const res = await fetch("/api/dashboard/funnel");
+      if (!res.ok) throw new Error("Unauthorized");
+      return res.json();
+    },
+  });
+  const conversionQ = useQuery<ConversionData>({
+    queryKey: ["/api/dashboard/conversion"],
+    queryFn: async () => {
+      const res = await fetch("/api/dashboard/conversion");
+      if (!res.ok) throw new Error("Unauthorized");
+      return res.json();
+    },
+  });
+
+  const funnel = funnelQ.data;
+  const conversion = conversionQ.data;
+
+  return (
+    <div className="space-y-6">
+      {/* Section 1 — Conversion Funnel */}
+      <div className="lux-card space-y-5">
+        <div className="flex items-center gap-2">
+          <Filter className="h-4 w-4 text-[#F4A62A]" />
+          <h3 className="text-base font-bold text-white font-heading">Conversion Funnel</h3>
+          <span className="ml-auto text-xs text-white/30">All time · Chat → Revenue</span>
+        </div>
+        {!funnel ? (
+          <div className="text-center py-6 text-white/30 text-sm">Loading funnel data…</div>
+        ) : (
+          <div className="space-y-3">
+            {funnel.stages.map((stage, i) => {
+              const color = STAGE_COLORS[stage.name] ?? "#F4A62A";
+              const prevStage = i > 0 ? funnel.stages[i - 1] : null;
+              const dropOff = prevStage && prevStage.count > 0
+                ? Math.round(((prevStage.count - stage.count) / prevStage.count) * 100)
+                : null;
+              return (
+                <div key={stage.name} data-testid={`funnel-stage-${i}`}>
+                  {dropOff !== null && dropOff > 0 && (
+                    <div className="flex items-center gap-1.5 text-xs text-white/25 ml-2 mb-1">
+                      <TrendingDown className="h-3 w-3" />
+                      <span>{dropOff}% drop-off</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-3">
+                    <div className="w-32 shrink-0">
+                      <span className="text-xs text-white/60 font-medium">{stage.name}</span>
+                    </div>
+                    <div className="flex-1 bg-white/5 rounded-full h-6 overflow-hidden">
+                      <div
+                        className="h-full rounded-full flex items-center justify-end pr-2 transition-all"
+                        style={{ width: `${Math.max(stage.rate, 3)}%`, backgroundColor: color + "33", borderRight: `2px solid ${color}` }}
+                      />
+                    </div>
+                    <div className="w-24 shrink-0 text-right">
+                      <span className="text-sm font-bold" style={{ color }}>{stage.count}</span>
+                      <span className="text-xs text-white/30 ml-1">({stage.rate}%)</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Section 2 — Intent × Outcome Conversion Table */}
+      <div className="lux-card space-y-4">
+        <div className="flex items-center gap-2">
+          <Target className="h-4 w-4 text-[#F4A62A]" />
+          <h3 className="text-base font-bold text-white font-heading">Intent → Outcome Conversion</h3>
+        </div>
+        {!conversion ? (
+          <div className="text-center py-6 text-white/30 text-sm">Loading…</div>
+        ) : Object.keys(conversion.byIntent).length === 0 ? (
+          <p className="text-white/30 text-sm text-center py-4">No intent data yet. Start conversations to see conversion rates.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs" data-testid="table-intent-conversion">
+              <thead>
+                <tr className="border-b border-white/8">
+                  <th className="text-left py-2 px-2 text-white/40 font-medium">Intent</th>
+                  <th className="text-right py-2 px-2 text-white/40 font-medium">Sessions</th>
+                  <th className="text-right py-2 px-2 text-white/40 font-medium">Qualified</th>
+                  <th className="text-right py-2 px-2 text-white/40 font-medium">Booked</th>
+                  <th className="text-right py-2 px-2 text-white/40 font-medium">Won</th>
+                  <th className="text-right py-2 px-2 text-white/40 font-medium">Offer Accept</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(conversion.byIntent)
+                  .sort(([, a], [, b]) => b.total - a.total)
+                  .map(([intent, row]) => {
+                    const color = INTENT_HEX[intent] ?? "#94a3b8";
+                    return (
+                      <tr key={intent} className="border-b border-white/5 hover:bg-white/2" data-testid={`row-intent-${intent}`}>
+                        <td className="py-2.5 px-2">
+                          <span className="px-2 py-0.5 rounded-full text-xs font-semibold" style={{ backgroundColor: color + "20", color }}>
+                            {intent.replace(/_/g, " ")}
+                          </span>
+                        </td>
+                        <td className="text-right py-2.5 px-2 text-white/70">{row.total}</td>
+                        <td className="text-right py-2.5 px-2">
+                          <span className="text-green-400">{row.qualified}</span>
+                          <span className="text-white/30 ml-1">({row.qualifiedRate}%)</span>
+                        </td>
+                        <td className="text-right py-2.5 px-2">
+                          <span className="text-orange-400">{row.booked}</span>
+                          <span className="text-white/30 ml-1">({row.bookedRate}%)</span>
+                        </td>
+                        <td className="text-right py-2.5 px-2">
+                          <span className="text-[#F4A62A]">{row.won}</span>
+                          <span className="text-white/30 ml-1">({row.wonRate}%)</span>
+                        </td>
+                        <td className="text-right py-2.5 px-2">
+                          {row.offered > 0 ? (
+                            <>
+                              <span className={row.offerAcceptanceRate >= 50 ? "text-green-400" : "text-white/50"}>
+                                {row.accepted}/{row.offered}
+                              </span>
+                              <span className="text-white/30 ml-1">({row.offerAcceptanceRate}%)</span>
+                            </>
+                          ) : <span className="text-white/20">—</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Section 3 — Offer Acceptance Metrics */}
+      <div className="lux-card space-y-4">
+        <div className="flex items-center gap-2">
+          <Percent className="h-4 w-4 text-[#F4A62A]" />
+          <h3 className="text-base font-bold text-white font-heading">Offer Recommendation Acceptance</h3>
+          <span className="ml-auto text-xs text-white/30">AI recommended vs visitor chose</span>
+        </div>
+        {!conversion ? (
+          <div className="text-center py-6 text-white/30 text-sm">Loading…</div>
+        ) : Object.keys(conversion.offerAcceptance).length === 0 ? (
+          <div className="text-center py-8">
+            <Flame className="h-8 w-8 text-white/15 mx-auto mb-2" />
+            <p className="text-white/30 text-sm">No offer recommendations tracked yet.</p>
+            <p className="text-white/20 text-xs mt-1">The AI concierge will start recommending offers as leads qualify.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {Object.entries(conversion.offerAcceptance)
+              .sort(([, a], [, b]) => b.timesRecommended - a.timesRecommended)
+              .map(([offer, row]) => {
+                const rate = row.acceptanceRate;
+                const rateColor = rate >= 60 ? "#22c55e" : rate >= 30 ? "#F4A62A" : "#f43f5e";
+                return (
+                  <div key={offer} className="border border-white/8 rounded-xl p-4 space-y-3" data-testid={`card-offer-${offer}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-white">{offer}</p>
+                        <p className="text-xs text-white/40 mt-0.5">
+                          Recommended {row.timesRecommended}× · Accepted {row.timesAccepted}×
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-2xl font-bold" style={{ color: rateColor }}>{rate}%</p>
+                        <p className="text-xs text-white/30">acceptance</p>
+                      </div>
+                    </div>
+                    <div className="bg-white/5 rounded-full h-2 overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{ width: `${Math.max(rate, 2)}%`, backgroundColor: rateColor }}
+                      />
+                    </div>
+                    {/* Source breakdown */}
+                    {row.timesAccepted > 0 && (
+                      <div className="flex gap-3 flex-wrap">
+                        {Object.entries(row.bySource)
+                          .filter(([, count]) => count > 0)
+                          .map(([src, count]) => (
+                            <span key={src} className="text-xs px-2 py-0.5 rounded-full border border-white/10 text-white/50">
+                              {src}: {count}
+                            </span>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+          </div>
+        )}
+      </div>
+
+      {/* Section 4 — Consultation Win Rates */}
+      <div className="lux-card space-y-4">
+        <div className="flex items-center gap-2">
+          <Calendar className="h-4 w-4 text-[#F4A62A]" />
+          <h3 className="text-base font-bold text-white font-heading">Consultation Win Rates</h3>
+          <span className="ml-auto text-xs text-white/30">Booked → Confirmed / Completed</span>
+        </div>
+        {!conversion ? (
+          <div className="text-center py-6 text-white/30 text-sm">Loading…</div>
+        ) : (
+          <div className="space-y-3">
+            {Object.entries(conversion.byConsultation)
+              .filter(([, row]) => row.total > 0)
+              .sort(([, a], [, b]) => b.total - a.total)
+              .length === 0 ? (
+              <p className="text-white/30 text-sm text-center py-4">No bookings yet for any consultation type.</p>
+            ) : (
+              Object.entries(conversion.byConsultation)
+                .filter(([, row]) => row.total > 0)
+                .sort(([, a], [, b]) => b.total - a.total)
+                .map(([id, row]) => {
+                  const rate = row.confirmRate;
+                  return (
+                    <div key={id} className="flex items-center gap-3" data-testid={`row-consult-${id}`}>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-white/80 truncate">{row.title}</p>
+                        <p className="text-xs text-white/30">{row.total} booked · {row.confirmed} confirmed</p>
+                      </div>
+                      <div className="w-28 shrink-0">
+                        <div className="bg-white/5 rounded-full h-2 overflow-hidden mb-1">
+                          <div
+                            className="h-full rounded-full"
+                            style={{ width: `${Math.max(rate, 2)}%`, backgroundColor: rate >= 70 ? "#22c55e" : rate >= 40 ? "#F4A62A" : "#f43f5e" }}
+                          />
+                        </div>
+                      </div>
+                      <div className="w-10 text-right shrink-0">
+                        <span className="text-sm font-bold" style={{ color: rate >= 70 ? "#22c55e" : rate >= 40 ? "#F4A62A" : "#f43f5e" }}>{rate}%</span>
+                      </div>
+                    </div>
+                  );
+                })
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 
 function DashboardContent({ onLogout }: { onLogout: () => void }) {
-  const [tab, setTab] = useState<"analytics" | "voice" | "leads" | "contacts" | "newsletter" | "reviews" | "blog" | "knowledge" | "pipeline" | "bookings" | "orders" | "digest">("analytics");
+  const [tab, setTab] = useState<"analytics" | "funnel" | "voice" | "leads" | "contacts" | "newsletter" | "reviews" | "blog" | "knowledge" | "pipeline" | "bookings" | "orders" | "digest">("analytics");
   const [leadFilter, setLeadFilter] = useState<"all" | "priority" | "hot" | "warm" | "cold">("all");
   const qc = useQueryClient();
 
@@ -2738,6 +3026,19 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
     },
   });
 
+  const urgencyQuery = useQuery<{
+    overdueHotLeads: number; newQualifiedLeads: number; pendingBookings: number;
+    paidOrdersToday: number; unrepliedContacts: number; topRecommendedOffer: string | null;
+  }>({
+    queryKey: ["/api/dashboard/urgency"],
+    queryFn: async () => {
+      const res = await fetch("/api/dashboard/urgency");
+      if (!res.ok) throw new Error("Unauthorized");
+      return res.json();
+    },
+    refetchInterval: 60000,
+  });
+
   const testimonialQuery = useQuery<Testimonial[]>({
     queryKey: ["/api/dashboard/testimonials"],
     queryFn: async () => {
@@ -2757,6 +3058,7 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
 
   const tabs = [
     { key: "analytics", label: "Analytics", icon: BarChart3 },
+    { key: "funnel", label: "Funnel", icon: Filter },
     { key: "digest", label: "Intelligence", icon: BrainCircuit },
     { key: "voice", label: "Brand Voice", icon: Wand2 },
     { key: "leads", label: "Chat Leads", icon: MessageSquare },
@@ -2786,6 +3088,91 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
           </button>
         </div>
 
+        {/* Urgency action row — Phase 41 */}
+        {urgencyQuery.data && (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            <button
+              onClick={() => setTab("leads")}
+              data-testid="urgency-overdue-hot"
+              className={`rounded-2xl px-4 py-3 text-left transition border ${urgencyQuery.data.overdueHotLeads > 0 ? "bg-red-500/10 border-red-500/30 hover:bg-red-500/15" : "bg-white/3 border-white/8"}`}
+            >
+              <div className="flex items-center gap-1.5 mb-1">
+                <AlertTriangle className={`h-3.5 w-3.5 ${urgencyQuery.data.overdueHotLeads > 0 ? "text-red-400" : "text-white/25"}`} />
+                <span className="text-xs text-white/50">Overdue Hot</span>
+              </div>
+              <p className={`text-xl font-bold ${urgencyQuery.data.overdueHotLeads > 0 ? "text-red-400" : "text-white/30"}`}>
+                {urgencyQuery.data.overdueHotLeads}
+              </p>
+            </button>
+            <button
+              onClick={() => setTab("pipeline")}
+              data-testid="urgency-new-qualified"
+              className={`rounded-2xl px-4 py-3 text-left transition border ${urgencyQuery.data.newQualifiedLeads > 0 ? "bg-green-500/10 border-green-500/30 hover:bg-green-500/15" : "bg-white/3 border-white/8"}`}
+            >
+              <div className="flex items-center gap-1.5 mb-1">
+                <Zap className={`h-3.5 w-3.5 ${urgencyQuery.data.newQualifiedLeads > 0 ? "text-green-400" : "text-white/25"}`} />
+                <span className="text-xs text-white/50">New Qualified</span>
+              </div>
+              <p className={`text-xl font-bold ${urgencyQuery.data.newQualifiedLeads > 0 ? "text-green-400" : "text-white/30"}`}>
+                {urgencyQuery.data.newQualifiedLeads}
+              </p>
+            </button>
+            <button
+              onClick={() => setTab("bookings")}
+              data-testid="urgency-pending-bookings"
+              className={`rounded-2xl px-4 py-3 text-left transition border ${urgencyQuery.data.pendingBookings > 0 ? "bg-orange-500/10 border-orange-500/30 hover:bg-orange-500/15" : "bg-white/3 border-white/8"}`}
+            >
+              <div className="flex items-center gap-1.5 mb-1">
+                <Calendar className={`h-3.5 w-3.5 ${urgencyQuery.data.pendingBookings > 0 ? "text-orange-400" : "text-white/25"}`} />
+                <span className="text-xs text-white/50">Pending Bookings</span>
+              </div>
+              <p className={`text-xl font-bold ${urgencyQuery.data.pendingBookings > 0 ? "text-orange-400" : "text-white/30"}`}>
+                {urgencyQuery.data.pendingBookings}
+              </p>
+            </button>
+            <button
+              onClick={() => setTab("orders")}
+              data-testid="urgency-paid-today"
+              className={`rounded-2xl px-4 py-3 text-left transition border ${urgencyQuery.data.paidOrdersToday > 0 ? "bg-[#F4A62A]/10 border-[#F4A62A]/30 hover:bg-[#F4A62A]/15" : "bg-white/3 border-white/8"}`}
+            >
+              <div className="flex items-center gap-1.5 mb-1">
+                <DollarSign className={`h-3.5 w-3.5 ${urgencyQuery.data.paidOrdersToday > 0 ? "text-[#F4A62A]" : "text-white/25"}`} />
+                <span className="text-xs text-white/50">Paid Today</span>
+              </div>
+              <p className={`text-xl font-bold ${urgencyQuery.data.paidOrdersToday > 0 ? "text-[#F4A62A]" : "text-white/30"}`}>
+                {urgencyQuery.data.paidOrdersToday}
+              </p>
+            </button>
+            <button
+              onClick={() => setTab("contacts")}
+              data-testid="urgency-unreplied-contacts"
+              className={`rounded-2xl px-4 py-3 text-left transition border ${urgencyQuery.data.unrepliedContacts > 0 ? "bg-violet-500/10 border-violet-500/30 hover:bg-violet-500/15" : "bg-white/3 border-white/8"}`}
+            >
+              <div className="flex items-center gap-1.5 mb-1">
+                <Inbox className={`h-3.5 w-3.5 ${urgencyQuery.data.unrepliedContacts > 0 ? "text-violet-400" : "text-white/25"}`} />
+                <span className="text-xs text-white/50">Unreplied</span>
+              </div>
+              <p className={`text-xl font-bold ${urgencyQuery.data.unrepliedContacts > 0 ? "text-violet-400" : "text-white/30"}`}>
+                {urgencyQuery.data.unrepliedContacts}
+              </p>
+            </button>
+            <button
+              onClick={() => setTab("funnel")}
+              data-testid="urgency-top-offer"
+              className="rounded-2xl px-4 py-3 text-left transition border bg-white/3 border-white/8 hover:bg-white/5 col-span-2 sm:col-span-1"
+            >
+              <div className="flex items-center gap-1.5 mb-1">
+                <Flame className="h-3.5 w-3.5 text-[#F4A62A]" />
+                <span className="text-xs text-white/50">Top Offer This Week</span>
+              </div>
+              <p className="text-xs font-semibold text-[#F4A62A] leading-tight truncate">
+                {urgencyQuery.data.topRecommendedOffer ?? "None yet"}
+              </p>
+            </button>
+          </div>
+        )}
+
+        {/* Growth metrics row */}
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
           <StatCard label="Page Views" value={pageViewData.length} icon={Eye} color="#fb923c" />
           <StatCard label="Chat Sessions" value={leads.length} icon={MessageSquare} />
@@ -2968,6 +3355,7 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
           </div>
         )}
 
+        {tab === "funnel" && <FunnelTab />}
         {tab === "reviews" && <ReviewsTab />}
         {tab === "blog" && <BlogTab />}
         {tab === "knowledge" && <KnowledgeTab />}

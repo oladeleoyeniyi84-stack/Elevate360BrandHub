@@ -66,6 +66,11 @@ export const chatConversations = pgTable("chat_conversations", {
   // Phase 39 — Recommended Offer layer
   recommendedOffer: varchar("recommended_offer", { length: 120 }),
   recommendedOfferConfidence: integer("recommended_offer_confidence").default(0),
+
+  // Phase 41 — Offer Acceptance Tracking
+  recommendedOfferAccepted: boolean("recommended_offer_accepted").default(false),
+  acceptedOfferSlug: varchar("accepted_offer_slug", { length: 120 }),
+  acceptedOfferSource: varchar("accepted_offer_source", { length: 40 }),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({

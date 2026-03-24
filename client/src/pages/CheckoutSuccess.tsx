@@ -1,10 +1,25 @@
 import { useEffect } from "react";
-import { Link } from "wouter";
+import { Link, useSearch } from "wouter";
 import { CheckCircle2, ArrowRight, Home } from "lucide-react";
 
 export default function CheckoutSuccess() {
+  const search = useSearch();
+  const params = new URLSearchParams(search);
+  const stripeSessionId = params.get("session_id");
+
   useEffect(() => {
     window.scrollTo(0, 0);
+    // Phase 41 — mark offer accepted if we have a chat session linked
+    const chatSessionId = localStorage.getItem("e360_session_id");
+    const lastOffer = sessionStorage.getItem("e360_last_offer");
+    if (chatSessionId && lastOffer) {
+      fetch("/api/checkout/offer-accepted", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: chatSessionId, offerSlug: lastOffer, source: "page" }),
+      }).catch(() => {});
+      sessionStorage.removeItem("e360_last_offer");
+    }
   }, []);
 
   return (

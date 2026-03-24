@@ -82,6 +82,22 @@ export interface IStorage {
   updateOrderStatus(stripeSessionId: string, status: string, extra?: any): Promise<Order | undefined>;
   getAllOrders(): Promise<Order[]>;
   getOrderStats(): Promise<{ total: number; paid: number; revenue: number; abandoned: number }>;
+  // Phase 41 — Conversion Analytics
+  markOfferAccepted(sessionId: string, offerSlug: string, source: string): Promise<void>;
+  getConversionFunnel(): Promise<{
+    totalSessions: number; withIntent: number; emailCaptured: number;
+    qualified: number; booked: number; paidOrders: number;
+    stages: { name: string; count: number; rate: number }[];
+  }>;
+  getConversionAnalytics(): Promise<{
+    byIntent: Record<string, { total: number; qualified: number; qualifiedRate: number; booked: number; bookedRate: number; won: number; wonRate: number; offered: number; accepted: number; offerAcceptanceRate: number }>;
+    offerAcceptance: Record<string, { timesRecommended: number; timesAccepted: number; acceptanceRate: number; bySource: Record<string, number> }>;
+    byConsultation: Record<string, { title: string; total: number; confirmed: number; confirmRate: number }>;
+  }>;
+  getUrgencyDashboard(): Promise<{
+    overdueHotLeads: number; newQualifiedLeads: number; pendingBookings: number;
+    paidOrdersToday: number; unrepliedContacts: number; topRecommendedOffer: string | null;
+  }>;
   // Phase 39 — Digest + Intelligence
   saveDigestReport(data: {
     weekStart: Date; weekEnd: Date; narrative: string;
@@ -568,6 +584,143 @@ export class DatabaseStorage implements IStorage {
       revenue: paid.reduce((s, o) => s + (o.amountPaid ?? 0), 0),
       abandoned: all.filter((o) => o.status === "initiated").length,
     };
+  }
+
+  // Phase 41 — Conversion Analytics
+  async markOfferAccepted(sessionId: string, offerSlug: string, source: string): Promise<void> {
+    await db.update(chatConversations)
+      .set({ recommendedOfferAccepted: true, acceptedOfferSlug: offerSlug, acceptedOfferSource: source })
+      .where(eq(chatConversations.sessionId, sessionId));
+  }
+
+  async getConversionFunnel() {
+    const all = await db.select().from(chatConversations);
+    const allOrders = await db.select({ id: orders.id, status: orders.status }).from(orders);
+    const allBookings = await db.select({ id: bookings.id }).from(bookings);
+    const totalSessions = all.length;
+    const withIntent = all.filter((s) => s.intent).length;
+    const emailCaptured = all.filter((s) => s.capturedEmail || s.leadEmail).length;
+    const qualified = all.filter((s) => ["qualified", "booked", "won", "converted"].includes(s.pipelineStage)).length;
+    const booked = allBookings.length;
+    const paidOrders = allOrders.filter((o) => o.status === "paid").length;
+    const r = (n: number) => (totalSessions ? Math.round((n / totalSessions) * 100) : 0);
+    return {
+      totalSessions, withIntent, emailCaptured, qualified, booked, paidOrders,
+      stages: [
+        { name: "Chat Sessions", count: totalSessions, rate: 100 },
+        { name: "Intent Classified", count: withIntent, rate: r(withIntent) },
+        { name: "Email Captured", count: emailCaptured, rate: r(emailCaptured) },
+        { name: "Qualified", count: qualified, rate: r(qualified) },
+        { name: "Booked", count: booked, rate: r(booked) },
+        { name: "Won / Paid", count: paidOrders, rate: r(paidOrders) },
+      ],
+    };
+  }
+
+  async getConversionAnalytics() {
+    const all = await db.select().from(chatConversations);
+    const allBookings = await db.select().from(bookings);
+    const allConsultations = await db.select().from(consultations);
+
+    // By intent
+    const intentGroups = new Map<string, typeof all>();
+    for (const s of all) {
+      const key = s.intent ?? "unclassified";
+      if (!intentGroups.has(key)) intentGroups.set(key, []);
+      intentGroups.get(key)!.push(s);
+    }
+    const byIntent: Record<string, any> = {};
+    for (const [intent, sessions] of intentGroups.entries()) {
+      const total = sessions.length;
+      const qualified = sessions.filter((s) => ["qualified", "booked", "won", "converted"].includes(s.pipelineStage)).length;
+      const booked = sessions.filter((s) => ["booked", "won", "converted"].includes(s.pipelineStage)).length;
+      const won = sessions.filter((s) => s.pipelineStage === "won").length;
+      const offered = sessions.filter((s) => s.recommendedOffer).length;
+      const accepted = sessions.filter((s) => s.recommendedOfferAccepted).length;
+      byIntent[intent] = {
+        total,
+        qualified, qualifiedRate: total ? Math.round((qualified / total) * 100) : 0,
+        booked, bookedRate: total ? Math.round((booked / total) * 100) : 0,
+        won, wonRate: total ? Math.round((won / total) * 100) : 0,
+        offered, accepted, offerAcceptanceRate: offered ? Math.round((accepted / offered) * 100) : 0,
+      };
+    }
+
+    // Offer acceptance breakdown
+    const offerAcceptance: Record<string, any> = {};
+    for (const s of all.filter((x) => x.recommendedOffer)) {
+      const offer = s.recommendedOffer!;
+      if (!offerAcceptance[offer]) {
+        offerAcceptance[offer] = { timesRecommended: 0, timesAccepted: 0, bySource: { AI: 0, page: 0, direct: 0, dashboard: 0 } };
+      }
+      offerAcceptance[offer].timesRecommended++;
+      if (s.recommendedOfferAccepted) {
+        offerAcceptance[offer].timesAccepted++;
+        const src = (s.acceptedOfferSource as string) ?? "direct";
+        offerAcceptance[offer].bySource[src] = (offerAcceptance[offer].bySource[src] ?? 0) + 1;
+      }
+    }
+    for (const key of Object.keys(offerAcceptance)) {
+      const row = offerAcceptance[key];
+      row.acceptanceRate = row.timesRecommended ? Math.round((row.timesAccepted / row.timesRecommended) * 100) : 0;
+    }
+
+    // Consultation win rates
+    const byConsultation: Record<string, any> = {};
+    for (const c of allConsultations) {
+      const cBookings = allBookings.filter((b) => b.consultationId === c.id);
+      const confirmed = cBookings.filter((b) => b.status === "confirmed" || b.status === "completed").length;
+      byConsultation[String(c.id)] = {
+        title: c.title,
+        total: cBookings.length,
+        confirmed,
+        confirmRate: cBookings.length ? Math.round((confirmed / cBookings.length) * 100) : 0,
+      };
+    }
+    return { byIntent, offerAcceptance, byConsultation };
+  }
+
+  async getUrgencyDashboard() {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    const all = await db.select().from(chatConversations);
+    const allBookings = await db.select({ id: bookings.id, status: bookings.status }).from(bookings);
+    const allOrders = await db.select({ id: orders.id, status: orders.status, updatedAt: orders.updatedAt }).from(orders);
+    const allContacts = await db.select({ id: contactMessages.id, repliedAt: contactMessages.repliedAt }).from(contactMessages);
+
+    const overdueHotLeads = all.filter((s) =>
+      (s.leadScore ?? 0) >= 50 &&
+      s.followupDueDate &&
+      new Date(s.followupDueDate) < now &&
+      !["won", "lost"].includes(s.pipelineStage)
+    ).length;
+
+    const newQualifiedLeads = all.filter((s) => {
+      if (s.pipelineStage !== "qualified") return false;
+      const history = (s.stageHistory as any[]) ?? [];
+      const lastQual = [...history].reverse().find((h: any) => h.stage === "qualified");
+      return lastQual && new Date(lastQual.timestamp) >= oneDayAgo;
+    }).length;
+
+    const pendingBookings = allBookings.filter((b) => b.status === "pending").length;
+    const paidOrdersToday = allOrders.filter((o) => o.status === "paid" && new Date(o.updatedAt) >= todayStart).length;
+    const unrepliedContacts = allContacts.filter((c) => !c.repliedAt).length;
+
+    const thisWeekLeads = all.filter((s) => s.recommendedOffer && new Date(s.updatedAt) >= weekStart);
+    const offerCounts = new Map<string, number>();
+    for (const s of thisWeekLeads) {
+      const o = s.recommendedOffer!;
+      offerCounts.set(o, (offerCounts.get(o) ?? 0) + 1);
+    }
+    let topRecommendedOffer: string | null = null;
+    let topCount = 0;
+    for (const [o, c] of offerCounts.entries()) {
+      if (c > topCount) { topCount = c; topRecommendedOffer = o; }
+    }
+    return { overdueHotLeads, newQualifiedLeads, pendingBookings, paidOrdersToday, unrepliedContacts, topRecommendedOffer };
   }
 
   // Phase 39 — Digest Reports

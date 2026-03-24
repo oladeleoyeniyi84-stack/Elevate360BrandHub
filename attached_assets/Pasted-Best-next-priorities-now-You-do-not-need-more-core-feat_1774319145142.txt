@@ -1,0 +1,144 @@
+Best next priorities now
+
+You do not need more core features before tightening the business layer.
+
+The right next work is in optimization, automation depth, and trust/reliability.
+
+Priority 1 — conversion optimization
+
+Now that bookings and checkout exist, focus on improving:
+
+AI chat to booking rate
+AI chat to paid order rate
+qualified lead to booked rate
+booked to won rate
+offer recommendation acceptance rate
+
+Add dashboards for:
+
+conversion by intent
+conversion by consultation type
+conversion by offer
+conversion by traffic source
+conversion by device
+Priority 2 — follow-up automation
+
+Your pipeline is strong, but the next leap is automation around stale leads.
+
+Add:
+
+auto-flag overdue hot leads
+email follow-up suggestions
+one-click follow-up templates
+reminder queue for due follow-ups
+“no response in X days” escalation views
+Priority 3 — source attribution
+
+You should know exactly what creates money.
+
+Track:
+
+first touch source
+landing page source
+AI prompt entry point
+CTA clicked before booking
+CTA clicked before checkout
+consultation chosen from AI vs page card
+order source by intent type
+Priority 4 — trust and QA instrumentation
+
+Because the concierge now affects revenue, add monitoring for:
+
+incorrect intent classification
+weak offer recommendation
+bad knowledge injection
+empty or low-quality summaries
+false hot-lead scoring
+failed email sends
+failed checkout webhooks
+booking creation failures
+Priority 5 — operator efficiency
+
+The dashboard should now highlight urgency, not just data.
+
+Top widget row should show:
+
+overdue hot leads
+new qualified leads
+bookings pending confirmation
+paid orders today
+unreplied contacts
+highest recommended offer this week
+Strongest next phase block
+
+The best next sequence is this:
+
+Phase 41 — Conversion Analytics Layer
+
+Build:
+
+funnel analytics
+intent-to-booking conversion
+intent-to-checkout conversion
+offer acceptance metrics
+consultation win-rate metrics
+Phase 42 — Follow-Up Automation Engine
+
+Build:
+
+overdue follow-up alerts
+suggested email/copy
+reminder logic
+nurture queue
+re-engagement workflow
+Phase 43 — Offer Recommendation Optimization
+
+Build:
+
+track recommended offer vs chosen offer
+recommendation confidence vs actual conversion
+recommendation A/B testing
+fallback offer logic
+Phase 44 — Revenue Attribution Dashboard
+
+Build:
+
+revenue by source
+revenue by intent
+revenue by offer
+revenue by consultation type
+revenue by AI-assisted path vs direct path
+Phase 45 — Reliability / Audit Layer
+
+Build:
+
+webhook event logs
+AI prompt/retrieval audit logs
+failed job queue
+email/send audit
+booking/order reconciliation tools
+One specific thing I would add immediately
+
+Add a field and dashboard metric for:
+
+recommended_offer_accepted: yes/no
+accepted_offer_slug
+accepted_offer_source: AI / page / dashboard / direct
+
+That will tell you whether your AI concierge is actually influencing revenue or just participating in the conversation.
+
+My assessment of sequencing
+
+You’ve built the system in a strong order:
+
+brand + UX foundation
+AI engagement
+intelligence and grounding
+CRM and workflow
+booking and checkout
+reporting and digest
+
+That is exactly the right progression.
+
+Now the correct move is not “more surface area.”
+It is higher conversion, better attribution, and tighter automation.
