@@ -29,6 +29,33 @@ function isDashboardAuthed(req: any): boolean {
   return req.session?.dashboardAuthed === true;
 }
 
+// ─── Phase 45: In-memory rate limiter ────────────────────────────────────────
+const rateLimitStore: Record<string, { count: number; resetAt: number }> = {};
+function rateLimit(maxReq: number, windowSec: number) {
+  return (req: any, res: any, next: any) => {
+    const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ?? req.socket?.remoteAddress ?? "unknown";
+    const key = `${req.path}::${ip}`;
+    const now = Date.now();
+    const bucket = rateLimitStore[key];
+    if (!bucket || now > bucket.resetAt) {
+      rateLimitStore[key] = { count: 1, resetAt: now + windowSec * 1000 };
+      return next();
+    }
+    bucket.count++;
+    if (bucket.count > maxReq) {
+      return res.status(429).json({ message: "Too many requests. Please slow down." });
+    }
+    next();
+  };
+}
+// Purge stale buckets every 5 minutes to prevent unbounded memory growth
+setInterval(() => {
+  const now = Date.now();
+  for (const key of Object.keys(rateLimitStore)) {
+    if (now > rateLimitStore[key].resetAt) delete rateLimitStore[key];
+  }
+}, 5 * 60 * 1000);
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -39,7 +66,7 @@ export async function registerRoutes(
     res.send(generateSitemap());
   });
 
-  app.post("/api/contact", async (req, res) => {
+  app.post("/api/contact", rateLimit(5, 60), async (req, res) => {
     try {
       const data = insertContactMessageSchema.parse(req.body);
       const message = await storage.createContactMessage(data);
@@ -54,7 +81,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/newsletter", async (req, res) => {
+  app.post("/api/newsletter", rateLimit(3, 60), async (req, res) => {
     try {
       const data = insertNewsletterSubscriberSchema.parse(req.body);
       const subscriber = await storage.createNewsletterSubscriber(data);
@@ -71,7 +98,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/chat", async (req, res) => {
+  app.post("/api/chat", rateLimit(15, 60), async (req, res) => {
     try {
       const { sessionId, message, leadName, leadEmail } = chatRequestSchema.parse(req.body);
 
@@ -117,8 +144,10 @@ export async function registerRoutes(
     }
     if (pin === DASHBOARD_PIN) {
       (req as any).session.dashboardAuthed = true;
+      storage.createAuditLog({ action: "dashboard_login", resourceType: "session", meta: { ip: req.socket?.remoteAddress } }).catch(() => {});
       return res.json({ ok: true });
     }
+    storage.createAuditLog({ action: "dashboard_login_failed", resourceType: "session", meta: { ip: req.socket?.remoteAddress } }).catch(() => {});
     return res.status(401).json({ message: "Invalid PIN." });
   });
 
@@ -703,6 +732,59 @@ export async function registerRoutes(
     }
   });
 
+  // Phase 45 — Health check (public, no auth)
+  app.get("/api/health", async (_req, res) => {
+    const checks: Record<string, { ok: boolean; latencyMs?: number; detail?: string }> = {};
+
+    // DB ping
+    const dbStart = Date.now();
+    try {
+      await db.execute(sql`SELECT 1`);
+      checks.database = { ok: true, latencyMs: Date.now() - dbStart };
+    } catch (e: any) {
+      checks.database = { ok: false, detail: e.message };
+    }
+
+    // OpenAI env var
+    checks.openai = { ok: !!process.env.OPENAI_API_KEY, detail: process.env.OPENAI_API_KEY ? "key present" : "OPENAI_API_KEY missing" };
+
+    // Resend env var
+    checks.resend = { ok: !!process.env.RESEND_API_KEY, detail: process.env.RESEND_API_KEY ? "key present" : "RESEND_API_KEY missing" };
+
+    // Stripe connectivity (via integration connector)
+    try {
+      const stripeClient = await getUncachableStripeClient();
+      checks.stripe = { ok: !!stripeClient, detail: stripeClient ? "connected" : "no key" };
+    } catch {
+      checks.stripe = { ok: false, detail: "connector unavailable" };
+    }
+
+    const allOk = Object.values(checks).every((c) => c.ok);
+    res.status(allOk ? 200 : 503).json({ status: allOk ? "healthy" : "degraded", checks, timestamp: new Date().toISOString() });
+  });
+
+  // Phase 45 — Audit log routes
+  app.get("/api/dashboard/audit-logs", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    try {
+      const limit = Math.min(parseInt(String(req.query.limit ?? "50"), 10), 200);
+      const logs = await storage.getAuditLogs(limit);
+      res.json(logs);
+    } catch (e: any) {
+      res.status(500).json({ message: "Could not load audit logs." });
+    }
+  });
+
+  app.get("/api/dashboard/system-health", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    try {
+      const summary = await storage.getSystemHealthSummary();
+      res.json(summary);
+    } catch (e: any) {
+      res.status(500).json({ message: "Could not load system health." });
+    }
+  });
+
   // Phase 44 — Revenue Attribution Dashboard
   app.get("/api/dashboard/revenue-attribution", async (req, res) => {
     if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
@@ -755,6 +837,7 @@ export async function registerRoutes(
     const { intent } = req.params;
     try {
       await storage.removeOfferMappingOverride(intent);
+      storage.createAuditLog({ action: "offer_override_removed", resourceType: "offer_override", resourceId: intent }).catch(() => {});
       res.json({ ok: true });
     } catch (e: any) {
       console.error("[offer-optimizer/override/delete] error:", e.message);
@@ -822,6 +905,7 @@ export async function registerRoutes(
     try {
       const newDueDate = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
       await storage.markFollowupSent(sessionId, newDueDate);
+      storage.createAuditLog({ action: "followup_sent", resourceType: "lead", resourceId: sessionId }).catch(() => {});
       res.json({ ok: true, newDueDate });
     } catch (e: any) {
       console.error("[followup-sent] error:", e.message);

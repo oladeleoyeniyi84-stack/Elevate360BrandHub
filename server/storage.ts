@@ -11,7 +11,8 @@ import {
   type Order,
   type DigestReport,
   type OfferMappingOverride,
-  users, contactMessages, newsletterSubscribers, chatConversations, clickEvents, pageViews, testimonials, blogPosts, knowledgeDocuments, consultations, bookings, orders, digestReports, offerMappingOverrides,
+  type AuditLog, type InsertAuditLog,
+  users, contactMessages, newsletterSubscribers, chatConversations, clickEvents, pageViews, testimonials, blogPosts, knowledgeDocuments, consultations, bookings, orders, digestReports, offerMappingOverrides, auditLogs,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, sql, desc, asc } from "drizzle-orm";
@@ -83,6 +84,11 @@ export interface IStorage {
   updateOrderStatus(stripeSessionId: string, status: string, extra?: any): Promise<Order | undefined>;
   getAllOrders(): Promise<Order[]>;
   getOrderStats(): Promise<{ total: number; paid: number; revenue: number; abandoned: number }>;
+  // Phase 45 — Reliability & Audit Layer
+  createAuditLog(entry: Omit<InsertAuditLog, "actorLabel"> & { actorLabel?: string }): Promise<AuditLog>;
+  getAuditLogs(limit?: number): Promise<AuditLog[]>;
+  getSystemHealthSummary(): Promise<{ lastLeadAt: Date | null; lastDigestAt: Date | null; totalLeads: number; totalPaidOrders: number; totalAuditActions: number }>;
+
   // Phase 44 — Revenue Attribution Dashboard
   getRevenueAttributionData(): Promise<{
     monthlySeries: { month: string; stripeRevenue: number; wonRevenue: number; total: number }[];
@@ -605,6 +611,41 @@ export class DatabaseStorage implements IStorage {
       paid: paid.length,
       revenue: paid.reduce((s, o) => s + (o.amountPaid ?? 0), 0),
       abandoned: all.filter((o) => o.status === "initiated").length,
+    };
+  }
+
+  // Phase 45 — Reliability & Audit Layer
+  async createAuditLog(entry: Omit<InsertAuditLog, "actorLabel"> & { actorLabel?: string }): Promise<AuditLog> {
+    const [row] = await db.insert(auditLogs).values({
+      actorLabel: entry.actorLabel ?? "admin",
+      action: entry.action,
+      resourceType: entry.resourceType ?? null,
+      resourceId: entry.resourceId ?? null,
+      meta: entry.meta ?? null,
+    }).returning();
+    return row;
+  }
+
+  async getAuditLogs(limit = 50): Promise<AuditLog[]> {
+    return db.select().from(auditLogs).orderBy(desc(auditLogs.createdAt)).limit(limit);
+  }
+
+  async getSystemHealthSummary(): Promise<{ lastLeadAt: Date | null; lastDigestAt: Date | null; totalLeads: number; totalPaidOrders: number; totalAuditActions: number }> {
+    const [leads, digests, paidOrders, auditCount] = await Promise.all([
+      db.select({ createdAt: chatConversations.createdAt }).from(chatConversations).orderBy(desc(chatConversations.createdAt)).limit(1),
+      db.select({ generatedAt: digestReports.generatedAt }).from(digestReports).orderBy(desc(digestReports.generatedAt)).limit(1),
+      db.select({ id: orders.id }).from(orders).where(eq(orders.status, "paid")),
+      db.select({ id: auditLogs.id }).from(auditLogs),
+    ]);
+    const [allLeads] = await Promise.all([
+      db.select({ id: chatConversations.id }).from(chatConversations),
+    ]);
+    return {
+      lastLeadAt: leads[0]?.createdAt ?? null,
+      lastDigestAt: digests[0]?.generatedAt ?? null,
+      totalLeads: allLeads.length,
+      totalPaidOrders: paidOrders.length,
+      totalAuditActions: auditCount.length,
     };
   }
 

@@ -317,6 +317,21 @@ export type OfferMappingOverride = typeof offerMappingOverrides.$inferSelect;
 export const insertOfferMappingOverrideSchema = createInsertSchema(offerMappingOverrides).omit({ id: true, updatedAt: true });
 export type InsertOfferMappingOverride = z.infer<typeof insertOfferMappingOverrideSchema>;
 
+// Phase 45 — Reliability & Audit Layer
+export const auditLogs = pgTable("audit_logs", {
+  id: serial("id").primaryKey(),
+  actorLabel: varchar("actor_label", { length: 64 }).notNull().default("admin"),
+  action: varchar("action", { length: 120 }).notNull(),
+  resourceType: varchar("resource_type", { length: 64 }),
+  resourceId: varchar("resource_id", { length: 120 }),
+  meta: jsonb("meta"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type AuditLog = typeof auditLogs.$inferSelect;
+export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: true, createdAt: true });
+export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type InsertContactMessage = z.infer<typeof insertContactMessageSchema>;

@@ -10,7 +10,7 @@ import {
   Star, Trash2, ToggleLeft, ToggleRight, PlusCircle,
   Database, Edit2, Zap, Calendar, DollarSign, Phone, Trophy, XCircle, AlertCircle, GripVertical,
   Clock, Tag, RefreshCw, ExternalLink, BrainCircuit, AlertTriangle, FileBarChart2, Target,
-  Filter, Percent, ArrowDown, TrendingDown, Flame, Banknote,
+  Filter, Percent, ArrowDown, TrendingDown, Flame, Banknote, Shield, Activity, ShieldCheck, ShieldAlert,
 } from "lucide-react";
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
@@ -3453,6 +3453,243 @@ function FunnelTab() {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
+// Phase 45 — System Health & Audit Tab
+
+type HealthData = {
+  status: "healthy" | "degraded";
+  checks: Record<string, { ok: boolean; latencyMs?: number; detail?: string }>;
+  timestamp: string;
+};
+
+type SystemHealthSummary = {
+  lastLeadAt: string | null;
+  lastDigestAt: string | null;
+  totalLeads: number;
+  totalPaidOrders: number;
+  totalAuditActions: number;
+};
+
+type AuditLogRow = {
+  id: number;
+  actorLabel: string;
+  action: string;
+  resourceType: string | null;
+  resourceId: string | null;
+  meta: any;
+  createdAt: string;
+};
+
+function daysSince(iso: string | null): number | null {
+  if (!iso) return null;
+  return Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+}
+
+function SystemTab() {
+  const healthQ = useQuery<HealthData>({
+    queryKey: ["/api/health"],
+    refetchInterval: 30_000,
+    staleTime: 0,
+  });
+
+  const summaryQ = useQuery<SystemHealthSummary>({
+    queryKey: ["/api/dashboard/system-health"],
+    staleTime: 30_000,
+  });
+
+  const auditQ = useQuery<AuditLogRow[]>({
+    queryKey: ["/api/dashboard/audit-logs"],
+    staleTime: 15_000,
+  });
+
+  const health = healthQ.data;
+  const summary = summaryQ.data;
+  const auditLogs = auditQ.data ?? [];
+
+  const CHECK_LABELS: Record<string, string> = {
+    database: "PostgreSQL Database",
+    openai: "OpenAI API",
+    resend: "Resend Email",
+    stripe: "Stripe Payments",
+  };
+
+  const daysSinceLead = daysSince(summary?.lastLeadAt ?? null);
+  const daysSinceDigest = daysSince(summary?.lastDigestAt ?? null);
+
+  const ACTION_COLORS: Record<string, string> = {
+    dashboard_login: "#22c55e",
+    dashboard_login_failed: "#ef4444",
+    followup_sent: "#6366f1",
+    offer_override_removed: "#f59e0b",
+    offer_override_set: "#F4A62A",
+  };
+
+  return (
+    <div className="space-y-6" data-testid="system-tab">
+
+      {/* ── Health Check Panel ── */}
+      <div className="lux-panel p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-bold text-white flex items-center gap-2">
+            <Activity className="h-4 w-4 text-[#F4A62A]" /> Service Health
+          </h3>
+          <div className="flex items-center gap-2">
+            {health ? (
+              health.status === "healthy"
+                ? <span className="flex items-center gap-1 text-xs text-green-400"><ShieldCheck className="h-3.5 w-3.5" /> All systems go</span>
+                : <span className="flex items-center gap-1 text-xs text-red-400"><ShieldAlert className="h-3.5 w-3.5" /> Degraded</span>
+            ) : (
+              <span className="text-xs text-white/30">Checking…</span>
+            )}
+            <button
+              data-testid="btn-refresh-health"
+              onClick={() => healthQ.refetch()}
+              className="p-1 rounded hover:bg-white/10 text-white/40 hover:text-white transition-colors"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${healthQ.isFetching ? "animate-spin" : ""}`} />
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          {Object.entries(CHECK_LABELS).map(([key, label]) => {
+            const check = health?.checks[key];
+            return (
+              <div key={key} className="lux-card p-3 flex items-center gap-3" data-testid={`health-check-${key}`}>
+                <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${check === undefined ? "bg-white/20" : check.ok ? "bg-green-400 shadow-[0_0_8px_#22c55e]" : "bg-red-400 shadow-[0_0_8px_#ef4444]"}`} />
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-white/80 truncate">{label}</p>
+                  <p className="text-[10px] text-white/30">
+                    {check === undefined ? "—" : check.ok ? (check.latencyMs !== undefined ? `${check.latencyMs}ms` : "OK") : (check.detail ?? "Error")}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {health && (
+          <p className="text-[10px] text-white/20 mt-3 text-right">Last checked: {new Date(health.timestamp).toLocaleTimeString()}</p>
+        )}
+      </div>
+
+      {/* ── System Stats + Stale Alerts ── */}
+      <div className="grid md:grid-cols-2 gap-4">
+        <div className="lux-panel p-5">
+          <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+            <Database className="h-4 w-4 text-[#F4A62A]" /> Platform Stats
+          </h3>
+          {summaryQ.isLoading ? (
+            <p className="text-white/30 text-xs text-center py-4">Loading…</p>
+          ) : (
+            <div className="space-y-3">
+              {[
+                { label: "Total Chat Leads", value: summary?.totalLeads ?? 0, color: "#6366f1" },
+                { label: "Paid Orders", value: summary?.totalPaidOrders ?? 0, color: "#22c55e" },
+                { label: "Audit Events", value: summary?.totalAuditActions ?? 0, color: "#F4A62A" },
+                { label: "Days Since Last Lead", value: daysSinceLead !== null ? `${daysSinceLead}d` : "No data", color: daysSinceLead !== null && daysSinceLead > 7 ? "#ef4444" : "#94a3b8" },
+                { label: "Days Since Last Digest", value: daysSinceDigest !== null ? `${daysSinceDigest}d` : "No data", color: daysSinceDigest !== null && daysSinceDigest > 3 ? "#f59e0b" : "#94a3b8" },
+              ].map((s) => (
+                <div key={s.label} className="flex justify-between items-center" data-testid={`system-stat-${s.label.toLowerCase().replace(/ /g, "-")}`}>
+                  <span className="text-xs text-white/50">{s.label}</span>
+                  <span className="text-sm font-bold" style={{ color: s.color }}>{s.value}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="lux-panel p-5">
+          <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+            <Shield className="h-4 w-4 text-[#F4A62A]" /> Rate Limits (per minute)
+          </h3>
+          <div className="space-y-3">
+            {[
+              { route: "/api/chat", limit: "15 req/min", icon: "💬", note: "AI Concierge" },
+              { route: "/api/contact", limit: "5 req/min", icon: "📩", note: "Contact Form" },
+              { route: "/api/newsletter", limit: "3 req/min", icon: "📬", note: "Newsletter Signup" },
+            ].map((r) => (
+              <div key={r.route} className="lux-card p-3" data-testid={`rate-limit-${r.route.replace("/api/", "")}`}>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-white/60">{r.icon} {r.note}</span>
+                  <span className="text-xs font-bold text-[#F4A62A]">{r.limit}</span>
+                </div>
+                <p className="text-[10px] text-white/30 mt-0.5 font-mono">{r.route}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Stale Data Warnings ── */}
+      {((daysSinceLead !== null && daysSinceLead > 7) || (daysSinceDigest !== null && daysSinceDigest > 3)) && (
+        <div className="space-y-2">
+          {daysSinceLead !== null && daysSinceLead > 7 && (
+            <div className="flex items-start gap-3 bg-red-500/10 border border-red-500/25 rounded-xl p-3" data-testid="alert-stale-leads">
+              <AlertTriangle className="h-4 w-4 text-red-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-semibold text-red-300">No new leads in {daysSinceLead} days</p>
+                <p className="text-[10px] text-white/40 mt-0.5">Consider sharing your brand link or running a promotion to attract new visitors.</p>
+              </div>
+            </div>
+          )}
+          {daysSinceDigest !== null && daysSinceDigest > 3 && (
+            <div className="flex items-start gap-3 bg-amber-500/10 border border-amber-500/25 rounded-xl p-3" data-testid="alert-stale-digest">
+              <AlertCircle className="h-4 w-4 text-amber-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-semibold text-amber-300">Intelligence digest is {daysSinceDigest} days old</p>
+                <p className="text-[10px] text-white/40 mt-0.5">Generate a new digest from the Intelligence tab to refresh your AI insights.</p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Audit Log ── */}
+      <div className="lux-panel p-5">
+        <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+          <FileBarChart2 className="h-4 w-4 text-[#F4A62A]" /> Recent Audit Log
+        </h3>
+        {auditQ.isLoading ? (
+          <p className="text-white/30 text-xs text-center py-4">Loading…</p>
+        ) : auditLogs.length === 0 ? (
+          <p className="text-white/30 text-xs text-center py-4">No audit events recorded yet. Login events, follow-ups, and offer changes will appear here.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-white/30 border-b border-white/10">
+                  <th className="text-left pb-2 pr-3">Action</th>
+                  <th className="text-left pb-2 pr-3">Resource</th>
+                  <th className="text-left pb-2 pr-3">Actor</th>
+                  <th className="text-right pb-2">Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                {auditLogs.slice(0, 30).map((log) => {
+                  const clr = ACTION_COLORS[log.action] ?? "#94a3b8";
+                  return (
+                    <tr key={log.id} className="border-b border-white/5 hover:bg-white/5" data-testid={`audit-row-${log.id}`}>
+                      <td className="py-2 pr-3">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold" style={{ background: `${clr}22`, color: clr }}>
+                          {log.action.replace(/_/g, " ")}
+                        </span>
+                      </td>
+                      <td className="py-2 pr-3 text-white/40 truncate max-w-[100px]">{log.resourceType ?? "—"}{log.resourceId ? ` · ${log.resourceId.slice(0, 12)}` : ""}</td>
+                      <td className="py-2 pr-3 text-white/40">{log.actorLabel}</td>
+                      <td className="py-2 text-right text-white/30 whitespace-nowrap">{new Date(log.createdAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 // Phase 44 — Revenue Attribution Tab
 
 type RevAttribData = {
@@ -3682,7 +3919,7 @@ function RevenueTab() {
 // ──────────────────────────────────────────────────────────────────────────────
 
 function DashboardContent({ onLogout }: { onLogout: () => void }) {
-  const [tab, setTab] = useState<"analytics" | "funnel" | "offers" | "revenue" | "voice" | "leads" | "contacts" | "newsletter" | "reviews" | "blog" | "knowledge" | "pipeline" | "bookings" | "orders" | "digest">("analytics");
+  const [tab, setTab] = useState<"analytics" | "funnel" | "offers" | "revenue" | "voice" | "leads" | "contacts" | "newsletter" | "reviews" | "blog" | "knowledge" | "pipeline" | "bookings" | "orders" | "digest" | "system">("analytics");
   const [leadFilter, setLeadFilter] = useState<"all" | "priority" | "hot" | "warm" | "cold">("all");
   const qc = useQueryClient();
 
@@ -3780,6 +4017,7 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
     { key: "newsletter", label: "Newsletter", icon: Mail },
     { key: "reviews", label: "Reviews", icon: Star },
     { key: "blog", label: "Blog", icon: PenLine },
+    { key: "system", label: "System", icon: Shield },
   ] as const;
 
   return (
@@ -4074,6 +4312,7 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
         {tab === "digest" && <DigestTab />}
         {tab === "pipeline" && <PipelineTab leads={leads} onStageChange={() => qc.invalidateQueries({ queryKey: ["/api/dashboard/leads"] })} />}
         {tab === "revenue" && <RevenueTab />}
+        {tab === "system" && <SystemTab />}
         {tab === "orders" && <OrdersTab />}
         {tab === "bookings" && <BookingsTab />}
 
