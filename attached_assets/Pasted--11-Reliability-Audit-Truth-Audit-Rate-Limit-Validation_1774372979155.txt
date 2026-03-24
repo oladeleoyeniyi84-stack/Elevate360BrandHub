@@ -1,0 +1,104 @@
+## 11) Reliability & Audit Truth Audit
+
+### Rate Limit Validation
+
+| Endpoint | Configured Limit | Test Result | Correct Response Code | Limit Triggered Properly | Notes |
+|---|---|---|---|---|---|
+| /api/chat | 15/min |  |  |  |  |
+| /api/contact | 5/min |  |  |  |  |
+| /api/newsletter | 3/min |  |  |  |  |
+
+### Audit Log Validation
+
+| Event Type | Expected to Log? | Observed? | Metadata Complete? | Actor Present? | Timestamp Correct? | Notes |
+|---|---|---|---|---|---|---|
+| login_success | Yes |  |  |  |  |  |
+| login_failure | Yes |  |  |  |  |  |
+| followup_sent | Yes |  |  |  |  |  |
+| offer_override_removed | Yes |  |  |  |  |  |
+| webhook_received |  |  |  |  |  |  |
+| email_send |  |  |  |  |  |  |
+
+### Health Endpoint Validation
+
+| Scenario | Expected Status | Actual Status | Pass/Fail | Notes |
+|---|---|---|---|---|
+| All services healthy | 200 |  |  |  |
+| DB unavailable | 503 |  |  |  |
+| Missing OpenAI key | 503 or degraded payload per design |  |  |  |
+| Missing Resend key | 503 or degraded payload per design |  |  |  |
+| Stripe connector issue | 503 or degraded payload per design |  |  |  |
+
+Notes:
+
+---
+
+## 12) Mismatch Register
+
+Record every issue found.
+
+| ID | Area | Severity | Expected | Actual | Suspected Cause | Owner | Status |
+|---|---|---|---|---|---|---|---|
+| M01 |  | Critical / High / Medium / Low |  |  |  |  | Open |
+| M02 |  |  |  |  |  |  | Open |
+| M03 |  |  |  |  |  |  | Open |
+| M04 |  |  |  |  |  |  | Open |
+| M05 |  |  |  |  |  |  | Open |
+
+Severity rules:
+- **Critical** = revenue or attribution trust broken
+- **High** = funnel, booking, or accepted offer truth broken
+- **Medium** = scoring, summaries, queue logic, dashboard discrepancies
+- **Low** = cosmetic, labeling, or minor logging gaps
+
+---
+
+## 13) Reconciliation Summary
+
+### Revenue Trust
+Status: Trusted / Partially Trusted / Not Yet Trusted
+Notes:
+
+### Attribution Trust
+Status: Trusted / Partially Trusted / Not Yet Trusted
+Notes:
+
+### Funnel Trust
+Status: Trusted / Partially Trusted / Not Yet Trusted
+Notes:
+
+### Follow-Up Automation Trust
+Status: Trusted / Partially Trusted / Not Yet Trusted
+Notes:
+
+### Reliability / Audit Trust
+Status: Trusted / Partially Trusted / Not Yet Trusted
+Notes:
+
+---
+
+## 14) Final Audit Verdict
+
+Overall verdict:
+- Trusted
+- Trusted with exceptions
+- Not yet trusted
+
+Top 3 issues to fix first:
+1.
+2.
+3.
+
+Top 3 metrics currently safe to use:
+1.
+2.
+3.
+
+Metrics not safe to use yet:
+1.
+2.
+3.
+
+Sign-off:
+Name:
+Date:
