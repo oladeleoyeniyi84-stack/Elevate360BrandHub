@@ -1,0 +1,203 @@
+# Elevate360Official — Data Truth Audit Worksheet
+
+Audit Owner:
+Audit Date:
+Environment: Production / Staging
+Audit Window:
+Version / Deployment ID:
+
+---
+
+## 1) Audit Goal
+
+Confirm that all major platform metrics, statuses, and business events are accurate across:
+
+- AI chat
+- lead capture
+- intent routing
+- lead scoring
+- summaries
+- follow-up automation
+- bookings
+- checkout / Stripe
+- pipeline stages
+- revenue attribution
+- dashboard KPIs
+- audit logs
+- health monitoring
+
+Primary question:
+**Can I trust the dashboard and system data enough to make business decisions from it?**
+
+---
+
+## 2) KPI & Business Rule Definitions
+
+Fill this section before testing.
+
+### Lead
+Definition:
+Source of truth table/field:
+Notes:
+
+### Qualified Lead
+Definition:
+Rule:
+Source of truth:
+Notes:
+
+### Booked
+Definition:
+Included statuses:
+Excluded statuses:
+Source of truth:
+Notes:
+
+### Won
+Definition:
+Rule:
+Source of truth:
+Notes:
+
+### Paid Order
+Definition:
+Rule:
+Source of truth:
+Notes:
+
+### Combined Revenue
+Definition:
+Formula:
+Exclusions:
+Notes:
+
+### Recommended Offer Accepted
+Definition:
+Trigger event:
+Source of truth:
+Notes:
+
+### AI-Assisted Revenue
+Definition:
+Rule:
+Notes:
+
+### Direct Revenue
+Definition:
+Rule:
+Notes:
+
+### Silent Hot Lead
+Definition:
+Rule:
+Notes:
+
+### Overdue Follow-Up
+Definition:
+Rule:
+Notes:
+
+---
+
+## 3) Core Field Truth Checklist
+
+Mark each field after validation.
+
+| Field | Expected Meaning | Source Table | Verified? | Notes |
+|---|---|---|---|---|
+| sessionId | unique session continuity key |  |  |  |
+| intent | detected visitor intent |  |  |  |
+| intentConfidence | confidence score for intent |  |  |  |
+| routeTarget | destination path or business route |  |  |  |
+| requiresFollowup | whether follow-up is needed |  |  |  |
+| capturedName | extracted or submitted name |  |  |  |
+| capturedEmail | extracted or submitted email |  |  |  |
+| score | lead score 0–100 |  |  |  |
+| leadTemperature | cold/warm/hot/priority |  |  |  |
+| scoreReasoning | human-readable explanation |  |  |  |
+| recommendedOffer | top offer suggested |  |  |  |
+| recommendedOfferAccepted | accepted recommendation flag |  |  |  |
+| acceptedOfferSlug | purchased/booked accepted offer |  |  |  |
+| acceptedOfferSource | AI / page / direct / WhatsApp etc. |  |  |  |
+| sessionSummary | AI summary of conversation |  |  |  |
+| leadQuality | AI quality label |  |  |  |
+| recommendedFollowup | suggested next action |  |  |  |
+| ctaShown | CTA surfaced by concierge |  |  |  |
+| conversionOutcome | converted / browsing / no_action etc. |  |  |  |
+| pipelineStage | CRM stage |  |  |  |
+| followupDueDate | next follow-up due date |  |  |  |
+| followupCount | number of follow-ups sent |  |  |  |
+| lastFollowupSentAt | last follow-up timestamp |  |  |  |
+| wonValue | deal value when won |  |  |  |
+| lostReason | reason for closed/lost if used |  |  |  |
+
+---
+
+## 4) Controlled Test Matrix
+
+Run these as fresh sessions. One row per test.
+
+| Test ID | Journey | Expected Outcome | Actual Outcome | Pass/Fail | Notes |
+|---|---|---|---|---|---|
+| T01 | Chat only, no email | session created, intent stored, no lead inflation, no booking/order/revenue |  |  |  |
+| T02 | Chat + email captured, no booking | lead scored, summary created, no accepted offer, no booking/order |  |  |  |
+| T03 | Chat → consultation booking | booking linked to session, booking email sent, pipeline booked, no Stripe revenue unless paid |  |  |  |
+| T04 | Chat → recommended offer → checkout → paid | paid order linked, accepted offer true, attribution correct, revenue correct |  |  |  |
+| T05 | Direct purchase, no chat | order exists, source direct, no false AI influence |  |  |  |
+| T06 | WhatsApp-driven inquiry → later purchase | source attributed correctly, session linkage rule behaves as expected |  |  |  |
+| T07 | Support inquiry only | support intent, no false sales scoring, no offer acceptance |  |  |  |
+| T08 | Newsletter-only signup | newsletter flow only, no false lead qualification |  |  |  |
+| T09 | Abandoned checkout | checkout started but no paid revenue, no accepted offer unless defined otherwise |  |  |  |
+| T10 | Follow-up sent on silent hot lead | followupCount increments, due date extends, reminder queue updates |  |  |  |
+
+---
+
+## 5) Session Continuity Audit
+
+For each tested session, trace the same session end-to-end.
+
+| Session/Test ID | Chat Session Exists | Lead Exists | Booking Exists | Order Exists | Pipeline Stage Correct | Attribution Correct | Revenue Correct | Notes |
+|---|---|---|---|---|---|---|---|---|
+| T01 |  |  |  |  |  |  |  |  |
+| T02 |  |  |  |  |  |  |  |  |
+| T03 |  |  |  |  |  |  |  |  |
+| T04 |  |  |  |  |  |  |  |  |
+| T05 |  |  |  |  |  |  |  |  |
+| T06 |  |  |  |  |  |  |  |  |
+| T07 |  |  |  |  |  |  |  |  |
+| T08 |  |  |  |  |  |  |  |  |
+| T09 |  |  |  |  |  |  |  |  |
+| T10 |  |  |  |  |  |  |  |  |
+
+---
+
+## 6) Funnel Truth Audit
+
+Define exact formulas and then verify dashboard numbers.
+
+### Funnel Stage Definitions
+Chat =
+Intent Detected =
+Email Captured =
+Qualified =
+Booked =
+Won/Paid =
+
+### Dashboard vs Raw Data Check
+
+| Funnel Stage | Dashboard Count | Raw Query Count | Match? | Notes |
+|---|---:|---:|---|---|
+| Chat |  |  |  |  |
+| Intent Detected |  |  |  |  |
+| Email Captured |  |  |  |  |
+| Qualified |  |  |  |  |
+| Booked |  |  |  |  |
+| Won/Paid |  |  |  |  |
+
+### Duplicate/Inflation Checks
+- Is one session counted more than once? Yes / No
+- Are cancelled bookings excluded where expected? Yes / No
+- Are retried webhooks deduplicated? Yes / No
+- Are won deals double-counted with Stripe revenue? Yes / No
+
+Notes:

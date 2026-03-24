@@ -1,0 +1,152 @@
+## 7) Revenue Reconciliation Audit
+
+### Revenue Buckets
+- Stripe Revenue
+- Pipeline Won Revenue
+- Combined Revenue
+
+### Revenue Definitions
+Stripe Revenue =
+Won Deal Revenue =
+Combined Revenue =
+
+### Manual Order Trace — 5 samples
+
+| Order ID | Session ID | Checkout Created | Webhook Received | Order Marked Paid | Amount Correct | Attribution Correct | Included in Revenue Tab | Pass/Fail | Notes |
+|---|---|---|---|---|---|---|---|---|---|
+|  |  |  |  |  |  |  |  |  |  |
+|  |  |  |  |  |  |  |  |  |  |
+|  |  |  |  |  |  |  |  |  |  |
+|  |  |  |  |  |  |  |  |  |  |
+|  |  |  |  |  |  |  |  |  |  |
+
+### Manual Won Deal Trace — 5 samples
+
+| Lead/Deal ID | Session ID | Stage Set to Won | Won Value Present | Included Once in Revenue | Also in Stripe? | Correct Behavior | Pass/Fail | Notes |
+|---|---|---|---|---|---|---|---|---|
+|  |  |  |  |  |  |  |  |  |
+|  |  |  |  |  |  |  |  |  |
+|  |  |  |  |  |  |  |  |  |
+|  |  |  |  |  |  |  |  |  |
+|  |  |  |  |  |  |  |  |  |
+
+### Revenue Totals Reconciliation
+
+| Metric | Dashboard Total | Raw Query Total | Match? | Notes |
+|---|---:|---:|---|---|
+| Stripe Revenue |  |  |  |  |
+| Won Deal Revenue |  |  |  |  |
+| Combined Revenue |  |  |  |  |
+| Paid Orders Count |  |  |  |  |
+| Won Deals Count |  |  |  |  |
+| Avg Order Value |  |  |  |  |
+
+### Exclusion Checks
+- Refunded payments excluded? Yes / No
+- Failed payments excluded? Yes / No
+- Test payments excluded? Yes / No
+- Cancelled bookings excluded from revenue? Yes / No
+
+Notes:
+
+---
+
+## 8) Attribution Truth Audit
+
+### Attribution Category Definitions
+AI Influenced =
+AI Originated =
+Direct =
+WhatsApp =
+Page CTA =
+Unknown =
+
+### Attribution Sample Check — 10 samples
+
+| Sample ID | Session ID | Actual User Path | Expected Attribution | Dashboard Attribution | Match? | Notes |
+|---|---|---|---|---|---|---|
+| A01 |  |  |  |  |  |  |
+| A02 |  |  |  |  |  |  |
+| A03 |  |  |  |  |  |  |
+| A04 |  |  |  |  |  |  |
+| A05 |  |  |  |  |  |  |
+| A06 |  |  |  |  |  |  |
+| A07 |  |  |  |  |  |  |
+| A08 |  |  |  |  |  |  |
+| A09 |  |  |  |  |  |  |
+| A10 |  |  |  |  |  |  |
+
+### Offer Acceptance Logic Check
+
+| Session ID | Recommended Offer | Actual User Action | acceptedOfferSlug | recommendedOfferAccepted | acceptedOfferSource | Correct? | Notes |
+|---|---|---|---|---|---|---|---|
+|  |  |  |  |  |  |  |  |
+|  |  |  |  |  |  |  |  |
+|  |  |  |  |  |  |  |  |
+|  |  |  |  |  |  |  |  |
+|  |  |  |  |  |  |  |  |
+
+Questions:
+- If a user receives Offer A and buys Offer B, how is it recorded?
+- If a user chats and buys later directly, how is it attributed?
+- If a user clicks WhatsApp then buys later, how is source assigned?
+- If no offer is recommended but user buys, what does source become?
+
+Notes:
+
+---
+
+## 9) Follow-Up Automation Truth Audit
+
+### Rule Definitions
+Silent Hot =
+Overdue =
+Mark as Sent behavior =
+New due date rule =
+
+### Queue Validation
+
+| Lead/Session ID | Score | Silent Days | Due Date | Expected Bucket | Actual Bucket | Correct? | Notes |
+|---|---:|---:|---|---|---|---|---|
+|  |  |  |  |  |  |  |  |
+|  |  |  |  |  |  |  |  |
+|  |  |  |  |  |  |  |  |
+|  |  |  |  |  |  |  |  |
+|  |  |  |  |  |  |  |  |
+
+### Follow-Up Send Validation
+
+| Lead/Session ID | Draft Generated | Subject/Body Reasonable | Copy Worked | Mark as Sent Worked | followupCount Incremented | Due Date Extended | Pass/Fail | Notes |
+|---|---|---|---|---|---|---|---|---|
+|  |  |  |  |  |  |  |  |  |
+|  |  |  |  |  |  |  |  |  |
+
+Notes:
+
+---
+
+## 10) Dashboard Truth Audit
+
+Compare displayed KPIs to raw DB/query results.
+
+| Dashboard Widget / Tab Metric | Dashboard Value | Raw Source Value | Match? | Notes |
+|---|---:|---:|---|---|
+| Overdue Hot Leads |  |  |  |  |
+| New Qualified |  |  |  |  |
+| Pending Bookings |  |  |  |  |
+| Paid Orders Today |  |  |  |  |
+| Unreplied Contacts |  |  |  |  |
+| Top Offer |  |  |  |  |
+| Total Offers |  |  |  |  |
+| Active Overrides |  |  |  |  |
+| Combined Revenue |  |  |  |  |
+| Stripe Revenue |  |  |  |  |
+| Won Deal Revenue |  |  |  |  |
+| Avg Order Value |  |  |  |  |
+| Paid Orders |  |  |  |  |
+| Won Deals |  |  |  |  |
+| Audit Event Count |  |  |  |  |
+| Days Since Last Lead |  |  |  |  |
+| Days Since Last Digest |  |  |  |  |
+
+Notes:
