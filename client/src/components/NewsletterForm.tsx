@@ -11,10 +11,11 @@ interface NewsletterFormProps {
 
 export function NewsletterForm({ compact }: NewsletterFormProps = {}) {
   const [email, setEmail] = useState("");
+  const [website, setWebsite] = useState(""); // honeypot — must stay empty
   const { toast } = useToast();
 
   const mutation = useMutation({
-    mutationFn: async (data: { email: string }) => {
+    mutationFn: async (data: { email: string; website: string }) => {
       const res = await fetch("/api/newsletter", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -37,7 +38,7 @@ export function NewsletterForm({ compact }: NewsletterFormProps = {}) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (email) mutation.mutate({ email });
+    if (email) mutation.mutate({ email, website });
   };
 
   return (
@@ -48,6 +49,17 @@ export function NewsletterForm({ compact }: NewsletterFormProps = {}) {
         : "flex flex-col sm:flex-row gap-3 w-full max-w-md mx-auto"
       }
     >
+      {/* Honeypot — hidden from real users, bots fill it automatically */}
+      <input
+        type="text"
+        name="website"
+        value={website}
+        onChange={(e) => setWebsite(e.target.value)}
+        tabIndex={-1}
+        autoComplete="off"
+        aria-hidden="true"
+        style={{ position: "absolute", left: "-9999px", width: "1px", height: "1px", opacity: 0 }}
+      />
       <div className="relative flex-1">
         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
         <Input

@@ -32,10 +32,12 @@ function isDashboardAuthed(req: any): boolean {
 }
 
 // ─── Phase 45: In-memory rate limiter ────────────────────────────────────────
+// Uses req.ip which Express resolves via trust proxy: 1 (set in index.ts).
+// In production on Replit, req.ip is the real client IP from X-Forwarded-For.
 const rateLimitStore: Record<string, { count: number; resetAt: number }> = {};
 function rateLimit(maxReq: number, windowSec: number) {
   return (req: any, res: any, next: any) => {
-    const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ?? req.socket?.remoteAddress ?? "unknown";
+    const ip = req.ip ?? req.socket?.remoteAddress ?? "unknown";
     const key = `${req.path}::${ip}`;
     const now = Date.now();
     const bucket = rateLimitStore[key];
@@ -58,6 +60,30 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000);
 
+// ─── Bot Guard middleware ─────────────────────────────────────────────────────
+// Applied to all public-facing POST endpoints (newsletter, contact, chat).
+// Three layers:
+//   1. Content-Type must be application/json — blocks raw form POST bots
+//   2. User-Agent must be present — blocks the most primitive headless clients
+//   3. Honeypot field `website` must be empty — if filled, we silently "succeed"
+//      (returning 200 without saving anything) so bots don't know they're blocked
+function botGuard(req: any, res: any, next: any) {
+  // 1. Require application/json Content-Type
+  const ct = req.headers["content-type"] ?? "";
+  if (!ct.includes("application/json")) {
+    return res.status(415).json({ message: "Unsupported content type." });
+  }
+  // 2. Require a User-Agent header
+  if (!req.headers["user-agent"]) {
+    return res.status(400).json({ message: "Invalid request." });
+  }
+  // 3. Honeypot: if the hidden `website` field is filled, pretend success
+  if (req.body?.website) {
+    return res.status(200).json({ ok: true });
+  }
+  next();
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -68,7 +94,7 @@ export async function registerRoutes(
     res.send(generateSitemap());
   });
 
-  app.post("/api/contact", rateLimit(5, 60), async (req, res) => {
+  app.post("/api/contact", rateLimit(5, 60), botGuard, async (req, res) => {
     try {
       const data = insertContactMessageSchema.parse(req.body);
       const message = await storage.createContactMessage(data);
@@ -83,7 +109,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/newsletter", rateLimit(3, 60), async (req, res) => {
+  app.post("/api/newsletter", rateLimit(3, 60), botGuard, async (req, res) => {
     try {
       const data = insertNewsletterSubscriberSchema.parse(req.body);
       const subscriber = await storage.createNewsletterSubscriber(data);
@@ -100,7 +126,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/chat", rateLimit(15, 60), async (req, res) => {
+  app.post("/api/chat", rateLimit(15, 60), botGuard, async (req, res) => {
     try {
       const { sessionId, message, leadName, leadEmail } = chatRequestSchema.parse(req.body);
 

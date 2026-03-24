@@ -11,6 +11,7 @@ export function NewsletterPopup() {
   const [location] = useLocation();
   const [visible, setVisible] = useState(false);
   const [email, setEmail] = useState("");
+  const [website, setWebsite] = useState(""); // honeypot — must stay empty
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
 
@@ -60,7 +61,7 @@ export function NewsletterPopup() {
   }, [visible, dismiss]);
 
   const mutation = useMutation({
-    mutationFn: async (data: { email: string }) => {
+    mutationFn: async (data: { email: string; website: string }) => {
       const res = await fetch("/api/newsletter", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -82,7 +83,7 @@ export function NewsletterPopup() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    if (email) mutation.mutate({ email });
+    if (email) mutation.mutate({ email, website });
   };
 
   if (!visible) return null;
@@ -130,6 +131,17 @@ export function NewsletterPopup() {
 
             {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-3">
+              {/* Honeypot — hidden from real users, bots fill it automatically */}
+              <input
+                type="text"
+                name="website"
+                value={website}
+                onChange={(e) => setWebsite(e.target.value)}
+                tabIndex={-1}
+                autoComplete="off"
+                aria-hidden="true"
+                style={{ position: "absolute", left: "-9999px", width: "1px", height: "1px", opacity: 0 }}
+              />
               <div className="relative">
                 <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <input

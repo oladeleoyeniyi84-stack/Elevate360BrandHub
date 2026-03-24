@@ -53,6 +53,7 @@ export function CommissionDialog({ open, onClose }: CommissionDialogProps) {
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<CommissionFormData>(EMPTY);
   const [success, setSuccess] = useState(false);
+  const [website, setWebsite] = useState(""); // honeypot — must stay empty
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -70,7 +71,7 @@ export function CommissionDialog({ open, onClose }: CommissionDialogProps) {
       const res = await fetch("/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: form.name, email: form.email, message }),
+        body: JSON.stringify({ name: form.name, email: form.email, message, website }),
       });
       if (!res.ok) {
         const err = await res.json();
@@ -124,6 +125,17 @@ export function CommissionDialog({ open, onClose }: CommissionDialogProps) {
         </div>
 
         <div className="px-7 py-6">
+          {/* Honeypot — hidden from real users, bots fill it automatically */}
+          <input
+            type="text"
+            name="website"
+            value={website}
+            onChange={(e) => setWebsite(e.target.value)}
+            tabIndex={-1}
+            autoComplete="off"
+            aria-hidden="true"
+            style={{ position: "absolute", left: "-9999px", width: "1px", height: "1px", opacity: 0 }}
+          />
           {success ? (
             <div className="text-center py-6 space-y-4">
               <div className="w-14 h-14 rounded-full bg-green-500/15 border border-green-500/30 flex items-center justify-center mx-auto">

@@ -12,10 +12,11 @@ export function ContactDialog({ children }: { children: React.ReactNode }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
+  const [website, setWebsite] = useState(""); // honeypot — must stay empty
   const { toast } = useToast();
 
   const mutation = useMutation({
-    mutationFn: async (data: { name: string; email: string; message: string }) => {
+    mutationFn: async (data: { name: string; email: string; message: string; website: string }) => {
       const res = await fetch("/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -41,7 +42,7 @@ export function ContactDialog({ children }: { children: React.ReactNode }) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    mutation.mutate({ name, email, message });
+    mutation.mutate({ name, email, message, website });
   };
 
   return (
@@ -52,6 +53,17 @@ export function ContactDialog({ children }: { children: React.ReactNode }) {
           <DialogTitle className="text-2xl font-heading font-bold">Get in Touch</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+          {/* Honeypot — hidden from real users, bots fill it automatically */}
+          <input
+            type="text"
+            name="website"
+            value={website}
+            onChange={(e) => setWebsite(e.target.value)}
+            tabIndex={-1}
+            autoComplete="off"
+            aria-hidden="true"
+            style={{ position: "absolute", left: "-9999px", width: "1px", height: "1px", opacity: 0 }}
+          />
           <div className="space-y-2">
             <Label htmlFor="contact-name">Name</Label>
             <Input
