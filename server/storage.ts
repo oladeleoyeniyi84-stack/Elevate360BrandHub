@@ -6,7 +6,9 @@ import {
   type Testimonial, type InsertTestimonial,
   type BlogPost, type InsertBlogPost, type UpdateBlogPost,
   type KnowledgeDocument, type InsertKnowledgeDoc, type UpdateKnowledgeDoc,
-  users, contactMessages, newsletterSubscribers, chatConversations, clickEvents, pageViews, testimonials, blogPosts, knowledgeDocuments,
+  type Consultation, type InsertConsultation, type UpdateConsultation,
+  type Booking, type InsertBooking,
+  users, contactMessages, newsletterSubscribers, chatConversations, clickEvents, pageViews, testimonials, blogPosts, knowledgeDocuments, consultations, bookings,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, sql, desc, asc } from "drizzle-orm";
@@ -59,6 +61,19 @@ export interface IStorage {
   // Phase 40 — CRM Pipeline
   updateLeadPipelineStage(sessionId: string, stage: string, note?: string, wonValue?: number, lostReason?: string, followupDueDate?: Date | null): Promise<void>;
   getLeadsByPipelineStage(stage?: string): Promise<ChatConversation[]>;
+  // Phase 36 — Consultations
+  getConsultations(activeOnly?: boolean): Promise<Consultation[]>;
+  getConsultation(id: number): Promise<Consultation | undefined>;
+  createConsultation(data: InsertConsultation): Promise<Consultation>;
+  updateConsultation(id: number, data: UpdateConsultation): Promise<Consultation | undefined>;
+  deleteConsultation(id: number): Promise<void>;
+  toggleConsultationActive(id: number): Promise<Consultation | undefined>;
+  seedDefaultConsultations(): Promise<void>;
+  // Phase 36 — Bookings
+  createBooking(data: InsertBooking): Promise<Booking>;
+  getAllBookings(): Promise<(Booking & { consultationTitle?: string })[]>;
+  updateBookingStatus(id: number, status: string): Promise<Booking | undefined>;
+  deleteBooking(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -397,6 +412,82 @@ export class DatabaseStorage implements IStorage {
         .orderBy(desc(chatConversations.updatedAt));
     }
     return db.select().from(chatConversations).orderBy(desc(chatConversations.updatedAt));
+  }
+
+  // Phase 36 — Consultations
+  async getConsultations(activeOnly?: boolean): Promise<Consultation[]> {
+    const q = db.select().from(consultations);
+    if (activeOnly) {
+      return q.where(eq(consultations.isActive, true)).orderBy(asc(consultations.sortOrder), asc(consultations.createdAt));
+    }
+    return q.orderBy(asc(consultations.sortOrder), asc(consultations.createdAt));
+  }
+
+  async getConsultation(id: number): Promise<Consultation | undefined> {
+    const [row] = await db.select().from(consultations).where(eq(consultations.id, id));
+    return row;
+  }
+
+  async createConsultation(data: InsertConsultation): Promise<Consultation> {
+    const [row] = await db.insert(consultations).values(data).returning();
+    return row;
+  }
+
+  async updateConsultation(id: number, data: UpdateConsultation): Promise<Consultation | undefined> {
+    const [row] = await db.update(consultations).set(data).where(eq(consultations.id, id)).returning();
+    return row;
+  }
+
+  async deleteConsultation(id: number): Promise<void> {
+    await db.delete(consultations).where(eq(consultations.id, id));
+  }
+
+  async toggleConsultationActive(id: number): Promise<Consultation | undefined> {
+    const [existing] = await db.select().from(consultations).where(eq(consultations.id, id));
+    if (!existing) return undefined;
+    const [updated] = await db.update(consultations)
+      .set({ isActive: !existing.isActive })
+      .where(eq(consultations.id, id))
+      .returning();
+    return updated;
+  }
+
+  async seedDefaultConsultations(): Promise<void> {
+    const existing = await db.select({ id: consultations.id }).from(consultations).limit(1);
+    if (existing.length > 0) return;
+    const defaults: InsertConsultation[] = [
+      { title: "Brand Strategy Session", description: "Deep-dive into your brand identity, positioning, and growth roadmap. Walk away with a clear action plan to elevate your brand presence across all channels.", duration: 60, price: 9700, currency: "USD", isActive: true, sortOrder: 1 },
+      { title: "AI Content Consultation", description: "Learn how to use AI tools to create, schedule, and scale your content strategy. Includes a personalised content calendar template and platform-specific guidance.", duration: 45, price: 7700, currency: "USD", isActive: true, sortOrder: 2 },
+      { title: "Creative Direction Call", description: "Get expert creative feedback on your visuals, copywriting, and overall aesthetic. Ideal for product launches, rebrands, or campaigns that need a premium edge.", duration: 60, price: 9700, currency: "USD", isActive: true, sortOrder: 3 },
+      { title: "App / Product Consultation", description: "Strategic guidance on your mobile app or digital product — from concept to launch. Covers UX thinking, monetisation, and growth levers based on real-world experience building Bondedlove, Healthwisesupport, and Video Crafter.", duration: 90, price: 14700, currency: "USD", isActive: true, sortOrder: 4 },
+      { title: "Collaboration Discovery Call", description: "Explore potential partnerships, brand deals, music licensing, or co-creation opportunities with Elevate360Official. A relaxed, high-value call to see if we're a great fit.", duration: 30, price: 0, currency: "USD", isActive: true, sortOrder: 5 },
+    ];
+    await db.insert(consultations).values(defaults);
+  }
+
+  // Phase 36 — Bookings
+  async createBooking(data: InsertBooking): Promise<Booking> {
+    const [row] = await db.insert(bookings).values(data).returning();
+    return row;
+  }
+
+  async getAllBookings(): Promise<(Booking & { consultationTitle?: string })[]> {
+    const rows = await db.select().from(bookings).orderBy(desc(bookings.createdAt));
+    const allConsultations = await db.select({ id: consultations.id, title: consultations.title }).from(consultations);
+    const consultMap = Object.fromEntries(allConsultations.map((c) => [c.id, c.title]));
+    return rows.map((b) => ({ ...b, consultationTitle: b.consultationId ? consultMap[b.consultationId] : undefined }));
+  }
+
+  async updateBookingStatus(id: number, status: string): Promise<Booking | undefined> {
+    const [row] = await db.update(bookings)
+      .set({ status, updatedAt: new Date() })
+      .where(eq(bookings.id, id))
+      .returning();
+    return row;
+  }
+
+  async deleteBooking(id: number): Promise<void> {
+    await db.delete(bookings).where(eq(bookings.id, id));
   }
 }
 

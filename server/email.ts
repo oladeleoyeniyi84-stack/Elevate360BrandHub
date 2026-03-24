@@ -298,3 +298,36 @@ export async function sendDigestEmail(stats: DigestStats): Promise<void> {
     baseTemplate("Creator Digest", body),
   );
 }
+
+export async function notifyNewBooking(params: {
+  clientName: string;
+  clientEmail: string;
+  consultationTitle?: string;
+  preferredDate?: string;
+  message?: string;
+}): Promise<void> {
+  if (!RESEND_API_KEY || !CREATOR_EMAIL) return;
+  const { clientName, clientEmail, consultationTitle, preferredDate, message } = params;
+  const adminBody = `
+    <p style="font-size:16px;color:#374151;">A new consultation booking has been submitted on <strong>Elevate360Official</strong>.</p>
+    <table width="100%" cellpadding="8" style="border-collapse:collapse;border-radius:12px;overflow:hidden;margin-top:16px;">
+      <tr style="background:#f9fafb;"><td style="font-weight:600;color:#374151;width:40%;">Client Name</td><td style="color:#111827;">${clientName}</td></tr>
+      <tr><td style="font-weight:600;color:#374151;">Client Email</td><td><a href="mailto:${clientEmail}" style="color:${BRAND_GOLD};">${clientEmail}</a></td></tr>
+      <tr style="background:#f9fafb;"><td style="font-weight:600;color:#374151;">Session Type</td><td style="color:#111827;">${consultationTitle ?? "Not specified"}</td></tr>
+      <tr><td style="font-weight:600;color:#374151;">Preferred Date</td><td style="color:#111827;">${preferredDate ?? "Flexible"}</td></tr>
+      ${message ? `<tr style="background:#f9fafb;"><td style="font-weight:600;color:#374151;vertical-align:top;">Message</td><td style="color:#374151;">${message}</td></tr>` : ""}
+    </table>
+    <div style="margin-top:24px;background:#f9fafb;border-radius:12px;padding:20px;text-align:center;">
+      <a href="https://www.elevate360official.com/dashboard" style="display:inline-block;padding:12px 28px;background:${BRAND_GOLD};color:#0d1a2e;font-weight:800;border-radius:8px;text-decoration:none;font-size:14px;">View in Dashboard →</a>
+    </div>`;
+  const clientBody = `
+    <p style="font-size:16px;color:#374151;">Hi <strong>${clientName}</strong>,</p>
+    <p style="color:#374151;">Thank you for booking a <strong>${consultationTitle ?? "consultation"}</strong> with Elevate360Official!</p>
+    <p style="color:#374151;">We've received your request and will be in touch within <strong>24 hours</strong> to confirm your session${preferredDate ? ` for <strong>${preferredDate}</strong>` : ""}.</p>
+    <p style="color:#374151;">In the meantime, feel free to explore our resources at <a href="https://www.elevate360official.com" style="color:${BRAND_GOLD};">www.elevate360official.com</a>.</p>
+    <p style="color:#374151;margin-top:24px;">— The Elevate360Official Team</p>`;
+  await Promise.allSettled([
+    sendEmail(CREATOR_EMAIL, `📅 New Booking: ${consultationTitle ?? "Consultation"} — ${clientName}`, baseTemplate("New Booking Request", adminBody)),
+    sendEmail(clientEmail, `✅ Your Elevate360 Booking is Confirmed — ${consultationTitle ?? "Consultation"}`, baseTemplate("Booking Confirmed", clientBody)),
+  ]);
+}

@@ -97,6 +97,60 @@ export const chatRequestSchema = z.object({
   leadEmail: z.string().email().optional(),
 });
 
+// Phase 36 — Consultation Offerings
+export const consultations = pgTable("consultations", {
+  id: serial("id").primaryKey(),
+  title: varchar("title", { length: 200 }).notNull(),
+  description: text("description").notNull(),
+  duration: integer("duration").notNull().default(60),
+  price: integer("price").notNull().default(0),
+  currency: varchar("currency", { length: 10 }).notNull().default("USD"),
+  isActive: boolean("is_active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertConsultationSchema = createInsertSchema(consultations, {
+  title: z.string().min(1).max(200),
+  description: z.string().min(1),
+  duration: z.number().int().min(15).max(480).default(60),
+  price: z.number().int().min(0).default(0),
+  currency: z.string().max(10).default("USD"),
+  sortOrder: z.number().int().default(0),
+}).pick({ title: true, description: true, duration: true, price: true, currency: true, isActive: true, sortOrder: true });
+
+export const updateConsultationSchema = insertConsultationSchema.partial();
+
+export type InsertConsultation = z.infer<typeof insertConsultationSchema>;
+export type UpdateConsultation = z.infer<typeof updateConsultationSchema>;
+export type Consultation = typeof consultations.$inferSelect;
+
+// Phase 36 — Bookings
+export const bookings = pgTable("bookings", {
+  id: serial("id").primaryKey(),
+  sessionId: varchar("session_id", { length: 64 }),
+  consultationId: integer("consultation_id"),
+  clientName: text("client_name").notNull(),
+  clientEmail: text("client_email").notNull(),
+  preferredDate: varchar("preferred_date", { length: 100 }),
+  message: text("message"),
+  status: varchar("status", { length: 40 }).notNull().default("pending"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertBookingSchema = createInsertSchema(bookings, {
+  clientName: z.string().min(1, "Name required").max(200),
+  clientEmail: z.string().email("Valid email required"),
+  preferredDate: z.string().max(100).optional(),
+  message: z.string().max(2000).optional(),
+  sessionId: z.string().max(64).optional(),
+  consultationId: z.number().int().positive().optional(),
+}).pick({ sessionId: true, consultationId: true, clientName: true, clientEmail: true, preferredDate: true, message: true });
+
+export type InsertBooking = z.infer<typeof insertBookingSchema>;
+export type Booking = typeof bookings.$inferSelect;
+
 // Phase 35 — Knowledge Base
 export const knowledgeDocuments = pgTable("knowledge_documents", {
   id: serial("id").primaryKey(),

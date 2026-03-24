@@ -9,6 +9,7 @@ import {
   BarChart3, Reply, Send, CheckCircle2, Inbox,
   Star, Trash2, ToggleLeft, ToggleRight, PlusCircle,
   Database, Edit2, Zap, Calendar, DollarSign, Phone, Trophy, XCircle, AlertCircle, GripVertical,
+  Clock, Tag, RefreshCw, ExternalLink,
 } from "lucide-react";
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
@@ -1854,8 +1855,328 @@ function PipelineTab({ leads, onStageChange }: { leads: Lead[]; onStageChange: (
   );
 }
 
+// ─── Phase 36: Bookings Tab ────────────────────────────────────────────────
+
+type BookingRow = {
+  id: number;
+  clientName: string;
+  clientEmail: string;
+  consultationId: number | null;
+  preferredDate: string | null;
+  message: string | null;
+  status: string;
+  createdAt: string;
+};
+
+type ConsultRow = {
+  id: number;
+  title: string;
+  description: string;
+  duration: number;
+  price: number;
+  currency: string;
+  tag: string | null;
+  isActive: boolean;
+  displayOrder: number;
+};
+
+function BookingsTab() {
+  const qc = useQueryClient();
+  const [activePanel, setActivePanel] = useState<"bookings" | "offerings">("bookings");
+  const [editConsult, setEditConsult] = useState<Partial<ConsultRow> | null>(null);
+  const [consultError, setConsultError] = useState("");
+
+  const bookingsQ = useQuery<BookingRow[]>({
+    queryKey: ["/api/dashboard/bookings"],
+    queryFn: async () => {
+      const res = await fetch("/api/dashboard/bookings");
+      if (!res.ok) throw new Error("Unauthorized");
+      return res.json();
+    },
+  });
+
+  const consultationsQ = useQuery<ConsultRow[]>({
+    queryKey: ["/api/dashboard/consultations"],
+    queryFn: async () => {
+      const res = await fetch("/api/dashboard/consultations");
+      if (!res.ok) throw new Error("Unauthorized");
+      return res.json();
+    },
+  });
+
+  const updateStatus = useMutation({
+    mutationFn: async ({ id, status }: { id: number; status: string }) => {
+      const res = await fetch(`/api/dashboard/bookings/${id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error("Failed");
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/dashboard/bookings"] }),
+  });
+
+  const deleteBooking = useMutation({
+    mutationFn: async (id: number) => {
+      await fetch(`/api/dashboard/bookings/${id}`, { method: "DELETE" });
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/dashboard/bookings"] }),
+  });
+
+  const toggleConsult = useMutation({
+    mutationFn: async (id: number) => {
+      await fetch(`/api/dashboard/consultations/${id}/toggle`, { method: "PATCH" });
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/dashboard/consultations"] }),
+  });
+
+  const deleteConsult = useMutation({
+    mutationFn: async (id: number) => {
+      await fetch(`/api/dashboard/consultations/${id}`, { method: "DELETE" });
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/dashboard/consultations"] }),
+  });
+
+  const saveConsult = useMutation({
+    mutationFn: async (data: Partial<ConsultRow>) => {
+      const isNew = !data.id;
+      const url = isNew ? "/api/dashboard/consultations" : `/api/dashboard/consultations/${data.id}`;
+      const method = isNew ? "POST" : "PATCH";
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const j = await res.json();
+        throw new Error(j.message ?? "Save failed");
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/dashboard/consultations"] });
+      setEditConsult(null);
+      setConsultError("");
+    },
+    onError: (e: Error) => setConsultError(e.message),
+  });
+
+  const statusColor: Record<string, string> = {
+    pending: "#F4A62A",
+    confirmed: "#22c55e",
+    completed: "#38bdf8",
+    cancelled: "#f87171",
+  };
+
+  const bookings = bookingsQ.data ?? [];
+  const consultations = consultationsQ.data ?? [];
+
+  const summary = {
+    total: bookings.length,
+    pending: bookings.filter((b) => b.status === "pending").length,
+    confirmed: bookings.filter((b) => b.status === "confirmed").length,
+    completed: bookings.filter((b) => b.status === "completed").length,
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Summary */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: "Total", value: summary.total, color: "#F4A62A" },
+          { label: "Pending", value: summary.pending, color: "#F4A62A" },
+          { label: "Confirmed", value: summary.confirmed, color: "#22c55e" },
+          { label: "Completed", value: summary.completed, color: "#38bdf8" },
+        ].map((s) => (
+          <div key={s.label} className="lux-panel p-4 text-center">
+            <div className="text-2xl font-bold font-heading" style={{ color: s.color }}>{s.value}</div>
+            <div className="text-xs text-white/40 mt-0.5">{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Sub-tabs */}
+      <div className="flex gap-3">
+        {(["bookings", "offerings"] as const).map((p) => (
+          <button key={p}
+            data-testid={`btn-bookings-panel-${p}`}
+            onClick={() => setActivePanel(p)}
+            className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${activePanel === p ? "text-black" : "text-white/40 hover:text-white/70"}`}
+            style={activePanel === p ? { background: "#F4A62A" } : { background: "rgba(255,255,255,0.05)" }}>
+            {p === "bookings" ? "Booking Requests" : "Session Offerings"}
+          </button>
+        ))}
+        <a href="/#book-session" target="_blank" rel="noopener noreferrer"
+          className="ml-auto flex items-center gap-1.5 text-xs text-white/30 hover:text-[#F4A62A] transition-colors">
+          <ExternalLink className="w-3.5 h-3.5" /> View on Site
+        </a>
+      </div>
+
+      {/* Bookings Panel */}
+      {activePanel === "bookings" && (
+        <div className="space-y-3">
+          {bookingsQ.isLoading && <p className="text-white/40 text-sm">Loading…</p>}
+          {!bookingsQ.isLoading && bookings.length === 0 && (
+            <div className="lux-panel p-8 text-center text-white/30">
+              <Calendar className="w-10 h-10 mx-auto mb-3 opacity-30" />
+              <p>No bookings yet. Share your <a href="/#book-session" className="text-[#F4A62A] hover:underline">booking page</a> to get started.</p>
+            </div>
+          )}
+          {bookings.map((b) => (
+            <div key={b.id} className="lux-panel p-4 space-y-3" data-testid={`booking-row-${b.id}`}>
+              <div className="flex items-start gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-white text-sm">{b.clientName}</span>
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full"
+                      style={{ background: `${statusColor[b.status] ?? "#9ca3af"}20`, color: statusColor[b.status] ?? "#9ca3af" }}>
+                      {b.status}
+                    </span>
+                  </div>
+                  <p className="text-white/40 text-xs mt-0.5">{b.clientEmail}</p>
+                  {b.preferredDate && (
+                    <p className="text-white/50 text-xs mt-1 flex items-center gap-1"><Clock className="w-3 h-3" />{b.preferredDate}</p>
+                  )}
+                  {b.message && <p className="text-white/50 text-xs mt-1 italic">"{b.message}"</p>}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <select data-testid={`select-booking-status-${b.id}`}
+                    value={b.status}
+                    onChange={(e) => updateStatus.mutate({ id: b.id, status: e.target.value })}
+                    className="text-xs bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-white focus:outline-none focus:border-[#F4A62A]/50">
+                    {["pending","confirmed","completed","cancelled"].map((s) => (
+                      <option key={s} value={s} style={{ background: "#0d1a2e" }}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                    ))}
+                  </select>
+                  <button data-testid={`btn-delete-booking-${b.id}`}
+                    onClick={() => deleteBooking.mutate(b.id)}
+                    className="text-white/20 hover:text-red-400 transition-colors p-1">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Session Offerings Panel */}
+      {activePanel === "offerings" && (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <p className="text-white/40 text-sm">{consultations.length} session type{consultations.length !== 1 ? "s" : ""}</p>
+            <button data-testid="btn-add-consultation"
+              onClick={() => setEditConsult({ title: "", description: "", duration: 60, price: 0, currency: "USD", isActive: true, displayOrder: 0 })}
+              className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg font-semibold"
+              style={{ background: "rgba(244,166,42,0.12)", color: "#F4A62A", border: "1px solid rgba(244,166,42,0.25)" }}>
+              <PlusCircle className="w-4 h-4" /> Add Session Type
+            </button>
+          </div>
+
+          {consultationsQ.isLoading && <p className="text-white/40 text-sm">Loading…</p>}
+
+          {consultations.map((c) => (
+            <div key={c.id} className="lux-panel p-4 flex items-start gap-3" data-testid={`consult-row-${c.id}`}>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`font-semibold text-sm ${c.isActive ? "text-white" : "text-white/30 line-through"}`}>{c.title}</span>
+                  {c.tag && <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: "rgba(244,166,42,0.15)", color: "#F4A62A" }}>{c.tag}</span>}
+                  {!c.isActive && <span className="text-[11px] text-white/30">Inactive</span>}
+                </div>
+                <p className="text-white/40 text-xs mt-0.5 line-clamp-2">{c.description}</p>
+                <div className="flex items-center gap-3 mt-1.5 text-xs text-white/30">
+                  <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{c.duration} min</span>
+                  <span className="flex items-center gap-1"><DollarSign className="w-3 h-3" />{c.price === 0 ? "Free" : `$${(c.price / 100).toFixed(0)}`}</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button data-testid={`btn-toggle-consult-${c.id}`}
+                  onClick={() => toggleConsult.mutate(c.id)}
+                  title={c.isActive ? "Deactivate" : "Activate"}
+                  className="text-white/30 hover:text-[#F4A62A] transition-colors">
+                  {c.isActive ? <ToggleRight className="w-5 h-5 text-[#22c55e]" /> : <ToggleLeft className="w-5 h-5" />}
+                </button>
+                <button data-testid={`btn-edit-consult-${c.id}`}
+                  onClick={() => setEditConsult(c)}
+                  className="text-white/30 hover:text-[#F4A62A] transition-colors p-1">
+                  <Edit2 className="w-4 h-4" />
+                </button>
+                <button data-testid={`btn-delete-consult-${c.id}`}
+                  onClick={() => deleteConsult.mutate(c.id)}
+                  className="text-white/20 hover:text-red-400 transition-colors p-1">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {/* Edit/Add form */}
+          {editConsult && (
+            <div className="lux-panel p-5 space-y-4 border border-[#F4A62A]/20">
+              <h4 className="text-white font-heading font-semibold">{editConsult.id ? "Edit Session Type" : "Add Session Type"}</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="block text-white/50 text-xs uppercase tracking-wide mb-1">Title *</label>
+                  <input data-testid="input-consult-title"
+                    value={editConsult.title ?? ""} onChange={(e) => setEditConsult(ec => ({ ...ec, title: e.target.value }))}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#F4A62A]/50" />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-white/50 text-xs uppercase tracking-wide mb-1">Description</label>
+                  <textarea data-testid="input-consult-desc"
+                    rows={2} value={editConsult.description ?? ""} onChange={(e) => setEditConsult(ec => ({ ...ec, description: e.target.value }))}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#F4A62A]/50 resize-none" />
+                </div>
+                <div>
+                  <label className="block text-white/50 text-xs uppercase tracking-wide mb-1">Duration (min)</label>
+                  <input data-testid="input-consult-duration" type="number" min={15} step={15}
+                    value={editConsult.duration ?? 60} onChange={(e) => setEditConsult(ec => ({ ...ec, duration: Number(e.target.value) }))}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#F4A62A]/50" />
+                </div>
+                <div>
+                  <label className="block text-white/50 text-xs uppercase tracking-wide mb-1">Price (USD, 0 = Free)</label>
+                  <input data-testid="input-consult-price" type="number" min={0} step={1}
+                    value={editConsult.price != null ? editConsult.price / 100 : 0}
+                    onChange={(e) => setEditConsult(ec => ({ ...ec, price: Math.round(parseFloat(e.target.value || "0") * 100) }))}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#F4A62A]/50" />
+                </div>
+                <div>
+                  <label className="block text-white/50 text-xs uppercase tracking-wide mb-1">Tag (optional)</label>
+                  <input data-testid="input-consult-tag"
+                    value={editConsult.tag ?? ""} onChange={(e) => setEditConsult(ec => ({ ...ec, tag: e.target.value || null }))}
+                    placeholder="e.g. Most Popular"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#F4A62A]/50" />
+                </div>
+                <div>
+                  <label className="block text-white/50 text-xs uppercase tracking-wide mb-1">Display Order</label>
+                  <input data-testid="input-consult-order" type="number" min={0}
+                    value={editConsult.displayOrder ?? 0} onChange={(e) => setEditConsult(ec => ({ ...ec, displayOrder: Number(e.target.value) }))}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#F4A62A]/50" />
+                </div>
+              </div>
+              {consultError && <p className="text-red-400 text-sm">{consultError}</p>}
+              <div className="flex gap-3">
+                <button data-testid="btn-save-consult"
+                  onClick={() => saveConsult.mutate(editConsult)}
+                  disabled={saveConsult.isPending}
+                  className="btn-primary px-6 text-sm">
+                  {saveConsult.isPending ? "Saving…" : "Save Session"}
+                </button>
+                <button data-testid="btn-cancel-consult"
+                  onClick={() => { setEditConsult(null); setConsultError(""); }}
+                  className="btn-secondary px-6 text-sm">Cancel</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+
 function DashboardContent({ onLogout }: { onLogout: () => void }) {
-  const [tab, setTab] = useState<"analytics" | "voice" | "leads" | "contacts" | "newsletter" | "reviews" | "blog" | "knowledge" | "pipeline">("analytics");
+  const [tab, setTab] = useState<"analytics" | "voice" | "leads" | "contacts" | "newsletter" | "reviews" | "blog" | "knowledge" | "pipeline" | "bookings">("analytics");
   const [leadFilter, setLeadFilter] = useState<"all" | "priority" | "hot" | "warm" | "cold">("all");
   const qc = useQueryClient();
 
@@ -1929,6 +2250,7 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
     { key: "voice", label: "Brand Voice", icon: Wand2 },
     { key: "leads", label: "Chat Leads", icon: MessageSquare },
     { key: "pipeline", label: "Pipeline", icon: TrendingUp },
+    { key: "bookings", label: "Bookings", icon: Calendar },
     { key: "knowledge", label: "Knowledge", icon: BookOpen },
     { key: "contacts", label: "Contacts", icon: Users },
     { key: "newsletter", label: "Newsletter", icon: Mail },
@@ -2138,6 +2460,7 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
         {tab === "blog" && <BlogTab />}
         {tab === "knowledge" && <KnowledgeTab />}
         {tab === "pipeline" && <PipelineTab leads={leads} onStageChange={() => qc.invalidateQueries({ queryKey: ["/api/dashboard/leads"] })} />}
+        {tab === "bookings" && <BookingsTab />}
 
       </div>
     </div>

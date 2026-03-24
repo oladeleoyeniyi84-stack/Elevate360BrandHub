@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import type { Testimonial } from "@shared/schema";
 import { useScrollReveal } from "@/hooks/useScrollReveal";
 import { useCountUp } from "@/hooks/useCountUp";
@@ -23,6 +23,9 @@ import {
   Mic,
   TrendingUp,
   Zap,
+  Calendar,
+  Clock,
+  CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ContactDialog } from "@/components/ContactDialog";
@@ -76,6 +79,14 @@ export default function Home() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [commissionOpen, setCommissionOpen] = useState(false);
+
+  // Phase 36 — Booking modal state
+  const [bookingConsultation, setBookingConsultation] = useState<null | { id: number; title: string; price: number; currency: string; duration: number; description: string }>(null);
+  const [bookingForm, setBookingForm] = useState({ name: "", email: "", preferredDate: "", message: "" });
+  const [bookingSubmitting, setBookingSubmitting] = useState(false);
+  const [bookingSuccess, setBookingSuccess] = useState(false);
+  const [bookingError, setBookingError] = useState("");
+
   const trackClick = useTrackClick();
   useTrackPageView("home");
 
@@ -107,6 +118,53 @@ export default function Home() {
       return res.json();
     },
   });
+  const { data: consultations = [] } = useQuery<{ id: number; title: string; price: number; currency: string; duration: number; description: string; tag?: string | null }[]>({
+    queryKey: ["/api/consultations"],
+    queryFn: async () => {
+      const res = await fetch("/api/consultations");
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
+  const bookingMutation = useMutation({
+    mutationFn: async (payload: { consultationId: number; clientName: string; clientEmail: string; preferredDate?: string; message?: string }) => {
+      const res = await fetch("/api/bookings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message ?? "Booking failed");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      setBookingSuccess(true);
+      setBookingSubmitting(false);
+      setBookingForm({ name: "", email: "", preferredDate: "", message: "" });
+    },
+    onError: (e: Error) => {
+      setBookingError(e.message);
+      setBookingSubmitting(false);
+    },
+  });
+
+  const handleBookingSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bookingConsultation) return;
+    setBookingSubmitting(true);
+    setBookingError("");
+    bookingMutation.mutate({
+      consultationId: bookingConsultation.id,
+      clientName: bookingForm.name,
+      clientEmail: bookingForm.email,
+      preferredDate: bookingForm.preferredDate || undefined,
+      message: bookingForm.message || undefined,
+    });
+  };
+
   useScrollReveal();
 
   useEffect(() => {
@@ -147,6 +205,11 @@ export default function Home() {
             <Link href="/blog" data-testid="link-nav-blog" className="text-sm font-medium hover:text-primary transition-colors">
               {t("nav_blog")}
             </Link>
+            <a href="#book-session" data-testid="link-nav-book"
+              className="text-sm font-semibold px-4 py-1.5 rounded-full transition-all"
+              style={{ background: "rgba(244,166,42,0.12)", color: "#F4A62A", border: "1px solid rgba(244,166,42,0.3)" }}>
+              Book a Session
+            </a>
             <div className="flex items-center rounded-full border border-white/15 overflow-hidden text-xs font-bold">
               <button onClick={() => setLang("en")} data-testid="button-lang-en"
                 className={`px-3 py-1.5 transition-colors ${lang === "en" ? "bg-primary text-black" : "text-white/50 hover:text-white"}`}>EN</button>
@@ -187,11 +250,12 @@ export default function Home() {
               { href: "#art-studio", label: "Art Studio", icon: <Palette className="h-4 w-4" /> },
               { href: "#music", label: "Music", icon: <Music className="h-4 w-4" /> },
               { href: "#books", label: "Publications", icon: <BookOpen className="h-4 w-4" /> },
+              { href: "#book-session", label: "Book a Session", icon: <Calendar className="h-4 w-4" /> },
             ].map(({ href, label, icon }) => (
               <a
                 key={href}
                 href={href}
-                data-testid={`link-mobile-nav-${label.toLowerCase().replace(" ", "-")}`}
+                data-testid={`link-mobile-nav-${label.toLowerCase().replace(/\s+/g, "-")}`}
                 onClick={() => setMobileMenuOpen(false)}
                 className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/5 text-sm font-medium text-foreground/80 hover:text-primary transition-colors"
               >
@@ -1312,6 +1376,142 @@ export default function Home() {
           <FAQSection faqs={faqs} />
         );
       })()}
+
+      {/* ── Book a Session ── */}
+      {consultations.length > 0 && (
+        <section id="book-session" className="py-20 border-t border-white/8" style={{ background: "hsl(220 50% 7%)" }}>
+          <div className="container mx-auto px-4 md:px-6">
+            <div className="text-center mb-12 reveal">
+              <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold tracking-widest uppercase mb-4"
+                style={{ background: "rgba(244,166,42,0.12)", color: "#F4A62A", border: "1px solid rgba(244,166,42,0.25)" }}>
+                Book a Session
+              </span>
+              <h2 className="text-3xl md:text-4xl font-heading font-bold text-white mb-4">Work 1-on-1 With Oladele</h2>
+              <p className="text-white/50 max-w-xl mx-auto">Strategy, creativity, and execution — tailored to your goals. Choose a session type below and secure your spot.</p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 reveal">
+              {consultations.map((c) => {
+                const isFree = c.price === 0;
+                const priceLabel = isFree ? "Free" : `$${(c.price / 100).toFixed(0)}`;
+                const COLORS = ["#F4A62A","#22c55e","#38bdf8","#a78bfa","#fb923c","#f472b6"];
+                const colorIdx = c.id % COLORS.length;
+                const accent = COLORS[colorIdx];
+                return (
+                  <div key={c.id}
+                    className="lux-card flex flex-col p-6 gap-4 hover:-translate-y-1 transition-transform duration-200"
+                    data-testid={`card-consultation-${c.id}`}
+                    style={{ borderTop: `2px solid ${accent}30` }}
+                  >
+                    {c.tag && (
+                      <span className="self-start text-[11px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
+                        style={{ background: `${accent}20`, color: accent }}>
+                        {c.tag}
+                      </span>
+                    )}
+                    <h3 className="text-white font-heading font-bold text-lg leading-tight">{c.title}</h3>
+                    <p className="text-white/50 text-sm flex-1">{c.description}</p>
+                    <div className="flex items-center gap-4 text-sm mt-auto">
+                      <span className="flex items-center gap-1.5 text-white/40">
+                        <Clock className="w-3.5 h-3.5" />{c.duration} min
+                      </span>
+                      <span className="ml-auto font-bold text-xl" style={{ color: accent }}>{priceLabel}</span>
+                    </div>
+                    <button
+                      data-testid={`btn-book-${c.id}`}
+                      onClick={() => { setBookingConsultation(c); setBookingSuccess(false); setBookingError(""); }}
+                      className="btn-primary w-full mt-2 flex items-center justify-center gap-2 text-sm"
+                    >
+                      <Calendar className="w-4 h-4" /> Book This Session
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Booking Modal */}
+      {bookingConsultation && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(8px)" }}
+          onClick={(e) => { if (e.target === e.currentTarget) { setBookingConsultation(null); setBookingSuccess(false); } }}
+        >
+          <div className="lux-card w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between mb-6">
+              <div>
+                <h3 className="font-heading font-bold text-white text-xl">{bookingConsultation.title}</h3>
+                <p className="text-white/40 text-sm mt-1 flex items-center gap-2">
+                  <Clock className="w-3.5 h-3.5" />{bookingConsultation.duration} min
+                  &nbsp;·&nbsp;
+                  <span style={{ color: "#F4A62A" }}>
+                    {bookingConsultation.price === 0 ? "Free" : `$${(bookingConsultation.price / 100).toFixed(0)}`}
+                  </span>
+                </p>
+              </div>
+              <button data-testid="btn-close-booking-modal"
+                onClick={() => { setBookingConsultation(null); setBookingSuccess(false); }}
+                className="text-white/40 hover:text-white transition-colors p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {bookingSuccess ? (
+              <div className="text-center py-8">
+                <CheckCircle2 className="w-14 h-14 mx-auto mb-4" style={{ color: "#22c55e" }} />
+                <h4 className="text-white font-heading font-bold text-lg mb-2">Booking Request Sent!</h4>
+                <p className="text-white/50 text-sm">We'll confirm your session within 24 hours. Check your email for a confirmation.</p>
+                <button data-testid="btn-booking-done"
+                  onClick={() => { setBookingConsultation(null); setBookingSuccess(false); }}
+                  className="btn-primary mt-6 px-8">Done</button>
+              </div>
+            ) : (
+              <form onSubmit={handleBookingSubmit} className="flex flex-col gap-4">
+                <div>
+                  <label className="block text-white/60 text-xs font-semibold uppercase tracking-wide mb-1">Your Name *</label>
+                  <input data-testid="input-booking-name"
+                    required value={bookingForm.name}
+                    onChange={(e) => setBookingForm(f => ({ ...f, name: e.target.value }))}
+                    placeholder="Oladele Oyeniyi"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-white/25 text-sm focus:outline-none focus:border-[#F4A62A]/50" />
+                </div>
+                <div>
+                  <label className="block text-white/60 text-xs font-semibold uppercase tracking-wide mb-1">Email Address *</label>
+                  <input data-testid="input-booking-email"
+                    type="email" required value={bookingForm.email}
+                    onChange={(e) => setBookingForm(f => ({ ...f, email: e.target.value }))}
+                    placeholder="you@example.com"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-white/25 text-sm focus:outline-none focus:border-[#F4A62A]/50" />
+                </div>
+                <div>
+                  <label className="block text-white/60 text-xs font-semibold uppercase tracking-wide mb-1">Preferred Date/Time</label>
+                  <input data-testid="input-booking-date"
+                    type="text" value={bookingForm.preferredDate}
+                    onChange={(e) => setBookingForm(f => ({ ...f, preferredDate: e.target.value }))}
+                    placeholder="e.g. Weekdays after 3pm EST"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-white/25 text-sm focus:outline-none focus:border-[#F4A62A]/50" />
+                </div>
+                <div>
+                  <label className="block text-white/60 text-xs font-semibold uppercase tracking-wide mb-1">Tell Us Your Goal</label>
+                  <textarea data-testid="input-booking-message"
+                    rows={3} value={bookingForm.message}
+                    onChange={(e) => setBookingForm(f => ({ ...f, message: e.target.value }))}
+                    placeholder="What would you like to accomplish in this session?"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-white/25 text-sm focus:outline-none focus:border-[#F4A62A]/50 resize-none" />
+                </div>
+                {bookingError && <p className="text-red-400 text-sm">{bookingError}</p>}
+                <button data-testid="btn-submit-booking"
+                  type="submit" disabled={bookingSubmitting}
+                  className="btn-primary w-full mt-1 flex items-center justify-center gap-2">
+                  {bookingSubmitting ? "Sending…" : <><Calendar className="w-4 h-4" /> Confirm Booking</>}
+                </button>
+                <p className="text-white/30 text-xs text-center">We'll email you within 24 hours to confirm the session.</p>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Work With Me Section */}
       <section id="collaborate" className="py-20 border-t border-white/8" style={{ background: "linear-gradient(180deg, hsl(220 50% 8%) 0%, hsl(220 50% 6%) 100%)" }}>

@@ -123,14 +123,31 @@ export async function generateBrandCopy(
   return response.choices[0]?.message?.content ?? "Unable to generate content. Please try again.";
 }
 
-export function buildConciergeSystemPrompt(knowledgeDocs?: { title: string; category: string; content: string }[]): string {
-  if (!knowledgeDocs || knowledgeDocs.length === 0) return BRAND_SYSTEM_PROMPT;
+export function buildConciergeSystemPrompt(
+  knowledgeDocs?: { title: string; category: string; content: string }[],
+  consultationTypes?: { title: string; description: string; duration: number; price: number; currency: string }[]
+): string {
+  let prompt = BRAND_SYSTEM_PROMPT;
 
-  const knowledgeBlock = knowledgeDocs
-    .map((doc) => `### [${doc.category.toUpperCase()}] ${doc.title}\n${doc.content}`)
-    .join("\n\n");
+  if (consultationTypes && consultationTypes.length > 0) {
+    const formatPrice = (price: number, currency: string) =>
+      price === 0 ? "Free" : `$${(price / 100).toFixed(0)} ${currency}`;
+    const consultBlock = consultationTypes
+      .map((c) => `- **${c.title}** (${c.duration} min · ${formatPrice(c.price, c.currency)}): ${c.description}`)
+      .join("\n");
+    prompt += `
 
-  return `${BRAND_SYSTEM_PROMPT}
+## Consultation & Booking Sessions
+Elevate360Official offers the following paid consultation sessions. When a visitor expresses interest in strategy, branding, content, apps, or collaboration — proactively recommend the most relevant session and guide them to book at https://www.elevate360official.com/#book-session.
+
+${consultBlock}`;
+  }
+
+  if (knowledgeDocs && knowledgeDocs.length > 0) {
+    const knowledgeBlock = knowledgeDocs
+      .map((doc) => `### [${doc.category.toUpperCase()}] ${doc.title}\n${doc.content}`)
+      .join("\n\n");
+    prompt += `
 
 ---
 ## Additional Brand Knowledge Base
@@ -138,14 +155,18 @@ Use the following authoritative brand information to answer questions with preci
 
 ${knowledgeBlock}
 ---`;
+  }
+
+  return prompt;
 }
 
 export async function getConciergeReply(
   history: ChatMessage[],
   userMessage: string,
-  knowledgeDocs?: { title: string; category: string; content: string }[]
+  knowledgeDocs?: { title: string; category: string; content: string }[],
+  consultationTypes?: { title: string; description: string; duration: number; price: number; currency: string }[]
 ): Promise<string> {
-  const systemPrompt = buildConciergeSystemPrompt(knowledgeDocs);
+  const systemPrompt = buildConciergeSystemPrompt(knowledgeDocs, consultationTypes);
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
     { role: "system", content: systemPrompt },
     ...history.map((m) => ({

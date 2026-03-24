@@ -87,6 +87,9 @@ app.use((req, res, next) => {
 
 (async () => {
   await registerRoutes(httpServer, app);
+  // Seed default consultation offerings if none exist
+  const { storage } = await import("./storage");
+  storage.seedDefaultConsultations().catch((e) => console.error("[seed] consultations:", e));
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

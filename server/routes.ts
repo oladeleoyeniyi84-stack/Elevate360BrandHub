@@ -13,7 +13,7 @@ import {
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { getConciergeReply, generateBrandCopy, type ContentType } from "./openai";
-import { notifyNewContact, notifyNewLead, notifyNewSubscriber, sendContactReply, sendDigestEmail } from "./email";
+import { notifyNewContact, notifyNewLead, notifyNewSubscriber, sendContactReply, sendDigestEmail, notifyNewBooking } from "./email";
 import { generateSitemap } from "./sitemap";
 import { processConversationIntelligence } from "./services/leadService";
 import { z } from "zod";
@@ -73,8 +73,11 @@ export async function registerRoutes(
       const conversation = await storage.getOrCreateChatSession(sessionId);
       const history = (conversation.messages as ChatMessage[]) ?? [];
 
-      const knowledgeDocs = await storage.getPublishedKnowledgeByIntent(null).catch(() => []);
-      const reply = await getConciergeReply(history, message, knowledgeDocs);
+      const [knowledgeDocs, activeConsultations] = await Promise.all([
+        storage.getPublishedKnowledgeByIntent(null).catch(() => []),
+        storage.getConsultations(true).catch(() => []),
+      ]);
+      const reply = await getConciergeReply(history, message, knowledgeDocs, activeConsultations);
 
       await storage.appendChatMessage(sessionId, { role: "user", content: message });
       await storage.appendChatMessage(sessionId, { role: "assistant", content: reply });
@@ -429,6 +432,110 @@ export async function registerRoutes(
       followupDueDate ? new Date(followupDueDate) : undefined
     );
     res.json({ success: true });
+  });
+
+  // Phase 36 — Public Consultations
+  app.get("/api/consultations", async (_req, res) => {
+    const items = await storage.getConsultations(true);
+    res.json(items);
+  });
+
+  // Phase 36 — Public Booking Submission
+  app.post("/api/bookings", async (req, res) => {
+    try {
+      const { insertBookingSchema } = await import("@shared/schema");
+      const data = insertBookingSchema.parse(req.body);
+      const booking = await storage.createBooking(data);
+
+      let consultationTitle: string | undefined;
+      if (data.consultationId) {
+        const consult = await storage.getConsultation(data.consultationId);
+        consultationTitle = consult?.title;
+      }
+
+      // Auto-move pipeline stage to "booked" if session exists
+      if (data.sessionId) {
+        storage.updateLeadPipelineStage(data.sessionId, "booked", "Booked via website").catch(() => {});
+      }
+
+      // Send notifications (non-blocking)
+      notifyNewBooking({
+        clientName: data.clientName,
+        clientEmail: data.clientEmail,
+        consultationTitle,
+        preferredDate: data.preferredDate,
+        message: data.message,
+      }).catch(() => {});
+
+      res.json({ success: true, id: booking.id });
+    } catch (e: any) {
+      if (e instanceof ZodError) return res.status(400).json({ message: fromZodError(e).message });
+      res.status(500).json({ message: "Booking failed. Please try again." });
+    }
+  });
+
+  // Phase 36 — Dashboard Bookings
+  app.get("/api/dashboard/bookings", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    const items = await storage.getAllBookings();
+    res.json(items);
+  });
+
+  app.patch("/api/dashboard/bookings/:id/status", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    const { status } = req.body;
+    if (!status) return res.status(400).json({ message: "status required" });
+    const item = await storage.updateBookingStatus(Number(req.params.id), status);
+    res.json(item);
+  });
+
+  app.delete("/api/dashboard/bookings/:id", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    await storage.deleteBooking(Number(req.params.id));
+    res.json({ ok: true });
+  });
+
+  // Phase 36 — Dashboard Consultation Management
+  app.get("/api/dashboard/consultations", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    const items = await storage.getConsultations();
+    res.json(items);
+  });
+
+  app.post("/api/dashboard/consultations", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    try {
+      const { insertConsultationSchema } = await import("@shared/schema");
+      const data = insertConsultationSchema.parse(req.body);
+      const item = await storage.createConsultation(data);
+      res.json(item);
+    } catch (e: any) {
+      res.status(400).json({ message: e.message });
+    }
+  });
+
+  app.patch("/api/dashboard/consultations/:id", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    try {
+      const { updateConsultationSchema } = await import("@shared/schema");
+      const data = updateConsultationSchema.parse(req.body);
+      const item = await storage.updateConsultation(Number(req.params.id), data);
+      res.json(item);
+    } catch (e: any) {
+      res.status(400).json({ message: e.message });
+    }
+  });
+
+  app.patch("/api/dashboard/consultations/:id/toggle", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    const item = await storage.toggleConsultationActive(Number(req.params.id));
+    res.json(item);
+  });
+
+  app.delete("/api/dashboard/consultations/:id", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    await storage.deleteConsultation(Number(req.params.id));
+    res.json({ ok: true });
   });
 
   app.get("/api/config/public", (_req, res) => {
