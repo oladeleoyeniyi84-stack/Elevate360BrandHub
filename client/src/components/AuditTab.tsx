@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ShieldCheck, AlertTriangle, AlertCircle, CheckCircle2, XCircle,
@@ -117,8 +117,32 @@ const DEFAULT_TEST_CASES = [
 
 type TestResult = "pending" | "pass" | "fail";
 
+const MATRIX_STORAGE_KEY = "e360_audit_test_matrix_v1";
+
+function loadStoredCases() {
+  try {
+    const raw = localStorage.getItem(MATRIX_STORAGE_KEY);
+    if (!raw) return DEFAULT_TEST_CASES;
+    const stored = JSON.parse(raw) as Partial<typeof DEFAULT_TEST_CASES[0]>[];
+    return DEFAULT_TEST_CASES.map((def) => {
+      const saved = stored.find((s) => s.id === def.id);
+      return saved ? { ...def, ...saved } : def;
+    });
+  } catch {
+    return DEFAULT_TEST_CASES;
+  }
+}
+
 function TestMatrix() {
-  const [cases, setCases] = useState(DEFAULT_TEST_CASES);
+  const [cases, setCases] = useState(loadStoredCases);
+
+  // Persist to localStorage whenever results change
+  useEffect(() => {
+    try {
+      localStorage.setItem(MATRIX_STORAGE_KEY, JSON.stringify(cases));
+    } catch {/* ignore quota errors */}
+  }, [cases]);
+
   const setResult = (id: string, result: TestResult) => {
     setCases((prev) => prev.map((c) => c.id === id ? { ...c, result } : c));
   };
@@ -128,8 +152,31 @@ function TestMatrix() {
   const setNotes = (id: string, notes: string) => {
     setCases((prev) => prev.map((c) => c.id === id ? { ...c, notes } : c));
   };
+  const handleReset = () => {
+    setCases(DEFAULT_TEST_CASES);
+    try { localStorage.removeItem(MATRIX_STORAGE_KEY); } catch {/* ignore */}
+  };
+
+  const passed = cases.filter((c) => c.result === "pass").length;
+  const failed = cases.filter((c) => c.result === "fail").length;
+  const pending = cases.filter((c) => c.result === "pending").length;
+
   return (
     <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3 text-xs">
+          <span className="text-green-400">{passed} pass</span>
+          <span className="text-red-400">{failed} fail</span>
+          <span className="text-white/30">{pending} pending</span>
+        </div>
+        <button
+          data-testid="button-test-matrix-reset"
+          onClick={handleReset}
+          className="text-xs text-white/30 hover:text-white/60 transition border border-white/10 px-2.5 py-1 rounded-lg"
+        >
+          Reset All
+        </button>
+      </div>
       {cases.map((c) => (
         <div key={c.id} className="rounded-xl border border-white/8 bg-white/3 p-4 space-y-2">
           <div className="flex items-start justify-between gap-4">
@@ -278,7 +325,7 @@ export function AuditTab() {
 
   // Verdict per group from checks
   const verdictByGroup = (() => {
-    const groups = ["continuity", "funnel", "revenue", "attribution", "followup", "reliability"];
+    const groups = ["continuity", "funnel", "revenue", "attribution", "followup", "reliability", "security"];
     const result: Record<string, { pass: number; fail: number; warn: number; verdict: string }> = {};
     for (const g of groups) {
       const gc = checks.filter((c) => c.checkGroup === g);
@@ -338,6 +385,19 @@ export function AuditTab() {
         </div>
       </div>
 
+      {/* ── Staleness Warning ── */}
+      {latestRun && (() => {
+        const hoursSince = (Date.now() - new Date(latestRun.createdAt).getTime()) / 3_600_000;
+        return hoursSince > 24 ? (
+          <div className="flex items-start gap-2 rounded-xl border border-yellow-500/25 bg-yellow-500/8 px-4 py-3" data-testid="audit-staleness-warning">
+            <AlertTriangle className="h-4 w-4 text-yellow-400 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-yellow-300/80 leading-relaxed">
+              Last audit was <strong>{Math.floor(hoursSince)}h ago</strong>. Run a fresh audit to ensure the verdict reflects current data.
+            </p>
+          </div>
+        ) : null;
+      })()}
+
       {/* ── Quick Actions ── */}
       <div className="rounded-2xl border border-white/8 bg-white/3 p-4">
         <h3 className="text-sm font-semibold text-white/70 mb-3">Quick Actions</h3>
@@ -348,7 +408,9 @@ export function AuditTab() {
             { label: "Attribution", type: "attribution" },
             { label: "Funnel", type: "funnel" },
             { label: "Follow-Up", type: "followup" },
+            { label: "Continuity", type: "continuity" },
             { label: "Reliability", type: "reliability" },
+            { label: "Security", type: "security" },
           ].map(({ label, type, gold }) => (
             <button
               key={type}
@@ -658,6 +720,7 @@ export function AuditTab() {
                   { key: "followup", label: "Follow-Up Trust" },
                   { key: "reliability", label: "Reliability Trust" },
                   { key: "continuity", label: "Continuity Trust" },
+                  { key: "security", label: "Security Trust" },
                 ].map(({ key, label }) => {
                   const g = verdictByGroup[key];
                   return (

@@ -1054,7 +1054,7 @@ export async function registerRoutes(
   app.post("/api/dashboard/audit/run", async (req, res) => {
     if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
     const { auditType = "full" } = req.body ?? {};
-    const allowed = ["full", "revenue", "attribution", "funnel", "followup", "reliability", "continuity"];
+    const allowed = ["full", "revenue", "attribution", "funnel", "followup", "reliability", "continuity", "security"];
     if (!allowed.includes(auditType)) {
       return res.status(400).json({ message: `Invalid auditType. Must be one of: ${allowed.join(", ")}` });
     }

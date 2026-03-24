@@ -8,8 +8,9 @@ import { runRevenueChecks } from "./auditChecks/revenue";
 import { runAttributionChecks } from "./auditChecks/attribution";
 import { runFollowupChecks } from "./auditChecks/followup";
 import { runReliabilityChecks } from "./auditChecks/reliability";
+import { runSecurityChecks } from "./auditChecks/security";
 
-type AuditType = "full" | "revenue" | "attribution" | "funnel" | "followup" | "reliability" | "continuity";
+type AuditType = "full" | "revenue" | "attribution" | "funnel" | "followup" | "reliability" | "continuity" | "security";
 
 function computeVerdict(criticalCount: number, highCount: number, checksFailed: number, checksPassed: number): string {
   if (criticalCount > 0) return "not_yet_trusted";
@@ -36,6 +37,9 @@ async function getChecksForType(auditType: AuditType): Promise<CheckResult[]> {
   }
   if (auditType === "full" || auditType === "reliability") {
     allChecks.push(...await runReliabilityChecks());
+  }
+  if (auditType === "full" || auditType === "security") {
+    allChecks.push(...await runSecurityChecks());
   }
   return allChecks;
 }
