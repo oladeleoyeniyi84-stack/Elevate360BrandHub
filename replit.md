@@ -17,13 +17,21 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 
 ## Key Features
 - Hero section with overlapping typographic background
-- Apps showcase (Bondedlove, Healthwisesupport, Video Crafter) with equal-height card grid
+- Apps showcase (Bondedlove, Healthwisesupport, Video Crafter) with equal-height card grid + Screenshots Lightbox
 - Elevate360 Art Studio section with presentation image + Etsy shop link
 - Publications section with real Amazon book covers
 - Featured book sections (Healthwise: Stay Healthy, Together: Let There Be Love, One Clean Meal)
 - Contact form (dialog) - saves to PostgreSQL
 - Newsletter signup - saves to PostgreSQL
 - Social links: Instagram, YouTube, Etsy
+- YouTube channel embed section with playlist iframe
+- Product Comparison Table (6 products, 6 dimensions)
+- Language toggle (English / Yoruba) using LanguageContext
+- Blog system: `/blog`, `/blog/:slug` pages + Dashboard Blog tab CRUD
+- Press Kit page at `/press-kit`
+- AI Concierge Intent Router (Phase 33): OpenAI-based intent classification into 12 categories, route target mapping, email/name extraction, saved to `chat_conversations`
+- Lead Scoring Engine (Phase 34): 0–100 score, 4 temperature bands (cold/warm/hot/priority), score reasoning, next-action recommendation, saved to `chat_conversations`
+- Dashboard Chat Leads: temperature filter buttons (All / Priority / Hot / Warm / Cold), lead score display, intent panel, next-action display
 
 ## Design System (CSS)
 - **btn-primary**: Gold filled CTA button (#F4A62A)

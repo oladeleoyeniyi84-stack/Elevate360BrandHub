@@ -60,6 +60,20 @@ interface Lead {
   messages: { role: string; content: string }[];
   createdAt: string;
   updatedAt: string;
+  // Phase 33 — Intent Router
+  intent: string | null;
+  intentConfidence: number | null;
+  routeTarget: string | null;
+  requiresFollowup: boolean;
+  capturedEmail: string | null;
+  capturedName: string | null;
+  // Phase 34 — Lead Scoring
+  leadScore: number | null;
+  leadTemperature: "cold" | "warm" | "hot" | "priority";
+  scoreReasoning: string | null;
+  nextAction: string | null;
+  assignedStage: string;
+  lastActivityAt: string | null;
 }
 
 interface ContactMessage {
@@ -619,12 +633,30 @@ function StatCard({ label, value, icon: Icon, color = "#F4A62A" }: {
   );
 }
 
+const TEMP_STYLES: Record<string, { bg: string; text: string; label: string }> = {
+  priority: { bg: "bg-red-500/15", text: "text-red-400", label: "🔥 Priority" },
+  hot: { bg: "bg-orange-500/15", text: "text-orange-400", label: "🌡 Hot" },
+  warm: { bg: "bg-yellow-500/15", text: "text-yellow-400", label: "☀ Warm" },
+  cold: { bg: "bg-blue-500/10", text: "text-blue-400", label: "❄ Cold" },
+};
+
+function TemperatureBadge({ temp }: { temp: string }) {
+  const s = TEMP_STYLES[temp] ?? TEMP_STYLES.cold;
+  return (
+    <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${s.bg} ${s.text}`}>
+      {s.label}
+    </span>
+  );
+}
+
 function ChatLeadRow({ lead }: { lead: Lead }) {
   const [expanded, setExpanded] = useState(false);
   const msgCount = lead.messages?.length ?? 0;
+  const temp = lead.leadTemperature ?? "cold";
+  const score = lead.leadScore ?? 0;
 
   return (
-    <div className="border border-white/8 rounded-2xl overflow-hidden">
+    <div className="border border-white/8 rounded-2xl overflow-hidden" data-testid={`card-lead-${lead.id}`}>
       <button onClick={() => setExpanded((v) => !v)}
         className="w-full flex items-center justify-between px-5 py-4 hover:bg-white/4 transition text-left">
         <div className="flex items-center gap-3 min-w-0">
@@ -632,29 +664,73 @@ function ChatLeadRow({ lead }: { lead: Lead }) {
             <Sparkles className="h-4 w-4 text-[#F4A62A]" />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-white truncate">
-              {lead.leadName || <span className="text-white/40 font-normal italic">Anonymous</span>}
-            </p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-sm font-semibold text-white truncate">
+                {lead.leadName || lead.capturedName || <span className="text-white/40 font-normal italic">Anonymous</span>}
+              </p>
+              <TemperatureBadge temp={temp} />
+              {lead.requiresFollowup && (
+                <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-purple-500/15 text-purple-400">
+                  Follow-up needed
+                </span>
+              )}
+            </div>
             <p className="text-xs text-white/40 truncate">
-              {lead.leadEmail || "No email captured"} · {msgCount} messages
+              {lead.leadEmail || lead.capturedEmail || "No email captured"} · {msgCount} messages
+              {lead.intent && <> · <span className="text-white/60">{lead.intent.replace(/_/g, " ")}</span></>}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+        <div className="flex items-center gap-3 flex-shrink-0 ml-4">
+          <div className="hidden sm:flex flex-col items-end">
+            <span className="text-sm font-bold" style={{ color: score >= 75 ? "#f87171" : score >= 50 ? "#fb923c" : score >= 25 ? "#facc15" : "#60a5fa" }}>
+              {score}
+            </span>
+            <span className="text-[10px] text-white/30">score</span>
+          </div>
           <span className="text-xs text-white/30 hidden sm:block">{formatDate(lead.updatedAt)}</span>
           {expanded ? <ChevronUp className="h-4 w-4 text-white/30" /> : <ChevronDown className="h-4 w-4 text-white/30" />}
         </div>
       </button>
-      {expanded && msgCount > 0 && (
-        <div className="px-5 pb-4 space-y-2 border-t border-white/6 pt-3">
-          {(lead.messages as { role: string; content: string }[]).map((msg, i) => (
-            <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div className={`max-w-[75%] rounded-2xl px-3 py-2 text-xs leading-relaxed ${
-                msg.role === "user" ? "bg-[#F4A62A]/20 text-[#F4A62A]" : "bg-white/6 text-white/70"}`}>
-                {msg.content}
-              </div>
+      {expanded && (
+        <div className="px-5 pb-4 space-y-3 border-t border-white/6 pt-3">
+          {/* Intelligence panel */}
+          {(lead.intent || lead.nextAction || lead.scoreReasoning) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
+              {lead.intent && (
+                <div className="bg-white/3 rounded-xl px-3 py-2">
+                  <p className="text-[10px] text-white/30 uppercase tracking-wide mb-0.5">Detected Intent</p>
+                  <p className="text-xs text-white/80 font-medium">{lead.intent.replace(/_/g, " ")}</p>
+                  {lead.routeTarget && <p className="text-[10px] text-white/30 mt-0.5">→ {lead.routeTarget.replace(/_/g, " ")}</p>}
+                </div>
+              )}
+              {lead.nextAction && (
+                <div className="bg-white/3 rounded-xl px-3 py-2">
+                  <p className="text-[10px] text-white/30 uppercase tracking-wide mb-0.5">Recommended Action</p>
+                  <p className="text-xs text-white/80">{lead.nextAction}</p>
+                </div>
+              )}
+              {lead.scoreReasoning && (
+                <div className="bg-white/3 rounded-xl px-3 py-2 sm:col-span-2">
+                  <p className="text-[10px] text-white/30 uppercase tracking-wide mb-0.5">Score Reasoning</p>
+                  <p className="text-xs text-white/60">{lead.scoreReasoning}</p>
+                </div>
+              )}
             </div>
-          ))}
+          )}
+          {/* Messages */}
+          {msgCount > 0 && (
+            <div className="space-y-2">
+              {(lead.messages as { role: string; content: string }[]).map((msg, i) => (
+                <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                  <div className={`max-w-[75%] rounded-2xl px-3 py-2 text-xs leading-relaxed ${
+                    msg.role === "user" ? "bg-[#F4A62A]/20 text-[#F4A62A]" : "bg-white/6 text-white/70"}`}>
+                    {msg.content}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -982,39 +1058,38 @@ function ReviewsTab() {
   );
 }
 
-type BlogPost = {
+type DashBlogPost = {
   id: number;
   title: string;
   slug: string;
-  excerpt: string | null;
-  content: string;
-  coverImage: string | null;
+  excerpt: string;
+  body: string;
+  category: string;
   published: boolean;
-  publishedAt: string | null;
   createdAt: string;
+  updatedAt: string;
 };
 
 type BlogFormState = {
   title: string;
   slug: string;
   excerpt: string;
-  content: string;
-  coverImage: string;
-  published: boolean;
+  body: string;
+  category: string;
 };
 
 function BlogTab() {
   const qc = useQueryClient();
   const [form, setForm] = useState<BlogFormState>({
-    title: "", slug: "", excerpt: "", content: "", coverImage: "", published: false,
+    title: "", slug: "", excerpt: "", body: "", category: "general",
   });
   const [editing, setEditing] = useState<number | null>(null);
   const [showForm, setShowForm] = useState(false);
 
-  const { data: posts = [], isLoading } = useQuery<BlogPost[]>({
-    queryKey: ["/api/dashboard/blog"],
+  const { data: posts = [], isLoading } = useQuery<DashBlogPost[]>({
+    queryKey: ["/api/dashboard/posts"],
     queryFn: async () => {
-      const res = await fetch("/api/dashboard/blog");
+      const res = await fetch("/api/dashboard/posts");
       if (!res.ok) throw new Error("Unauthorized");
       return res.json();
     },
@@ -1022,8 +1097,8 @@ function BlogTab() {
 
   const saveMutation = useMutation({
     mutationFn: async (data: BlogFormState) => {
-      const url = editing ? `/api/dashboard/blog/${editing}` : "/api/dashboard/blog";
-      const method = editing ? "PUT" : "POST";
+      const url = editing ? `/api/dashboard/posts/${editing}` : "/api/dashboard/posts";
+      const method = editing ? "PATCH" : "POST";
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
@@ -1033,8 +1108,8 @@ function BlogTab() {
       return res.json();
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/dashboard/blog"] });
-      setForm({ title: "", slug: "", excerpt: "", content: "", coverImage: "", published: false });
+      qc.invalidateQueries({ queryKey: ["/api/dashboard/posts"] });
+      setForm({ title: "", slug: "", excerpt: "", body: "", category: "general" });
       setEditing(null);
       setShowForm(false);
     },
@@ -1042,29 +1117,25 @@ function BlogTab() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      const res = await fetch(`/api/dashboard/blog/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/dashboard/posts/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to delete");
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/dashboard/blog"] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/dashboard/posts"] }),
   });
 
   const toggleMutation = useMutation({
-    mutationFn: async ({ id, published }: { id: number; published: boolean }) => {
-      const res = await fetch(`/api/dashboard/blog/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ published }),
-      });
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/dashboard/posts/${id}/publish`, { method: "PATCH" });
       if (!res.ok) throw new Error("Failed");
       return res.json();
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/dashboard/blog"] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/dashboard/posts"] }),
   });
 
-  const startEdit = (p: BlogPost) => {
+  const startEdit = (p: DashBlogPost) => {
     setForm({
-      title: p.title, slug: p.slug, excerpt: p.excerpt ?? "",
-      content: p.content, coverImage: p.coverImage ?? "", published: p.published,
+      title: p.title, slug: p.slug, excerpt: p.excerpt,
+      body: p.body, category: p.category,
     });
     setEditing(p.id);
     setShowForm(true);
@@ -1078,7 +1149,7 @@ function BlogTab() {
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-white">Blog Posts</h2>
         <button
-          onClick={() => { setShowForm(!showForm); setEditing(null); setForm({ title: "", slug: "", excerpt: "", content: "", coverImage: "", published: false }); }}
+          onClick={() => { setShowForm(!showForm); setEditing(null); setForm({ title: "", slug: "", excerpt: "", body: "", category: "general" }); }}
           data-testid="button-blog-new"
           className="flex items-center gap-2 btn-primary text-sm px-4 py-2"
         >
@@ -1112,51 +1183,46 @@ function BlogTab() {
               />
             </div>
           </div>
-          <div>
-            <label className="block text-xs text-white/40 mb-1">Excerpt</label>
-            <input
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-primary/50"
-              value={form.excerpt}
-              data-testid="input-blog-excerpt"
-              onChange={e => setForm(f => ({ ...f, excerpt: e.target.value }))}
-              placeholder="Short summary..."
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-white/40 mb-1">Excerpt</label>
+              <input
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-primary/50"
+                value={form.excerpt}
+                data-testid="input-blog-excerpt"
+                onChange={e => setForm(f => ({ ...f, excerpt: e.target.value }))}
+                placeholder="Short summary..."
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-white/40 mb-1">Category</label>
+              <input
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-primary/50"
+                value={form.category}
+                data-testid="input-blog-category"
+                onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
+                placeholder="general"
+              />
+            </div>
           </div>
           <div>
             <label className="block text-xs text-white/40 mb-1">Content (Markdown supported)</label>
             <textarea
               className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-primary/50 min-h-[160px] resize-y"
-              value={form.content}
+              value={form.body}
               data-testid="input-blog-content"
-              onChange={e => setForm(f => ({ ...f, content: e.target.value }))}
+              onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
               placeholder="Write your post content here..."
             />
-          </div>
-          <div>
-            <label className="block text-xs text-white/40 mb-1">Cover Image URL (optional)</label>
-            <input
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-primary/50"
-              value={form.coverImage}
-              data-testid="input-blog-cover"
-              onChange={e => setForm(f => ({ ...f, coverImage: e.target.value }))}
-              placeholder="https://..."
-            />
-          </div>
-          <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={form.published} onChange={e => setForm(f => ({ ...f, published: e.target.checked }))}
-                data-testid="checkbox-blog-published" className="accent-primary" />
-              <span className="text-sm text-white/60">Publish immediately</span>
-            </label>
           </div>
           <div className="flex gap-2 pt-2">
             <button
               onClick={() => saveMutation.mutate(form)}
-              disabled={!form.title || !form.slug || !form.content || saveMutation.isPending}
+              disabled={!form.title || !form.slug || !form.body || !form.excerpt || saveMutation.isPending}
               data-testid="button-blog-save"
               className="btn-primary text-sm px-5 py-2 disabled:opacity-50"
             >
-              {saveMutation.isPending ? "Saving…" : editing ? "Update Post" : "Create Post"}
+              {saveMutation.isPending ? "Saving…" : editing ? "Update Post" : "Create Draft"}
             </button>
             <button onClick={() => setShowForm(false)} className="btn-secondary text-sm px-4 py-2">Cancel</button>
           </div>
@@ -1186,7 +1252,7 @@ function BlogTab() {
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <button
-                  onClick={() => toggleMutation.mutate({ id: p.id, published: !p.published })}
+                  onClick={() => toggleMutation.mutate(p.id)}
                   data-testid={`button-blog-toggle-${p.id}`}
                   className="text-white/30 hover:text-primary transition-colors"
                   title={p.published ? "Unpublish" : "Publish"}
@@ -1213,11 +1279,15 @@ function BlogTab() {
 
 function DashboardContent({ onLogout }: { onLogout: () => void }) {
   const [tab, setTab] = useState<"analytics" | "voice" | "leads" | "contacts" | "newsletter" | "reviews" | "blog">("analytics");
+  const [leadFilter, setLeadFilter] = useState<"all" | "priority" | "hot" | "warm" | "cold">("all");
 
   const leadsQuery = useQuery<Lead[]>({
-    queryKey: ["/api/dashboard/leads"],
+    queryKey: ["/api/dashboard/leads", leadFilter],
     queryFn: async () => {
-      const res = await fetch("/api/dashboard/leads");
+      const url = leadFilter === "all"
+        ? "/api/dashboard/leads"
+        : `/api/dashboard/leads?temperature=${leadFilter}`;
+      const res = await fetch(url);
       if (!res.ok) throw new Error("Unauthorized");
       return res.json();
     },
@@ -1337,6 +1407,33 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
 
         {tab === "leads" && (
           <div className="space-y-3">
+            {/* Temperature Filters */}
+            <div className="flex gap-1.5 flex-wrap">
+              {(["all", "priority", "hot", "warm", "cold"] as const).map((f) => {
+                const styles: Record<string, string> = {
+                  all: "bg-white/8 text-white",
+                  priority: "bg-red-500/15 text-red-400",
+                  hot: "bg-orange-500/15 text-orange-400",
+                  warm: "bg-yellow-500/15 text-yellow-400",
+                  cold: "bg-blue-500/10 text-blue-400",
+                };
+                const labels: Record<string, string> = { all: "All", priority: "🔥 Priority", hot: "🌡 Hot", warm: "☀ Warm", cold: "❄ Cold" };
+                return (
+                  <button
+                    key={f}
+                    onClick={() => setLeadFilter(f)}
+                    data-testid={`button-lead-filter-${f}`}
+                    className={`text-xs px-3 py-1.5 rounded-full font-semibold transition-all border ${
+                      leadFilter === f
+                        ? `${styles[f]} border-current ring-1 ring-current`
+                        : "border-white/10 text-white/40 hover:text-white/70"
+                    }`}
+                  >
+                    {labels[f]}
+                  </button>
+                );
+              })}
+            </div>
             {leads.length > 0 && (
               <div className="flex justify-between items-center">
                 <p className="text-sm text-white/40">{leads.length} session{leads.length !== 1 ? "s" : ""} · {capturedLeads.length} with email</p>

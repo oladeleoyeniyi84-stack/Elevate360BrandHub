@@ -32,6 +32,22 @@ export const chatConversations = pgTable("chat_conversations", {
   leadEmail: text("lead_email"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+
+  // Phase 33 — Intent Router
+  intent: varchar("intent", { length: 80 }),
+  intentConfidence: integer("intent_confidence").default(0),
+  routeTarget: varchar("route_target", { length: 80 }),
+  requiresFollowup: boolean("requires_followup").default(false).notNull(),
+  capturedEmail: varchar("captured_email", { length: 180 }),
+  capturedName: varchar("captured_name", { length: 160 }),
+
+  // Phase 34 — Lead Scoring
+  leadScore: integer("lead_score").default(0),
+  leadTemperature: varchar("lead_temperature", { length: 20 }).default("cold").notNull(),
+  scoreReasoning: text("score_reasoning"),
+  nextAction: varchar("next_action", { length: 120 }),
+  assignedStage: varchar("assigned_stage", { length: 40 }).default("new").notNull(),
+  lastActivityAt: timestamp("last_activity_at"),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({

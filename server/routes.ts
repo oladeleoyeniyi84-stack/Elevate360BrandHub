@@ -15,6 +15,7 @@ import { fromZodError } from "zod-validation-error";
 import { getConciergeReply, generateBrandCopy, type ContentType } from "./openai";
 import { notifyNewContact, notifyNewLead, notifyNewSubscriber, sendContactReply, sendDigestEmail } from "./email";
 import { generateSitemap } from "./sitemap";
+import { processConversationIntelligence } from "./services/leadService";
 import { z } from "zod";
 
 const DASHBOARD_PIN = process.env.DASHBOARD_PIN;
@@ -84,6 +85,9 @@ export async function registerRoutes(
         }
       }
 
+      // Async intelligence: intent classification + lead scoring (non-blocking)
+      processConversationIntelligence(sessionId, history, message).catch(() => {});
+
       res.json({ reply });
     } catch (error: any) {
       if (error instanceof ZodError) {
@@ -116,7 +120,8 @@ export async function registerRoutes(
   // Dashboard data routes (session-protected)
   app.get("/api/dashboard/leads", async (req, res) => {
     if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
-    const leads = await storage.getAllChatConversations();
+    const temperature = typeof req.query.temperature === "string" ? req.query.temperature : undefined;
+    const leads = await storage.getAllChatConversations(temperature);
     res.json(leads);
   });
 

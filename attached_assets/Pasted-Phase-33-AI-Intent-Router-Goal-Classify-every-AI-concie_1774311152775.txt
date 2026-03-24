@@ -1,0 +1,92 @@
+Phase 33 — AI Intent Router
+Goal
+
+Classify every AI concierge conversation in real time so the system knows what business action to take.
+
+Intent classes
+sales_service
+sales_consultation
+support
+collaboration
+art_commission
+app_interest
+book_interest
+music_interest
+media_press
+newsletter
+general_brand
+unknown
+Database changes
+
+Add to ai_conversations:
+
+intent: varchar("intent", { length: 80 }),
+intentConfidence: integer("intent_confidence").default(0),
+routeTarget: varchar("route_target", { length: 80 }),
+requiresFollowup: boolean("requires_followup").default(false).notNull(),
+capturedEmail: varchar("captured_email", { length: 180 }),
+capturedName: varchar("captured_name", { length: 160 }),
+Backend logic
+
+Create:
+
+server/ai/intentRouter.ts
+POST /api/ai/chat should classify before final reply
+save intent and confidence per turn or per completed session
+Route target mapping
+sales_service → lead capture + service recommendation
+sales_consultation → booking CTA
+support → support form / support queue
+collaboration → contact/collab flow
+art_commission → commission form
+app_interest → app detail CTA / waitlist
+book_interest → product detail / buy link
+music_interest → listen / streaming CTA
+media_press → press contact flow
+Prompt logic
+
+System rule:
+
+First determine the user’s business intent. Then answer helpfully. If appropriate, move the user toward the correct CTA, form, or booking path.
+
+Phase 34 — Lead Scoring Engine
+Goal
+
+Score leads automatically so the dashboard surfaces the highest-value conversations first.
+
+Scoring dimensions
+email captured: +10
+phone captured: +5
+clear service/booking intent: +20
+urgency language: +15
+budget language or premium intent: +20
+repeat visit/chat: +10
+consultation requested: +20
+vague/general only: +0 to +5
+Database changes
+
+Add to leads:
+
+leadTemperature: varchar("lead_temperature", { length: 20 }).default("cold").notNull(),
+scoreReasoning: text("score_reasoning"),
+sourceConversationId: integer("source_conversation_id"),
+nextAction: varchar("next_action", { length: 120 }),
+assignedStage: varchar("assigned_stage", { length: 40 }).default("new").notNull(),
+lastActivityAt: timestamp("last_activity_at"),
+Score bands
+0–24 = Cold
+25–49 = Warm
+50–74 = Hot
+75–100 = Priority
+Backend files
+server/ai/leadScoring.ts
+server/services/leadService.ts
+Dashboard impact
+
+Add filters:
+
+All
+Priority
+Hot
+Warm
+Cold

@@ -8,7 +8,7 @@ import {
   users, contactMessages, newsletterSubscribers, chatConversations, clickEvents, pageViews, testimonials, blogPosts,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, desc } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -23,7 +23,8 @@ export interface IStorage {
   appendChatMessage(sessionId: string, message: ChatMessage): Promise<void>;
   updateChatLead(sessionId: string, name?: string, email?: string): Promise<void>;
   getChatConversation(sessionId: string): Promise<ChatConversation | undefined>;
-  getAllChatConversations(): Promise<ChatConversation[]>;
+  getAllChatConversations(temperature?: string): Promise<ChatConversation[]>;
+  updateChatIntelligence(sessionId: string, data: Partial<ChatConversation>): Promise<void>;
   recordPageView(page: string): Promise<void>;
   getPageViews(): Promise<{ createdAt: Date }[]>;
   recordClick(product: string, label: string): Promise<void>;
@@ -129,11 +130,21 @@ export class DatabaseStorage implements IStorage {
     return conversation;
   }
 
-  async getAllChatConversations(): Promise<ChatConversation[]> {
-    return db
-      .select()
-      .from(chatConversations)
-      .orderBy(chatConversations.updatedAt);
+  async getAllChatConversations(temperature?: string): Promise<ChatConversation[]> {
+    const query = db.select().from(chatConversations);
+    if (temperature && temperature !== "all") {
+      return query
+        .where(eq(chatConversations.leadTemperature, temperature))
+        .orderBy(desc(chatConversations.updatedAt));
+    }
+    return query.orderBy(desc(chatConversations.updatedAt));
+  }
+
+  async updateChatIntelligence(sessionId: string, data: Partial<ChatConversation>): Promise<void> {
+    await db
+      .update(chatConversations)
+      .set(data)
+      .where(eq(chatConversations.sessionId, sessionId));
   }
 
   async recordPageView(page: string): Promise<void> {
