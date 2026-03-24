@@ -599,6 +599,139 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
+  // Phase 44 — Revenue Attribution Dashboard
+  async getRevenueAttributionData(): Promise<{
+    monthlySeries: { month: string; stripeRevenue: number; wonRevenue: number; total: number }[];
+    byOffer: { name: string; revenue: number; count: number; avgValue: number }[];
+    byIntent: { intent: string; revenue: number; count: number }[];
+    bySource: { source: string; revenue: number; count: number }[];
+    topPaths: { intent: string; offer: string; revenue: number; count: number }[];
+    totals: { stripeRevenue: number; wonRevenue: number; combinedRevenue: number; paidOrders: number; wonDeals: number; avgOrderValue: number };
+  }> {
+    const [paidOrders, wonSessions] = await Promise.all([
+      db.select().from(orders).where(eq(orders.status, "paid")).orderBy(asc(orders.createdAt)),
+      db.select({
+        intent: chatConversations.intent,
+        wonValue: chatConversations.wonValue,
+        acceptedOfferSlug: chatConversations.acceptedOfferSlug,
+        acceptedOfferSource: chatConversations.acceptedOfferSource,
+        updatedAt: chatConversations.updatedAt,
+        sessionId: chatConversations.sessionId,
+      }).from(chatConversations)
+        .where(sql`${chatConversations.pipelineStage} = 'won' AND ${chatConversations.wonValue} IS NOT NULL AND ${chatConversations.wonValue} > 0`),
+    ]);
+
+    // Build session map for joining orders → intents
+    const sessionIntentMap: Record<string, string | null> = {};
+    const sessionSourceMap: Record<string, string | null> = {};
+    const allSessions = await db.select({
+      sessionId: chatConversations.sessionId,
+      intent: chatConversations.intent,
+      acceptedOfferSource: chatConversations.acceptedOfferSource,
+    }).from(chatConversations);
+    for (const s of allSessions) {
+      sessionIntentMap[s.sessionId] = s.intent;
+      sessionSourceMap[s.sessionId] = s.acceptedOfferSource;
+    }
+
+    // Monthly series (last 6 months)
+    const now = new Date();
+    const months: { month: string; start: Date; end: Date }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const end = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59);
+      months.push({ month: d.toLocaleDateString("en-US", { month: "short", year: "2-digit" }), start: d, end });
+    }
+
+    const monthlySeries = months.map(({ month, start, end }) => {
+      const stripeRevenue = paidOrders
+        .filter((o) => new Date(o.createdAt) >= start && new Date(o.createdAt) <= end)
+        .reduce((s, o) => s + (o.amountPaid ?? 0), 0);
+      const wonRevenue = wonSessions
+        .filter((s) => new Date(s.updatedAt) >= start && new Date(s.updatedAt) <= end)
+        .reduce((s, w) => s + (w.wonValue ?? 0), 0);
+      return { month, stripeRevenue, wonRevenue, total: stripeRevenue + wonRevenue };
+    });
+
+    // By offer (Stripe orders)
+    const offerMap: Record<string, { revenue: number; count: number }> = {};
+    for (const o of paidOrders) {
+      const name = o.productName ?? "Unknown Offer";
+      if (!offerMap[name]) offerMap[name] = { revenue: 0, count: 0 };
+      offerMap[name].revenue += o.amountPaid ?? 0;
+      offerMap[name].count++;
+    }
+    const byOffer = Object.entries(offerMap)
+      .map(([name, d]) => ({ name, revenue: d.revenue, count: d.count, avgValue: d.count > 0 ? Math.round(d.revenue / d.count) : 0 }))
+      .sort((a, b) => b.revenue - a.revenue);
+
+    // By intent (orders joined via sessionId)
+    const intentRevMap: Record<string, { revenue: number; count: number }> = {};
+    for (const o of paidOrders) {
+      const intent = (o.sessionId && sessionIntentMap[o.sessionId]) ?? "direct";
+      if (!intentRevMap[intent]) intentRevMap[intent] = { revenue: 0, count: 0 };
+      intentRevMap[intent].revenue += o.amountPaid ?? 0;
+      intentRevMap[intent].count++;
+    }
+    // Add won pipeline revenue to intent buckets
+    for (const w of wonSessions) {
+      const intent = w.intent ?? "direct";
+      if (!intentRevMap[intent]) intentRevMap[intent] = { revenue: 0, count: 0 };
+      intentRevMap[intent].revenue += w.wonValue ?? 0;
+      intentRevMap[intent].count++;
+    }
+    const byIntent = Object.entries(intentRevMap)
+      .map(([intent, d]) => ({ intent, revenue: d.revenue, count: d.count }))
+      .sort((a, b) => b.revenue - a.revenue);
+
+    // By source
+    const sourceMap: Record<string, { revenue: number; count: number }> = {};
+    for (const o of paidOrders) {
+      const source = (o.sessionId && sessionSourceMap[o.sessionId]) ?? "direct";
+      if (!sourceMap[source]) sourceMap[source] = { revenue: 0, count: 0 };
+      sourceMap[source].revenue += o.amountPaid ?? 0;
+      sourceMap[source].count++;
+    }
+    const bySource = Object.entries(sourceMap)
+      .map(([source, d]) => ({ source, revenue: d.revenue, count: d.count }))
+      .sort((a, b) => b.revenue - a.revenue);
+
+    // Top paths: intent → offer
+    const pathMap: Record<string, { revenue: number; count: number }> = {};
+    for (const o of paidOrders) {
+      const intent = (o.sessionId && sessionIntentMap[o.sessionId]) ?? "direct";
+      const offer = o.productName ?? "Unknown";
+      const key = `${intent}||${offer}`;
+      if (!pathMap[key]) pathMap[key] = { revenue: 0, count: 0 };
+      pathMap[key].revenue += o.amountPaid ?? 0;
+      pathMap[key].count++;
+    }
+    const topPaths = Object.entries(pathMap)
+      .map(([key, d]) => { const [intent, offer] = key.split("||"); return { intent, offer, revenue: d.revenue, count: d.count }; })
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 8);
+
+    const stripeRevenue = paidOrders.reduce((s, o) => s + (o.amountPaid ?? 0), 0);
+    const wonRevenue = wonSessions.reduce((s, w) => s + (w.wonValue ?? 0), 0);
+    const combinedRevenue = stripeRevenue + wonRevenue;
+
+    return {
+      monthlySeries,
+      byOffer,
+      byIntent,
+      bySource,
+      topPaths,
+      totals: {
+        stripeRevenue,
+        wonRevenue,
+        combinedRevenue,
+        paidOrders: paidOrders.length,
+        wonDeals: wonSessions.length,
+        avgOrderValue: paidOrders.length > 0 ? Math.round(stripeRevenue / paidOrders.length) : 0,
+      },
+    };
+  }
+
   // Phase 43 — Offer Recommendation Optimization
   async getOfferMappingOverrides(): Promise<OfferMappingOverride[]> {
     return db.select().from(offerMappingOverrides).orderBy(asc(offerMappingOverrides.intent));
