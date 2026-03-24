@@ -1,0 +1,668 @@
+Internal Audit Page Spec
+Goal
+
+Create an Internal Audit dashboard tab that lets you run, review, and track the Data Truth Audit from inside the app.
+
+This page should help you answer:
+
+are the KPIs trustworthy?
+are session links intact?
+is revenue reconciled?
+is attribution accurate?
+are follow-up and audit systems behaving correctly?
+1) New dashboard tab
+Tab name
+
+Audit
+
+Icon
+
+Use something like:
+
+shield-check
+clipboard-check
+file-search
+Placement
+
+Put it near:
+
+System
+Revenue
+Funnel
+
+Suggested order:
+
+Funnel
+Revenue
+System
+Audit
+2) Audit page layout
+
+The page should have 6 sections:
+
+A. Audit Summary Bar
+
+Top row KPI cards:
+
+Overall Trust Status
+Critical Mismatches
+High Mismatches
+Checks Passed
+Checks Failed
+Last Audit Run
+B. Quick Actions
+
+Buttons:
+
+Run Full Audit
+Run Revenue Audit
+Run Attribution Audit
+Run Funnel Audit
+Run Follow-Up Audit
+Export Audit Report
+C. Automated Checks Panel
+
+Grouped machine checks:
+
+session continuity
+funnel math
+revenue reconciliation
+attribution logic
+follow-up queue
+reliability/audit logs
+
+Each row shows:
+
+check name
+last result
+severity
+run button
+view details
+D. Controlled Test Matrix
+
+Manual or semi-manual test cases:
+
+T01–T10
+expected result
+actual result
+pass/fail toggle
+notes
+E. Mismatch Register
+
+Track discovered issues:
+
+ID
+area
+severity
+expected
+actual
+suspected cause
+owner
+status
+F. Final Verdict Panel
+
+At bottom:
+
+revenue trust
+attribution trust
+funnel trust
+follow-up trust
+reliability trust
+final sign-off notes
+3) Data model
+
+Add 3 new tables.
+
+audit_runs
+
+Stores each audit execution.
+
+export const auditRuns = pgTable("audit_runs", {
+  id: serial("id").primaryKey(),
+  auditType: varchar("audit_type", { length: 50 }).notNull(), // full, revenue, attribution, funnel, followup, reliability
+  status: varchar("status", { length: 30 }).notNull().default("completed"), // running, completed, failed
+  overallVerdict: varchar("overall_verdict", { length: 40 }), // trusted, trusted_with_exceptions, not_yet_trusted
+  criticalCount: integer("critical_count").notNull().default(0),
+  highCount: integer("high_count").notNull().default(0),
+  mediumCount: integer("medium_count").notNull().default(0),
+  lowCount: integer("low_count").notNull().default(0),
+  checksPassed: integer("checks_passed").notNull().default(0),
+  checksFailed: integer("checks_failed").notNull().default(0),
+  summary: text("summary"),
+  createdBy: varchar("created_by", { length: 120 }).default("system"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+audit_checks
+
+Stores individual automated check results.
+
+export const auditChecks = pgTable("audit_checks", {
+  id: serial("id").primaryKey(),
+  auditRunId: integer("audit_run_id").notNull(),
+  checkKey: varchar("check_key", { length: 120 }).notNull(),
+  checkGroup: varchar("check_group", { length: 60 }).notNull(), // revenue, funnel, attribution, followup, reliability, continuity
+  title: varchar("title", { length: 200 }).notNull(),
+  severity: varchar("severity", { length: 20 }).notNull().default("medium"),
+  status: varchar("status", { length: 20 }).notNull(), // pass, fail, warning
+  expectedValue: text("expected_value"),
+  actualValue: text("actual_value"),
+  detailsJson: json("details_json"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+audit_issues
+
+Stores mismatches / investigation items.
+
+export const auditIssues = pgTable("audit_issues", {
+  id: serial("id").primaryKey(),
+  auditRunId: integer("audit_run_id"),
+  issueCode: varchar("issue_code", { length: 40 }).notNull(),
+  area: varchar("area", { length: 60 }).notNull(),
+  severity: varchar("severity", { length: 20 }).notNull(),
+  expected: text("expected").notNull(),
+  actual: text("actual").notNull(),
+  suspectedCause: text("suspected_cause"),
+  owner: varchar("owner", { length: 120 }),
+  status: varchar("status", { length: 30 }).notNull().default("open"), // open, investigating, fixed, ignored
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  resolvedAt: timestamp("resolved_at"),
+});
+
+Optional later:
+
+audit_test_cases
+audit_signoffs
+
+For now, manual test matrix can live in frontend state or be saved later.
+
+4) Backend routes
+
+Add a new route file:
+
+server/routes/audit.ts
+Routes
+1. Run full audit
+
+POST /api/dashboard/audit/run
+
+Body:
+
+{
+  "auditType": "full"
+}
+
+Response:
+
+creates audit_runs
+runs all automated checks
+saves results
+returns summary
+2. Run targeted audit
+
+POST /api/dashboard/audit/run-section
+
+Body:
+
+{
+  "auditType": "revenue"
+}
+
+Allowed:
+
+revenue
+attribution
+funnel
+followup
+reliability
+continuity
+3. Get latest audit summary
+
+GET /api/dashboard/audit/summary
+
+Returns:
+
+latest run
+counts
+trust statuses
+last run time
+4. Get audit history
+
+GET /api/dashboard/audit/runs
+
+5. Get audit checks for a run
+
+GET /api/dashboard/audit/runs/:id/checks
+
+6. Get issues for a run or all open issues
+
+GET /api/dashboard/audit/issues
+
+Query params:
+
+status=open
+severity=critical
+7. Create manual issue
+
+POST /api/dashboard/audit/issues
+
+8. Update issue
+
+PATCH /api/dashboard/audit/issues/:id
+
+9. Export audit report
+
+GET /api/dashboard/audit/export?runId=123
+
+Return:
+
+markdown
+or JSON
+or CSV later
+5) Audit service design
+
+Add:
+
+server/services/auditService.ts
+server/services/auditChecks/
+  continuity.ts
+  funnel.ts
+  revenue.ts
+  attribution.ts
+  followup.ts
+  reliability.ts
+Main service
+
+runAudit(auditType)
+
+Responsibilities:
+
+create audit run row
+execute the relevant check modules
+collect results
+write audit_checks
+create audit_issues for failures/warnings above threshold
+calculate overall verdict
+update audit_runs
+6) Automated checks to implement
+A. Session continuity checks
+
+File:
+
+server/services/auditChecks/continuity.ts
+
+Checks:
+
+paid orders missing session linkage
+bookings missing linked session where expected
+accepted offer true but no accepted offer slug
+won deals with missing source session
+orders attributed AI-assisted but no session exists
+Example output object
+{
+  checkKey: "continuity_paid_orders_missing_session",
+  checkGroup: "continuity",
+  title: "Paid orders missing session linkage",
+  severity: "critical",
+  status: "fail",
+  expectedValue: "0",
+  actualValue: "3",
+  detailsJson: { orderIds: [11, 14, 18] }
+}
+B. Funnel checks
+
+File:
+
+server/services/auditChecks/funnel.ts
+
+Checks:
+
+unique session count valid
+intent count ≤ chat count
+email captured count ≤ intent count or chat count
+booked count excludes cancelled
+won/paid count not duplicated
+qualified definition consistency
+C. Revenue checks
+
+File:
+
+server/services/auditChecks/revenue.ts
+
+Checks:
+
+paid orders sum matches revenue endpoint sum
+won values match won revenue totals
+combined revenue math correct
+test orders excluded
+refunded/failed payments excluded
+average order value formula correct
+D. Attribution checks
+
+File:
+
+server/services/auditChecks/attribution.ts
+
+Checks:
+
+accepted offer true implies accepted offer slug exists
+accepted offer source valid enum
+AI-influenced orders actually have session + recommendation history
+direct orders do not have false AI link
+source categories are valid
+E. Follow-up checks
+
+File:
+
+server/services/auditChecks/followup.ts
+
+Checks:
+
+silent hot queue matches rule
+overdue queue excludes closed/won
+followupCount increments after mark-as-sent
+lastFollowupSentAt present where count > 0
+due date extension logic valid
+F. Reliability checks
+
+File:
+
+server/services/auditChecks/reliability.ts
+
+Checks:
+
+health endpoint responds correctly
+audit log recent writes present
+rate limit config visible
+days since last lead warning logic valid
+days since last digest warning logic valid
+7) Verdict rules
+
+The audit service should compute verdicts like this:
+
+Per-check status
+pass
+warning
+fail
+Overall verdict
+trusted: no critical, <=2 high, most checks pass
+trusted_with_exceptions: some high/medium issues but revenue and attribution remain safe
+not_yet_trusted: any critical revenue/attribution/session continuity issue
+Example logic
+if (criticalCount > 0) verdict = "not_yet_trusted";
+else if (highCount > 2 || checksFailed > checksPassed * 0.25) verdict = "trusted_with_exceptions";
+else verdict = "trusted";
+8) Frontend page structure
+
+Add:
+
+client/src/pages/AuditPage.tsx
+client/src/components/audit/
+  AuditSummaryCards.tsx
+  AuditQuickActions.tsx
+  AuditChecksTable.tsx
+  AuditIssuesTable.tsx
+  AuditTestMatrix.tsx
+  AuditVerdictPanel.tsx
+Layout
+Section 1 — Summary cards
+
+Cards:
+
+Overall Trust
+Critical Issues
+High Issues
+Checks Passed
+Checks Failed
+Last Run
+Section 2 — Quick actions
+
+Buttons:
+
+Run Full Audit
+Revenue
+Attribution
+Funnel
+Follow-Up
+Reliability
+Export
+Section 3 — Checks table
+
+Columns:
+
+Check
+Group
+Severity
+Status
+Expected
+Actual
+Details
+
+Use badges:
+
+green = pass
+amber = warning
+red = fail
+Section 4 — Open issues
+
+Columns:
+
+Issue Code
+Area
+Severity
+Expected
+Actual
+Owner
+Status
+Actions
+
+Actions:
+
+assign owner
+mark fixed
+add note
+Section 5 — Manual test matrix
+
+Start with 10 controlled test cases from your worksheet.
+
+Each row:
+
+test ID
+path
+expected
+actual
+pass/fail dropdown
+notes
+
+Optional first version:
+
+save locally in component state
+later persist to DB
+Section 6 — Final verdict
+
+Displays:
+
+Revenue Trust
+Attribution Trust
+Funnel Trust
+Follow-Up Trust
+Reliability Trust
+Overall Verdict
+summary notes
+9) Recommended UI behavior
+Auto-refresh
+
+Do not auto-run audits repeatedly.
+
+Instead:
+
+summary refresh every 60s
+checks/issues refresh on page open
+run audits manually via button
+Running state
+
+When audit is running:
+
+disable run buttons
+show spinner
+show “Running audit…”
+Empty state
+
+If no audit run exists:
+
+show “No audit has been run yet”
+button: Run Full Audit
+Severity visuals
+Critical: red solid badge
+High: orange
+Medium: yellow
+Low: slate
+10) Auth rules
+
+All audit routes should be:
+
+dashboard-auth protected
+admin only if you have roles
+never public
+
+Health endpoint can remain public:
+
+/api/health
+
+But the Audit tab itself should only consume protected internal endpoints.
+
+11) Replit-friendly implementation notes
+Keep it simple first
+
+Avoid background jobs first.
+Run checks synchronously inside request/response for Phase 1 of Audit tab.
+
+Keep queries cheap
+
+Start with:
+
+aggregates
+small mismatched row samples
+limited detail payloads
+
+Do not dump huge transcripts into audit details.
+
+Good first payload limits
+
+For detailsJson, include:
+
+count
+top 10 offending IDs
+a short explanation
+
+Not full tables.
+
+12) Suggested response shapes
+Summary response
+{
+  "ok": true,
+  "latestRun": {
+    "id": 12,
+    "auditType": "full",
+    "overallVerdict": "trusted_with_exceptions",
+    "criticalCount": 0,
+    "highCount": 2,
+    "mediumCount": 4,
+    "lowCount": 1,
+    "checksPassed": 18,
+    "checksFailed": 3,
+    "createdAt": "2026-03-24T18:20:00.000Z"
+  }
+}
+Check row response
+{
+  "id": 99,
+  "checkKey": "revenue_paid_orders_match_total",
+  "checkGroup": "revenue",
+  "title": "Paid orders total matches revenue dashboard",
+  "severity": "critical",
+  "status": "pass",
+  "expectedValue": "12500",
+  "actualValue": "12500",
+  "detailsJson": {
+    "currency": "USD"
+  }
+}
+Issue row response
+{
+  "id": 17,
+  "issueCode": "ATTR-003",
+  "area": "attribution",
+  "severity": "high",
+  "expected": "AI-influenced orders must have a linked session and recommendation history",
+  "actual": "2 paid orders marked AI-influenced have no recommendation history",
+  "suspectedCause": "source inheritance fallback is too broad",
+  "owner": "Oladele",
+  "status": "open"
+}
+13) Best first automated checks to ship
+
+If you want the fastest useful first version, start with these 8:
+
+Paid orders missing session linkage
+Accepted offer true but slug missing
+Booked count excludes cancelled
+Paid revenue total matches revenue dashboard
+Won revenue total matches dashboard
+Silent hot queue logic valid
+Overdue follow-up queue excludes won/closed
+Days since last lead warning logic valid
+
+That gets you a working audit tab quickly.
+
+14) Implementation order
+Sprint 1
+DB tables
+audit service
+8 core checks
+summary endpoint
+run full audit endpoint
+frontend summary + checks table
+Sprint 2
+issues register
+export route
+targeted audit runs
+manual test matrix UI
+verdict panel
+Sprint 3
+owner assignment
+status updates
+markdown export
+richer details drill-down
+15) Replit build prompt
+
+Paste this into your Replit workflow:
+
+Build a protected internal Audit tab for the Elevate360Official dashboard.
+
+Requirements:
+1. Add a new Audit tab to the dashboard.
+2. Create backend tables: audit_runs, audit_checks, audit_issues.
+3. Add protected routes:
+   - POST /api/dashboard/audit/run
+   - POST /api/dashboard/audit/run-section
+   - GET /api/dashboard/audit/summary
+   - GET /api/dashboard/audit/runs
+   - GET /api/dashboard/audit/runs/:id/checks
+   - GET /api/dashboard/audit/issues
+   - POST /api/dashboard/audit/issues
+   - PATCH /api/dashboard/audit/issues/:id
+   - GET /api/dashboard/audit/export
+4. Implement 8 first automated checks:
+   - paid orders missing session linkage
+   - accepted offer true but slug missing
+   - booked count excludes cancelled
+   - paid revenue total matches dashboard
+   - won revenue total matches dashboard
+   - silent hot queue logic valid
+   - overdue follow-up queue excludes won/closed
+   - days since last lead warning logic valid
+5. Add summary cards, quick action buttons, checks table, issues table, and verdict panel.
+6. Use the existing navy/gold dashboard style.
+7. Keep all audit endpoints admin-protected.
+8. Store top 10 offending IDs in detailsJson where relevant.

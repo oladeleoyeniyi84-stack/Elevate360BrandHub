@@ -21,7 +21,9 @@ import { z } from "zod";
 import { WebhookHandlers } from "./webhookHandlers";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
 import { db } from "./db";
-import { sql } from "drizzle-orm";
+import { sql, eq, desc } from "drizzle-orm";
+import { auditRuns, auditChecks, auditIssues, insertAuditIssueSchema, updateAuditIssueSchema } from "@shared/schema";
+import { runAudit } from "./services/auditService";
 
 const DASHBOARD_PIN = process.env.DASHBOARD_PIN;
 
@@ -1003,6 +1005,117 @@ export async function registerRoutes(
       announcementText: process.env.ANNOUNCEMENT_TEXT || null,
       announcementUrl: process.env.ANNOUNCEMENT_URL || null,
     });
+  });
+
+  // ─── Phase 46: Internal Audit Routes ─────────────────────────────────────────
+
+  // POST /api/dashboard/audit/run — run full or targeted audit
+  app.post("/api/dashboard/audit/run", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    const { auditType = "full" } = req.body ?? {};
+    const allowed = ["full", "revenue", "attribution", "funnel", "followup", "reliability", "continuity"];
+    if (!allowed.includes(auditType)) {
+      return res.status(400).json({ message: `Invalid auditType. Must be one of: ${allowed.join(", ")}` });
+    }
+    try {
+      const result = await runAudit(auditType, "admin");
+      return res.json({ ok: true, run: result.run, checksCount: result.checks.length, issuesCreated: result.issuesCreated });
+    } catch (err: any) {
+      console.error("[audit] run error:", err.message);
+      return res.status(500).json({ message: "Audit failed: " + err.message });
+    }
+  });
+
+  // GET /api/dashboard/audit/summary — latest run summary
+  app.get("/api/dashboard/audit/summary", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    const rows = await db.select().from(auditRuns).orderBy(desc(auditRuns.createdAt)).limit(1);
+    const latestRun = rows[0] ?? null;
+    const openIssues = await db.select().from(auditIssues);
+    const criticalOpen = openIssues.filter((i) => i.severity === "critical" && i.status === "open").length;
+    const highOpen = openIssues.filter((i) => i.severity === "high" && i.status === "open").length;
+    return res.json({ ok: true, latestRun, openIssueCount: openIssues.filter(i => i.status === "open").length, criticalOpen, highOpen });
+  });
+
+  // GET /api/dashboard/audit/runs — audit history
+  app.get("/api/dashboard/audit/runs", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    const rows = await db.select().from(auditRuns).orderBy(desc(auditRuns.createdAt)).limit(20);
+    return res.json(rows);
+  });
+
+  // GET /api/dashboard/audit/runs/:id/checks — checks for a run
+  app.get("/api/dashboard/audit/runs/:id/checks", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ message: "Invalid run ID" });
+    const rows = await db.select().from(auditChecks).where(eq(auditChecks.auditRunId, id)).orderBy(auditChecks.checkGroup, auditChecks.checkKey);
+    return res.json(rows);
+  });
+
+  // GET /api/dashboard/audit/issues — all issues (with optional status/severity filter)
+  app.get("/api/dashboard/audit/issues", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    let rows = await db.select().from(auditIssues).orderBy(desc(auditIssues.createdAt));
+    const { status, severity } = req.query as Record<string, string>;
+    if (status) rows = rows.filter((r) => r.status === status);
+    if (severity) rows = rows.filter((r) => r.severity === severity);
+    return res.json(rows);
+  });
+
+  // POST /api/dashboard/audit/issues — create manual issue
+  app.post("/api/dashboard/audit/issues", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    const parsed = insertAuditIssueSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "Validation error", errors: parsed.error.flatten() });
+    const [created] = await db.insert(auditIssues).values(parsed.data).returning();
+    return res.status(201).json(created);
+  });
+
+  // PATCH /api/dashboard/audit/issues/:id — update issue status/owner/notes
+  app.patch("/api/dashboard/audit/issues/:id", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ message: "Invalid issue ID" });
+    const parsed = updateAuditIssueSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "Validation error", errors: parsed.error.flatten() });
+    const updates: Record<string, unknown> = { ...parsed.data };
+    if (parsed.data.status === "fixed" && !parsed.data.resolvedAt) {
+      updates.resolvedAt = new Date();
+    }
+    const [updated] = await db.update(auditIssues).set(updates).where(eq(auditIssues.id, id)).returning();
+    if (!updated) return res.status(404).json({ message: "Issue not found" });
+    return res.json(updated);
+  });
+
+  // GET /api/dashboard/audit/export — markdown export
+  app.get("/api/dashboard/audit/export", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    const runId = req.query.runId ? parseInt(req.query.runId as string) : null;
+    const runs = runId
+      ? await db.select().from(auditRuns).where(eq(auditRuns.id, runId))
+      : await db.select().from(auditRuns).orderBy(desc(auditRuns.createdAt)).limit(1);
+    const run = runs[0];
+    if (!run) return res.status(404).json({ message: "No audit run found" });
+    const checks = await db.select().from(auditChecks).where(eq(auditChecks.auditRunId, run.id)).orderBy(auditChecks.checkGroup, auditChecks.checkKey);
+    const issues = await db.select().from(auditIssues).orderBy(desc(auditIssues.createdAt));
+    const now = new Date().toISOString().split("T")[0];
+    let md = `# Elevate360Official — Audit Report\n\n`;
+    md += `**Date:** ${now}  \n**Audit Type:** ${run.auditType}  \n**Verdict:** ${run.overallVerdict ?? "—"}  \n`;
+    md += `**Checks Passed:** ${run.checksPassed}  **Failed:** ${run.checksFailed}  `;
+    md += `**Critical:** ${run.criticalCount}  **High:** ${run.highCount}\n\n---\n\n`;
+    md += `## Checks\n\n| Group | Check | Severity | Status | Expected | Actual |\n|---|---|---|---|---|---|\n`;
+    for (const c of checks) {
+      const statusEmoji = c.status === "pass" ? "✅" : c.status === "warning" ? "⚠️" : "❌";
+      md += `| ${c.checkGroup} | ${c.title} | ${c.severity} | ${statusEmoji} ${c.status} | ${c.expectedValue ?? ""} | ${c.actualValue ?? ""} |\n`;
+    }
+    md += `\n## Open Issues\n\n| Code | Area | Severity | Expected | Actual | Status |\n|---|---|---|---|---|---|\n`;
+    for (const i of issues.filter(i => i.status === "open")) {
+      md += `| ${i.issueCode} | ${i.area} | ${i.severity} | ${i.expected} | ${i.actual} | ${i.status} |\n`;
+    }
+    res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="elevate360-audit-${now}.md"`);
+    return res.send(md);
   });
 
   return httpServer;

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, serial, boolean, jsonb, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, serial, boolean, jsonb, integer, json } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -341,3 +341,64 @@ export type NewsletterSubscriber = typeof newsletterSubscribers.$inferSelect;
 export type ChatConversation = typeof chatConversations.$inferSelect;
 export type ChatMessage = z.infer<typeof chatMessageSchema>;
 export type ChatRequest = z.infer<typeof chatRequestSchema>;
+
+// Phase 46 — Internal Audit System
+export const auditRuns = pgTable("audit_runs", {
+  id: serial("id").primaryKey(),
+  auditType: varchar("audit_type", { length: 50 }).notNull(),
+  status: varchar("status", { length: 30 }).notNull().default("completed"),
+  overallVerdict: varchar("overall_verdict", { length: 40 }),
+  criticalCount: integer("critical_count").notNull().default(0),
+  highCount: integer("high_count").notNull().default(0),
+  mediumCount: integer("medium_count").notNull().default(0),
+  lowCount: integer("low_count").notNull().default(0),
+  checksPassed: integer("checks_passed").notNull().default(0),
+  checksFailed: integer("checks_failed").notNull().default(0),
+  summary: text("summary"),
+  createdBy: varchar("created_by", { length: 120 }).default("system"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const auditChecks = pgTable("audit_checks", {
+  id: serial("id").primaryKey(),
+  auditRunId: integer("audit_run_id").notNull(),
+  checkKey: varchar("check_key", { length: 120 }).notNull(),
+  checkGroup: varchar("check_group", { length: 60 }).notNull(),
+  title: varchar("title", { length: 200 }).notNull(),
+  severity: varchar("severity", { length: 20 }).notNull().default("medium"),
+  status: varchar("status", { length: 20 }).notNull(),
+  expectedValue: text("expected_value"),
+  actualValue: text("actual_value"),
+  detailsJson: json("details_json"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const auditIssues = pgTable("audit_issues", {
+  id: serial("id").primaryKey(),
+  auditRunId: integer("audit_run_id"),
+  issueCode: varchar("issue_code", { length: 40 }).notNull(),
+  area: varchar("area", { length: 60 }).notNull(),
+  severity: varchar("severity", { length: 20 }).notNull(),
+  expected: text("expected").notNull(),
+  actual: text("actual").notNull(),
+  suspectedCause: text("suspected_cause"),
+  owner: varchar("owner", { length: 120 }),
+  status: varchar("status", { length: 30 }).notNull().default("open"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  resolvedAt: timestamp("resolved_at"),
+});
+
+export type AuditRun = typeof auditRuns.$inferSelect;
+export type AuditCheck = typeof auditChecks.$inferSelect;
+export type AuditIssue = typeof auditIssues.$inferSelect;
+
+export const insertAuditIssueSchema = createInsertSchema(auditIssues).omit({ id: true, createdAt: true, resolvedAt: true });
+export type InsertAuditIssue = z.infer<typeof insertAuditIssueSchema>;
+
+export const updateAuditIssueSchema = z.object({
+  owner: z.string().max(120).optional(),
+  status: z.enum(["open", "investigating", "fixed", "ignored"]).optional(),
+  notes: z.string().optional(),
+  resolvedAt: z.string().datetime().optional(),
+});

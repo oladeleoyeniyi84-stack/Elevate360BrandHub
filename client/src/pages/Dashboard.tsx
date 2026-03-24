@@ -11,7 +11,9 @@ import {
   Database, Edit2, Zap, Calendar, DollarSign, Phone, Trophy, XCircle, AlertCircle, GripVertical,
   Clock, Tag, RefreshCw, ExternalLink, BrainCircuit, AlertTriangle, FileBarChart2, Target,
   Filter, Percent, ArrowDown, TrendingDown, Flame, Banknote, Shield, Activity, ShieldCheck, ShieldAlert,
+  ClipboardCheck,
 } from "lucide-react";
+import { AuditTab } from "@/components/AuditTab";
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -4018,6 +4020,7 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
     { key: "reviews", label: "Reviews", icon: Star },
     { key: "blog", label: "Blog", icon: PenLine },
     { key: "system", label: "System", icon: Shield },
+    { key: "audit", label: "Audit", icon: ClipboardCheck },
   ] as const;
 
   return (
@@ -4313,6 +4316,7 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
         {tab === "pipeline" && <PipelineTab leads={leads} onStageChange={() => qc.invalidateQueries({ queryKey: ["/api/dashboard/leads"] })} />}
         {tab === "revenue" && <RevenueTab />}
         {tab === "system" && <SystemTab />}
+        {tab === "audit" && <AuditTab />}
         {tab === "orders" && <OrdersTab />}
         {tab === "bookings" && <BookingsTab />}
 
