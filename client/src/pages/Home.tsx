@@ -587,30 +587,53 @@ export default function Home() {
             <p className="text-white/50 max-w-xl mx-auto">{t("section_youtube_sub")}</p>
           </div>
           <div className="max-w-3xl mx-auto reveal">
-            <div className="relative rounded-3xl overflow-hidden shadow-2xl border border-white/10" style={{ aspectRatio: "16/9" }}>
-              <iframe
-                src="https://www.youtube.com/embed/videoseries?list=UUDGnUhgvM__6Mw8q26H-urQ&autoplay=0&rel=0&modestbranding=1"
-                title="Elevate360Official YouTube Channel"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                className="w-full h-full"
-                data-testid="iframe-youtube-channel"
-                loading="lazy"
-              />
-            </div>
-            <div className="mt-6 text-center">
-              <a
-                href="https://www.youtube.com/@Elevate360Official"
-                target="_blank"
-                rel="noopener noreferrer"
-                data-testid="link-youtube-channel"
-                className="inline-flex items-center gap-2 btn-secondary text-sm px-6 py-2.5"
-              >
-                <Youtube className="h-4 w-4" />
-                {t("cta_view_channel")}
-                <ArrowRight className="h-4 w-4" />
-              </a>
-            </div>
+            {/* YouTube channel card — replaces broken playlist embed */}
+            <a
+              href="https://www.youtube.com/@Elevate360Official"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="link-youtube-channel"
+              className="group block relative rounded-3xl overflow-hidden shadow-2xl border border-white/10"
+              style={{ background: "hsl(220 50% 6%)" }}
+            >
+              {/* Gradient backdrop */}
+              <div className="absolute inset-0 bg-gradient-to-br from-red-900/25 via-transparent to-black/60 pointer-events-none" />
+              {/* Top bar */}
+              <div className="relative flex items-center justify-between px-6 pt-6 pb-0">
+                <div className="flex items-center gap-2.5">
+                  <span className="flex items-center justify-center w-9 h-9 rounded-xl bg-red-600 shadow-lg">
+                    <Youtube className="h-5 w-5 text-white" />
+                  </span>
+                  <div>
+                    <p className="text-white font-bold text-sm leading-tight">Elevate360Official</p>
+                    <p className="text-white/40 text-xs">@Elevate360Official</p>
+                  </div>
+                </div>
+                <span className="text-xs font-semibold px-3 py-1.5 rounded-full border border-red-500/40 text-red-400 bg-red-500/10 group-hover:bg-red-500/20 transition">
+                  Subscribe
+                </span>
+              </div>
+              {/* Content area */}
+              <div className="relative px-6 py-10 flex flex-col items-center text-center gap-5">
+                {/* Play button */}
+                <div className="w-20 h-20 rounded-full bg-red-600/90 flex items-center justify-center shadow-2xl shadow-red-900/50 group-hover:scale-110 transition-transform duration-300">
+                  <svg className="h-9 w-9 text-white translate-x-0.5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                </div>
+                <div className="space-y-2 max-w-lg">
+                  <p className="text-white font-semibold text-lg">Watch on YouTube</p>
+                  <p className="text-white/50 text-sm leading-relaxed">
+                    Exclusive content, product showcases, app tutorials, and creator insights — straight from the Elevate360Official channel.
+                  </p>
+                </div>
+                <span className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-500 transition text-white text-sm font-semibold px-6 py-2.5 rounded-full shadow-lg">
+                  <Youtube className="h-4 w-4" />
+                  {t("cta_view_channel")}
+                  <ArrowRight className="h-4 w-4" />
+                </span>
+              </div>
+            </a>
           </div>
         </div>
       </section>
@@ -875,19 +898,72 @@ export default function Home() {
 
               <div className="w-full md:w-1/2 flex justify-center reveal-right">
                 <div className="relative w-full max-w-md space-y-3">
-                  <div className="overflow-hidden rounded-3xl border border-violet-500/20 shadow-2xl shadow-violet-900/30">
-                    <iframe
-                      src="https://audiomack.com/embed/artist-page/elevate360music"
-                      width="100%"
-                      height="420"
-                      scrolling="no"
-                      allow="autoplay"
-                      title="Elevate360 Music on Audiomack"
-                      className="block"
-                      style={{ border: 0 }}
-                      data-testid="iframe-audiomack-player"
-                    />
-                  </div>
+                  {/* Audiomack player card — replaces broken embed */}
+                  <a
+                    href="https://audiomack.com/elevate360music"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-testid="iframe-audiomack-player"
+                    className="group block overflow-hidden rounded-3xl border border-violet-500/20 shadow-2xl shadow-violet-900/30"
+                    style={{ background: "linear-gradient(135deg, hsl(270 40% 8%) 0%, hsl(240 40% 10%) 100%)" }}
+                  >
+                    {/* Header */}
+                    <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-white/6">
+                      <div className="flex items-center gap-2.5">
+                        <span className="flex items-center justify-center w-8 h-8 rounded-lg" style={{ background: "#FF5500" }}>
+                          <Music className="h-4 w-4 text-white" />
+                        </span>
+                        <div>
+                          <p className="text-white font-bold text-sm leading-tight">elevate360music</p>
+                          <p className="text-white/40 text-xs">Audiomack</p>
+                        </div>
+                      </div>
+                      <span className="text-xs text-white/50 group-hover:text-white/80 transition">Listen →</span>
+                    </div>
+                    {/* Visualizer bars */}
+                    <div className="flex items-end justify-center gap-1 py-7 px-6">
+                      {[40, 65, 85, 55, 90, 70, 45, 80, 60, 95, 50, 75, 88, 42, 68].map((h, i) => (
+                        <div
+                          key={i}
+                          className="rounded-full opacity-80"
+                          style={{
+                            width: "6px",
+                            height: `${h * 0.8}px`,
+                            background: i % 3 === 0
+                              ? "linear-gradient(to top, #7c3aed, #a78bfa)"
+                              : i % 3 === 1
+                              ? "linear-gradient(to top, #FF5500, #ff8f66)"
+                              : "linear-gradient(to top, #6d28d9, #8b5cf6)",
+                          }}
+                        />
+                      ))}
+                    </div>
+                    {/* Track list preview */}
+                    <div className="px-5 pb-2 space-y-2">
+                      {[
+                        "Afrobeat Grooves",
+                        "Amapiano Vibes",
+                        "R&B & Neo-Soul",
+                      ].map((track, i) => (
+                        <div key={i} className="flex items-center gap-3 py-2 border-t border-white/5">
+                          <span className="w-5 h-5 rounded-full bg-violet-500/20 flex items-center justify-center flex-shrink-0">
+                            <svg className="h-2.5 w-2.5 text-violet-300 translate-x-px" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M8 5v14l11-7z" />
+                            </svg>
+                          </span>
+                          <span className="text-white/70 text-xs font-medium">{track}</span>
+                          <span className="ml-auto text-white/25 text-xs">elevate360music</span>
+                        </div>
+                      ))}
+                    </div>
+                    {/* CTA */}
+                    <div className="px-5 py-4">
+                      <span className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-semibold text-white transition group-hover:opacity-90" style={{ background: "#FF5500" }}>
+                        <Music className="h-4 w-4" />
+                        Open on Audiomack
+                      </span>
+                    </div>
+                  </a>
                   <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1.5">
                     <Music className="h-3 w-3 text-violet-400" />
                     Streaming live · Powered by Audiomack
