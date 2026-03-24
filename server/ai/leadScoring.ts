@@ -8,6 +8,8 @@ export interface LeadScoreResult {
   temperature: LeadTemperature;
   reasoning: string;
   nextAction: string;
+  recommendedOffer: string | null;
+  recommendedOfferConfidence: number;
 }
 
 function temperatureFromScore(score: number): LeadTemperature {
@@ -23,6 +25,50 @@ const NEXT_ACTIONS: Record<LeadTemperature, string> = {
   warm: "Send product info + nurture email sequence",
   cold: "Add to newsletter drip campaign",
 };
+
+// Maps intent → recommended Stripe product name and confidence
+type OfferMapping = { offer: string; confidence: number };
+const INTENT_OFFER_MAP: Partial<Record<Intent, OfferMapping>> = {
+  art_commission:      { offer: "Art Commission Deposit",        confidence: 90 },
+  sales_consultation:  { offer: "1:1 Creator Session",           confidence: 85 },
+  sales_service:       { offer: "AI Brand Audit",                confidence: 80 },
+  app_interest:        { offer: "AI Brand Audit",                confidence: 60 },
+  book_interest:       { offer: "Premium Content Strategy",      confidence: 55 },
+  music_interest:      { offer: "Creative Review",               confidence: 50 },
+  support_request:     { offer: "1:1 Creator Session",           confidence: 40 },
+  general_brand:       { offer: "AI Brand Audit",                confidence: 30 },
+};
+
+function resolveRecommendedOffer(
+  intent?: Intent,
+  allText?: string,
+  temperature?: LeadTemperature
+): { offer: string | null; confidence: number } {
+  // Only recommend offers for warm/hot/priority leads
+  if (!temperature || temperature === "cold") return { offer: null, confidence: 0 };
+
+  if (intent && INTENT_OFFER_MAP[intent]) {
+    const mapping = INTENT_OFFER_MAP[intent]!;
+    // Boost confidence for hot/priority leads
+    const boost = temperature === "priority" ? 10 : temperature === "hot" ? 5 : 0;
+    return { offer: mapping.offer, confidence: Math.min(100, mapping.confidence + boost) };
+  }
+
+  // Text-based fallback
+  if (allText) {
+    if (allText.includes("art") || allText.includes("commission") || allText.includes("painting")) {
+      return { offer: "Art Commission Deposit", confidence: 60 };
+    }
+    if (allText.includes("book") || allText.includes("content") || allText.includes("writing")) {
+      return { offer: "Premium Content Strategy", confidence: 55 };
+    }
+    if (allText.includes("brand") || allText.includes("audit") || allText.includes("strategy")) {
+      return { offer: "AI Brand Audit", confidence: 50 };
+    }
+  }
+
+  return { offer: null, confidence: 0 };
+}
 
 export function computeLeadScore(
   conversation: ChatConversation,
@@ -105,10 +151,15 @@ export function computeLeadScore(
   score = Math.min(100, score);
   const temperature = temperatureFromScore(score);
 
+  // Resolve recommended offer
+  const { offer, confidence } = resolveRecommendedOffer(intent, allText, temperature);
+
   return {
     score,
     temperature,
     reasoning: reasons.length > 0 ? reasons.join("; ") : "No strong signals detected",
     nextAction: NEXT_ACTIONS[temperature],
+    recommendedOffer: offer,
+    recommendedOfferConfidence: confidence,
   };
 }

@@ -9,7 +9,8 @@ import {
   type Consultation, type InsertConsultation, type UpdateConsultation,
   type Booking, type InsertBooking,
   type Order,
-  users, contactMessages, newsletterSubscribers, chatConversations, clickEvents, pageViews, testimonials, blogPosts, knowledgeDocuments, consultations, bookings, orders,
+  type DigestReport,
+  users, contactMessages, newsletterSubscribers, chatConversations, clickEvents, pageViews, testimonials, blogPosts, knowledgeDocuments, consultations, bookings, orders, digestReports,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, sql, desc, asc } from "drizzle-orm";
@@ -75,6 +76,33 @@ export interface IStorage {
   getAllBookings(): Promise<(Booking & { consultationTitle?: string })[]>;
   updateBookingStatus(id: number, status: string): Promise<Booking | undefined>;
   deleteBooking(id: number): Promise<void>;
+  // Phase 37 — Orders
+  createOrder(data: any): Promise<Order>;
+  getOrderByStripeSession(stripeSessionId: string): Promise<Order | undefined>;
+  updateOrderStatus(stripeSessionId: string, status: string, extra?: any): Promise<Order | undefined>;
+  getAllOrders(): Promise<Order[]>;
+  getOrderStats(): Promise<{ total: number; paid: number; revenue: number; abandoned: number }>;
+  // Phase 39 — Digest + Intelligence
+  saveDigestReport(data: {
+    weekStart: Date; weekEnd: Date; narrative: string;
+    topIntents: any; hotLeadsCount: number; qualifiedCount: number;
+    bookedCount: number; wonValue: number; followupsDue: number;
+    unansweredHotLeads: number; topRecommendedOffer: string | null;
+    knowledgeBackedChats: number; supportPatterns: string | null;
+    contentOpportunities: string | null; conversionByIntent: any;
+  }): Promise<DigestReport>;
+  getLatestDigest(): Promise<DigestReport | null>;
+  getAllDigests(): Promise<DigestReport[]>;
+  getDashboardIntelligence(): Promise<{
+    qualifiedCount: number;
+    bookedThisWeek: number;
+    wonThisMonth: number;
+    overdueFollowups: number;
+    topRecommendedOffer: string | null;
+    knowledgeBackedChats: number;
+    conversionByIntent: Record<string, { total: number; won: number; rate: number }>;
+    overdueLeads: { sessionId: string; leadName: string | null; leadEmail: string | null; intent: string | null; followupDueDate: Date | null }[];
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -539,6 +567,119 @@ export class DatabaseStorage implements IStorage {
       paid: paid.length,
       revenue: paid.reduce((s, o) => s + (o.amountPaid ?? 0), 0),
       abandoned: all.filter((o) => o.status === "initiated").length,
+    };
+  }
+
+  // Phase 39 — Digest Reports
+  async saveDigestReport(data: {
+    weekStart: Date; weekEnd: Date; narrative: string;
+    topIntents: any; hotLeadsCount: number; qualifiedCount: number;
+    bookedCount: number; wonValue: number; followupsDue: number;
+    unansweredHotLeads: number; topRecommendedOffer: string | null;
+    knowledgeBackedChats: number; supportPatterns: string | null;
+    contentOpportunities: string | null; conversionByIntent: any;
+  }): Promise<DigestReport> {
+    const [row] = await db.insert(digestReports).values(data as any).returning();
+    return row;
+  }
+
+  async getLatestDigest(): Promise<DigestReport | null> {
+    const [row] = await db
+      .select()
+      .from(digestReports)
+      .orderBy(desc(digestReports.generatedAt))
+      .limit(1);
+    return row ?? null;
+  }
+
+  async getAllDigests(): Promise<DigestReport[]> {
+    return db.select().from(digestReports).orderBy(desc(digestReports.generatedAt));
+  }
+
+  // Phase 39 — Dashboard Intelligence KPIs
+  async getDashboardIntelligence(): Promise<{
+    qualifiedCount: number;
+    bookedThisWeek: number;
+    wonThisMonth: number;
+    overdueFollowups: number;
+    topRecommendedOffer: string | null;
+    knowledgeBackedChats: number;
+    conversionByIntent: Record<string, { total: number; won: number; rate: number }>;
+    overdueLeads: { sessionId: string; leadName: string | null; leadEmail: string | null; intent: string | null; followupDueDate: Date | null }[];
+  }> {
+    const now = new Date();
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const all = await db.select().from(chatConversations);
+
+    const qualifiedCount = all.filter((l) =>
+      ["qualified", "booked", "won", "converted"].includes(l.pipelineStage)
+    ).length;
+
+    const bookedThisWeek = all.filter(
+      (l) => l.pipelineStage === "booked" && l.lastActivityAt && new Date(l.lastActivityAt) >= weekAgo
+    ).length;
+
+    const wonThisMonth = all.filter(
+      (l) =>
+        (l.pipelineStage === "won" || l.pipelineStage === "converted") &&
+        l.lastActivityAt &&
+        new Date(l.lastActivityAt) >= monthAgo
+    ).length;
+
+    const overdueLeads = all.filter(
+      (l) =>
+        l.followupDueDate &&
+        new Date(l.followupDueDate) < now &&
+        !["won", "lost", "converted"].includes(l.pipelineStage)
+    );
+    const overdueFollowups = overdueLeads.length;
+
+    // Top recommended offer among hot/priority leads
+    const offerMap = new Map<string, number>();
+    for (const l of all) {
+      if (l.recommendedOffer && (l.leadScore ?? 0) >= 50) {
+        offerMap.set(l.recommendedOffer, (offerMap.get(l.recommendedOffer) ?? 0) + 1);
+      }
+    }
+    const topRecommendedOffer = offerMap.size > 0
+      ? [...offerMap.entries()].sort((a, b) => b[1] - a[1])[0][0]
+      : null;
+
+    const knowledgeBackedChats = all.filter((l) => l.sessionSummary).length;
+
+    // Conversion by intent
+    const intentTotals = new Map<string, number>();
+    const intentWons = new Map<string, number>();
+    for (const l of all) {
+      if (!l.intent) continue;
+      intentTotals.set(l.intent, (intentTotals.get(l.intent) ?? 0) + 1);
+      if (l.pipelineStage === "won" || l.pipelineStage === "converted") {
+        intentWons.set(l.intent, (intentWons.get(l.intent) ?? 0) + 1);
+      }
+    }
+    const conversionByIntent: Record<string, { total: number; won: number; rate: number }> = {};
+    for (const [intent, total] of intentTotals) {
+      const won = intentWons.get(intent) ?? 0;
+      conversionByIntent[intent] = { total, won, rate: total > 0 ? Math.round((won / total) * 100) : 0 };
+    }
+
+    return {
+      qualifiedCount,
+      bookedThisWeek,
+      wonThisMonth,
+      overdueFollowups,
+      topRecommendedOffer,
+      knowledgeBackedChats,
+      conversionByIntent,
+      overdueLeads: overdueLeads.map((l) => ({
+        sessionId: l.sessionId,
+        leadName: l.leadName ?? l.capturedName,
+        leadEmail: l.leadEmail ?? l.capturedEmail,
+        intent: l.intent,
+        followupDueDate: l.followupDueDate,
+      })),
     };
   }
 }

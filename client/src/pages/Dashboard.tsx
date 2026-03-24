@@ -9,7 +9,7 @@ import {
   BarChart3, Reply, Send, CheckCircle2, Inbox,
   Star, Trash2, ToggleLeft, ToggleRight, PlusCircle,
   Database, Edit2, Zap, Calendar, DollarSign, Phone, Trophy, XCircle, AlertCircle, GripVertical,
-  Clock, Tag, RefreshCw, ExternalLink,
+  Clock, Tag, RefreshCw, ExternalLink, BrainCircuit, AlertTriangle, FileBarChart2, Target,
 } from "lucide-react";
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
@@ -267,6 +267,335 @@ const CHART_TOOLTIP_STYLE = {
   itemStyle: { color: "#F4A62A" },
   labelStyle: { color: "rgba(255,255,255,0.5)" },
 };
+
+// ─── Phase 39: Intelligence + Digest Tab ─────────────────────────────────
+
+type IntelligenceData = {
+  qualifiedCount: number;
+  bookedThisWeek: number;
+  wonThisMonth: number;
+  overdueFollowups: number;
+  topRecommendedOffer: string | null;
+  knowledgeBackedChats: number;
+  conversionByIntent: Record<string, { total: number; won: number; rate: number }>;
+  overdueLeads: { sessionId: string; leadName: string | null; leadEmail: string | null; intent: string | null; followupDueDate: string | null }[];
+};
+
+type DigestReport = {
+  id: number;
+  weekStart: string;
+  weekEnd: string;
+  generatedAt: string;
+  narrative: string;
+  topIntents: { intent: string; count: number }[];
+  hotLeadsCount: number;
+  qualifiedCount: number;
+  bookedCount: number;
+  wonValue: number;
+  followupsDue: number;
+  unansweredHotLeads: number;
+  topRecommendedOffer: string | null;
+  knowledgeBackedChats: number;
+  supportPatterns: string | null;
+  contentOpportunities: string | null;
+  conversionByIntent: Record<string, number>;
+};
+
+function DigestTab() {
+  const qc = useQueryClient();
+  const [digestHistory, setDigestHistory] = useState(false);
+
+  const intelligenceQ = useQuery<IntelligenceData>({
+    queryKey: ["/api/dashboard/intelligence"],
+    queryFn: async () => {
+      const res = await fetch("/api/dashboard/intelligence");
+      if (!res.ok) throw new Error("Unauthorized");
+      return res.json();
+    },
+    refetchInterval: 60_000,
+  });
+
+  const latestDigestQ = useQuery<DigestReport | null>({
+    queryKey: ["/api/digest/latest"],
+    queryFn: async () => {
+      const res = await fetch("/api/digest/latest");
+      if (!res.ok) throw new Error("Unauthorized");
+      return res.json();
+    },
+  });
+
+  const allDigestsQ = useQuery<DigestReport[]>({
+    queryKey: ["/api/digest/all"],
+    queryFn: async () => {
+      const res = await fetch("/api/digest/all");
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: digestHistory,
+  });
+
+  const generateMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/digest/generate", { method: "POST" });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message ?? "Failed");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/digest/latest"] });
+      qc.invalidateQueries({ queryKey: ["/api/digest/all"] });
+    },
+  });
+
+  const intel = intelligenceQ.data;
+  const digest = latestDigestQ.data;
+
+  const intentColors: Record<string, string> = {
+    art_commission: "#a78bfa",
+    sales_consultation: "#f59e0b",
+    sales_service: "#f87171",
+    app_interest: "#34d399",
+    book_interest: "#60a5fa",
+    music_interest: "#c084fc",
+    support_request: "#94a3b8",
+    general_brand: "#64748b",
+  };
+
+  const kpiTiles = [
+    { label: "Qualified in Pipeline", value: intel?.qualifiedCount ?? "—", icon: <Target className="w-4 h-4" />, color: "#F4A62A" },
+    { label: "Booked This Week", value: intel?.bookedThisWeek ?? "—", icon: <Calendar className="w-4 h-4" />, color: "#22c55e" },
+    { label: "Won This Month", value: intel?.wonThisMonth ?? "—", icon: <Trophy className="w-4 h-4" />, color: "#a78bfa" },
+    { label: "Overdue Follow-ups", value: intel?.overdueFollowups ?? "—", icon: <AlertTriangle className="w-4 h-4" />, color: intel?.overdueFollowups ? "#f87171" : "#9ca3af" },
+    { label: "Knowledge-backed Chats", value: intel?.knowledgeBackedChats ?? "—", icon: <Database className="w-4 h-4" />, color: "#60a5fa" },
+    { label: "Top Recommended Offer", value: intel?.topRecommendedOffer ?? "None yet", icon: <Zap className="w-4 h-4" />, color: "#F4A62A", wide: true },
+  ];
+
+  return (
+    <div className="space-y-8">
+
+      {/* ── Intelligence KPI Tiles ── */}
+      <div>
+        <div className="flex items-center gap-2 mb-4">
+          <BrainCircuit className="w-4 h-4" style={{ color: "#F4A62A" }} />
+          <h3 className="text-sm font-bold text-white/60 uppercase tracking-widest">Business Intelligence</h3>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {kpiTiles.map((tile) => (
+            <div key={tile.label}
+              className={`lux-panel p-4 ${tile.wide ? "sm:col-span-3" : ""}`}
+              data-testid={`kpi-${tile.label.toLowerCase().replace(/\s+/g, "-")}`}>
+              <div className="flex items-center gap-2 mb-2" style={{ color: tile.color }}>
+                {tile.icon}
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-white/40">{tile.label}</span>
+              </div>
+              <div className="text-2xl font-bold font-heading" style={{ color: tile.color }}>
+                {tile.value}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Overdue Follow-up Alert Panel ── */}
+      {intel?.overdueLeads && intel.overdueLeads.length > 0 && (
+        <div className="rounded-2xl p-4 space-y-3"
+          style={{ background: "rgba(248,113,113,0.06)", border: "1px solid rgba(248,113,113,0.25)" }}>
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-red-400" />
+            <h3 className="text-sm font-bold text-red-400">{intel.overdueLeads.length} Overdue Follow-up{intel.overdueLeads.length !== 1 ? "s" : ""}</h3>
+          </div>
+          <div className="space-y-2">
+            {intel.overdueLeads.slice(0, 5).map((lead) => (
+              <div key={lead.sessionId} className="flex items-center gap-3 p-2 rounded-xl" style={{ background: "rgba(248,113,113,0.06)" }}>
+                <Clock className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-white text-sm font-medium truncate">{lead.leadName ?? lead.leadEmail ?? "Anonymous"}</p>
+                  {lead.leadEmail && <p className="text-white/40 text-xs truncate">{lead.leadEmail}</p>}
+                </div>
+                <div className="text-right shrink-0">
+                  {lead.intent && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full"
+                      style={{ background: `${intentColors[lead.intent] ?? "#9ca3af"}20`, color: intentColors[lead.intent] ?? "#9ca3af" }}>
+                      {lead.intent.replace(/_/g, " ")}
+                    </span>
+                  )}
+                  {lead.followupDueDate && (
+                    <p className="text-red-400 text-[10px] mt-0.5">
+                      Due {new Date(lead.followupDueDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
+            {intel.overdueLeads.length > 5 && (
+              <p className="text-white/30 text-xs text-center">+{intel.overdueLeads.length - 5} more overdue — check Pipeline tab</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Conversion by Intent ── */}
+      {intel?.conversionByIntent && Object.keys(intel.conversionByIntent).length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-4">
+            <FileBarChart2 className="w-4 h-4" style={{ color: "#F4A62A" }} />
+            <h3 className="text-sm font-bold text-white/60 uppercase tracking-widest">Conversion Rate by Intent</h3>
+          </div>
+          <div className="space-y-2">
+            {Object.entries(intel.conversionByIntent)
+              .sort((a, b) => b[1].total - a[1].total)
+              .map(([intent, data]) => (
+                <div key={intent} className="lux-panel p-3" data-testid={`conversion-row-${intent}`}>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-semibold w-36 truncate" style={{ color: intentColors[intent] ?? "#9ca3af" }}>
+                      {intent.replace(/_/g, " ")}
+                    </span>
+                    <div className="flex-1 h-1.5 rounded-full" style={{ background: "rgba(255,255,255,0.06)" }}>
+                      <div className="h-1.5 rounded-full transition-all" style={{
+                        width: `${data.rate}%`,
+                        background: intentColors[intent] ?? "#9ca3af",
+                      }} />
+                    </div>
+                    <span className="text-xs text-white/40 w-20 text-right">{data.won}/{data.total} · {data.rate}%</span>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Weekly Digest Generator ── */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4" style={{ color: "#F4A62A" }} />
+            <h3 className="text-sm font-bold text-white/60 uppercase tracking-widest">Weekly Intelligence Digest</h3>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              data-testid="btn-digest-history"
+              onClick={() => setDigestHistory((p) => !p)}
+              className="text-xs text-white/30 hover:text-white/60 transition-colors">
+              {digestHistory ? "Hide History" : "View History"}
+            </button>
+            <button
+              data-testid="btn-generate-digest"
+              onClick={() => generateMutation.mutate()}
+              disabled={generateMutation.isPending}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all disabled:opacity-50"
+              style={{ background: "rgba(244,166,42,0.15)", color: "#F4A62A", border: "1px solid rgba(244,166,42,0.3)" }}>
+              {generateMutation.isPending ? (
+                <><RefreshCw className="w-3.5 h-3.5 animate-spin" />Generating…</>
+              ) : (
+                <><Sparkles className="w-3.5 h-3.5" />Generate Digest</>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {generateMutation.isError && (
+          <div className="mb-4 p-3 rounded-xl text-red-400 text-sm"
+            style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)" }}>
+            {(generateMutation.error as Error).message}
+          </div>
+        )}
+
+        {/* Latest digest */}
+        {digest ? (
+          <div className="lux-panel p-6 space-y-5">
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div>
+                <div className="text-xs text-white/30 font-mono">
+                  Week of {new Date(digest.weekStart).toLocaleDateString("en-US", { month: "short", day: "numeric" })}–
+                  {new Date(digest.weekEnd).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                </div>
+                <div className="text-[11px] text-white/20 mt-0.5">
+                  Generated {new Date(digest.generatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                </div>
+              </div>
+              <div className="flex gap-3 flex-wrap text-xs">
+                <span className="px-2 py-1 rounded-lg" style={{ background: "rgba(244,166,42,0.1)", color: "#F4A62A" }}>
+                  🔥 {digest.hotLeadsCount} hot leads
+                </span>
+                {digest.wonValue > 0 && (
+                  <span className="px-2 py-1 rounded-lg" style={{ background: "rgba(34,197,94,0.1)", color: "#22c55e" }}>
+                    💰 ${(digest.wonValue / 100).toFixed(0)} won
+                  </span>
+                )}
+                {digest.followupsDue > 0 && (
+                  <span className="px-2 py-1 rounded-lg" style={{ background: "rgba(248,113,113,0.1)", color: "#f87171" }}>
+                    ⏰ {digest.followupsDue} overdue
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* AI Narrative — rendered with markdown-light formatting */}
+            <div className="text-white/75 text-sm leading-relaxed whitespace-pre-line border-t border-white/6 pt-4">
+              {digest.narrative}
+            </div>
+
+            {/* Top intents bar */}
+            {digest.topIntents.length > 0 && (
+              <div className="border-t border-white/6 pt-4">
+                <p className="text-[11px] text-white/30 uppercase tracking-wide mb-2">Top Intents This Week</p>
+                <div className="flex flex-wrap gap-2">
+                  {digest.topIntents.map((ti) => (
+                    <span key={ti.intent} className="px-2.5 py-1 rounded-lg text-xs font-medium"
+                      style={{ background: `${intentColors[ti.intent] ?? "#9ca3af"}18`, color: intentColors[ti.intent] ?? "#9ca3af" }}>
+                      {ti.intent.replace(/_/g, " ")} ×{ti.count}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {digest.topRecommendedOffer && (
+              <div className="flex items-center gap-2 p-3 rounded-xl border-t border-white/6 pt-4">
+                <Zap className="w-4 h-4 shrink-0" style={{ color: "#F4A62A" }} />
+                <p className="text-sm text-white/60">
+                  Top offer to push: <strong className="text-white">{digest.topRecommendedOffer}</strong>
+                </p>
+              </div>
+            )}
+          </div>
+        ) : latestDigestQ.isLoading ? (
+          <div className="lux-panel p-8 text-center text-white/30">Loading…</div>
+        ) : (
+          <div className="lux-panel p-8 text-center space-y-3">
+            <Sparkles className="w-10 h-10 mx-auto opacity-20" style={{ color: "#F4A62A" }} />
+            <p className="text-white/30">No digest generated yet.</p>
+            <p className="text-white/20 text-xs">Click "Generate Digest" to get your first AI-powered weekly intelligence report.</p>
+          </div>
+        )}
+      </div>
+
+      {/* ── Digest History ── */}
+      {digestHistory && (
+        <div className="space-y-3">
+          <h4 className="text-xs font-bold text-white/30 uppercase tracking-widest">Past Digests</h4>
+          {allDigestsQ.isLoading && <p className="text-white/30 text-sm">Loading…</p>}
+          {(allDigestsQ.data ?? []).slice(1).map((d) => (
+            <div key={d.id} className="lux-panel p-4" data-testid={`digest-history-${d.id}`}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-white/30 font-mono">
+                  Week of {new Date(d.weekStart).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                </span>
+                <div className="flex gap-2 text-[11px]">
+                  <span className="text-white/30">🔥 {d.hotLeadsCount}</span>
+                  {d.wonValue > 0 && <span style={{ color: "#22c55e" }}>💰 ${(d.wonValue / 100).toFixed(0)}</span>}
+                </div>
+              </div>
+              <p className="text-white/50 text-xs line-clamp-3">{d.narrative.split("\n")[0]}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function DigestButton() {
   const [sent, setSent] = useState(false);
@@ -2357,7 +2686,7 @@ function BookingsTab() {
 // ──────────────────────────────────────────────────────────────────────────────
 
 function DashboardContent({ onLogout }: { onLogout: () => void }) {
-  const [tab, setTab] = useState<"analytics" | "voice" | "leads" | "contacts" | "newsletter" | "reviews" | "blog" | "knowledge" | "pipeline" | "bookings" | "orders">("analytics");
+  const [tab, setTab] = useState<"analytics" | "voice" | "leads" | "contacts" | "newsletter" | "reviews" | "blog" | "knowledge" | "pipeline" | "bookings" | "orders" | "digest">("analytics");
   const [leadFilter, setLeadFilter] = useState<"all" | "priority" | "hot" | "warm" | "cold">("all");
   const qc = useQueryClient();
 
@@ -2428,6 +2757,7 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
 
   const tabs = [
     { key: "analytics", label: "Analytics", icon: BarChart3 },
+    { key: "digest", label: "Intelligence", icon: BrainCircuit },
     { key: "voice", label: "Brand Voice", icon: Wand2 },
     { key: "leads", label: "Chat Leads", icon: MessageSquare },
     { key: "pipeline", label: "Pipeline", icon: TrendingUp },
@@ -2641,6 +2971,7 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
         {tab === "reviews" && <ReviewsTab />}
         {tab === "blog" && <BlogTab />}
         {tab === "knowledge" && <KnowledgeTab />}
+        {tab === "digest" && <DigestTab />}
         {tab === "pipeline" && <PipelineTab leads={leads} onStageChange={() => qc.invalidateQueries({ queryKey: ["/api/dashboard/leads"] })} />}
         {tab === "orders" && <OrdersTab />}
         {tab === "bookings" && <BookingsTab />}

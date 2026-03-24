@@ -62,6 +62,10 @@ export const chatConversations = pgTable("chat_conversations", {
   wonValue: integer("won_value"),
   lostReason: text("lost_reason"),
   stageHistory: jsonb("stage_history").default(sql`'[]'::jsonb`).notNull(),
+
+  // Phase 39 — Recommended Offer layer
+  recommendedOffer: varchar("recommended_offer", { length: 120 }),
+  recommendedOfferConfidence: integer("recommended_offer_confidence").default(0),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -265,6 +269,30 @@ export const updateBlogPostSchema = insertBlogPostSchema.partial();
 export type InsertBlogPost = z.infer<typeof insertBlogPostSchema>;
 export type UpdateBlogPost = z.infer<typeof updateBlogPostSchema>;
 export type BlogPost = typeof blogPosts.$inferSelect;
+
+// Phase 39 — Weekly Intelligence Digest
+export const digestReports = pgTable("digest_reports", {
+  id: serial("id").primaryKey(),
+  weekStart: timestamp("week_start").notNull(),
+  weekEnd: timestamp("week_end").notNull(),
+  generatedAt: timestamp("generated_at").defaultNow().notNull(),
+  narrative: text("narrative").notNull(),
+  topIntents: jsonb("top_intents").default(sql`'[]'::jsonb`).notNull(),
+  hotLeadsCount: integer("hot_leads_count").default(0).notNull(),
+  qualifiedCount: integer("qualified_count").default(0).notNull(),
+  bookedCount: integer("booked_count").default(0).notNull(),
+  wonValue: integer("won_value").default(0).notNull(),
+  followupsDue: integer("followups_due").default(0).notNull(),
+  unansweredHotLeads: integer("unanswered_hot_leads").default(0).notNull(),
+  topRecommendedOffer: text("top_recommended_offer"),
+  knowledgeBackedChats: integer("knowledge_backed_chats").default(0).notNull(),
+  supportPatterns: text("support_patterns"),
+  contentOpportunities: text("content_opportunities"),
+  conversionByIntent: jsonb("conversion_by_intent").default(sql`'{}'::jsonb`).notNull(),
+  emailSentAt: timestamp("email_sent_at"),
+});
+
+export type DigestReport = typeof digestReports.$inferSelect;
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;

@@ -13,9 +13,10 @@ import {
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { getConciergeReply, generateBrandCopy, type ContentType } from "./openai";
+import { processConversationIntelligence, applyStageAutomation } from "./services/leadService";
+import { generateAndSaveDigest } from "./ai/digestGenerator";
 import { notifyNewContact, notifyNewLead, notifyNewSubscriber, sendContactReply, sendDigestEmail, notifyNewBooking } from "./email";
 import { generateSitemap } from "./sitemap";
-import { processConversationIntelligence } from "./services/leadService";
 import { z } from "zod";
 import { WebhookHandlers } from "./webhookHandlers";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
@@ -81,7 +82,8 @@ export async function registerRoutes(
         storage.getPublishedKnowledgeByIntent(null).catch(() => []),
         storage.getConsultations(true).catch(() => []),
       ]);
-      const reply = await getConciergeReply(history, message, knowledgeDocs, activeConsultations);
+      // Phase 39 — inject recommended offer for this session into concierge
+      const reply = await getConciergeReply(history, message, knowledgeDocs, activeConsultations, conversation.recommendedOffer);
 
       await storage.appendChatMessage(sessionId, { role: "user", content: message });
       await storage.appendChatMessage(sessionId, { role: "assistant", content: reply });
@@ -427,14 +429,17 @@ export async function registerRoutes(
     const { sessionId } = req.params;
     const { stage, note, wonValue, lostReason, followupDueDate } = req.body;
     if (!stage) return res.status(400).json({ message: "stage required" });
+    const parsedWonValue = wonValue !== undefined ? Number(wonValue) : undefined;
     await storage.updateLeadPipelineStage(
       sessionId,
       stage,
       note,
-      wonValue !== undefined ? Number(wonValue) : undefined,
+      parsedWonValue,
       lostReason,
       followupDueDate ? new Date(followupDueDate) : undefined
     );
+    // Phase 39 — automation rules on stage change
+    applyStageAutomation(sessionId, stage, parsedWonValue).catch(() => {});
     res.json({ success: true });
   });
 
@@ -696,6 +701,42 @@ export async function registerRoutes(
     } catch {
       res.json([]);
     }
+  });
+
+  // Phase 39 — Dashboard Intelligence KPIs
+  app.get("/api/dashboard/intelligence", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    try {
+      const intelligence = await storage.getDashboardIntelligence();
+      res.json(intelligence);
+    } catch (e: any) {
+      console.error("[intelligence] error:", e.message);
+      res.status(500).json({ message: "Could not compute intelligence." });
+    }
+  });
+
+  // Phase 39 — Digest: generate (POST) + fetch latest (GET)
+  app.post("/api/digest/generate", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    try {
+      const digest = await generateAndSaveDigest();
+      res.json(digest);
+    } catch (e: any) {
+      console.error("[digest] generation error:", e.message);
+      res.status(500).json({ message: "Digest generation failed: " + e.message });
+    }
+  });
+
+  app.get("/api/digest/latest", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    const digest = await storage.getLatestDigest();
+    res.json(digest);
+  });
+
+  app.get("/api/digest/all", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    const digests = await storage.getAllDigests();
+    res.json(digests);
   });
 
   app.get("/api/config/public", (_req, res) => {

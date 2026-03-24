@@ -125,7 +125,8 @@ export async function generateBrandCopy(
 
 export function buildConciergeSystemPrompt(
   knowledgeDocs?: { title: string; category: string; content: string }[],
-  consultationTypes?: { title: string; description: string; duration: number; price: number; currency: string }[]
+  consultationTypes?: { title: string; description: string; duration: number; price: number; currency: string }[],
+  recommendedOffer?: string | null
 ): string {
   let prompt = BRAND_SYSTEM_PROMPT;
 
@@ -157,6 +158,15 @@ ${knowledgeBlock}
 ---`;
   }
 
+  // Phase 39 — Recommended offer injection
+  if (recommendedOffer) {
+    prompt += `
+
+## Recommended Next Step for This Visitor
+Based on signals from this conversation, the AI scoring system recommends nudging toward: **${recommendedOffer}**.
+When it feels natural and relevant, guide the conversation toward this offer at https://www.elevate360official.com/#offers or the booking page. Never force it — only mention it when it genuinely fits the visitor's expressed needs.`;
+  }
+
   return prompt;
 }
 
@@ -164,9 +174,10 @@ export async function getConciergeReply(
   history: ChatMessage[],
   userMessage: string,
   knowledgeDocs?: { title: string; category: string; content: string }[],
-  consultationTypes?: { title: string; description: string; duration: number; price: number; currency: string }[]
+  consultationTypes?: { title: string; description: string; duration: number; price: number; currency: string }[],
+  recommendedOffer?: string | null
 ): Promise<string> {
-  const systemPrompt = buildConciergeSystemPrompt(knowledgeDocs, consultationTypes);
+  const systemPrompt = buildConciergeSystemPrompt(knowledgeDocs, consultationTypes, recommendedOffer);
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
     { role: "system", content: systemPrompt },
     ...history.map((m) => ({
