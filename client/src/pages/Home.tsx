@@ -1268,8 +1268,13 @@ export default function Home() {
             <div className="flex flex-col items-center md:items-start gap-7 reveal-left">
               {/* Avatar */}
               <div className="relative">
-                <div className="w-44 h-44 md:w-52 md:h-52 rounded-[2.5rem] bg-gradient-to-br from-primary/30 via-primary/10 to-transparent border border-primary/30 flex items-center justify-center shadow-[0_0_60px_rgba(244,166,42,0.15)]">
-                  <span className="text-6xl md:text-7xl font-heading font-extrabold bg-gradient-to-br from-primary to-amber-300 bg-clip-text text-transparent select-none">OO</span>
+                <div className="w-44 h-56 md:w-52 md:h-64 rounded-[2.5rem] overflow-hidden border-2 border-primary/40 shadow-[0_0_60px_rgba(244,166,42,0.2)] ring-4 ring-primary/10">
+                  <img
+                    src="/creator-photo.png"
+                    alt="Oladele Oyeniyi — Elevate360Official"
+                    className="w-full h-full object-cover object-top"
+                    loading="lazy"
+                  />
                 </div>
                 {/* verified badge */}
                 <div className="absolute -bottom-3 -right-3 bg-primary text-[#070b13] text-xs font-bold px-3 py-1.5 rounded-full shadow-lg">
