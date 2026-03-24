@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "jqTXTpuBn4Qzrd2n5aYaz"
+uri = "file://docs/elevate360-phases-36-37-39-report.md"
+type = "text"
+title = "Elevate360 — Phase 36 Code Pack + Phase 37 & 39 Completion Report"
