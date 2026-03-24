@@ -10,7 +10,7 @@ import {
   Star, Trash2, ToggleLeft, ToggleRight, PlusCircle,
   Database, Edit2, Zap, Calendar, DollarSign, Phone, Trophy, XCircle, AlertCircle, GripVertical,
   Clock, Tag, RefreshCw, ExternalLink, BrainCircuit, AlertTriangle, FileBarChart2, Target,
-  Filter, Percent, ArrowDown, TrendingDown, Flame,
+  Filter, Percent, ArrowDown, TrendingDown, Flame, Banknote,
 } from "lucide-react";
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
@@ -3453,9 +3453,236 @@ function FunnelTab() {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
+// Phase 44 — Revenue Attribution Tab
+
+type RevAttribData = {
+  monthlySeries: { month: string; stripeRevenue: number; wonRevenue: number; total: number }[];
+  byOffer: { name: string; revenue: number; count: number; avgValue: number }[];
+  byIntent: { intent: string; revenue: number; count: number }[];
+  bySource: { source: string; revenue: number; count: number }[];
+  topPaths: { intent: string; offer: string; revenue: number; count: number }[];
+  totals: { stripeRevenue: number; wonRevenue: number; combinedRevenue: number; paidOrders: number; wonDeals: number; avgOrderValue: number };
+};
+
+function fmt$(cents: number) {
+  if (cents === 0) return "$0";
+  if (cents >= 100000) return `$${(cents / 100000).toFixed(1)}k`;
+  return `$${(cents / 100).toFixed(2)}`;
+}
+
+function RevBar({ pct, color }: { pct: number; color: string }) {
+  return (
+    <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.max(pct, 2)}%`, background: color }} />
+    </div>
+  );
+}
+
+function RevenueTab() {
+  const q = useQuery<RevAttribData>({
+    queryKey: ["/api/dashboard/revenue-attribution"],
+    staleTime: 60_000,
+  });
+
+  if (q.isLoading) {
+    return (
+      <div className="lux-panel p-8 text-center text-white/40 text-sm" data-testid="revenue-loading">
+        <RefreshCw className="animate-spin h-5 w-5 mx-auto mb-2" /> Loading revenue data…
+      </div>
+    );
+  }
+
+  if (q.isError || !q.data) {
+    return (
+      <div className="lux-panel p-6 text-center text-red-400 text-sm" data-testid="revenue-error">
+        Could not load revenue attribution data.
+      </div>
+    );
+  }
+
+  const d = q.data;
+  const { totals, monthlySeries, byOffer, byIntent, bySource, topPaths } = d;
+
+  const maxOffer   = Math.max(...byOffer.map((o) => o.revenue), 1);
+  const maxIntent  = Math.max(...byIntent.map((i) => i.revenue), 1);
+  const maxSource  = Math.max(...bySource.map((s) => s.revenue), 1);
+
+  const INTENT_CLR: Record<string, string> = {
+    app_support: "#6366f1", coaching: "#f59e0b", booking: "#22c55e",
+    music: "#ec4899", books: "#3b82f6", art: "#a855f7", pricing: "#f97316",
+    general: "#94a3b8", direct: "#F4A62A",
+  };
+
+  return (
+    <div className="space-y-6" data-testid="revenue-tab">
+
+      {/* ── Totals strip ── */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        {[
+          { label: "Combined Revenue", value: fmt$(totals.combinedRevenue), sub: "Stripe + Won deals", color: "#F4A62A" },
+          { label: "Stripe Revenue",   value: fmt$(totals.stripeRevenue),   sub: `${totals.paidOrders} paid orders`, color: "#22c55e" },
+          { label: "Won Deal Revenue", value: fmt$(totals.wonRevenue),      sub: `${totals.wonDeals} closed deals`, color: "#6366f1" },
+          { label: "Avg Order Value",  value: fmt$(totals.avgOrderValue),   sub: "Stripe only", color: "#f59e0b" },
+          { label: "Paid Orders",      value: String(totals.paidOrders),    sub: "via Stripe checkout", color: "#3b82f6" },
+          { label: "Won Deals",        value: String(totals.wonDeals),      sub: "pipeline conversions", color: "#ec4899" },
+        ].map((s) => (
+          <div key={s.label} className="lux-card p-4" data-testid={`revenue-stat-${s.label.toLowerCase().replace(/ /g, "-")}`}>
+            <p className="text-xs text-white/40 mb-1">{s.label}</p>
+            <p className="text-2xl font-bold font-heading" style={{ color: s.color }}>{s.value}</p>
+            <p className="text-[10px] text-white/30 mt-0.5">{s.sub}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Monthly trend ── */}
+      <div className="lux-panel p-5">
+        <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+          <Banknote className="h-4 w-4 text-[#F4A62A]" /> Monthly Revenue (Last 6 Months)
+        </h3>
+        {totals.combinedRevenue === 0 ? (
+          <p className="text-white/30 text-xs text-center py-6">No revenue recorded yet.</p>
+        ) : (
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={monthlySeries} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+              <XAxis dataKey="month" tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${(v / 100).toFixed(0)}`} />
+              <Tooltip
+                contentStyle={{ background: "hsl(220 50% 14%)", border: "1px solid rgba(244,166,42,0.25)", borderRadius: 8, fontSize: 12 }}
+                labelStyle={{ color: "rgba(255,255,255,0.7)" }}
+                formatter={(value: number, name: string) => [`$${(value / 100).toFixed(2)}`, name === "stripeRevenue" ? "Stripe" : "Won Deals"]}
+              />
+              <Legend formatter={(v) => v === "stripeRevenue" ? "Stripe Revenue" : "Won Deals"} wrapperStyle={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }} />
+              <Bar dataKey="stripeRevenue" stackId="a" fill="#22c55e" radius={[0, 0, 4, 4]} />
+              <Bar dataKey="wonRevenue"    stackId="a" fill="#6366f1" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+
+      {/* ── By Offer + By Source ── */}
+      <div className="grid md:grid-cols-2 gap-4">
+
+        {/* By Offer */}
+        <div className="lux-panel p-5">
+          <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+            <Tag className="h-4 w-4 text-[#F4A62A]" /> Revenue by Offer
+          </h3>
+          {byOffer.length === 0 ? (
+            <p className="text-white/30 text-xs text-center py-4">No paid orders yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {byOffer.map((o) => (
+                <div key={o.name} data-testid={`revenue-offer-${o.name}`}>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-xs text-white/70 truncate max-w-[60%]">{o.name}</span>
+                    <span className="text-xs font-bold text-[#F4A62A]">{fmt$(o.revenue)}</span>
+                  </div>
+                  <RevBar pct={(o.revenue / maxOffer) * 100} color="#F4A62A" />
+                  <p className="text-[10px] text-white/30 mt-0.5">{o.count} orders · avg {fmt$(o.avgValue)}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* By Source */}
+        <div className="lux-panel p-5">
+          <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+            <ExternalLink className="h-4 w-4 text-[#F4A62A]" /> Revenue by Source
+          </h3>
+          {bySource.length === 0 ? (
+            <p className="text-white/30 text-xs text-center py-4">No attributed sources yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {bySource.map((s) => (
+                <div key={s.source} data-testid={`revenue-source-${s.source}`}>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-xs text-white/70 capitalize">{s.source || "direct"}</span>
+                    <span className="text-xs font-bold text-[#22c55e]">{fmt$(s.revenue)}</span>
+                  </div>
+                  <RevBar pct={(s.revenue / maxSource) * 100} color="#22c55e" />
+                  <p className="text-[10px] text-white/30 mt-0.5">{s.count} orders</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+      </div>
+
+      {/* ── By Intent ── */}
+      <div className="lux-panel p-5">
+        <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+          <Target className="h-4 w-4 text-[#F4A62A]" /> Revenue by Visitor Intent
+        </h3>
+        {byIntent.length === 0 ? (
+          <p className="text-white/30 text-xs text-center py-4">No intent data yet.</p>
+        ) : (
+          <div className="grid md:grid-cols-2 gap-3">
+            {byIntent.map((item) => {
+              const clr = INTENT_CLR[item.intent] ?? "#94a3b8";
+              return (
+                <div key={item.intent} className="lux-card p-3" data-testid={`revenue-intent-${item.intent}`}>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <span className="text-xs font-semibold capitalize" style={{ color: clr }}>{item.intent.replace("_", " ")}</span>
+                    <span className="text-xs font-bold text-white">{fmt$(item.revenue)}</span>
+                  </div>
+                  <RevBar pct={(item.revenue / maxIntent) * 100} color={clr} />
+                  <p className="text-[10px] text-white/30 mt-1">{item.count} orders / deals</p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ── Top Attribution Paths ── */}
+      {topPaths.length > 0 && (
+        <div className="lux-panel p-5">
+          <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-[#F4A62A]" /> Top Attribution Paths (Intent → Offer)
+          </h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-white/30 border-b border-white/10">
+                  <th className="text-left pb-2 pr-4">Intent</th>
+                  <th className="text-left pb-2 pr-4">Offer</th>
+                  <th className="text-right pb-2 pr-4">Revenue</th>
+                  <th className="text-right pb-2">Orders</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topPaths.map((p, i) => {
+                  const clr = INTENT_CLR[p.intent] ?? "#94a3b8";
+                  return (
+                    <tr key={i} className="border-b border-white/5 hover:bg-white/5" data-testid={`revenue-path-${i}`}>
+                      <td className="py-2 pr-4">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold" style={{ background: `${clr}22`, color: clr }}>
+                          {p.intent.replace("_", " ")}
+                        </span>
+                      </td>
+                      <td className="py-2 pr-4 text-white/60 truncate max-w-[140px]">{p.offer}</td>
+                      <td className="py-2 pr-4 text-right font-bold text-[#F4A62A]">{fmt$(p.revenue)}</td>
+                      <td className="py-2 text-right text-white/40">{p.count}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 
 function DashboardContent({ onLogout }: { onLogout: () => void }) {
-  const [tab, setTab] = useState<"analytics" | "funnel" | "offers" | "voice" | "leads" | "contacts" | "newsletter" | "reviews" | "blog" | "knowledge" | "pipeline" | "bookings" | "orders" | "digest">("analytics");
+  const [tab, setTab] = useState<"analytics" | "funnel" | "offers" | "revenue" | "voice" | "leads" | "contacts" | "newsletter" | "reviews" | "blog" | "knowledge" | "pipeline" | "bookings" | "orders" | "digest">("analytics");
   const [leadFilter, setLeadFilter] = useState<"all" | "priority" | "hot" | "warm" | "cold">("all");
   const qc = useQueryClient();
 
@@ -3541,6 +3768,7 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
     { key: "analytics", label: "Analytics", icon: BarChart3 },
     { key: "funnel", label: "Funnel", icon: Filter },
     { key: "offers", label: "Offers", icon: Tag },
+    { key: "revenue", label: "Revenue", icon: Banknote },
     { key: "digest", label: "Intelligence", icon: BrainCircuit },
     { key: "voice", label: "Brand Voice", icon: Wand2 },
     { key: "leads", label: "Chat Leads", icon: MessageSquare },
@@ -3845,6 +4073,7 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
         {tab === "knowledge" && <KnowledgeTab />}
         {tab === "digest" && <DigestTab />}
         {tab === "pipeline" && <PipelineTab leads={leads} onStageChange={() => qc.invalidateQueries({ queryKey: ["/api/dashboard/leads"] })} />}
+        {tab === "revenue" && <RevenueTab />}
         {tab === "orders" && <OrdersTab />}
         {tab === "bookings" && <BookingsTab />}
 

@@ -703,6 +703,18 @@ export async function registerRoutes(
     }
   });
 
+  // Phase 44 — Revenue Attribution Dashboard
+  app.get("/api/dashboard/revenue-attribution", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    try {
+      const data = await storage.getRevenueAttributionData();
+      res.json(data);
+    } catch (e: any) {
+      console.error("[revenue-attribution] error:", e.message);
+      res.status(500).json({ message: "Could not load revenue attribution data." });
+    }
+  });
+
   // Phase 43 — Offer Recommendation Optimization
   app.get("/api/dashboard/offer-optimizer", async (req, res) => {
     if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });

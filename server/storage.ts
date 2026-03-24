@@ -83,6 +83,15 @@ export interface IStorage {
   updateOrderStatus(stripeSessionId: string, status: string, extra?: any): Promise<Order | undefined>;
   getAllOrders(): Promise<Order[]>;
   getOrderStats(): Promise<{ total: number; paid: number; revenue: number; abandoned: number }>;
+  // Phase 44 — Revenue Attribution Dashboard
+  getRevenueAttributionData(): Promise<{
+    monthlySeries: { month: string; stripeRevenue: number; wonRevenue: number; total: number }[];
+    byOffer: { name: string; revenue: number; count: number; avgValue: number }[];
+    byIntent: { intent: string; revenue: number; count: number }[];
+    bySource: { source: string; revenue: number; count: number }[];
+    topPaths: { intent: string; offer: string; revenue: number; count: number }[];
+    totals: { stripeRevenue: number; wonRevenue: number; combinedRevenue: number; paidOrders: number; wonDeals: number; avgOrderValue: number };
+  }>;
   // Phase 43 — Offer Recommendation Optimization
   getOfferMappingOverrides(): Promise<OfferMappingOverride[]>;
   setOfferMappingOverride(intent: string, offer: string): Promise<OfferMappingOverride>;
