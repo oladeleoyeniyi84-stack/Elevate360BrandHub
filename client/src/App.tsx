@@ -10,6 +10,7 @@ import Links from "@/pages/Links";
 import Blog from "@/pages/Blog";
 import BlogPost from "@/pages/BlogPost";
 import PressKit from "@/pages/PressKit";
+import CheckoutSuccess from "@/pages/CheckoutSuccess";
 import { CookieBanner } from "@/components/CookieBanner";
 import { ScrollUtilities } from "@/components/ScrollUtilities";
 import { NewsletterPopup } from "@/components/NewsletterPopup";
@@ -27,6 +28,7 @@ function Router() {
       <Route path="/blog" component={Blog} />
       <Route path="/blog/:slug" component={BlogPost} />
       <Route path="/press-kit" component={PressKit} />
+      <Route path="/checkout/success" component={CheckoutSuccess} />
       <Route component={NotFound} />
     </Switch>
   );

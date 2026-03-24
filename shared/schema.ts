@@ -151,6 +151,27 @@ export const insertBookingSchema = createInsertSchema(bookings, {
 export type InsertBooking = z.infer<typeof insertBookingSchema>;
 export type Booking = typeof bookings.$inferSelect;
 
+// Phase 37 — Orders (Stripe Checkout fulfillment)
+export const orders = pgTable("orders", {
+  id: serial("id").primaryKey(),
+  stripeSessionId: text("stripe_session_id").unique(),
+  stripePaymentIntentId: text("stripe_payment_intent_id"),
+  stripeProductId: text("stripe_product_id"),
+  stripePriceId: text("stripe_price_id"),
+  productName: text("product_name"),
+  customerEmail: text("customer_email").notNull(),
+  customerName: text("customer_name"),
+  amountPaid: integer("amount_paid"),
+  currency: varchar("currency", { length: 10 }).default("usd"),
+  status: varchar("status", { length: 40 }).notNull().default("initiated"),
+  sessionId: varchar("session_id", { length: 64 }),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export type Order = typeof orders.$inferSelect;
+
 // Phase 35 — Knowledge Base
 export const knowledgeDocuments = pgTable("knowledge_documents", {
   id: serial("id").primaryKey(),

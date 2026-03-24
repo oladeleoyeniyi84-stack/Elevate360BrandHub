@@ -87,9 +87,26 @@ app.use((req, res, next) => {
 
 (async () => {
   await registerRoutes(httpServer, app);
+
   // Seed default consultation offerings if none exist
   const { storage } = await import("./storage");
   storage.seedDefaultConsultations().catch((e) => console.error("[seed] consultations:", e));
+
+  // Phase 37 — Stripe init (migrations → sync → webhook)
+  try {
+    const { runMigrations } = await import("stripe-replit-sync");
+    const { getStripeSync } = await import("./stripeClient");
+    await runMigrations({ databaseUrl: process.env.DATABASE_URL!, schema: "stripe" });
+    const stripeSync = await getStripeSync();
+    const webhookBase = `https://${(process.env.REPLIT_DOMAINS ?? "").split(",")[0]}`;
+    await stripeSync.findOrCreateManagedWebhook(`${webhookBase}/api/stripe/webhook`).catch((e: Error) =>
+      console.error("[stripe] webhook setup:", e.message)
+    );
+    stripeSync.syncBackfill().catch((e: Error) => console.error("[stripe] syncBackfill:", e.message));
+    console.log("[stripe] initialized");
+  } catch (e: any) {
+    console.error("[stripe] init error:", e.message);
+  }
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

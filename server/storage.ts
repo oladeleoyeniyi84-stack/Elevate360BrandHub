@@ -8,7 +8,8 @@ import {
   type KnowledgeDocument, type InsertKnowledgeDoc, type UpdateKnowledgeDoc,
   type Consultation, type InsertConsultation, type UpdateConsultation,
   type Booking, type InsertBooking,
-  users, contactMessages, newsletterSubscribers, chatConversations, clickEvents, pageViews, testimonials, blogPosts, knowledgeDocuments, consultations, bookings,
+  type Order,
+  users, contactMessages, newsletterSubscribers, chatConversations, clickEvents, pageViews, testimonials, blogPosts, knowledgeDocuments, consultations, bookings, orders,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, sql, desc, asc } from "drizzle-orm";
@@ -488,6 +489,57 @@ export class DatabaseStorage implements IStorage {
 
   async deleteBooking(id: number): Promise<void> {
     await db.delete(bookings).where(eq(bookings.id, id));
+  }
+
+  // Phase 37 — Orders
+  async createOrder(data: {
+    stripeSessionId?: string;
+    stripePaymentIntentId?: string;
+    stripeProductId?: string;
+    stripePriceId?: string;
+    productName?: string;
+    customerEmail: string;
+    customerName?: string;
+    amountPaid?: number;
+    currency?: string;
+    status?: string;
+    sessionId?: string;
+    metadata?: Record<string, any>;
+  }): Promise<Order> {
+    const [row] = await db.insert(orders).values(data as any).returning();
+    return row;
+  }
+
+  async getOrderByStripeSession(stripeSessionId: string): Promise<Order | undefined> {
+    const [row] = await db.select().from(orders).where(eq(orders.stripeSessionId, stripeSessionId));
+    return row;
+  }
+
+  async updateOrderStatus(stripeSessionId: string, status: string, extra?: Partial<{
+    stripePaymentIntentId: string;
+    amountPaid: number;
+    customerName: string;
+  }>): Promise<Order | undefined> {
+    const [row] = await db.update(orders)
+      .set({ status, updatedAt: new Date(), ...(extra ?? {}) })
+      .where(eq(orders.stripeSessionId, stripeSessionId))
+      .returning();
+    return row;
+  }
+
+  async getAllOrders(): Promise<Order[]> {
+    return db.select().from(orders).orderBy(desc(orders.createdAt));
+  }
+
+  async getOrderStats(): Promise<{ total: number; paid: number; revenue: number; abandoned: number }> {
+    const all = await db.select().from(orders);
+    const paid = all.filter((o) => o.status === "paid");
+    return {
+      total: all.length,
+      paid: paid.length,
+      revenue: paid.reduce((s, o) => s + (o.amountPaid ?? 0), 0),
+      abandoned: all.filter((o) => o.status === "initiated").length,
+    };
   }
 }
 

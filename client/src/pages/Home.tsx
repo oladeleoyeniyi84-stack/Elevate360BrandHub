@@ -118,6 +118,40 @@ export default function Home() {
       return res.json();
     },
   });
+  // Phase 37 — Stripe offers
+  const { data: offers = [] } = useQuery<{
+    productId: string; priceId: string; name: string; description: string | null;
+    amount: number; currency: string;
+    metadata: Record<string, string>;
+  }[]>({
+    queryKey: ["/api/offers"],
+    queryFn: async () => {
+      const res = await fetch("/api/offers");
+      if (!res.ok) return [];
+      return res.json();
+    },
+    staleTime: 60_000,
+  });
+
+  const [buyingOffer, setBuyingOffer] = useState<string | null>(null); // priceId being processed
+
+  const handleBuyNow = async (priceId: string, productName: string) => {
+    setBuyingOffer(priceId);
+    try {
+      const res = await fetch("/api/checkout/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ priceId, productName }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch {
+      setBuyingOffer(null);
+    }
+  };
+
   const { data: consultations = [] } = useQuery<{ id: number; title: string; price: number; currency: string; duration: number; description: string; tag?: string | null }[]>({
     queryKey: ["/api/consultations"],
     queryFn: async () => {
@@ -205,6 +239,10 @@ export default function Home() {
             <Link href="/blog" data-testid="link-nav-blog" className="text-sm font-medium hover:text-primary transition-colors">
               {t("nav_blog")}
             </Link>
+            <a href="#offers" data-testid="link-nav-offers"
+              className="text-sm font-medium hover:text-primary transition-colors">
+              Shop
+            </a>
             <a href="#book-session" data-testid="link-nav-book"
               className="text-sm font-semibold px-4 py-1.5 rounded-full transition-all"
               style={{ background: "rgba(244,166,42,0.12)", color: "#F4A62A", border: "1px solid rgba(244,166,42,0.3)" }}>
@@ -250,6 +288,7 @@ export default function Home() {
               { href: "#art-studio", label: "Art Studio", icon: <Palette className="h-4 w-4" /> },
               { href: "#music", label: "Music", icon: <Music className="h-4 w-4" /> },
               { href: "#books", label: "Publications", icon: <BookOpen className="h-4 w-4" /> },
+              { href: "#offers", label: "Shop Offers", icon: <Zap className="h-4 w-4" /> },
               { href: "#book-session", label: "Book a Session", icon: <Calendar className="h-4 w-4" /> },
             ].map(({ href, label, icon }) => (
               <a
@@ -1376,6 +1415,67 @@ export default function Home() {
           <FAQSection faqs={faqs} />
         );
       })()}
+
+      {/* ── Offers / Buy Now ── */}
+      {offers.length > 0 && (
+        <section id="offers" className="py-20 border-t border-white/8" style={{ background: "hsl(220 50% 8%)" }}>
+          <div className="container mx-auto px-4 md:px-6">
+            <div className="text-center mb-12 reveal">
+              <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold tracking-widest uppercase mb-4"
+                style={{ background: "rgba(244,166,42,0.12)", color: "#F4A62A", border: "1px solid rgba(244,166,42,0.25)" }}>
+                Digital Offers
+              </span>
+              <h2 className="text-3xl md:text-4xl font-heading font-bold text-white mb-4">Instant Access Products</h2>
+              <p className="text-white/50 max-w-xl mx-auto">Pick an offer, pay securely via Stripe, and we'll deliver within the promised timeframe — no waiting, no gatekeeping.</p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 reveal">
+              {offers.map((offer) => {
+                const icon = offer.metadata?.icon ?? "✨";
+                const isHighlight = offer.metadata?.highlight === "true";
+                const deliveryDays = offer.metadata?.deliveryDays;
+                const priceLabel = `$${(offer.amount / 100).toFixed(0)}`;
+                const isBuying = buyingOffer === offer.priceId;
+
+                return (
+                  <div key={offer.priceId}
+                    className="lux-card flex flex-col p-6 gap-4 hover:-translate-y-1 transition-transform duration-200 relative"
+                    data-testid={`card-offer-${offer.productId}`}
+                    style={isHighlight ? { borderColor: "rgba(244,166,42,0.4)" } : {}}>
+                    {isHighlight && (
+                      <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[11px] font-bold px-3 py-0.5 rounded-full whitespace-nowrap"
+                        style={{ background: "#F4A62A", color: "#0d1a2e" }}>
+                        Most Popular
+                      </span>
+                    )}
+                    <div className="text-4xl">{icon}</div>
+                    <div>
+                      <h3 className="text-white font-heading font-bold text-lg leading-tight">{offer.name}</h3>
+                      {deliveryDays && (
+                        <p className="text-[11px] text-white/30 mt-0.5 uppercase tracking-wide">Delivered in {deliveryDays} day{deliveryDays !== "1" ? "s" : ""}</p>
+                      )}
+                    </div>
+                    <p className="text-white/50 text-sm flex-1">{offer.description}</p>
+                    <div className="flex items-end justify-between mt-auto pt-2">
+                      <span className="text-2xl font-bold" style={{ color: "#F4A62A" }}>{priceLabel}</span>
+                      <span className="text-white/30 text-xs">USD · one-time</span>
+                    </div>
+                    <button
+                      data-testid={`btn-buy-${offer.productId}`}
+                      onClick={() => handleBuyNow(offer.priceId, offer.name)}
+                      disabled={isBuying}
+                      className="btn-primary w-full mt-1 flex items-center justify-center gap-2 text-sm disabled:opacity-60"
+                    >
+                      {isBuying ? "Redirecting to Checkout…" : "Buy Now →"}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-center text-white/25 text-xs mt-8">Secure payments powered by Stripe · All transactions encrypted</p>
+          </div>
+        </section>
+      )}
 
       {/* ── Book a Session ── */}
       {consultations.length > 0 && (

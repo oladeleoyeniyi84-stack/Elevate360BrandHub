@@ -17,6 +17,10 @@ import { notifyNewContact, notifyNewLead, notifyNewSubscriber, sendContactReply,
 import { generateSitemap } from "./sitemap";
 import { processConversationIntelligence } from "./services/leadService";
 import { z } from "zod";
+import { WebhookHandlers } from "./webhookHandlers";
+import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
+import { db } from "./db";
+import { sql } from "drizzle-orm";
 
 const DASHBOARD_PIN = process.env.DASHBOARD_PIN;
 
@@ -536,6 +540,162 @@ export async function registerRoutes(
     if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
     await storage.deleteConsultation(Number(req.params.id));
     res.json({ ok: true });
+  });
+
+  // Phase 37 — Stripe Webhook (uses req.rawBody captured by express.json verify callback)
+  app.post("/api/stripe/webhook", async (req: any, res) => {
+    const sig = req.headers["stripe-signature"];
+    if (!sig) return res.status(400).json({ error: "Missing stripe-signature" });
+    try {
+      const rawBody = req.rawBody as Buffer;
+      await WebhookHandlers.processWebhook(rawBody, Array.isArray(sig) ? sig[0] : sig);
+
+      // Custom fulfillment: parse event and update our orders table
+      try {
+        const event = JSON.parse(rawBody.toString());
+        if (event.type === "checkout.session.completed") {
+          const session = event.data?.object;
+          if (session?.id) {
+            await storage.updateOrderStatus(session.id, "paid", {
+              stripePaymentIntentId: session.payment_intent ?? undefined,
+              amountPaid: session.amount_total ?? undefined,
+              customerName: session.customer_details?.name ?? undefined,
+            });
+            // Auto-advance pipeline to "won"
+            const sessionChatId = session.metadata?.sessionId;
+            if (sessionChatId) {
+              storage.updateLeadPipelineStage(
+                sessionChatId,
+                "won",
+                `Paid via Stripe — ${session.amount_total ? `$${(session.amount_total / 100).toFixed(2)}` : "unknown amount"}`,
+                session.amount_total ?? undefined
+              ).catch(() => {});
+            }
+          }
+        }
+      } catch {}
+
+      res.json({ received: true });
+    } catch (e: any) {
+      console.error("[stripe] webhook error:", e.message);
+      res.status(400).json({ error: "Webhook processing error" });
+    }
+  });
+
+  // Phase 37 — Public Stripe key
+  app.get("/api/stripe/public-key", async (_req, res) => {
+    try {
+      const key = await getStripePublishableKey();
+      res.json({ publishableKey: key });
+    } catch {
+      res.status(503).json({ publishableKey: null });
+    }
+  });
+
+  // Phase 37 — Public Offers (fetched from Stripe synced data)
+  app.get("/api/offers", async (_req, res) => {
+    try {
+      const result = await db.execute(sql`
+        SELECT
+          p.id AS product_id,
+          p.name AS product_name,
+          p.description AS product_description,
+          p.metadata AS product_metadata,
+          pr.id AS price_id,
+          pr.unit_amount,
+          pr.currency
+        FROM stripe.products p
+        JOIN stripe.prices pr ON pr.product = p.id AND pr.active = true
+        WHERE p.active = true
+        ORDER BY (p.metadata->>'displayOrder')::int ASC NULLS LAST, p.name ASC
+      `);
+      const offers = result.rows.map((row: any) => ({
+        productId: row.product_id,
+        priceId: row.price_id,
+        name: row.product_name,
+        description: row.product_description,
+        amount: row.unit_amount,
+        currency: row.currency ?? "usd",
+        metadata: row.product_metadata ?? {},
+      }));
+      res.json(offers);
+    } catch {
+      res.json([]); // stripe schema may not exist yet
+    }
+  });
+
+  // Phase 37 — Create Stripe Checkout Session
+  app.post("/api/checkout/session", async (req, res) => {
+    const { priceId, customerEmail, sessionId: chatSessionId, productName } = req.body;
+    if (!priceId) return res.status(400).json({ message: "priceId required" });
+
+    const origin = `https://${(process.env.REPLIT_DOMAINS ?? "localhost:5000").split(",")[0]}`;
+
+    try {
+      const stripe = await getUncachableStripeClient();
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ["card"],
+        line_items: [{ price: priceId, quantity: 1 }],
+        mode: "payment",
+        success_url: `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${origin}/#offers`,
+        customer_email: customerEmail || undefined,
+        metadata: {
+          sessionId: chatSessionId ?? "",
+          source: "elevate360-website",
+        },
+      } as any);
+
+      // Track as initiated order (abandoned checkout if never completed)
+      storage.createOrder({
+        stripeSessionId: session.id,
+        stripePriceId: priceId,
+        productName: productName ?? "Offer",
+        customerEmail: customerEmail ?? "unknown",
+        status: "initiated",
+        sessionId: chatSessionId ?? undefined,
+      }).catch(() => {});
+
+      res.json({ url: session.url });
+    } catch (e: any) {
+      console.error("[stripe] checkout error:", e.message);
+      res.status(500).json({ message: "Could not create checkout session." });
+    }
+  });
+
+  // Phase 37 — Dashboard Orders
+  app.get("/api/dashboard/orders", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    const orders = await storage.getAllOrders();
+    const stats = await storage.getOrderStats();
+    res.json({ orders, stats });
+  });
+
+  // Phase 37 — Dashboard Offers (Stripe products list)
+  app.get("/api/dashboard/offers", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    try {
+      const stripe = await getUncachableStripeClient();
+      const products = await stripe.products.list({ active: true, limit: 20 });
+      const prices = await stripe.prices.list({ active: true, limit: 50 });
+      const pricesByProduct = new Map<string, any[]>();
+      for (const p of prices.data) {
+        const arr = pricesByProduct.get(p.product as string) ?? [];
+        arr.push(p);
+        pricesByProduct.set(p.product as string, arr);
+      }
+      const data = products.data.map((prod) => ({
+        id: prod.id,
+        name: prod.name,
+        description: prod.description,
+        active: prod.active,
+        metadata: prod.metadata,
+        prices: pricesByProduct.get(prod.id) ?? [],
+      }));
+      res.json(data);
+    } catch {
+      res.json([]);
+    }
   });
 
   app.get("/api/config/public", (_req, res) => {

@@ -1855,6 +1855,187 @@ function PipelineTab({ leads, onStageChange }: { leads: Lead[]; onStageChange: (
   );
 }
 
+// ─── Phase 37: Orders Tab ──────────────────────────────────────────────────
+
+type StripeOffer = {
+  id: string; name: string; description: string | null; active: boolean;
+  metadata: Record<string, string>;
+  prices: { id: string; unit_amount: number; currency: string; active: boolean }[];
+};
+
+type OrderRow = {
+  id: number;
+  stripeSessionId: string | null;
+  stripePaymentIntentId: string | null;
+  stripeProductId: string | null;
+  stripePriceId: string | null;
+  productName: string | null;
+  customerEmail: string;
+  customerName: string | null;
+  amountPaid: number | null;
+  currency: string | null;
+  status: string;
+  sessionId: string | null;
+  createdAt: string;
+};
+
+type OrderStats = { total: number; paid: number; revenue: number; abandoned: number };
+
+function OrdersTab() {
+  const [ordersPanel, setOrdersPanel] = useState<"orders" | "offers">("orders");
+
+  const ordersQ = useQuery<{ orders: OrderRow[]; stats: OrderStats }>({
+    queryKey: ["/api/dashboard/orders"],
+    queryFn: async () => {
+      const res = await fetch("/api/dashboard/orders");
+      if (!res.ok) throw new Error("Unauthorized");
+      return res.json();
+    },
+  });
+
+  const offersQ = useQuery<StripeOffer[]>({
+    queryKey: ["/api/dashboard/offers"],
+    queryFn: async () => {
+      const res = await fetch("/api/dashboard/offers");
+      if (!res.ok) throw new Error("Unauthorized");
+      return res.json();
+    },
+  });
+
+  const orders = ordersQ.data?.orders ?? [];
+  const stats = ordersQ.data?.stats ?? { total: 0, paid: 0, revenue: 0, abandoned: 0 };
+  const offers = offersQ.data ?? [];
+
+  const statusColor: Record<string, string> = {
+    initiated: "#F4A62A",
+    paid: "#22c55e",
+    refunded: "#f87171",
+    failed: "#f87171",
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Revenue summary */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: "Total Orders", value: stats.total, color: "#F4A62A" },
+          { label: "Paid", value: stats.paid, color: "#22c55e" },
+          { label: "Abandoned", value: stats.abandoned, color: "#9ca3af" },
+          { label: "Revenue", value: `$${(stats.revenue / 100).toFixed(2)}`, color: "#F4A62A" },
+        ].map((s) => (
+          <div key={s.label} className="lux-panel p-4 text-center">
+            <div className="text-2xl font-bold font-heading" style={{ color: s.color }}>{s.value}</div>
+            <div className="text-xs text-white/40 mt-0.5">{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Sub-tabs */}
+      <div className="flex gap-3 items-center">
+        {(["orders", "offers"] as const).map((p) => (
+          <button key={p}
+            data-testid={`btn-orders-panel-${p}`}
+            onClick={() => setOrdersPanel(p)}
+            className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${ordersPanel === p ? "text-black" : "text-white/40 hover:text-white/70"}`}
+            style={ordersPanel === p ? { background: "#F4A62A" } : { background: "rgba(255,255,255,0.05)" }}>
+            {p === "orders" ? "Order History" : "Stripe Products"}
+          </button>
+        ))}
+        <a href="/#offers" target="_blank" rel="noopener noreferrer"
+          className="ml-auto flex items-center gap-1.5 text-xs text-white/30 hover:text-[#F4A62A] transition-colors">
+          <ExternalLink className="w-3.5 h-3.5" /> View on Site
+        </a>
+      </div>
+
+      {/* Order History */}
+      {ordersPanel === "orders" && (
+        <div className="space-y-3">
+          {ordersQ.isLoading && <p className="text-white/40 text-sm">Loading…</p>}
+          {!ordersQ.isLoading && orders.length === 0 && (
+            <div className="lux-panel p-8 text-center text-white/30">
+              <DollarSign className="w-10 h-10 mx-auto mb-3 opacity-30" />
+              <p>No orders yet. Share your <a href="/#offers" className="text-[#F4A62A] hover:underline">offers page</a> to start earning.</p>
+            </div>
+          )}
+          {orders.map((o) => (
+            <div key={o.id} className="lux-panel p-4" data-testid={`order-row-${o.id}`}>
+              <div className="flex items-start gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-white text-sm">{o.productName ?? "Unknown Offer"}</span>
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full"
+                      style={{ background: `${statusColor[o.status] ?? "#9ca3af"}20`, color: statusColor[o.status] ?? "#9ca3af" }}>
+                      {o.status}
+                    </span>
+                    {o.amountPaid != null && (
+                      <span className="text-[11px] font-bold" style={{ color: "#22c55e" }}>
+                        ${(o.amountPaid / 100).toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-white/40 text-xs mt-0.5">{o.customerEmail}{o.customerName ? ` · ${o.customerName}` : ""}</p>
+                  {o.stripeSessionId && (
+                    <p className="text-white/20 text-[11px] mt-0.5 font-mono truncate">{o.stripeSessionId}</p>
+                  )}
+                </div>
+                <span className="text-white/25 text-xs shrink-0">
+                  {new Date(o.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Stripe Products */}
+      {ordersPanel === "offers" && (
+        <div className="space-y-3">
+          {offersQ.isLoading && <p className="text-white/40 text-sm">Loading from Stripe…</p>}
+          {offers.length === 0 && !offersQ.isLoading && (
+            <div className="lux-panel p-6 text-center text-white/30">
+              Run the seed script to create products: <code className="text-[#F4A62A] text-xs">npx tsx scripts/seed-stripe-products.ts</code>
+            </div>
+          )}
+          {offers.map((prod) => (
+            <div key={prod.id} className="lux-panel p-4" data-testid={`offer-row-${prod.id}`}>
+              <div className="flex items-start gap-3">
+                <div className="text-2xl">{prod.metadata?.icon ?? "📦"}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className={`font-semibold text-sm ${prod.active ? "text-white" : "text-white/30 line-through"}`}>{prod.name}</span>
+                    {!prod.active && <span className="text-[11px] text-white/30">Inactive</span>}
+                    {prod.metadata?.highlight === "true" && (
+                      <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: "rgba(244,166,42,0.15)", color: "#F4A62A" }}>Popular</span>
+                    )}
+                  </div>
+                  <p className="text-white/40 text-xs mt-0.5 line-clamp-2">{prod.description}</p>
+                  <div className="flex items-center gap-4 mt-1.5">
+                    {prod.prices.map((pr) => (
+                      <span key={pr.id} className="text-xs font-bold" style={{ color: "#22c55e" }}>
+                        ${(pr.unit_amount / 100).toFixed(0)} {pr.currency.toUpperCase()}
+                      </span>
+                    ))}
+                    <span className="text-white/20 text-[11px] font-mono">{prod.id}</span>
+                  </div>
+                </div>
+                <a href={`https://dashboard.stripe.com/products/${prod.id}`}
+                  target="_blank" rel="noopener noreferrer"
+                  data-testid={`btn-stripe-product-${prod.id}`}
+                  className="text-white/30 hover:text-[#F4A62A] transition-colors p-1 shrink-0">
+                  <ExternalLink className="w-4 h-4" />
+                </a>
+              </div>
+            </div>
+          ))}
+          <p className="text-white/25 text-xs text-center pt-2">
+            Manage products in <a href="https://dashboard.stripe.com/products" target="_blank" rel="noopener noreferrer" className="text-[#F4A62A] hover:underline">Stripe Dashboard</a>
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Phase 36: Bookings Tab ────────────────────────────────────────────────
 
 type BookingRow = {
@@ -2176,7 +2357,7 @@ function BookingsTab() {
 // ──────────────────────────────────────────────────────────────────────────────
 
 function DashboardContent({ onLogout }: { onLogout: () => void }) {
-  const [tab, setTab] = useState<"analytics" | "voice" | "leads" | "contacts" | "newsletter" | "reviews" | "blog" | "knowledge" | "pipeline" | "bookings">("analytics");
+  const [tab, setTab] = useState<"analytics" | "voice" | "leads" | "contacts" | "newsletter" | "reviews" | "blog" | "knowledge" | "pipeline" | "bookings" | "orders">("analytics");
   const [leadFilter, setLeadFilter] = useState<"all" | "priority" | "hot" | "warm" | "cold">("all");
   const qc = useQueryClient();
 
@@ -2250,6 +2431,7 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
     { key: "voice", label: "Brand Voice", icon: Wand2 },
     { key: "leads", label: "Chat Leads", icon: MessageSquare },
     { key: "pipeline", label: "Pipeline", icon: TrendingUp },
+    { key: "orders", label: "Orders", icon: DollarSign },
     { key: "bookings", label: "Bookings", icon: Calendar },
     { key: "knowledge", label: "Knowledge", icon: BookOpen },
     { key: "contacts", label: "Contacts", icon: Users },
@@ -2460,6 +2642,7 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
         {tab === "blog" && <BlogTab />}
         {tab === "knowledge" && <KnowledgeTab />}
         {tab === "pipeline" && <PipelineTab leads={leads} onStageChange={() => qc.invalidateQueries({ queryKey: ["/api/dashboard/leads"] })} />}
+        {tab === "orders" && <OrdersTab />}
         {tab === "bookings" && <BookingsTab />}
 
       </div>
