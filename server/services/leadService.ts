@@ -1,6 +1,7 @@
 import { storage } from "../storage";
 import { classifyIntent } from "../ai/intentRouter";
 import { computeLeadScore } from "../ai/leadScoring";
+import { maybeSummarizeSession } from "../utils/summarizer";
 import type { ChatMessage } from "@shared/schema";
 
 export async function processConversationIntelligence(
@@ -35,6 +36,14 @@ export async function processConversationIntelligence(
       nextAction: scoreResult.nextAction,
       lastActivityAt: new Date(),
     });
+
+    const allMessages = [...history, { role: "user" as const, content: latestMessage }];
+    maybeSummarizeSession(
+      sessionId,
+      allMessages,
+      scoreResult.score,
+      intentResult.intent
+    ).catch(() => {});
   } catch (err) {
     console.error("[leadService] intelligence processing failed:", err);
   }

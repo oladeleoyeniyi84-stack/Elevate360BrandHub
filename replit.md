@@ -32,6 +32,7 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 - AI Concierge Intent Router (Phase 33): OpenAI-based intent classification into 12 categories, route target mapping, email/name extraction, saved to `chat_conversations`
 - Lead Scoring Engine (Phase 34): 0–100 score, 4 temperature bands (cold/warm/hot/priority), score reasoning, next-action recommendation, saved to `chat_conversations`
 - Dashboard Chat Leads: temperature filter buttons (All / Priority / Hot / Warm / Cold), lead score display, intent panel, next-action display
+- AI Conversation Summaries (Phase 38): auto-triggers after 6+ user messages, refreshes every 4 messages; generates sessionSummary, leadQuality, recommendedFollowup, ctaShown, conversionOutcome via GPT-4o-mini; ChatLeadRow shows intent badge (color-coded by 12 types), ScoreBadge, summary preview, follow-up panel, outcome label, "Mark as Converted" button that PATCH /api/dashboard/leads/:sessionId/convert and flips assignedStage to "converted"
 
 ## Design System (CSS)
 - **btn-primary**: Gold filled CTA button (#F4A62A)

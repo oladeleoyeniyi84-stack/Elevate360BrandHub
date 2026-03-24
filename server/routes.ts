@@ -125,6 +125,14 @@ export async function registerRoutes(
     res.json(leads);
   });
 
+  app.patch("/api/dashboard/leads/:sessionId/convert", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    const { sessionId } = req.params;
+    if (!sessionId) return res.status(400).json({ message: "sessionId required" });
+    await storage.markLeadConverted(sessionId);
+    res.json({ success: true });
+  });
+
   app.get("/api/dashboard/contacts", async (req, res) => {
     if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
     const contacts = await storage.getContactMessages();

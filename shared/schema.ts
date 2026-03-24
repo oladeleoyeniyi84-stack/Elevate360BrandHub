@@ -48,6 +48,13 @@ export const chatConversations = pgTable("chat_conversations", {
   nextAction: varchar("next_action", { length: 120 }),
   assignedStage: varchar("assigned_stage", { length: 40 }).default("new").notNull(),
   lastActivityAt: timestamp("last_activity_at"),
+
+  // Phase 38 — AI Conversation Summaries
+  sessionSummary: text("session_summary"),
+  leadQuality: varchar("lead_quality", { length: 20 }),
+  recommendedFollowup: text("recommended_followup"),
+  ctaShown: varchar("cta_shown", { length: 120 }),
+  conversionOutcome: varchar("conversion_outcome", { length: 80 }),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({

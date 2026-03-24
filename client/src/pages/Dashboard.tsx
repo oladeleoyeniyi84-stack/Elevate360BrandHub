@@ -74,6 +74,12 @@ interface Lead {
   nextAction: string | null;
   assignedStage: string;
   lastActivityAt: string | null;
+  // Phase 38 — Conversation Summaries
+  sessionSummary: string | null;
+  leadQuality: string | null;
+  recommendedFollowup: string | null;
+  ctaShown: string | null;
+  conversionOutcome: string | null;
 }
 
 interface ContactMessage {
@@ -649,14 +655,69 @@ function TemperatureBadge({ temp }: { temp: string }) {
   );
 }
 
-function ChatLeadRow({ lead }: { lead: Lead }) {
+const INTENT_COLORS: Record<string, string> = {
+  sales_service: "bg-green-500/15 text-green-400",
+  sales_consultation: "bg-emerald-500/15 text-emerald-400",
+  art_commission: "bg-violet-500/15 text-violet-400",
+  app_interest: "bg-blue-500/15 text-blue-400",
+  book_interest: "bg-amber-500/15 text-amber-400",
+  music_interest: "bg-pink-500/15 text-pink-400",
+  media_press: "bg-cyan-500/15 text-cyan-400",
+  collaboration: "bg-indigo-500/15 text-indigo-400",
+  newsletter: "bg-teal-500/15 text-teal-400",
+  support: "bg-orange-500/15 text-orange-400",
+  general_brand: "bg-white/10 text-white/60",
+  unknown: "bg-white/6 text-white/30",
+};
+
+const OUTCOME_LABELS: Record<string, { label: string; color: string }> = {
+  converted:        { label: "Converted",      color: "text-green-400" },
+  warm_lead:        { label: "Warm Lead",      color: "text-yellow-400" },
+  cold_lead:        { label: "Cold Lead",      color: "text-blue-400" },
+  support_resolved: { label: "Support ✓",      color: "text-teal-400" },
+  no_action:        { label: "No Action",      color: "text-white/30" },
+  browsing:         { label: "Browsing",       color: "text-white/40" },
+};
+
+function IntentBadge({ intent }: { intent: string }) {
+  const cls = INTENT_COLORS[intent] ?? INTENT_COLORS.unknown;
+  return (
+    <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${cls}`}>
+      {intent.replace(/_/g, " ")}
+    </span>
+  );
+}
+
+function ScoreBadge({ score }: { score: number }) {
+  const color = score >= 75 ? "#f87171" : score >= 50 ? "#fb923c" : score >= 25 ? "#facc15" : "#60a5fa";
+  return (
+    <span className="inline-flex items-center gap-1 text-xs font-bold" style={{ color }}>
+      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
+      {score}
+    </span>
+  );
+}
+
+function ChatLeadRow({ lead, onConverted }: { lead: Lead; onConverted: () => void }) {
   const [expanded, setExpanded] = useState(false);
   const msgCount = lead.messages?.length ?? 0;
   const temp = lead.leadTemperature ?? "cold";
   const score = lead.leadScore ?? 0;
+  const isConverted = lead.assignedStage === "converted" || lead.conversionOutcome === "converted";
+  const outcome = lead.conversionOutcome ? OUTCOME_LABELS[lead.conversionOutcome] : null;
+
+  const convertMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/dashboard/leads/${lead.sessionId}/convert`, { method: "PATCH" });
+      if (!res.ok) throw new Error("Convert failed");
+      return res.json();
+    },
+    onSuccess: onConverted,
+  });
 
   return (
-    <div className="border border-white/8 rounded-2xl overflow-hidden" data-testid={`card-lead-${lead.id}`}>
+    <div className={`border rounded-2xl overflow-hidden transition ${isConverted ? "border-green-500/20 bg-green-500/3" : "border-white/8"}`}
+      data-testid={`card-lead-${lead.id}`}>
       <button onClick={() => setExpanded((v) => !v)}
         className="w-full flex items-center justify-between px-5 py-4 hover:bg-white/4 transition text-left">
         <div className="flex items-center gap-3 min-w-0">
@@ -669,58 +730,104 @@ function ChatLeadRow({ lead }: { lead: Lead }) {
                 {lead.leadName || lead.capturedName || <span className="text-white/40 font-normal italic">Anonymous</span>}
               </p>
               <TemperatureBadge temp={temp} />
-              {lead.requiresFollowup && (
+              {lead.intent && <IntentBadge intent={lead.intent} />}
+              {lead.requiresFollowup && !isConverted && (
                 <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-purple-500/15 text-purple-400">
                   Follow-up needed
                 </span>
               )}
+              {isConverted && (
+                <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-green-500/15 text-green-400">
+                  ✓ Converted
+                </span>
+              )}
             </div>
-            <p className="text-xs text-white/40 truncate">
-              {lead.leadEmail || lead.capturedEmail || "No email captured"} · {msgCount} messages
-              {lead.intent && <> · <span className="text-white/60">{lead.intent.replace(/_/g, " ")}</span></>}
-            </p>
+            {/* Summary preview */}
+            {lead.sessionSummary ? (
+              <p className="text-xs text-white/50 mt-0.5 line-clamp-1">{lead.sessionSummary}</p>
+            ) : (
+              <p className="text-xs text-white/30 truncate">
+                {lead.leadEmail || lead.capturedEmail || "No email captured"} · {msgCount} messages
+              </p>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-3 flex-shrink-0 ml-4">
-          <div className="hidden sm:flex flex-col items-end">
-            <span className="text-sm font-bold" style={{ color: score >= 75 ? "#f87171" : score >= 50 ? "#fb923c" : score >= 25 ? "#facc15" : "#60a5fa" }}>
-              {score}
-            </span>
-            <span className="text-[10px] text-white/30">score</span>
+          <div className="hidden sm:flex flex-col items-end gap-0.5">
+            <ScoreBadge score={score} />
+            {outcome && <span className={`text-[10px] ${outcome.color}`}>{outcome.label}</span>}
           </div>
           <span className="text-xs text-white/30 hidden sm:block">{formatDate(lead.updatedAt)}</span>
           {expanded ? <ChevronUp className="h-4 w-4 text-white/30" /> : <ChevronDown className="h-4 w-4 text-white/30" />}
         </div>
       </button>
+
       {expanded && (
-        <div className="px-5 pb-4 space-y-3 border-t border-white/6 pt-3">
-          {/* Intelligence panel */}
-          {(lead.intent || lead.nextAction || lead.scoreReasoning) && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
-              {lead.intent && (
-                <div className="bg-white/3 rounded-xl px-3 py-2">
-                  <p className="text-[10px] text-white/30 uppercase tracking-wide mb-0.5">Detected Intent</p>
-                  <p className="text-xs text-white/80 font-medium">{lead.intent.replace(/_/g, " ")}</p>
-                  {lead.routeTarget && <p className="text-[10px] text-white/30 mt-0.5">→ {lead.routeTarget.replace(/_/g, " ")}</p>}
-                </div>
-              )}
-              {lead.nextAction && (
-                <div className="bg-white/3 rounded-xl px-3 py-2">
-                  <p className="text-[10px] text-white/30 uppercase tracking-wide mb-0.5">Recommended Action</p>
-                  <p className="text-xs text-white/80">{lead.nextAction}</p>
-                </div>
-              )}
-              {lead.scoreReasoning && (
-                <div className="bg-white/3 rounded-xl px-3 py-2 sm:col-span-2">
-                  <p className="text-[10px] text-white/30 uppercase tracking-wide mb-0.5">Score Reasoning</p>
-                  <p className="text-xs text-white/60">{lead.scoreReasoning}</p>
-                </div>
-              )}
+        <div className="px-5 pb-5 space-y-3 border-t border-white/6 pt-4">
+          {/* Summary block */}
+          {lead.sessionSummary && (
+            <div className="bg-[#F4A62A]/8 border border-[#F4A62A]/15 rounded-xl px-4 py-3">
+              <p className="text-[10px] text-[#F4A62A]/60 uppercase tracking-wide mb-1">AI Session Summary</p>
+              <p className="text-sm text-white/80 leading-relaxed">{lead.sessionSummary}</p>
             </div>
           )}
-          {/* Messages */}
+
+          {/* Intelligence grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {lead.intent && (
+              <div className="bg-white/3 rounded-xl px-3 py-2">
+                <p className="text-[10px] text-white/30 uppercase tracking-wide mb-0.5">Detected Intent</p>
+                <p className="text-xs text-white/80 font-medium">{lead.intent.replace(/_/g, " ")}</p>
+                {lead.routeTarget && <p className="text-[10px] text-white/30 mt-0.5">→ {lead.routeTarget.replace(/_/g, " ")}</p>}
+              </div>
+            )}
+            {lead.leadQuality && (
+              <div className="bg-white/3 rounded-xl px-3 py-2">
+                <p className="text-[10px] text-white/30 uppercase tracking-wide mb-0.5">Lead Quality</p>
+                <p className="text-xs text-white/80 font-medium capitalize">{lead.leadQuality}</p>
+                {lead.ctaShown && lead.ctaShown !== "none" && (
+                  <p className="text-[10px] text-white/30 mt-0.5">CTA: {lead.ctaShown}</p>
+                )}
+              </div>
+            )}
+            {lead.recommendedFollowup && (
+              <div className="bg-white/3 rounded-xl px-3 py-2 sm:col-span-2">
+                <p className="text-[10px] text-white/30 uppercase tracking-wide mb-0.5">Recommended Follow-up</p>
+                <p className="text-xs text-white/80">{lead.recommendedFollowup}</p>
+              </div>
+            )}
+            {lead.nextAction && !lead.recommendedFollowup && (
+              <div className="bg-white/3 rounded-xl px-3 py-2">
+                <p className="text-[10px] text-white/30 uppercase tracking-wide mb-0.5">Next Action</p>
+                <p className="text-xs text-white/80">{lead.nextAction}</p>
+              </div>
+            )}
+            {lead.scoreReasoning && (
+              <div className="bg-white/3 rounded-xl px-3 py-2 sm:col-span-2">
+                <p className="text-[10px] text-white/30 uppercase tracking-wide mb-0.5">Score Reasoning</p>
+                <p className="text-xs text-white/60">{lead.scoreReasoning}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Convert to lead button */}
+          {!isConverted && (
+            <div className="flex justify-end pt-1">
+              <button
+                onClick={(e) => { e.stopPropagation(); convertMutation.mutate(); }}
+                disabled={convertMutation.isPending}
+                data-testid={`button-convert-lead-${lead.id}`}
+                className="flex items-center gap-2 text-xs font-semibold px-4 py-2 rounded-xl bg-green-500/10 text-green-400 hover:bg-green-500/20 border border-green-500/20 transition disabled:opacity-50"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                {convertMutation.isPending ? "Marking…" : "Mark as Converted"}
+              </button>
+            </div>
+          )}
+
+          {/* Transcript */}
           {msgCount > 0 && (
-            <div className="space-y-2">
+            <div className="space-y-2 max-h-48 overflow-y-auto pt-1">
               {(lead.messages as { role: string; content: string }[]).map((msg, i) => (
                 <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                   <div className={`max-w-[75%] rounded-2xl px-3 py-2 text-xs leading-relaxed ${
@@ -1280,6 +1387,7 @@ function BlogTab() {
 function DashboardContent({ onLogout }: { onLogout: () => void }) {
   const [tab, setTab] = useState<"analytics" | "voice" | "leads" | "contacts" | "newsletter" | "reviews" | "blog">("analytics");
   const [leadFilter, setLeadFilter] = useState<"all" | "priority" | "hot" | "warm" | "cold">("all");
+  const qc = useQueryClient();
 
   const leadsQuery = useQuery<Lead[]>({
     queryKey: ["/api/dashboard/leads", leadFilter],
@@ -1461,7 +1569,13 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
                 <p className="text-white/40 text-sm">No chat sessions yet</p>
               </div>
             ) : (
-              leads.map((lead) => <ChatLeadRow key={lead.id} lead={lead} />)
+              leads.map((lead) => (
+                <ChatLeadRow
+                  key={lead.id}
+                  lead={lead}
+                  onConverted={() => qc.invalidateQueries({ queryKey: ["/api/dashboard/leads"] })}
+                />
+              ))
             )}
           </div>
         )}

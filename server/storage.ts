@@ -25,6 +25,15 @@ export interface IStorage {
   getChatConversation(sessionId: string): Promise<ChatConversation | undefined>;
   getAllChatConversations(temperature?: string): Promise<ChatConversation[]>;
   updateChatIntelligence(sessionId: string, data: Partial<ChatConversation>): Promise<void>;
+  getChatSession(sessionId: string): Promise<ChatConversation | undefined>;
+  updateChatSummary(sessionId: string, data: {
+    sessionSummary?: string;
+    leadQuality?: string;
+    recommendedFollowup?: string;
+    ctaShown?: string;
+    conversionOutcome?: string;
+  }): Promise<void>;
+  markLeadConverted(sessionId: string): Promise<void>;
   recordPageView(page: string): Promise<void>;
   getPageViews(): Promise<{ createdAt: Date }[]>;
   recordClick(product: string, label: string): Promise<void>;
@@ -144,6 +153,39 @@ export class DatabaseStorage implements IStorage {
     await db
       .update(chatConversations)
       .set(data)
+      .where(eq(chatConversations.sessionId, sessionId));
+  }
+
+  async getChatSession(sessionId: string): Promise<ChatConversation | undefined> {
+    const [row] = await db
+      .select()
+      .from(chatConversations)
+      .where(eq(chatConversations.sessionId, sessionId));
+    return row;
+  }
+
+  async updateChatSummary(sessionId: string, data: {
+    sessionSummary?: string;
+    leadQuality?: string;
+    recommendedFollowup?: string;
+    ctaShown?: string;
+    conversionOutcome?: string;
+  }): Promise<void> {
+    await db
+      .update(chatConversations)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(chatConversations.sessionId, sessionId));
+  }
+
+  async markLeadConverted(sessionId: string): Promise<void> {
+    await db
+      .update(chatConversations)
+      .set({
+        conversionOutcome: "converted",
+        assignedStage: "converted",
+        leadTemperature: "priority",
+        updatedAt: new Date(),
+      })
       .where(eq(chatConversations.sessionId, sessionId));
   }
 
