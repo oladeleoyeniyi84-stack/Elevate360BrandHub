@@ -5,10 +5,11 @@ import {
   type ChatConversation, type ChatMessage,
   type Testimonial, type InsertTestimonial,
   type BlogPost, type InsertBlogPost, type UpdateBlogPost,
-  users, contactMessages, newsletterSubscribers, chatConversations, clickEvents, pageViews, testimonials, blogPosts,
+  type KnowledgeDocument, type InsertKnowledgeDoc, type UpdateKnowledgeDoc,
+  users, contactMessages, newsletterSubscribers, chatConversations, clickEvents, pageViews, testimonials, blogPosts, knowledgeDocuments,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, sql, desc } from "drizzle-orm";
+import { eq, sql, desc, asc } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -48,6 +49,16 @@ export interface IStorage {
   updateBlogPost(id: number, updates: UpdateBlogPost): Promise<BlogPost | undefined>;
   deleteBlogPost(id: number): Promise<void>;
   toggleBlogPostPublished(id: number): Promise<BlogPost | undefined>;
+  // Phase 35 — Knowledge Base
+  getKnowledgeDocs(publishedOnly?: boolean): Promise<KnowledgeDocument[]>;
+  getPublishedKnowledgeByIntent(intent?: string | null): Promise<KnowledgeDocument[]>;
+  createKnowledgeDoc(doc: InsertKnowledgeDoc): Promise<KnowledgeDocument>;
+  updateKnowledgeDoc(id: number, updates: UpdateKnowledgeDoc): Promise<KnowledgeDocument | undefined>;
+  deleteKnowledgeDoc(id: number): Promise<void>;
+  toggleKnowledgeDocPublished(id: number): Promise<KnowledgeDocument | undefined>;
+  // Phase 40 — CRM Pipeline
+  updateLeadPipelineStage(sessionId: string, stage: string, note?: string, wonValue?: number, lostReason?: string, followupDueDate?: Date | null): Promise<void>;
+  getLeadsByPipelineStage(stage?: string): Promise<ChatConversation[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -278,6 +289,114 @@ export class DatabaseStorage implements IStorage {
       .where(eq(blogPosts.id, id))
       .returning();
     return updated;
+  }
+
+  // Phase 35 — Knowledge Base
+  async getKnowledgeDocs(publishedOnly?: boolean): Promise<KnowledgeDocument[]> {
+    const query = db.select().from(knowledgeDocuments);
+    if (publishedOnly) {
+      return query.where(eq(knowledgeDocuments.isPublished, true)).orderBy(desc(knowledgeDocuments.priority), asc(knowledgeDocuments.createdAt));
+    }
+    return query.orderBy(desc(knowledgeDocuments.priority), asc(knowledgeDocuments.createdAt));
+  }
+
+  async getPublishedKnowledgeByIntent(intent?: string | null): Promise<KnowledgeDocument[]> {
+    const INTENT_CATEGORY_MAP: Record<string, string[]> = {
+      app_interest: ["apps", "general"],
+      book_interest: ["books", "general"],
+      music_interest: ["music", "general"],
+      art_commission: ["art_studio", "general"],
+      sales_service: ["services", "pricing", "general"],
+      sales_consultation: ["services", "pricing", "general"],
+      support: ["support", "faq", "general"],
+      collaboration: ["collaboration", "general"],
+      media_press: ["brand_story", "general"],
+      newsletter: ["general"],
+      general_brand: ["brand_story", "general"],
+    };
+    const docs = await db
+      .select()
+      .from(knowledgeDocuments)
+      .where(eq(knowledgeDocuments.isPublished, true))
+      .orderBy(desc(knowledgeDocuments.priority), asc(knowledgeDocuments.createdAt));
+
+    if (!intent || !INTENT_CATEGORY_MAP[intent]) return docs.slice(0, 8);
+
+    const preferred = INTENT_CATEGORY_MAP[intent];
+    const prioritized = [
+      ...docs.filter((d) => preferred.slice(0, -1).includes(d.category)),
+      ...docs.filter((d) => d.category === "general"),
+      ...docs.filter((d) => !preferred.includes(d.category)),
+    ];
+    return prioritized.slice(0, 8);
+  }
+
+  async createKnowledgeDoc(doc: InsertKnowledgeDoc): Promise<KnowledgeDocument> {
+    const [row] = await db.insert(knowledgeDocuments).values(doc).returning();
+    return row;
+  }
+
+  async updateKnowledgeDoc(id: number, updates: UpdateKnowledgeDoc): Promise<KnowledgeDocument | undefined> {
+    const [row] = await db.update(knowledgeDocuments)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(knowledgeDocuments.id, id))
+      .returning();
+    return row;
+  }
+
+  async deleteKnowledgeDoc(id: number): Promise<void> {
+    await db.delete(knowledgeDocuments).where(eq(knowledgeDocuments.id, id));
+  }
+
+  async toggleKnowledgeDocPublished(id: number): Promise<KnowledgeDocument | undefined> {
+    const [existing] = await db.select().from(knowledgeDocuments).where(eq(knowledgeDocuments.id, id));
+    if (!existing) return undefined;
+    const [updated] = await db.update(knowledgeDocuments)
+      .set({ isPublished: !existing.isPublished, updatedAt: new Date() })
+      .where(eq(knowledgeDocuments.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Phase 40 — CRM Pipeline
+  async updateLeadPipelineStage(
+    sessionId: string,
+    stage: string,
+    note?: string,
+    wonValue?: number,
+    lostReason?: string,
+    followupDueDate?: Date | null
+  ): Promise<void> {
+    const [existing] = await db
+      .select({ stageHistory: chatConversations.stageHistory })
+      .from(chatConversations)
+      .where(eq(chatConversations.sessionId, sessionId));
+    if (!existing) return;
+
+    const history = (existing.stageHistory as { stage: string; at: string; note?: string }[]) ?? [];
+    const newEntry = { stage, at: new Date().toISOString(), ...(note ? { note } : {}) };
+
+    const updateData: Partial<ChatConversation> = {
+      pipelineStage: stage,
+      stageHistory: [...history, newEntry] as any,
+      updatedAt: new Date(),
+    };
+    if (wonValue !== undefined) updateData.wonValue = wonValue;
+    if (lostReason !== undefined) updateData.lostReason = lostReason;
+    if (followupDueDate !== undefined) updateData.followupDueDate = followupDueDate ?? undefined;
+
+    await db.update(chatConversations).set(updateData).where(eq(chatConversations.sessionId, sessionId));
+  }
+
+  async getLeadsByPipelineStage(stage?: string): Promise<ChatConversation[]> {
+    if (stage && stage !== "all") {
+      return db
+        .select()
+        .from(chatConversations)
+        .where(eq(chatConversations.pipelineStage, stage))
+        .orderBy(desc(chatConversations.updatedAt));
+    }
+    return db.select().from(chatConversations).orderBy(desc(chatConversations.updatedAt));
   }
 }
 

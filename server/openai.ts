@@ -123,12 +123,31 @@ export async function generateBrandCopy(
   return response.choices[0]?.message?.content ?? "Unable to generate content. Please try again.";
 }
 
+export function buildConciergeSystemPrompt(knowledgeDocs?: { title: string; category: string; content: string }[]): string {
+  if (!knowledgeDocs || knowledgeDocs.length === 0) return BRAND_SYSTEM_PROMPT;
+
+  const knowledgeBlock = knowledgeDocs
+    .map((doc) => `### [${doc.category.toUpperCase()}] ${doc.title}\n${doc.content}`)
+    .join("\n\n");
+
+  return `${BRAND_SYSTEM_PROMPT}
+
+---
+## Additional Brand Knowledge Base
+Use the following authoritative brand information to answer questions with precision. Prioritize this over general knowledge when relevant.
+
+${knowledgeBlock}
+---`;
+}
+
 export async function getConciergeReply(
   history: ChatMessage[],
-  userMessage: string
+  userMessage: string,
+  knowledgeDocs?: { title: string; category: string; content: string }[]
 ): Promise<string> {
+  const systemPrompt = buildConciergeSystemPrompt(knowledgeDocs);
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-    { role: "system", content: BRAND_SYSTEM_PROMPT },
+    { role: "system", content: systemPrompt },
     ...history.map((m) => ({
       role: m.role as "user" | "assistant",
       content: m.content,

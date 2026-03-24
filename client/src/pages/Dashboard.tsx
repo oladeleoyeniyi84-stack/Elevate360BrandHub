@@ -8,6 +8,7 @@ import {
   BookOpen, Music, FileText, AtSign, PenLine, ChevronDown, ChevronUp,
   BarChart3, Reply, Send, CheckCircle2, Inbox,
   Star, Trash2, ToggleLeft, ToggleRight, PlusCircle,
+  Database, Edit2, Zap, Calendar, DollarSign, Phone, Trophy, XCircle, AlertCircle, GripVertical,
 } from "lucide-react";
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
@@ -80,6 +81,12 @@ interface Lead {
   recommendedFollowup: string | null;
   ctaShown: string | null;
   conversionOutcome: string | null;
+  // Phase 40 — CRM Pipeline
+  pipelineStage: string | null;
+  followupDueDate: string | null;
+  wonValue: number | null;
+  lostReason: string | null;
+  stageHistory: { stage: string; at: string; note?: string }[];
 }
 
 interface ContactMessage {
@@ -1384,8 +1391,471 @@ function BlogTab() {
   );
 }
 
+// ─── Phase 35: Knowledge Base Tab ─────────────────────────────────────────
+
+const KB_CATEGORIES = [
+  { value: "general", label: "General" },
+  { value: "brand_story", label: "Brand Story" },
+  { value: "services", label: "Services" },
+  { value: "apps", label: "Apps" },
+  { value: "books", label: "Books" },
+  { value: "music", label: "Music" },
+  { value: "art_studio", label: "Art Studio" },
+  { value: "faq", label: "FAQ" },
+  { value: "pricing", label: "Pricing" },
+  { value: "collaboration", label: "Collaboration" },
+  { value: "support", label: "Support" },
+];
+
+const CAT_COLORS: Record<string, string> = {
+  general: "bg-white/10 text-white/50",
+  brand_story: "bg-violet-500/15 text-violet-400",
+  services: "bg-green-500/15 text-green-400",
+  apps: "bg-blue-500/15 text-blue-400",
+  books: "bg-amber-500/15 text-amber-400",
+  music: "bg-pink-500/15 text-pink-400",
+  art_studio: "bg-purple-500/15 text-purple-400",
+  faq: "bg-teal-500/15 text-teal-400",
+  pricing: "bg-orange-500/15 text-orange-400",
+  collaboration: "bg-indigo-500/15 text-indigo-400",
+  support: "bg-red-500/15 text-red-400",
+};
+
+interface KBDoc {
+  id: number;
+  title: string;
+  category: string;
+  content: string;
+  isPublished: boolean;
+  priority: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface KBForm {
+  title: string;
+  category: string;
+  content: string;
+  priority: number;
+  isPublished: boolean;
+}
+
+const EMPTY_KB_FORM: KBForm = { title: "", category: "general", content: "", priority: 0, isPublished: true };
+
+function KnowledgeTab() {
+  const qc = useQueryClient();
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<number | null>(null);
+  const [form, setForm] = useState<KBForm>(EMPTY_KB_FORM);
+  const [preview, setPreview] = useState<{ prompt: string; docCount: number; docs: { id: number; title: string; category: string }[] } | null>(null);
+  const [previewIntent, setPreviewIntent] = useState("general_brand");
+  const [showPreview, setShowPreview] = useState(false);
+
+  const { data: docs = [], isLoading } = useQuery<KBDoc[]>({
+    queryKey: ["/api/dashboard/knowledge"],
+    queryFn: async () => {
+      const r = await fetch("/api/dashboard/knowledge");
+      if (!r.ok) throw new Error("Failed");
+      return r.json();
+    },
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async (data: KBForm) => {
+      const url = editing ? `/api/dashboard/knowledge/${editing}` : "/api/dashboard/knowledge";
+      const r = await fetch(url, {
+        method: editing ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!r.ok) throw new Error("Save failed");
+      return r.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/dashboard/knowledge"] });
+      setForm(EMPTY_KB_FORM);
+      setEditing(null);
+      setShowForm(false);
+    },
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const r = await fetch(`/api/dashboard/knowledge/${id}/publish`, { method: "PATCH" });
+      if (!r.ok) throw new Error("Toggle failed");
+      return r.json();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/dashboard/knowledge"] }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await fetch(`/api/dashboard/knowledge/${id}`, { method: "DELETE" });
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/dashboard/knowledge"] }),
+  });
+
+  const loadPreview = async () => {
+    const r = await fetch(`/api/knowledge/preview?intent=${previewIntent}`);
+    const data = await r.json();
+    setPreview(data);
+    setShowPreview(true);
+  };
+
+  const startEdit = (doc: KBDoc) => {
+    setForm({ title: doc.title, category: doc.category, content: doc.content, priority: doc.priority, isPublished: doc.isPublished });
+    setEditing(doc.id);
+    setShowForm(true);
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <Database className="h-5 w-5 text-[#F4A62A]" />
+            Knowledge Base
+          </h2>
+          <p className="text-xs text-white/40 mt-0.5">{docs.filter((d) => d.isPublished).length} published · injected into AI Concierge</p>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => setShowPreview((v) => !v)} className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5">
+            <Zap className="h-3.5 w-3.5" /> Preview AI
+          </button>
+          <button onClick={() => { setForm(EMPTY_KB_FORM); setEditing(null); setShowForm((v) => !v); }}
+            data-testid="button-knowledge-new"
+            className="btn-primary text-xs px-3 py-1.5 flex items-center gap-1.5">
+            <PlusCircle className="h-3.5 w-3.5" /> New Document
+          </button>
+        </div>
+      </div>
+
+      {/* Preview what AI sees */}
+      {showPreview && (
+        <div className="lux-card space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-white flex items-center gap-2"><Eye className="h-4 w-4 text-[#F4A62A]" /> Preview What AI Sees</p>
+            <button onClick={() => setShowPreview(false)} className="text-white/30 hover:text-white/70"><XCircle className="h-4 w-4" /></button>
+          </div>
+          <div className="flex gap-2 items-center flex-wrap">
+            <select value={previewIntent} onChange={(e) => setPreviewIntent(e.target.value)}
+              className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white">
+              {["general_brand","app_interest","book_interest","music_interest","art_commission","sales_service","sales_consultation","support","collaboration","media_press","newsletter"].map(i => (
+                <option key={i} value={i}>{i.replace(/_/g, " ")}</option>
+              ))}
+            </select>
+            <button onClick={loadPreview} className="btn-primary text-xs px-3 py-1.5">Reload Preview</button>
+            {preview && <span className="text-xs text-white/40">{preview.docCount} docs injected</span>}
+          </div>
+          {preview && (
+            <div className="bg-black/20 rounded-xl p-3 max-h-80 overflow-y-auto">
+              <p className="text-[10px] text-white/30 uppercase tracking-wide mb-2">Docs included in this intent context:</p>
+              <div className="flex flex-wrap gap-1.5 mb-3">
+                {preview.docs.map((d) => (
+                  <span key={d.id} className={`text-[10px] px-2 py-0.5 rounded-full ${CAT_COLORS[d.category] ?? CAT_COLORS.general}`}>
+                    {d.title}
+                  </span>
+                ))}
+              </div>
+              <p className="text-[10px] text-white/30 uppercase tracking-wide mb-2">Full system prompt preview:</p>
+              <pre className="text-[11px] text-white/60 whitespace-pre-wrap font-mono leading-relaxed">{preview.prompt}</pre>
+            </div>
+          )}
+          {!preview && <p className="text-xs text-white/30">Click "Reload Preview" to see the injected AI context</p>}
+        </div>
+      )}
+
+      {/* Create / Edit Form */}
+      {showForm && (
+        <div className="lux-card space-y-4">
+          <p className="text-sm font-semibold text-white">{editing ? "Edit Document" : "New Knowledge Document"}</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="sm:col-span-2">
+              <label className="block text-xs text-white/40 mb-1">Title *</label>
+              <input className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-primary/50"
+                value={form.title} data-testid="input-kb-title"
+                onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                placeholder="e.g. Bondedlove App Overview" />
+            </div>
+            <div>
+              <label className="block text-xs text-white/40 mb-1">Category *</label>
+              <select className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none"
+                value={form.category} data-testid="select-kb-category"
+                onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
+                {KB_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-white/40 mb-1">Priority (0–100, higher = first injected)</label>
+              <input type="number" min={0} max={100}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-primary/50"
+                value={form.priority} data-testid="input-kb-priority"
+                onChange={e => setForm(f => ({ ...f, priority: Number(e.target.value) }))} />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs text-white/40 mb-1">Content *</label>
+              <textarea rows={8}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-primary/50 resize-y"
+                value={form.content} data-testid="textarea-kb-content"
+                onChange={e => setForm(f => ({ ...f, content: e.target.value }))}
+                placeholder="Write the authoritative information the AI concierge should know about this topic..." />
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={form.isPublished}
+                  onChange={e => setForm(f => ({ ...f, isPublished: e.target.checked }))}
+                  className="accent-primary" data-testid="checkbox-kb-published" />
+                <span className="text-sm text-white/60">Active (inject into AI)</span>
+              </label>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => saveMutation.mutate(form)}
+              disabled={!form.title || !form.content || saveMutation.isPending}
+              data-testid="button-kb-save"
+              className="btn-primary text-sm px-5 py-2 disabled:opacity-50">
+              {saveMutation.isPending ? "Saving…" : editing ? "Update" : "Save Document"}
+            </button>
+            <button onClick={() => setShowForm(false)} className="btn-secondary text-sm px-4 py-2">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Document list */}
+      {isLoading ? (
+        <div className="text-white/30 text-sm text-center py-6">Loading…</div>
+      ) : docs.length === 0 ? (
+        <div className="lux-card text-center py-10">
+          <Database className="h-8 w-8 text-white/20 mx-auto mb-3" />
+          <p className="text-white/40 text-sm mb-1">No knowledge documents yet</p>
+          <p className="text-white/25 text-xs">Add documents to ground the AI Concierge in authoritative brand information</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {docs.map((doc) => (
+            <div key={doc.id} className={`flex items-start gap-3 px-4 py-3 rounded-2xl border transition ${doc.isPublished ? "border-white/8 bg-white/2" : "border-white/4 bg-white/1 opacity-60"}`}
+              data-testid={`card-kb-${doc.id}`}>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${CAT_COLORS[doc.category] ?? CAT_COLORS.general}`}>
+                    {doc.category.replace(/_/g, " ")}
+                  </span>
+                  {doc.priority > 0 && (
+                    <span className="text-[10px] text-[#F4A62A]/60">P{doc.priority}</span>
+                  )}
+                  {!doc.isPublished && (
+                    <span className="text-[10px] text-white/30 bg-white/5 px-2 py-0.5 rounded-full">Draft</span>
+                  )}
+                </div>
+                <p className="text-sm font-semibold text-white mt-1 truncate">{doc.title}</p>
+                <p className="text-xs text-white/30 mt-0.5 line-clamp-2">{doc.content}</p>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0 mt-1">
+                <button onClick={() => startEdit(doc)} title="Edit" data-testid={`button-kb-edit-${doc.id}`}
+                  className="text-white/30 hover:text-white/70 transition"><Edit2 className="h-4 w-4" /></button>
+                <button onClick={() => toggleMutation.mutate(doc.id)} title={doc.isPublished ? "Deactivate" : "Activate"}
+                  data-testid={`button-kb-toggle-${doc.id}`}
+                  className="text-white/30 hover:text-primary transition">
+                  {doc.isPublished ? <ToggleRight className="h-5 w-5 text-green-400" /> : <ToggleLeft className="h-5 w-5" />}
+                </button>
+                <button onClick={() => deleteMutation.mutate(doc.id)} title="Delete" data-testid={`button-kb-delete-${doc.id}`}
+                  className="text-white/30 hover:text-red-400 transition"><Trash2 className="h-4 w-4" /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Phase 40: CRM Pipeline Tab ────────────────────────────────────────────
+
+const PIPELINE_STAGES = [
+  { key: "new",        label: "New",       color: "border-blue-500/30 bg-blue-500/5",   badge: "bg-blue-500/20 text-blue-300",     icon: Inbox },
+  { key: "contacted",  label: "Contacted", color: "border-purple-500/30 bg-purple-500/5", badge: "bg-purple-500/20 text-purple-300",icon: Phone },
+  { key: "qualified",  label: "Qualified", color: "border-cyan-500/30 bg-cyan-500/5",   badge: "bg-cyan-500/20 text-cyan-300",     icon: CheckCircle2 },
+  { key: "booked",     label: "Booked",    color: "border-amber-500/30 bg-amber-500/5", badge: "bg-amber-500/20 text-amber-300",   icon: Calendar },
+  { key: "won",        label: "Won",       color: "border-green-500/30 bg-green-500/5", badge: "bg-green-500/20 text-green-300",   icon: Trophy },
+  { key: "nurture",    label: "Nurture",   color: "border-orange-500/30 bg-orange-500/5", badge: "bg-orange-500/20 text-orange-300",icon: AlertCircle },
+  { key: "closed",     label: "Closed",    color: "border-red-500/30 bg-red-500/5",     badge: "bg-red-500/20 text-red-300",       icon: XCircle },
+] as const;
+
+type PipelineStageKey = (typeof PIPELINE_STAGES)[number]["key"];
+
+function PipelineLeadCard({ lead, onStageChange }: { lead: Lead; onStageChange: () => void }) {
+  const [changingStage, setChangingStage] = useState(false);
+  const [wonValue, setWonValue] = useState("");
+  const [lostReason, setLostReason] = useState("");
+  const [followupDate, setFollowupDate] = useState("");
+  const [note, setNote] = useState("");
+
+  const stageMutation = useMutation({
+    mutationFn: async (stage: string) => {
+      const r = await fetch(`/api/dashboard/leads/${lead.sessionId}/stage`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          stage,
+          note: note || undefined,
+          wonValue: wonValue ? Number(wonValue) : undefined,
+          lostReason: lostReason || undefined,
+          followupDueDate: followupDate || undefined,
+        }),
+      });
+      if (!r.ok) throw new Error("Failed");
+      return r.json();
+    },
+    onSuccess: () => {
+      setChangingStage(false);
+      onStageChange();
+    },
+  });
+
+  const currentStage = PIPELINE_STAGES.find((s) => s.key === lead.pipelineStage) ?? PIPELINE_STAGES[0];
+  const score = lead.leadScore ?? 0;
+  const scoreColor = score >= 75 ? "#f87171" : score >= 50 ? "#fb923c" : score >= 25 ? "#facc15" : "#60a5fa";
+  const isOverdue = lead.followupDueDate && new Date(lead.followupDueDate) < new Date();
+
+  return (
+    <div className="bg-white/4 border border-white/8 rounded-xl p-3 space-y-2" data-testid={`pipeline-card-${lead.id}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-white truncate">
+            {lead.leadName || lead.capturedName || <span className="text-white/30 italic">Anonymous</span>}
+          </p>
+          <p className="text-[10px] text-white/30 truncate">{lead.leadEmail || lead.capturedEmail || "No email"}</p>
+        </div>
+        <span className="text-xs font-bold shrink-0" style={{ color: scoreColor }}>{score}</span>
+      </div>
+
+      <div className="flex flex-wrap gap-1">
+        {lead.intent && (
+          <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold ${INTENT_COLORS[lead.intent] ?? "bg-white/10 text-white/50"}`}>
+            {lead.intent.replace(/_/g, " ")}
+          </span>
+        )}
+        <TemperatureBadge temp={lead.leadTemperature ?? "cold"} />
+      </div>
+
+      {lead.sessionSummary && (
+        <p className="text-[10px] text-white/40 line-clamp-2">{lead.sessionSummary}</p>
+      )}
+
+      {lead.followupDueDate && (
+        <div className={`flex items-center gap-1 text-[10px] ${isOverdue ? "text-red-400" : "text-white/40"}`}>
+          <Calendar className="h-3 w-3" />
+          {new Date(lead.followupDueDate).toLocaleDateString()}
+          {isOverdue && " — OVERDUE"}
+        </div>
+      )}
+
+      {lead.wonValue && (
+        <div className="flex items-center gap-1 text-[10px] text-green-400">
+          <DollarSign className="h-3 w-3" />
+          ${lead.wonValue.toLocaleString()} won
+        </div>
+      )}
+
+      {!changingStage ? (
+        <button onClick={() => setChangingStage(true)}
+          className="w-full text-[10px] py-1.5 rounded-lg border border-white/10 text-white/40 hover:text-white/70 hover:border-white/20 transition flex items-center justify-center gap-1">
+          <GripVertical className="h-3 w-3" /> Move Stage
+        </button>
+      ) : (
+        <div className="space-y-2 pt-1 border-t border-white/8">
+          <select onChange={(e) => {
+            if (e.target.value === lead.pipelineStage) { setChangingStage(false); return; }
+            stageMutation.mutate(e.target.value);
+          }} defaultValue={lead.pipelineStage ?? "new"}
+            className="w-full bg-white/8 border border-white/15 rounded-lg px-2 py-1.5 text-xs text-white">
+            {PIPELINE_STAGES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+          </select>
+          <input className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-white placeholder-white/20 focus:outline-none"
+            placeholder="Note (optional)" value={note} onChange={e => setNote(e.target.value)} />
+          <div className="grid grid-cols-2 gap-1">
+            <input type="number" className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-white placeholder-white/20 focus:outline-none"
+              placeholder="$ Won value" value={wonValue} onChange={e => setWonValue(e.target.value)} />
+            <input type="date" className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none"
+              value={followupDate} onChange={e => setFollowupDate(e.target.value)} />
+          </div>
+          <button onClick={() => setChangingStage(false)} className="text-[10px] text-white/30 hover:text-white/60">Cancel</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PipelineTab({ leads, onStageChange }: { leads: Lead[]; onStageChange: () => void }) {
+  const leadsByStage = (stage: string) => leads.filter((l) => (l.pipelineStage ?? "new") === stage);
+
+  const totalWon = leads
+    .filter((l) => l.pipelineStage === "won" && l.wonValue)
+    .reduce((sum, l) => sum + (l.wonValue ?? 0), 0);
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <TrendingUp className="h-5 w-5 text-[#F4A62A]" /> CRM Pipeline
+          </h2>
+          <p className="text-xs text-white/40 mt-0.5">{leads.length} total leads across {PIPELINE_STAGES.length} stages</p>
+        </div>
+        {totalWon > 0 && (
+          <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/20 rounded-xl px-4 py-2">
+            <Trophy className="h-4 w-4 text-green-400" />
+            <span className="text-sm font-bold text-green-400">${totalWon.toLocaleString()} Won</span>
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 text-xs">
+        {PIPELINE_STAGES.map((stage) => {
+          const count = leadsByStage(stage.key).length;
+          const StageIcon = stage.icon;
+          return (
+            <div key={stage.key} className={`rounded-xl border px-3 py-2 flex items-center justify-between ${stage.color}`}>
+              <div className="flex items-center gap-1.5">
+                <StageIcon className="h-3.5 w-3.5 opacity-70" />
+                <span className="text-white/70 font-medium">{stage.label}</span>
+              </div>
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${stage.badge}`}>{count}</span>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="flex gap-4 overflow-x-auto pb-4">
+        {PIPELINE_STAGES.map((stage) => {
+          const stageLeads = leadsByStage(stage.key);
+          const StageIcon = stage.icon;
+          return (
+            <div key={stage.key} className={`flex-shrink-0 w-64 rounded-2xl border p-3 space-y-2 ${stage.color}`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <StageIcon className="h-4 w-4 opacity-70" />
+                  <span className="text-sm font-semibold text-white/80">{stage.label}</span>
+                </div>
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${stage.badge}`}>{stageLeads.length}</span>
+              </div>
+              {stageLeads.length === 0 ? (
+                <p className="text-[10px] text-white/20 text-center py-4">Empty</p>
+              ) : (
+                stageLeads.map((lead) => (
+                  <PipelineLeadCard key={lead.id} lead={lead} onStageChange={onStageChange} />
+                ))
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function DashboardContent({ onLogout }: { onLogout: () => void }) {
-  const [tab, setTab] = useState<"analytics" | "voice" | "leads" | "contacts" | "newsletter" | "reviews" | "blog">("analytics");
+  const [tab, setTab] = useState<"analytics" | "voice" | "leads" | "contacts" | "newsletter" | "reviews" | "blog" | "knowledge" | "pipeline">("analytics");
   const [leadFilter, setLeadFilter] = useState<"all" | "priority" | "hot" | "warm" | "cold">("all");
   const qc = useQueryClient();
 
@@ -1458,6 +1928,8 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
     { key: "analytics", label: "Analytics", icon: BarChart3 },
     { key: "voice", label: "Brand Voice", icon: Wand2 },
     { key: "leads", label: "Chat Leads", icon: MessageSquare },
+    { key: "pipeline", label: "Pipeline", icon: TrendingUp },
+    { key: "knowledge", label: "Knowledge", icon: BookOpen },
     { key: "contacts", label: "Contacts", icon: Users },
     { key: "newsletter", label: "Newsletter", icon: Mail },
     { key: "reviews", label: "Reviews", icon: Star },
@@ -1664,6 +2136,8 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
 
         {tab === "reviews" && <ReviewsTab />}
         {tab === "blog" && <BlogTab />}
+        {tab === "knowledge" && <KnowledgeTab />}
+        {tab === "pipeline" && <PipelineTab leads={leads} onStageChange={() => qc.invalidateQueries({ queryKey: ["/api/dashboard/leads"] })} />}
 
       </div>
     </div>

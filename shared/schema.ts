@@ -55,6 +55,13 @@ export const chatConversations = pgTable("chat_conversations", {
   recommendedFollowup: text("recommended_followup"),
   ctaShown: varchar("cta_shown", { length: 120 }),
   conversionOutcome: varchar("conversion_outcome", { length: 80 }),
+
+  // Phase 40 — CRM Pipeline
+  pipelineStage: varchar("pipeline_stage", { length: 40 }).default("new").notNull(),
+  followupDueDate: timestamp("followup_due_date"),
+  wonValue: integer("won_value"),
+  lostReason: text("lost_reason"),
+  stageHistory: jsonb("stage_history").default(sql`'[]'::jsonb`).notNull(),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -89,6 +96,31 @@ export const chatRequestSchema = z.object({
   leadName: z.string().optional(),
   leadEmail: z.string().email().optional(),
 });
+
+// Phase 35 — Knowledge Base
+export const knowledgeDocuments = pgTable("knowledge_documents", {
+  id: serial("id").primaryKey(),
+  title: varchar("title", { length: 200 }).notNull(),
+  category: varchar("category", { length: 80 }).notNull().default("general"),
+  content: text("content").notNull(),
+  isPublished: boolean("is_published").default(true).notNull(),
+  priority: integer("priority").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertKnowledgeDocSchema = createInsertSchema(knowledgeDocuments, {
+  title: z.string().min(1, "Title required").max(200),
+  category: z.string().min(1).max(80),
+  content: z.string().min(1, "Content required"),
+  priority: z.number().int().min(0).max(100).optional(),
+}).pick({ title: true, category: true, content: true, isPublished: true, priority: true });
+
+export const updateKnowledgeDocSchema = insertKnowledgeDocSchema.partial();
+
+export type InsertKnowledgeDoc = z.infer<typeof insertKnowledgeDocSchema>;
+export type UpdateKnowledgeDoc = z.infer<typeof updateKnowledgeDocSchema>;
+export type KnowledgeDocument = typeof knowledgeDocuments.$inferSelect;
 
 export const pageViews = pgTable("page_views", {
   id: serial("id").primaryKey(),

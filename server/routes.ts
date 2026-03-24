@@ -73,7 +73,8 @@ export async function registerRoutes(
       const conversation = await storage.getOrCreateChatSession(sessionId);
       const history = (conversation.messages as ChatMessage[]) ?? [];
 
-      const reply = await getConciergeReply(history, message);
+      const knowledgeDocs = await storage.getPublishedKnowledgeByIntent(null).catch(() => []);
+      const reply = await getConciergeReply(history, message, knowledgeDocs);
 
       await storage.appendChatMessage(sessionId, { role: "user", content: message });
       await storage.appendChatMessage(sessionId, { role: "assistant", content: reply });
@@ -350,6 +351,84 @@ export async function registerRoutes(
     if (!isDashboardAuthed(req)) return res.status(401).json({ error: "Unauthorized" });
     await storage.deleteBlogPost(Number(req.params.id));
     res.json({ ok: true });
+  });
+
+  // Phase 35 — Knowledge Base CRUD
+  app.get("/api/dashboard/knowledge", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    const docs = await storage.getKnowledgeDocs();
+    res.json(docs);
+  });
+
+  app.get("/api/knowledge/preview", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    const intent = typeof req.query.intent === "string" ? req.query.intent : undefined;
+    const docs = await storage.getPublishedKnowledgeByIntent(intent);
+    const { buildConciergeSystemPrompt } = await import("./openai");
+    const prompt = buildConciergeSystemPrompt(docs);
+    res.json({ prompt, docCount: docs.length, docs: docs.map((d) => ({ id: d.id, title: d.title, category: d.category })) });
+  });
+
+  app.post("/api/dashboard/knowledge", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    try {
+      const { insertKnowledgeDocSchema } = await import("@shared/schema");
+      const data = insertKnowledgeDocSchema.parse(req.body);
+      const doc = await storage.createKnowledgeDoc(data);
+      res.json(doc);
+    } catch (e: any) {
+      res.status(400).json({ message: e.message });
+    }
+  });
+
+  app.patch("/api/dashboard/knowledge/:id", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    const id = Number(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ message: "Invalid id" });
+    try {
+      const { updateKnowledgeDocSchema } = await import("@shared/schema");
+      const data = updateKnowledgeDocSchema.parse(req.body);
+      const doc = await storage.updateKnowledgeDoc(id, data);
+      res.json(doc);
+    } catch (e: any) {
+      res.status(400).json({ message: e.message });
+    }
+  });
+
+  app.patch("/api/dashboard/knowledge/:id/publish", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    const doc = await storage.toggleKnowledgeDocPublished(Number(req.params.id));
+    res.json(doc);
+  });
+
+  app.delete("/api/dashboard/knowledge/:id", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    await storage.deleteKnowledgeDoc(Number(req.params.id));
+    res.json({ ok: true });
+  });
+
+  // Phase 40 — CRM Pipeline
+  app.get("/api/dashboard/pipeline", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    const stage = typeof req.query.stage === "string" ? req.query.stage : undefined;
+    const leads = await storage.getLeadsByPipelineStage(stage);
+    res.json(leads);
+  });
+
+  app.patch("/api/dashboard/leads/:sessionId/stage", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    const { sessionId } = req.params;
+    const { stage, note, wonValue, lostReason, followupDueDate } = req.body;
+    if (!stage) return res.status(400).json({ message: "stage required" });
+    await storage.updateLeadPipelineStage(
+      sessionId,
+      stage,
+      note,
+      wonValue !== undefined ? Number(wonValue) : undefined,
+      lostReason,
+      followupDueDate ? new Date(followupDueDate) : undefined
+    );
+    res.json({ success: true });
   });
 
   app.get("/api/config/public", (_req, res) => {
