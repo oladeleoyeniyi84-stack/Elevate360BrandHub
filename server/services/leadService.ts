@@ -1,6 +1,6 @@
 import { storage } from "../storage";
 import { classifyIntent } from "../ai/intentRouter";
-import { computeLeadScore } from "../ai/leadScoring";
+import { computeLeadScore, setOfferOverrideCache } from "../ai/leadScoring";
 import { maybeSummarizeSession } from "../utils/summarizer";
 import type { ChatMessage } from "@shared/schema";
 
@@ -67,6 +67,12 @@ export async function processConversationIntelligence(
       capturedEmail: intentResult.capturedEmail ?? conversation.capturedEmail,
       capturedName: intentResult.capturedName ?? conversation.capturedName,
     };
+
+    // Phase 43 — refresh DB offer mapping overrides before scoring
+    const overrides = await storage.getOfferMappingOverrides();
+    const overrideMap: Record<string, string> = {};
+    for (const o of overrides.filter((x) => x.isActive)) overrideMap[o.intent] = o.overrideOffer;
+    setOfferOverrideCache(overrideMap);
 
     const scoreResult = computeLeadScore(enrichedConversation, intentResult.intent);
 

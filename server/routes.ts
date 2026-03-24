@@ -703,6 +703,66 @@ export async function registerRoutes(
     }
   });
 
+  // Phase 43 — Offer Recommendation Optimization
+  app.get("/api/dashboard/offer-optimizer", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    try {
+      const [data, overrides] = await Promise.all([
+        storage.getOfferOptimizerData(),
+        storage.getOfferMappingOverrides(),
+      ]);
+      // Inject current mapping into perIntent (from code defaults + overrides)
+      const { INTENT_OFFER_MAP_DEFAULT } = await import("./ai/leadScoring");
+      const overrideMap: Record<string, string> = {};
+      for (const o of overrides.filter((x) => x.isActive)) overrideMap[o.intent] = o.overrideOffer;
+      for (const [intent, intentData] of Object.entries(data.perIntent)) {
+        intentData.currentMapping = overrideMap[intent] ?? INTENT_OFFER_MAP_DEFAULT[intent] ?? null;
+      }
+      res.json({ ...data, overrides });
+    } catch (e: any) {
+      console.error("[offer-optimizer] error:", e.message);
+      res.status(500).json({ message: "Could not load optimizer data." });
+    }
+  });
+
+  app.post("/api/dashboard/offer-optimizer/override", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    const { intent, offer } = req.body;
+    if (!intent || !offer) return res.status(400).json({ message: "intent and offer required" });
+    try {
+      const result = await storage.setOfferMappingOverride(intent, offer);
+      res.json(result);
+    } catch (e: any) {
+      console.error("[offer-optimizer/override] error:", e.message);
+      res.status(500).json({ message: "Could not save override." });
+    }
+  });
+
+  app.delete("/api/dashboard/offer-optimizer/override/:intent", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    const { intent } = req.params;
+    try {
+      await storage.removeOfferMappingOverride(intent);
+      res.json({ ok: true });
+    } catch (e: any) {
+      console.error("[offer-optimizer/override/delete] error:", e.message);
+      res.status(500).json({ message: "Could not remove override." });
+    }
+  });
+
+  app.patch("/api/dashboard/offer-optimizer/override/:intent/toggle", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    const { intent } = req.params;
+    const { isActive } = req.body;
+    try {
+      await storage.toggleOfferMappingOverride(intent, Boolean(isActive));
+      res.json({ ok: true });
+    } catch (e: any) {
+      console.error("[offer-optimizer/toggle] error:", e.message);
+      res.status(500).json({ message: "Could not toggle override." });
+    }
+  });
+
   // Phase 42 — Follow-Up Automation: Reminder Queue
   app.get("/api/dashboard/reminder-queue", async (req, res) => {
     if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });

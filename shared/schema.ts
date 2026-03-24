@@ -303,6 +303,20 @@ export const digestReports = pgTable("digest_reports", {
 
 export type DigestReport = typeof digestReports.$inferSelect;
 
+// Phase 43 — Offer Recommendation Optimization
+export const offerMappingOverrides = pgTable("offer_mapping_overrides", {
+  id: serial("id").primaryKey(),
+  intent: varchar("intent", { length: 64 }).notNull().unique(),
+  overrideOffer: varchar("override_offer", { length: 200 }).notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  updatedBy: varchar("updated_by", { length: 64 }).default("admin"),
+});
+
+export type OfferMappingOverride = typeof offerMappingOverrides.$inferSelect;
+export const insertOfferMappingOverrideSchema = createInsertSchema(offerMappingOverrides).omit({ id: true, updatedAt: true });
+export type InsertOfferMappingOverride = z.infer<typeof insertOfferMappingOverrideSchema>;
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type InsertContactMessage = z.infer<typeof insertContactMessageSchema>;

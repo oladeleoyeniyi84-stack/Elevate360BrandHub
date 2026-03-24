@@ -2928,6 +2928,282 @@ const INTENT_HEX: Record<string, string> = {
   support_request: "#94a3b8", general_brand: "#64748b", unclassified: "#374151",
 };
 
+// Phase 43 — Offer Recommendation Optimizer Tab
+const ALL_INTENTS = [
+  "art_commission", "sales_consultation", "sales_service", "app_interest",
+  "book_interest", "music_interest", "support_request", "general_brand",
+];
+const ALL_OFFERS = [
+  "Art Commission Deposit", "1:1 Creator Session", "AI Brand Audit",
+  "Premium Content Strategy", "Creative Review",
+];
+
+type OptimizerData = {
+  perOffer: Record<string, { recommended: number; accepted: number; acceptanceRate: number; intents: string[] }>;
+  perIntent: Record<string, { recommended: number; accepted: number; acceptanceRate: number; topOffer: string | null; currentMapping: string | null; suggestedOffer: string | null }>;
+  overrides: { id: number; intent: string; overrideOffer: string; isActive: boolean; updatedAt: string }[];
+};
+
+function OfferOptimizerTab() {
+  const qc = useQueryClient();
+  const [editingIntent, setEditingIntent] = useState<string | null>(null);
+  const [editOffer, setEditOffer] = useState("");
+
+  const { data, isLoading } = useQuery<OptimizerData>({
+    queryKey: ["/api/dashboard/offer-optimizer"],
+    refetchOnWindowFocus: true,
+  });
+
+  const setOverrideMutation = useMutation({
+    mutationFn: async ({ intent, offer }: { intent: string; offer: string }) => {
+      const res = await fetch("/api/dashboard/offer-optimizer/override", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ intent, offer }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/dashboard/offer-optimizer"] });
+      setEditingIntent(null);
+    },
+  });
+
+  const removeOverrideMutation = useMutation({
+    mutationFn: async (intent: string) => {
+      const res = await fetch(`/api/dashboard/offer-optimizer/override/${intent}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/dashboard/offer-optimizer"] }),
+  });
+
+  const toggleOverrideMutation = useMutation({
+    mutationFn: async ({ intent, isActive }: { intent: string; isActive: boolean }) => {
+      const res = await fetch(`/api/dashboard/offer-optimizer/override/${intent}/toggle`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/dashboard/offer-optimizer"] }),
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <RefreshCw className="h-5 w-5 text-[#F4A62A] animate-spin mr-2" />
+        <span className="text-white/40 text-sm">Loading offer data…</span>
+      </div>
+    );
+  }
+
+  const perOffer = data?.perOffer ?? {};
+  const perIntent = data?.perIntent ?? {};
+  const overrides = data?.overrides ?? [];
+
+  const overrideMap: Record<string, { overrideOffer: string; isActive: boolean }> = {};
+  for (const o of overrides) overrideMap[o.intent] = { overrideOffer: o.overrideOffer, isActive: o.isActive };
+
+  const defaultMapping: Record<string, string> = {
+    art_commission: "Art Commission Deposit",
+    sales_consultation: "1:1 Creator Session",
+    sales_service: "AI Brand Audit",
+    app_interest: "AI Brand Audit",
+    book_interest: "Premium Content Strategy",
+    music_interest: "Creative Review",
+    support_request: "1:1 Creator Session",
+    general_brand: "AI Brand Audit",
+  };
+
+  // Compute overall offer stats
+  const totalRecommended = Object.values(perOffer).reduce((s, o) => s + o.recommended, 0);
+  const totalAccepted = Object.values(perOffer).reduce((s, o) => s + o.accepted, 0);
+  const overallRate = totalRecommended > 0 ? Math.round((totalAccepted / totalRecommended) * 100) : 0;
+
+  return (
+    <div className="space-y-6">
+      {/* Overview strip */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="lux-card text-center">
+          <p className="text-2xl font-bold text-[#F4A62A]">{totalRecommended}</p>
+          <p className="text-[10px] text-white/40 mt-1 uppercase tracking-wide">Times Recommended</p>
+        </div>
+        <div className="lux-card text-center">
+          <p className="text-2xl font-bold text-green-400">{totalAccepted}</p>
+          <p className="text-[10px] text-white/40 mt-1 uppercase tracking-wide">Accepted</p>
+        </div>
+        <div className="lux-card text-center">
+          <p className={`text-2xl font-bold ${overallRate >= 30 ? "text-green-400" : overallRate >= 15 ? "text-yellow-400" : "text-red-400"}`}>{overallRate}%</p>
+          <p className="text-[10px] text-white/40 mt-1 uppercase tracking-wide">Acceptance Rate</p>
+        </div>
+      </div>
+
+      {/* Per-Offer performance cards */}
+      <div>
+        <p className="text-sm font-bold text-white/80 mb-3">Offer Performance</p>
+        {Object.keys(perOffer).length === 0 ? (
+          <div className="lux-card text-center py-8">
+            <Tag className="h-7 w-7 text-white/20 mx-auto mb-2" />
+            <p className="text-white/40 text-sm">No offer recommendation data yet. Once visitors engage via the concierge, offer stats will appear here.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {Object.entries(perOffer).sort((a, b) => b[1].acceptanceRate - a[1].acceptanceRate).map(([offer, stats]) => (
+              <div key={offer} className="lux-card border border-white/6 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-xs font-semibold text-white leading-snug">{offer}</p>
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${
+                    stats.acceptanceRate >= 50 ? "bg-green-500/15 text-green-400"
+                      : stats.acceptanceRate >= 25 ? "bg-yellow-500/15 text-yellow-400"
+                      : "bg-red-500/15 text-red-400"
+                  }`}>{stats.acceptanceRate}%</span>
+                </div>
+                <div className="flex gap-4 text-[10px] text-white/40">
+                  <span>{stats.recommended} recommended</span>
+                  <span>{stats.accepted} accepted</span>
+                </div>
+                {/* Mini progress bar */}
+                <div className="h-1 bg-white/8 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${stats.acceptanceRate >= 50 ? "bg-green-400" : stats.acceptanceRate >= 25 ? "bg-yellow-400" : "bg-red-400"}`}
+                    style={{ width: `${Math.min(100, stats.acceptanceRate)}%` }}
+                  />
+                </div>
+                {stats.intents.length > 0 && (
+                  <div className="flex flex-wrap gap-1 pt-0.5">
+                    {stats.intents.slice(0, 4).map((i) => (
+                      <span key={i} className="text-[9px] px-1.5 py-0.5 rounded-full bg-white/6 text-white/40 capitalize">
+                        {i.replace(/_/g, " ")}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Intent → Offer mapping editor */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-sm font-bold text-white/80">Intent → Offer Mapping</p>
+          <p className="text-[10px] text-white/30">Click "Override" to change which offer is recommended for each detected intent</p>
+        </div>
+        <div className="lux-card overflow-hidden p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-white/8">
+                  <th className="text-left px-4 py-3 text-white/40 font-medium">Intent</th>
+                  <th className="text-left px-4 py-3 text-white/40 font-medium">Current Offer</th>
+                  <th className="text-center px-4 py-3 text-white/40 font-medium">Shown</th>
+                  <th className="text-center px-4 py-3 text-white/40 font-medium">Rate</th>
+                  <th className="text-left px-4 py-3 text-white/40 font-medium">Data Suggests</th>
+                  <th className="px-4 py-3"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {ALL_INTENTS.map((intent) => {
+                  const intentData = perIntent[intent];
+                  const override = overrideMap[intent];
+                  const isOverridden = !!override?.overrideOffer;
+                  const overrideActive = override?.isActive ?? false;
+                  const currentOffer = (isOverridden && overrideActive) ? override.overrideOffer : defaultMapping[intent] ?? "—";
+                  const suggestedOffer = intentData?.suggestedOffer;
+                  const hasBetterSuggestion = suggestedOffer && suggestedOffer !== currentOffer && (intentData?.acceptanceRate ?? 0) > 0;
+                  const rate = intentData?.acceptanceRate ?? 0;
+                  const recommended = intentData?.recommended ?? 0;
+                  const isEditing = editingIntent === intent;
+
+                  return (
+                    <tr key={intent} className={`border-b border-white/6 last:border-0 ${hasBetterSuggestion ? "bg-yellow-500/3" : ""}`}>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <span className="capitalize text-white/80 font-medium">{intent.replace(/_/g, " ")}</span>
+                          {isOverridden && (
+                            <span className={`text-[9px] px-1 py-0.5 rounded font-semibold ${overrideActive ? "bg-[#F4A62A]/15 text-[#F4A62A]" : "bg-white/8 text-white/30"}`}>
+                              {overrideActive ? "Override" : "Paused"}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-white/60">{currentOffer}</td>
+                      <td className="px-4 py-3 text-center text-white/50">{recommended > 0 ? recommended : "—"}</td>
+                      <td className="px-4 py-3 text-center">
+                        {recommended > 0 ? (
+                          <span className={`font-semibold ${rate >= 50 ? "text-green-400" : rate >= 25 ? "text-yellow-400" : "text-red-400"}`}>{rate}%</span>
+                        ) : <span className="text-white/30">—</span>}
+                      </td>
+                      <td className="px-4 py-3">
+                        {hasBetterSuggestion ? (
+                          <span className="text-yellow-400 text-[10px]">⚡ {suggestedOffer}</span>
+                        ) : <span className="text-white/20 text-[10px]">—</span>}
+                      </td>
+                      <td className="px-4 py-3">
+                        {isEditing ? (
+                          <div className="flex items-center gap-1.5 min-w-[200px]">
+                            <select
+                              value={editOffer}
+                              onChange={(e) => setEditOffer(e.target.value)}
+                              className="flex-1 bg-white/8 text-white text-xs rounded-lg px-2 py-1 border border-white/15 focus:outline-none"
+                            >
+                              <option value="">Select offer…</option>
+                              {ALL_OFFERS.map((o) => <option key={o} value={o}>{o}</option>)}
+                            </select>
+                            <button
+                              onClick={() => { if (editOffer) setOverrideMutation.mutate({ intent, offer: editOffer }); }}
+                              disabled={!editOffer || setOverrideMutation.isPending}
+                              className="text-[10px] px-2 py-1 rounded-lg bg-[#F4A62A]/15 text-[#F4A62A] hover:bg-[#F4A62A]/25 transition disabled:opacity-50"
+                            >Save</button>
+                            <button onClick={() => setEditingIntent(null)} className="text-[10px] text-white/30 hover:text-white/60">✕</button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => { setEditingIntent(intent); setEditOffer(currentOffer === "—" ? "" : currentOffer); }}
+                              data-testid={`button-override-${intent}`}
+                              className="text-[10px] px-2 py-1 rounded-lg bg-white/6 text-white/50 hover:bg-white/10 hover:text-white/80 transition"
+                            >Override</button>
+                            {isOverridden && (
+                              <>
+                                <button
+                                  onClick={() => toggleOverrideMutation.mutate({ intent, isActive: !overrideActive })}
+                                  className={`text-[10px] px-2 py-1 rounded-lg transition ${overrideActive ? "bg-white/6 text-white/40 hover:bg-white/10" : "bg-[#F4A62A]/10 text-[#F4A62A] hover:bg-[#F4A62A]/20"}`}
+                                >{overrideActive ? "Pause" : "Enable"}</button>
+                                <button
+                                  onClick={() => removeOverrideMutation.mutate(intent)}
+                                  className="text-[10px] text-red-400/60 hover:text-red-400 transition"
+                                >✕</button>
+                              </>
+                            )}
+                            {hasBetterSuggestion && !isOverridden && (
+                              <button
+                                onClick={() => { setOverrideMutation.mutate({ intent, offer: suggestedOffer! }); }}
+                                disabled={setOverrideMutation.isPending}
+                                className="text-[10px] px-2 py-1 rounded-lg bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 transition"
+                              >Apply ⚡</button>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <p className="text-[10px] text-white/25 mt-2">⚡ = data-driven suggestion based on actual acceptance rates from past conversations.</p>
+      </div>
+    </div>
+  );
+}
+
 function FunnelTab() {
   const funnelQ = useQuery<FunnelData>({
     queryKey: ["/api/dashboard/funnel"],
@@ -3179,7 +3455,7 @@ function FunnelTab() {
 // ──────────────────────────────────────────────────────────────────────────────
 
 function DashboardContent({ onLogout }: { onLogout: () => void }) {
-  const [tab, setTab] = useState<"analytics" | "funnel" | "voice" | "leads" | "contacts" | "newsletter" | "reviews" | "blog" | "knowledge" | "pipeline" | "bookings" | "orders" | "digest">("analytics");
+  const [tab, setTab] = useState<"analytics" | "funnel" | "offers" | "voice" | "leads" | "contacts" | "newsletter" | "reviews" | "blog" | "knowledge" | "pipeline" | "bookings" | "orders" | "digest">("analytics");
   const [leadFilter, setLeadFilter] = useState<"all" | "priority" | "hot" | "warm" | "cold">("all");
   const qc = useQueryClient();
 
@@ -3264,6 +3540,7 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
   const tabs = [
     { key: "analytics", label: "Analytics", icon: BarChart3 },
     { key: "funnel", label: "Funnel", icon: Filter },
+    { key: "offers", label: "Offers", icon: Tag },
     { key: "digest", label: "Intelligence", icon: BrainCircuit },
     { key: "voice", label: "Brand Voice", icon: Wand2 },
     { key: "leads", label: "Chat Leads", icon: MessageSquare },
@@ -3561,6 +3838,7 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
           </div>
         )}
 
+        {tab === "offers" && <OfferOptimizerTab />}
         {tab === "funnel" && <FunnelTab />}
         {tab === "reviews" && <ReviewsTab />}
         {tab === "blog" && <BlogTab />}

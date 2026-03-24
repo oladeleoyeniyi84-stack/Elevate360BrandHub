@@ -10,7 +10,8 @@ import {
   type Booking, type InsertBooking,
   type Order,
   type DigestReport,
-  users, contactMessages, newsletterSubscribers, chatConversations, clickEvents, pageViews, testimonials, blogPosts, knowledgeDocuments, consultations, bookings, orders, digestReports,
+  type OfferMappingOverride,
+  users, contactMessages, newsletterSubscribers, chatConversations, clickEvents, pageViews, testimonials, blogPosts, knowledgeDocuments, consultations, bookings, orders, digestReports, offerMappingOverrides,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, sql, desc, asc } from "drizzle-orm";
@@ -82,6 +83,15 @@ export interface IStorage {
   updateOrderStatus(stripeSessionId: string, status: string, extra?: any): Promise<Order | undefined>;
   getAllOrders(): Promise<Order[]>;
   getOrderStats(): Promise<{ total: number; paid: number; revenue: number; abandoned: number }>;
+  // Phase 43 — Offer Recommendation Optimization
+  getOfferMappingOverrides(): Promise<OfferMappingOverride[]>;
+  setOfferMappingOverride(intent: string, offer: string): Promise<OfferMappingOverride>;
+  removeOfferMappingOverride(intent: string): Promise<void>;
+  toggleOfferMappingOverride(intent: string, isActive: boolean): Promise<void>;
+  getOfferOptimizerData(): Promise<{
+    perOffer: Record<string, { recommended: number; accepted: number; acceptanceRate: number; intents: string[] }>;
+    perIntent: Record<string, { recommended: number; accepted: number; acceptanceRate: number; topOffer: string | null; currentMapping: string | null; suggestedOffer: string | null }>;
+  }>;
   // Phase 42 — Follow-Up Automation
   markFollowupSent(sessionId: string, newDueDate: Date): Promise<void>;
   getReminderQueue(): Promise<{ overdue: ChatConversation[]; silentHot: ChatConversation[] }>;
@@ -587,6 +597,108 @@ export class DatabaseStorage implements IStorage {
       revenue: paid.reduce((s, o) => s + (o.amountPaid ?? 0), 0),
       abandoned: all.filter((o) => o.status === "initiated").length,
     };
+  }
+
+  // Phase 43 — Offer Recommendation Optimization
+  async getOfferMappingOverrides(): Promise<OfferMappingOverride[]> {
+    return db.select().from(offerMappingOverrides).orderBy(asc(offerMappingOverrides.intent));
+  }
+
+  async setOfferMappingOverride(intent: string, offer: string): Promise<OfferMappingOverride> {
+    const existing = await db.select().from(offerMappingOverrides)
+      .where(eq(offerMappingOverrides.intent, intent)).limit(1);
+    if (existing.length > 0) {
+      const [updated] = await db.update(offerMappingOverrides)
+        .set({ overrideOffer: offer, isActive: true, updatedAt: new Date() })
+        .where(eq(offerMappingOverrides.intent, intent))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(offerMappingOverrides)
+      .values({ intent, overrideOffer: offer, isActive: true })
+      .returning();
+    return created;
+  }
+
+  async removeOfferMappingOverride(intent: string): Promise<void> {
+    await db.delete(offerMappingOverrides).where(eq(offerMappingOverrides.intent, intent));
+  }
+
+  async toggleOfferMappingOverride(intent: string, isActive: boolean): Promise<void> {
+    await db.update(offerMappingOverrides)
+      .set({ isActive, updatedAt: new Date() })
+      .where(eq(offerMappingOverrides.intent, intent));
+  }
+
+  async getOfferOptimizerData(): Promise<{
+    perOffer: Record<string, { recommended: number; accepted: number; acceptanceRate: number; intents: string[] }>;
+    perIntent: Record<string, { recommended: number; accepted: number; acceptanceRate: number; topOffer: string | null; currentMapping: string | null; suggestedOffer: string | null }>;
+  }> {
+    const sessions = await db.select({
+      intent: chatConversations.intent,
+      recommendedOffer: chatConversations.recommendedOffer,
+      acceptedOfferSlug: chatConversations.acceptedOfferSlug,
+      recommendedOfferAccepted: chatConversations.recommendedOfferAccepted,
+    }).from(chatConversations)
+      .where(sql`${chatConversations.recommendedOffer} IS NOT NULL`);
+
+    const perOffer: Record<string, { recommended: number; accepted: number; acceptanceRate: number; intents: string[] }> = {};
+    const perIntent: Record<string, {
+      recommended: number; accepted: number; acceptanceRate: number;
+      topOffer: string | null; currentMapping: string | null; suggestedOffer: string | null;
+      _offerCounts: Record<string, { rec: number; acc: number }>;
+    }> = {};
+
+    for (const s of sessions) {
+      const offer = s.recommendedOffer!;
+      const intent = s.intent ?? "unknown";
+      const accepted = s.recommendedOfferAccepted ?? false;
+
+      // perOffer aggregation
+      if (!perOffer[offer]) perOffer[offer] = { recommended: 0, accepted: 0, acceptanceRate: 0, intents: [] };
+      perOffer[offer].recommended++;
+      if (accepted) perOffer[offer].accepted++;
+      if (!perOffer[offer].intents.includes(intent)) perOffer[offer].intents.push(intent);
+
+      // perIntent aggregation
+      if (!perIntent[intent]) perIntent[intent] = {
+        recommended: 0, accepted: 0, acceptanceRate: 0,
+        topOffer: null, currentMapping: null, suggestedOffer: null,
+        _offerCounts: {},
+      };
+      perIntent[intent].recommended++;
+      if (accepted) perIntent[intent].accepted++;
+      if (!perIntent[intent]._offerCounts[offer]) perIntent[intent]._offerCounts[offer] = { rec: 0, acc: 0 };
+      perIntent[intent]._offerCounts[offer].rec++;
+      if (accepted) perIntent[intent]._offerCounts[offer].acc++;
+    }
+
+    // Compute acceptance rates + suggested offer (highest acceptance rate among offered options)
+    for (const offer of Object.values(perOffer)) {
+      offer.acceptanceRate = offer.recommended > 0 ? Math.round((offer.accepted / offer.recommended) * 100) : 0;
+    }
+    for (const [, intentData] of Object.entries(perIntent)) {
+      intentData.acceptanceRate = intentData.recommended > 0
+        ? Math.round((intentData.accepted / intentData.recommended) * 100) : 0;
+      // Find best-performing offer for this intent
+      let bestOffer: string | null = null;
+      let bestRate = -1;
+      for (const [offerName, counts] of Object.entries(intentData._offerCounts)) {
+        const rate = counts.rec > 0 ? counts.acc / counts.rec : 0;
+        if (rate > bestRate) { bestRate = rate; bestOffer = offerName; }
+      }
+      intentData.topOffer = bestOffer;
+      intentData.suggestedOffer = bestOffer;
+    }
+
+    // Strip internal _offerCounts before returning
+    const cleanPerIntent: Record<string, { recommended: number; accepted: number; acceptanceRate: number; topOffer: string | null; currentMapping: string | null; suggestedOffer: string | null }> = {};
+    for (const [intent, data] of Object.entries(perIntent)) {
+      const { _offerCounts: _ignored, ...rest } = data;
+      cleanPerIntent[intent] = rest;
+    }
+
+    return { perOffer, perIntent: cleanPerIntent };
   }
 
   // Phase 42 — Follow-Up Automation

@@ -28,6 +28,19 @@ const NEXT_ACTIONS: Record<LeadTemperature, string> = {
 
 // Maps intent → recommended Stripe product name and confidence
 type OfferMapping = { offer: string; confidence: number };
+
+// Phase 43 — exported so the optimizer route can reference code defaults
+export const INTENT_OFFER_MAP_DEFAULT: Partial<Record<string, string>> = {
+  art_commission:      "Art Commission Deposit",
+  sales_consultation:  "1:1 Creator Session",
+  sales_service:       "AI Brand Audit",
+  app_interest:        "AI Brand Audit",
+  book_interest:       "Premium Content Strategy",
+  music_interest:      "Creative Review",
+  support_request:     "1:1 Creator Session",
+  general_brand:       "AI Brand Audit",
+};
+
 const INTENT_OFFER_MAP: Partial<Record<Intent, OfferMapping>> = {
   art_commission:      { offer: "Art Commission Deposit",        confidence: 90 },
   sales_consultation:  { offer: "1:1 Creator Session",           confidence: 85 },
@@ -39,6 +52,12 @@ const INTENT_OFFER_MAP: Partial<Record<Intent, OfferMapping>> = {
   general_brand:       { offer: "AI Brand Audit",                confidence: 30 },
 };
 
+// Phase 43 — DB override cache (refreshed per-scoring call from routes)
+let _dbOverrideCache: Record<string, string> = {};
+export function setOfferOverrideCache(overrides: Record<string, string>): void {
+  _dbOverrideCache = overrides;
+}
+
 function resolveRecommendedOffer(
   intent?: Intent,
   allText?: string,
@@ -46,6 +65,13 @@ function resolveRecommendedOffer(
 ): { offer: string | null; confidence: number } {
   // Only recommend offers for warm/hot/priority leads
   if (!temperature || temperature === "cold") return { offer: null, confidence: 0 };
+
+  // Phase 43 — check DB override first
+  if (intent && _dbOverrideCache[intent]) {
+    const boost = temperature === "priority" ? 10 : temperature === "hot" ? 5 : 0;
+    const baseConf = INTENT_OFFER_MAP[intent]?.confidence ?? 50;
+    return { offer: _dbOverrideCache[intent], confidence: Math.min(100, baseConf + boost) };
+  }
 
   if (intent && INTENT_OFFER_MAP[intent]) {
     const mapping = INTENT_OFFER_MAP[intent]!;
