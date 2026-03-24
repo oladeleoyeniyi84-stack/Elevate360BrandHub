@@ -600,7 +600,7 @@ export default function Home() {
             </div>
             <div className="mt-6 text-center">
               <a
-                href="https://www.youtube.com/channel/UCDGnUhgvM__6Mw8q26H-urQ"
+                href="https://www.youtube.com/@Elevate360Official"
                 target="_blank"
                 rel="noopener noreferrer"
                 data-testid="link-youtube-channel"
@@ -1302,7 +1302,7 @@ export default function Home() {
                   <Instagram className="w-4 h-4" />
                 </a>
                 <a
-                  href="https://www.youtube.com/channel/UCDGnUhgvM__6Mw8q26H-urQ"
+                  href="https://www.youtube.com/@Elevate360Official"
                   target="_blank"
                   rel="noopener noreferrer"
                   data-testid="link-creator-youtube"
@@ -1814,7 +1814,7 @@ export default function Home() {
               <div className="flex items-center gap-3 pt-1">
                 {[
                   { href: "https://www.instagram.com/officialelevate360/", Icon: Instagram, label: "Instagram", testid: "link-instagram" },
-                  { href: "https://www.youtube.com/channel/UCDGnUhgvM__6Mw8q26H-urQ", Icon: Youtube, label: "YouTube", testid: "link-youtube" },
+                  { href: "https://www.youtube.com/@Elevate360Official", Icon: Youtube, label: "YouTube", testid: "link-youtube" },
                   { href: "https://audiomack.com/elevate360music", Icon: Music, label: "Audiomack", testid: "link-audiomack-footer" },
                   { href: "https://www.etsy.com/shop/Elevate360Official", Icon: Palette, label: "Etsy", testid: "link-etsy" },
                 ].map(({ href, Icon, label, testid }) => (

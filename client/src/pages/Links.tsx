@@ -83,7 +83,7 @@ export default function Links() {
           <div className="flex items-center gap-4 pt-1">
             {[
               { href: "https://www.instagram.com/officialelevate360/", Icon: Instagram, label: "Instagram" },
-              { href: "https://www.youtube.com/channel/UCDGnUhgvM__6Mw8q26H-urQ", Icon: Youtube, label: "YouTube" },
+              { href: "https://www.youtube.com/@Elevate360Official", Icon: Youtube, label: "YouTube" },
               { href: "https://audiomack.com/elevate360music", Icon: Music, label: "Audiomack" },
               { href: "https://www.etsy.com/shop/Elevate360Official", Icon: Palette, label: "Etsy" },
             ].map(({ href, Icon, label }) => (
