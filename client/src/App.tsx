@@ -7,12 +7,16 @@ import NotFound from "@/pages/not-found";
 import Home from "@/pages/Home";
 import Dashboard from "@/pages/Dashboard";
 import Links from "@/pages/Links";
+import Blog from "@/pages/Blog";
+import BlogPost from "@/pages/BlogPost";
+import PressKit from "@/pages/PressKit";
 import { CookieBanner } from "@/components/CookieBanner";
 import { ScrollUtilities } from "@/components/ScrollUtilities";
 import { NewsletterPopup } from "@/components/NewsletterPopup";
 import { WhatsAppButton } from "@/components/WhatsAppButton";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
 import { AnnouncementBanner } from "@/components/AnnouncementBanner";
+import { LanguageProvider } from "@/contexts/LanguageContext";
 
 function Router() {
   return (
@@ -20,6 +24,9 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/links" component={Links} />
       <Route path="/dashboard" component={Dashboard} />
+      <Route path="/blog" component={Blog} />
+      <Route path="/blog/:slug" component={BlogPost} />
+      <Route path="/press-kit" component={PressKit} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -28,16 +35,18 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Router />
-        <ScrollUtilities />
-        <NewsletterPopup />
-        <AnnouncementBanner />
-        <WhatsAppButton />
-        <MobileBottomNav />
-        <CookieBanner />
-      </TooltipProvider>
+      <LanguageProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Router />
+          <ScrollUtilities />
+          <NewsletterPopup />
+          <AnnouncementBanner />
+          <WhatsAppButton />
+          <MobileBottomNav />
+          <CookieBanner />
+        </TooltipProvider>
+      </LanguageProvider>
     </QueryClientProvider>
   );
 }

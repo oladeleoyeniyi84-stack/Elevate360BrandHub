@@ -110,6 +110,32 @@ export const insertTestimonialSchema = createInsertSchema(testimonials, {
 export type InsertTestimonial = z.infer<typeof insertTestimonialSchema>;
 export type Testimonial = typeof testimonials.$inferSelect;
 
+export const blogPosts = pgTable("blog_posts", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  slug: text("slug").notNull().unique(),
+  excerpt: text("excerpt").notNull(),
+  body: text("body").notNull(),
+  category: text("category").notNull().default("general"),
+  published: boolean("published").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertBlogPostSchema = createInsertSchema(blogPosts, {
+  title: z.string().min(1, "Title required").max(300),
+  slug: z.string().min(1).max(200).regex(/^[a-z0-9-]+$/, "Slug: lowercase letters, numbers, hyphens only"),
+  excerpt: z.string().min(1, "Excerpt required").max(500),
+  body: z.string().min(1, "Body required"),
+  category: z.string().max(60).optional(),
+}).pick({ title: true, slug: true, excerpt: true, body: true, category: true });
+
+export const updateBlogPostSchema = insertBlogPostSchema.partial();
+
+export type InsertBlogPost = z.infer<typeof insertBlogPostSchema>;
+export type UpdateBlogPost = z.infer<typeof updateBlogPostSchema>;
+export type BlogPost = typeof blogPosts.$inferSelect;
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type InsertContactMessage = z.infer<typeof insertContactMessageSchema>;

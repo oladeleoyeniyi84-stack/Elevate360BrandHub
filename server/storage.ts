@@ -4,7 +4,8 @@ import {
   type NewsletterSubscriber, type InsertNewsletterSubscriber,
   type ChatConversation, type ChatMessage,
   type Testimonial, type InsertTestimonial,
-  users, contactMessages, newsletterSubscribers, chatConversations, clickEvents, pageViews, testimonials,
+  type BlogPost, type InsertBlogPost, type UpdateBlogPost,
+  users, contactMessages, newsletterSubscribers, chatConversations, clickEvents, pageViews, testimonials, blogPosts,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, sql } from "drizzle-orm";
@@ -31,6 +32,12 @@ export interface IStorage {
   createTestimonial(t: InsertTestimonial): Promise<Testimonial>;
   deleteTestimonial(id: number): Promise<void>;
   toggleTestimonialApproval(id: number): Promise<Testimonial | undefined>;
+  getBlogPosts(publishedOnly?: boolean): Promise<BlogPost[]>;
+  getBlogPostBySlug(slug: string): Promise<BlogPost | undefined>;
+  createBlogPost(post: InsertBlogPost): Promise<BlogPost>;
+  updateBlogPost(id: number, updates: UpdateBlogPost): Promise<BlogPost | undefined>;
+  deleteBlogPost(id: number): Promise<void>;
+  toggleBlogPostPublished(id: number): Promise<BlogPost | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -177,6 +184,45 @@ export class DatabaseStorage implements IStorage {
     const [updated] = await db.update(testimonials)
       .set({ approved: !existing.approved })
       .where(eq(testimonials.id, id))
+      .returning();
+    return updated;
+  }
+
+  async getBlogPosts(publishedOnly = true): Promise<BlogPost[]> {
+    if (publishedOnly) {
+      return db.select().from(blogPosts).where(eq(blogPosts.published, true)).orderBy(blogPosts.createdAt);
+    }
+    return db.select().from(blogPosts).orderBy(blogPosts.createdAt);
+  }
+
+  async getBlogPostBySlug(slug: string): Promise<BlogPost | undefined> {
+    const [post] = await db.select().from(blogPosts).where(eq(blogPosts.slug, slug));
+    return post;
+  }
+
+  async createBlogPost(post: InsertBlogPost): Promise<BlogPost> {
+    const [row] = await db.insert(blogPosts).values(post).returning();
+    return row;
+  }
+
+  async updateBlogPost(id: number, updates: UpdateBlogPost): Promise<BlogPost | undefined> {
+    const [row] = await db.update(blogPosts)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(blogPosts.id, id))
+      .returning();
+    return row;
+  }
+
+  async deleteBlogPost(id: number): Promise<void> {
+    await db.delete(blogPosts).where(eq(blogPosts.id, id));
+  }
+
+  async toggleBlogPostPublished(id: number): Promise<BlogPost | undefined> {
+    const [existing] = await db.select().from(blogPosts).where(eq(blogPosts.id, id));
+    if (!existing) return undefined;
+    const [updated] = await db.update(blogPosts)
+      .set({ published: !existing.published, updatedAt: new Date() })
+      .where(eq(blogPosts.id, id))
       .returning();
     return updated;
   }

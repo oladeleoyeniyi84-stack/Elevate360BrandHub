@@ -6,6 +6,8 @@ import {
   insertNewsletterSubscriberSchema,
   chatRequestSchema,
   insertTestimonialSchema,
+  insertBlogPostSchema,
+  updateBlogPostSchema,
   type ChatMessage,
 } from "@shared/schema";
 import { ZodError } from "zod";
@@ -279,6 +281,61 @@ export async function registerRoutes(
   app.delete("/api/dashboard/testimonials/:id", async (req, res) => {
     if (!isDashboardAuthed(req)) return res.status(401).json({ error: "Unauthorized" });
     await storage.deleteTestimonial(Number(req.params.id));
+    res.json({ ok: true });
+  });
+
+  app.get("/api/blog", async (_req, res) => {
+    const posts = await storage.getBlogPosts(true);
+    res.json(posts);
+  });
+
+  app.get("/api/blog/:slug", async (req, res) => {
+    const post = await storage.getBlogPostBySlug(req.params.slug);
+    if (!post || !post.published) return res.status(404).json({ error: "Not found" });
+    res.json(post);
+  });
+
+  app.get("/api/dashboard/posts", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ error: "Unauthorized" });
+    const posts = await storage.getBlogPosts(false);
+    res.json(posts);
+  });
+
+  app.post("/api/dashboard/posts", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ error: "Unauthorized" });
+    try {
+      const data = insertBlogPostSchema.parse(req.body);
+      const post = await storage.createBlogPost(data);
+      res.json(post);
+    } catch (err) {
+      if (err instanceof ZodError) return res.status(400).json({ error: fromZodError(err).message });
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.patch("/api/dashboard/posts/:id", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ error: "Unauthorized" });
+    try {
+      const data = updateBlogPostSchema.parse(req.body);
+      const post = await storage.updateBlogPost(Number(req.params.id), data);
+      if (!post) return res.status(404).json({ error: "Not found" });
+      res.json(post);
+    } catch (err) {
+      if (err instanceof ZodError) return res.status(400).json({ error: fromZodError(err).message });
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.patch("/api/dashboard/posts/:id/publish", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ error: "Unauthorized" });
+    const post = await storage.toggleBlogPostPublished(Number(req.params.id));
+    if (!post) return res.status(404).json({ error: "Not found" });
+    res.json(post);
+  });
+
+  app.delete("/api/dashboard/posts/:id", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ error: "Unauthorized" });
+    await storage.deleteBlogPost(Number(req.params.id));
     res.json({ ok: true });
   });
 

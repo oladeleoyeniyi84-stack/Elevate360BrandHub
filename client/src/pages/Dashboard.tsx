@@ -982,8 +982,237 @@ function ReviewsTab() {
   );
 }
 
+type BlogPost = {
+  id: number;
+  title: string;
+  slug: string;
+  excerpt: string | null;
+  content: string;
+  coverImage: string | null;
+  published: boolean;
+  publishedAt: string | null;
+  createdAt: string;
+};
+
+type BlogFormState = {
+  title: string;
+  slug: string;
+  excerpt: string;
+  content: string;
+  coverImage: string;
+  published: boolean;
+};
+
+function BlogTab() {
+  const qc = useQueryClient();
+  const [form, setForm] = useState<BlogFormState>({
+    title: "", slug: "", excerpt: "", content: "", coverImage: "", published: false,
+  });
+  const [editing, setEditing] = useState<number | null>(null);
+  const [showForm, setShowForm] = useState(false);
+
+  const { data: posts = [], isLoading } = useQuery<BlogPost[]>({
+    queryKey: ["/api/dashboard/blog"],
+    queryFn: async () => {
+      const res = await fetch("/api/dashboard/blog");
+      if (!res.ok) throw new Error("Unauthorized");
+      return res.json();
+    },
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async (data: BlogFormState) => {
+      const url = editing ? `/api/dashboard/blog/${editing}` : "/api/dashboard/blog";
+      const method = editing ? "PUT" : "POST";
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error("Failed to save");
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/dashboard/blog"] });
+      setForm({ title: "", slug: "", excerpt: "", content: "", coverImage: "", published: false });
+      setEditing(null);
+      setShowForm(false);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/dashboard/blog/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete");
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/dashboard/blog"] }),
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: async ({ id, published }: { id: number; published: boolean }) => {
+      const res = await fetch(`/api/dashboard/blog/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ published }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/dashboard/blog"] }),
+  });
+
+  const startEdit = (p: BlogPost) => {
+    setForm({
+      title: p.title, slug: p.slug, excerpt: p.excerpt ?? "",
+      content: p.content, coverImage: p.coverImage ?? "", published: p.published,
+    });
+    setEditing(p.id);
+    setShowForm(true);
+  };
+
+  const autoSlug = (title: string) =>
+    title.toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-").trim();
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-white">Blog Posts</h2>
+        <button
+          onClick={() => { setShowForm(!showForm); setEditing(null); setForm({ title: "", slug: "", excerpt: "", content: "", coverImage: "", published: false }); }}
+          data-testid="button-blog-new"
+          className="flex items-center gap-2 btn-primary text-sm px-4 py-2"
+        >
+          <PlusCircle className="h-4 w-4" />
+          New Post
+        </button>
+      </div>
+
+      {showForm && (
+        <div className="lux-card space-y-4">
+          <h3 className="font-semibold text-white text-sm">{editing ? "Edit Post" : "New Post"}</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-white/40 mb-1">Title</label>
+              <input
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-primary/50"
+                value={form.title}
+                data-testid="input-blog-title"
+                onChange={e => setForm(f => ({ ...f, title: e.target.value, slug: f.slug || autoSlug(e.target.value) }))}
+                placeholder="Post title..."
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-white/40 mb-1">Slug</label>
+              <input
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-primary/50"
+                value={form.slug}
+                data-testid="input-blog-slug"
+                onChange={e => setForm(f => ({ ...f, slug: e.target.value }))}
+                placeholder="post-url-slug"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs text-white/40 mb-1">Excerpt</label>
+            <input
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-primary/50"
+              value={form.excerpt}
+              data-testid="input-blog-excerpt"
+              onChange={e => setForm(f => ({ ...f, excerpt: e.target.value }))}
+              placeholder="Short summary..."
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-white/40 mb-1">Content (Markdown supported)</label>
+            <textarea
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-primary/50 min-h-[160px] resize-y"
+              value={form.content}
+              data-testid="input-blog-content"
+              onChange={e => setForm(f => ({ ...f, content: e.target.value }))}
+              placeholder="Write your post content here..."
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-white/40 mb-1">Cover Image URL (optional)</label>
+            <input
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-primary/50"
+              value={form.coverImage}
+              data-testid="input-blog-cover"
+              onChange={e => setForm(f => ({ ...f, coverImage: e.target.value }))}
+              placeholder="https://..."
+            />
+          </div>
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={form.published} onChange={e => setForm(f => ({ ...f, published: e.target.checked }))}
+                data-testid="checkbox-blog-published" className="accent-primary" />
+              <span className="text-sm text-white/60">Publish immediately</span>
+            </label>
+          </div>
+          <div className="flex gap-2 pt-2">
+            <button
+              onClick={() => saveMutation.mutate(form)}
+              disabled={!form.title || !form.slug || !form.content || saveMutation.isPending}
+              data-testid="button-blog-save"
+              className="btn-primary text-sm px-5 py-2 disabled:opacity-50"
+            >
+              {saveMutation.isPending ? "Saving…" : editing ? "Update Post" : "Create Post"}
+            </button>
+            <button onClick={() => setShowForm(false)} className="btn-secondary text-sm px-4 py-2">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {isLoading ? (
+        <p className="text-white/40 text-sm">Loading posts…</p>
+      ) : posts.length === 0 ? (
+        <div className="lux-card text-center py-10">
+          <PenLine className="h-8 w-8 text-white/20 mx-auto mb-3" />
+          <p className="text-white/40 text-sm">No blog posts yet. Create your first post!</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {posts.map(p => (
+            <div key={p.id} className="flex items-start justify-between gap-4 px-5 py-4 border border-white/8 rounded-2xl" data-testid={`card-blog-${p.id}`}>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${p.published ? "bg-green-500/15 text-green-400" : "bg-white/8 text-white/30"}`}>
+                    {p.published ? "Published" : "Draft"}
+                  </span>
+                  <span className="text-xs text-white/30">/blog/{p.slug}</span>
+                </div>
+                <p className="text-sm font-semibold text-white mt-1 truncate">{p.title}</p>
+                {p.excerpt && <p className="text-xs text-white/40 mt-0.5 line-clamp-1">{p.excerpt}</p>}
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => toggleMutation.mutate({ id: p.id, published: !p.published })}
+                  data-testid={`button-blog-toggle-${p.id}`}
+                  className="text-white/30 hover:text-primary transition-colors"
+                  title={p.published ? "Unpublish" : "Publish"}
+                >
+                  {p.published ? <ToggleRight className="h-5 w-5 text-green-400" /> : <ToggleLeft className="h-5 w-5" />}
+                </button>
+                <button onClick={() => startEdit(p)} data-testid={`button-blog-edit-${p.id}`}
+                  className="text-white/30 hover:text-primary transition-colors">
+                  <PenLine className="h-4 w-4" />
+                </button>
+                <button onClick={() => { if (confirm("Delete this post?")) deleteMutation.mutate(p.id); }}
+                  data-testid={`button-blog-delete-${p.id}`}
+                  className="text-white/30 hover:text-red-400 transition-colors">
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DashboardContent({ onLogout }: { onLogout: () => void }) {
-  const [tab, setTab] = useState<"analytics" | "voice" | "leads" | "contacts" | "newsletter" | "reviews">("analytics");
+  const [tab, setTab] = useState<"analytics" | "voice" | "leads" | "contacts" | "newsletter" | "reviews" | "blog">("analytics");
 
   const leadsQuery = useQuery<Lead[]>({
     queryKey: ["/api/dashboard/leads"],
@@ -1054,6 +1283,7 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
     { key: "contacts", label: "Contacts", icon: Users },
     { key: "newsletter", label: "Newsletter", icon: Mail },
     { key: "reviews", label: "Reviews", icon: Star },
+    { key: "blog", label: "Blog", icon: PenLine },
   ] as const;
 
   return (
@@ -1222,6 +1452,7 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
         )}
 
         {tab === "reviews" && <ReviewsTab />}
+        {tab === "blog" && <BlogTab />}
 
       </div>
     </div>

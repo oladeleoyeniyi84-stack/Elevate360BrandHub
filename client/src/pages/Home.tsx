@@ -30,6 +30,8 @@ import { NewsletterForm } from "@/components/NewsletterForm";
 import { ShareButton } from "@/components/ShareButton";
 import { FAQSection } from "@/components/FAQSection";
 import { CommissionDialog } from "@/components/CommissionDialog";
+import { ScreenshotsButton, type LightboxImage } from "@/components/Lightbox";
+import { useLanguage } from "@/contexts/LanguageContext";
 import heroBg from "@/assets/images/hero-bg.png";
 import appBondedlove from "@/assets/images/app-bondedlove.png";
 import appHealthwise from "@/assets/images/app-healthwise.png";
@@ -77,6 +79,26 @@ export default function Home() {
   const trackClick = useTrackClick();
   useTrackPageView("home");
 
+  const { lang, setLang, t } = useLanguage();
+
+  const APP_SCREENSHOTS: Record<string, LightboxImage[]> = {
+    Bondedlove: [
+      { src: appBondedlove, alt: "Bondedlove app main screen", caption: "Bondedlove — Couples connection app" },
+      { src: "https://placehold.co/390x844/0d1a2e/F4A62A?text=Bondedlove+Chat", alt: "Bondedlove chat feature", caption: "Real-time couple messaging" },
+      { src: "https://placehold.co/390x844/0d1a2e/F4A62A?text=Bondedlove+Goals", alt: "Bondedlove goals", caption: "Shared goals & milestones" },
+    ],
+    Healthwisesupport: [
+      { src: appHealthwise, alt: "Healthwisesupport app main screen", caption: "Healthwisesupport — Wellness tracking" },
+      { src: "https://placehold.co/390x844/0d1a2e/22c55e?text=Health+Dashboard", alt: "Health dashboard", caption: "Personal wellness dashboard" },
+      { src: "https://placehold.co/390x844/0d1a2e/22c55e?text=Health+Tracker", alt: "Health tracker", caption: "Daily health tracking" },
+    ],
+    "Video Crafter": [
+      { src: appVideoCrafter, alt: "Video Crafter app main screen", caption: "Video Crafter — Creative video editing" },
+      { src: "https://placehold.co/390x844/0d1a2e/38bdf8?text=Video+Editor", alt: "Video editor", caption: "Professional editing tools" },
+      { src: "https://placehold.co/390x844/0d1a2e/38bdf8?text=Video+Export", alt: "Video export", caption: "High-quality export options" },
+    ],
+  };
+
   const { data: testimonialData = [] } = useQuery<Testimonial[]>({
     queryKey: ["/api/testimonials"],
     queryFn: async () => {
@@ -115,24 +137,25 @@ export default function Home() {
             />
           </Link>
 
-          <div className="hidden md:flex items-center space-x-8">
-            <a
-              href="#apps"
-              data-testid="link-nav-apps"
-              className="text-sm font-medium hover:text-primary transition-colors"
-            >
-              Applications
+          <div className="hidden md:flex items-center space-x-6">
+            <a href="#apps" data-testid="link-nav-apps" className="text-sm font-medium hover:text-primary transition-colors">
+              {t("nav_apps")}
             </a>
-            <a
-              href="#books"
-              data-testid="link-nav-books"
-              className="text-sm font-medium hover:text-primary transition-colors"
-            >
-              Publications
+            <a href="#books" data-testid="link-nav-books" className="text-sm font-medium hover:text-primary transition-colors">
+              {t("nav_books")}
             </a>
+            <Link href="/blog" data-testid="link-nav-blog" className="text-sm font-medium hover:text-primary transition-colors">
+              {t("nav_blog")}
+            </Link>
+            <div className="flex items-center rounded-full border border-white/15 overflow-hidden text-xs font-bold">
+              <button onClick={() => setLang("en")} data-testid="button-lang-en"
+                className={`px-3 py-1.5 transition-colors ${lang === "en" ? "bg-primary text-black" : "text-white/50 hover:text-white"}`}>EN</button>
+              <button onClick={() => setLang("yo")} data-testid="button-lang-yo"
+                className={`px-3 py-1.5 transition-colors ${lang === "yo" ? "bg-primary text-black" : "text-white/50 hover:text-white"}`}>YO</button>
+            </div>
             <ContactDialog>
               <Button data-testid="button-get-in-touch" className="rounded-full px-6">
-                Get in Touch
+                {t("nav_contact")}
               </Button>
             </ContactDialog>
           </div>
@@ -443,6 +466,49 @@ export default function Home() {
         </div>
       </section>
 
+      {/* YouTube Section */}
+      <section id="youtube" className="py-20 border-t border-white/8" style={{ background: "hsl(220 50% 7%)" }}>
+        <div className="container mx-auto px-4 md:px-6">
+          <div className="text-center mb-10 reveal">
+            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold tracking-widest uppercase mb-4"
+              style={{ background: "rgba(244,166,42,0.12)", color: "#F4A62A", border: "1px solid rgba(244,166,42,0.25)" }}>
+              <Youtube className="h-3 w-3" />
+              YouTube
+            </span>
+            <h2 className="text-3xl md:text-4xl font-heading font-bold text-white mb-4">
+              {t("section_youtube")}
+            </h2>
+            <p className="text-white/50 max-w-xl mx-auto">{t("section_youtube_sub")}</p>
+          </div>
+          <div className="max-w-3xl mx-auto reveal">
+            <div className="relative rounded-3xl overflow-hidden shadow-2xl border border-white/10" style={{ aspectRatio: "16/9" }}>
+              <iframe
+                src="https://www.youtube.com/embed/videoseries?list=UUDGnUhgvM__6Mw8q26H-urQ&autoplay=0&rel=0&modestbranding=1"
+                title="Elevate360Official YouTube Channel"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                className="w-full h-full"
+                data-testid="iframe-youtube-channel"
+                loading="lazy"
+              />
+            </div>
+            <div className="mt-6 text-center">
+              <a
+                href="https://www.youtube.com/channel/UCDGnUhgvM__6Mw8q26H-urQ"
+                target="_blank"
+                rel="noopener noreferrer"
+                data-testid="link-youtube-channel"
+                className="inline-flex items-center gap-2 btn-secondary text-sm px-6 py-2.5"
+              >
+                <Youtube className="h-4 w-4" />
+                {t("cta_view_channel")}
+                <ArrowRight className="h-4 w-4" />
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Apps Section */}
       <section id="apps" className="py-20 bg-background border-t border-white/10">
         <div className="container mx-auto px-4 md:px-6">
@@ -479,10 +545,11 @@ export default function Home() {
                   A revolutionary dating application focused on fostering genuine, lasting connections.
                   Find your perfect match through meaningful interactions.
                 </p>
-                <div className="flex items-center gap-2 mt-auto">
+                <div className="flex items-center gap-2 mt-auto flex-wrap">
                   <span className="btn-tertiary flex-1 justify-center">
                     Open app <ArrowRight className="h-4 w-4" />
                   </span>
+                  <ScreenshotsButton images={APP_SCREENSHOTS["Bondedlove"]} appName="Bondedlove" />
                   <ShareButton
                     url="https://bondedlove.elevate360official.com"
                     title="Bondedlove — Dating App"
@@ -517,10 +584,11 @@ export default function Home() {
                   Your comprehensive health wellness companion. Access medical support, track your wellness
                   journey, and connect with healthcare professionals.
                 </p>
-                <div className="flex items-center gap-2 mt-auto">
+                <div className="flex items-center gap-2 mt-auto flex-wrap">
                   <span className="btn-tertiary flex-1 justify-center">
                     Open app <ArrowRight className="h-4 w-4" />
                   </span>
+                  <ScreenshotsButton images={APP_SCREENSHOTS["Healthwisesupport"]} appName="Healthwisesupport" />
                   <ShareButton
                     url="https://health.elevate360official.com"
                     title="Healthwisesupport — Wellness App"
@@ -555,10 +623,11 @@ export default function Home() {
                   Unleash your creativity with our intuitive video editing suite. Professional-grade tools made
                   accessible for creators of all levels.
                 </p>
-                <div className="flex items-center gap-2 mt-auto">
+                <div className="flex items-center gap-2 mt-auto flex-wrap">
                   <span className="btn-tertiary flex-1 justify-center">
                     Open app <ArrowRight className="h-4 w-4" />
                   </span>
+                  <ScreenshotsButton images={APP_SCREENSHOTS["Video Crafter"]} appName="Video Crafter" />
                   <ShareButton
                     url="https://crafter.elevate360official.com"
                     title="Video Crafter — Video Editor"
@@ -1018,6 +1087,59 @@ export default function Home() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Product Comparison Table */}
+      <section className="py-20 border-t border-white/8" style={{ background: "hsl(220 50% 7%)" }}>
+        <div className="container mx-auto px-4 md:px-6">
+          <div className="text-center mb-12 reveal">
+            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold tracking-widest uppercase mb-4"
+              style={{ background: "rgba(244,166,42,0.12)", color: "#F4A62A", border: "1px solid rgba(244,166,42,0.25)" }}>
+              Overview
+            </span>
+            <h2 className="text-3xl md:text-4xl font-heading font-bold text-white mb-4">{t("section_compare")}</h2>
+            <p className="text-white/50 max-w-xl mx-auto">{t("section_compare_sub")}</p>
+          </div>
+          <div className="overflow-x-auto reveal">
+            <table className="w-full text-sm" data-testid="table-product-comparison">
+              <thead>
+                <tr className="border-b border-white/10">
+                  <th className="text-left py-4 px-4 text-white/40 font-medium w-40">Feature</th>
+                  {[
+                    { name: "Bondedlove", emoji: "💑", color: "#F4A62A" },
+                    { name: "Healthwisesupport", emoji: "🩺", color: "#22c55e" },
+                    { name: "Video Crafter", emoji: "🎬", color: "#38bdf8" },
+                    { name: "KDP Books", emoji: "📚", color: "#a78bfa" },
+                    { name: "Etsy Art", emoji: "🎨", color: "#fb923c" },
+                    { name: "Music", emoji: "🎵", color: "#f472b6" },
+                  ].map(p => (
+                    <th key={p.name} className="py-4 px-4 text-center font-semibold" style={{ color: p.color }}>
+                      <div className="text-xl mb-1">{p.emoji}</div>
+                      <div className="text-xs">{p.name}</div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  { feature: "Free to use", vals: ["✓", "✓", "✓", "Kindle Unlim.", "—", "Free stream"] },
+                  { feature: "Platform", vals: ["Web/iOS/Android", "Web/iOS/Android", "Web/iOS/Android", "Amazon", "Etsy", "Audiomack"] },
+                  { feature: "Category", vals: ["Dating", "Health", "Video edit", "Books", "Digital art", "Music"] },
+                  { feature: "In-app purchase", vals: ["Optional", "Optional", "Optional", "Purchase", "Purchase", "—"] },
+                  { feature: "Rating", vals: ["4.8 ★", "4.9 ★", "4.7 ★", "4.8 ★", "5.0 ★", "—"] },
+                  { feature: "Language", vals: ["Multi-lang", "Multi-lang", "Multi-lang", "English", "English", "Various"] },
+                ].map((row, i) => (
+                  <tr key={i} className={`border-b border-white/5 ${i % 2 === 0 ? "bg-white/[0.02]" : ""}`}>
+                    <td className="py-3 px-4 text-white/50 font-medium">{row.feature}</td>
+                    {row.vals.map((v, j) => (
+                      <td key={j} className="py-3 px-4 text-center text-white/75">{v}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </section>
