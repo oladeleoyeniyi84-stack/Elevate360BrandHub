@@ -95,18 +95,12 @@ export default function Home() {
   const APP_SCREENSHOTS: Record<string, LightboxImage[]> = {
     Bondedlove: [
       { src: appBondedlove, alt: "Bondedlove app main screen", caption: "Bondedlove — Couples connection app" },
-      { src: "https://placehold.co/390x844/0d1a2e/F4A62A?text=Bondedlove+Chat", alt: "Bondedlove chat feature", caption: "Real-time couple messaging" },
-      { src: "https://placehold.co/390x844/0d1a2e/F4A62A?text=Bondedlove+Goals", alt: "Bondedlove goals", caption: "Shared goals & milestones" },
     ],
     Healthwisesupport: [
       { src: appHealthwise, alt: "Healthwisesupport app main screen", caption: "Healthwisesupport — Wellness tracking" },
-      { src: "https://placehold.co/390x844/0d1a2e/22c55e?text=Health+Dashboard", alt: "Health dashboard", caption: "Personal wellness dashboard" },
-      { src: "https://placehold.co/390x844/0d1a2e/22c55e?text=Health+Tracker", alt: "Health tracker", caption: "Daily health tracking" },
     ],
     "Video Crafter": [
       { src: appVideoCrafter, alt: "Video Crafter app main screen", caption: "Video Crafter — Creative video editing" },
-      { src: "https://placehold.co/390x844/0d1a2e/38bdf8?text=Video+Editor", alt: "Video editor", caption: "Professional editing tools" },
-      { src: "https://placehold.co/390x844/0d1a2e/38bdf8?text=Video+Export", alt: "Video export", caption: "High-quality export options" },
     ],
   };
 
@@ -1487,7 +1481,7 @@ export default function Home() {
           },
           {
             q: "Where can I listen to Elevate360 music?",
-            a: "Elevate360 music is available on Audiomack under the name Elevate360Music. The site features a live embedded player in the Music section above, or you can visit Audiomack directly.",
+            a: "Elevate360 music is available on Audiomack under the name Elevate360Music. Visit the Music section above to open the Audiomack page directly, or search 'elevate360music' on Audiomack.",
           },
           {
             q: "How do I stay updated on new releases?",
@@ -1657,7 +1651,7 @@ export default function Home() {
                   <input data-testid="input-booking-name"
                     required value={bookingForm.name}
                     onChange={(e) => setBookingForm(f => ({ ...f, name: e.target.value }))}
-                    placeholder="Oladele Oyeniyi"
+                    placeholder="Your full name"
                     className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-white/25 text-sm focus:outline-none focus:border-[#F4A62A]/50" />
                 </div>
                 <div>
