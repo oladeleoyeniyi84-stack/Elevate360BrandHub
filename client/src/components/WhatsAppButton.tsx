@@ -38,7 +38,7 @@ export function WhatsAppButton() {
     >
       {/* Tooltip bubble */}
       {tooltip && (
-        <div className="bg-[#075E54] text-white text-xs font-medium px-3 py-2 rounded-xl shadow-lg whitespace-nowrap animate-in fade-in slide-in-from-left-2 duration-200">
+        <div className="relative bg-[#075E54] text-white text-xs font-medium px-3 py-2 rounded-xl shadow-lg whitespace-nowrap animate-in fade-in slide-in-from-left-2 duration-200">
           Chat with us on WhatsApp
           <div className="absolute right-[-6px] top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-l-[6px] border-t-transparent border-b-transparent border-l-[#075E54]" />
         </div>

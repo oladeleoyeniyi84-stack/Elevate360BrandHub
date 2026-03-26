@@ -1,5 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
+import ConnectPgSimple from "connect-pg-simple";
+import { Pool } from "pg";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
@@ -16,8 +18,16 @@ const httpServer = createServer(app);
 app.set("trust proxy", 1);
 app.use(canonicalRedirect);
 
+const PgSession = ConnectPgSimple(session);
+const sessionPool = new Pool({ connectionString: process.env.DATABASE_URL });
+
 app.use(
   session({
+    store: new PgSession({
+      pool: sessionPool,
+      tableName: "user_sessions",
+      createTableIfMissing: true,
+    }),
     secret: process.env.SESSION_SECRET || process.env.DASHBOARD_PIN || "e360-secret-fallback",
     resave: false,
     saveUninitialized: false,

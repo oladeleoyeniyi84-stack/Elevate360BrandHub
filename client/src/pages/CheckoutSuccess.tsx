@@ -75,17 +75,16 @@ export default function CheckoutSuccess() {
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
-          <Link href="/">
-            <a
-              data-testid="link-checkout-success-home"
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-full font-semibold text-sm transition-all"
-              style={{
-                background: "#F4A62A",
-                color: "#0d1a2e",
-              }}
-            >
-              <Home className="w-4 h-4" /> Back to Home
-            </a>
+          <Link
+            href="/"
+            data-testid="link-checkout-success-home"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-full font-semibold text-sm transition-all"
+            style={{
+              background: "#F4A62A",
+              color: "#0d1a2e",
+            }}
+          >
+            <Home className="w-4 h-4" /> Back to Home
           </Link>
           <a
             href="/#book-session"

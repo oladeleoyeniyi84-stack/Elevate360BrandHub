@@ -79,14 +79,7 @@ export function CookieBanner() {
         {/* Body */}
         <p className="text-xs text-muted-foreground leading-relaxed">
           We use cookies to analyse traffic and improve your experience on Elevate360Official.
-          See our{" "}
-          <a
-            href="https://www.elevate360official.com"
-            className="text-[#F4A62A] hover:underline"
-          >
-            privacy policy
-          </a>{" "}
-          for details.
+          You can decline to opt out of analytics at any time.
         </p>
 
         {/* Actions */}

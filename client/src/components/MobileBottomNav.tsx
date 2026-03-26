@@ -88,7 +88,7 @@ export function MobileBottomNav() {
               data-testid={`bottom-nav-${tab.id}`}
               aria-label={tab.label}
               aria-current={isActive ? "page" : undefined}
-              className="flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-all duration-200 active:scale-90"
+              className="relative flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-all duration-200 active:scale-90"
             >
               <div
                 className={`transition-all duration-200 ${isActive ? "scale-110" : "scale-100"}`}
