@@ -129,7 +129,7 @@ export default function Home() {
 
   const [buyingOffer, setBuyingOffer] = useState<string | null>(null); // priceId being processed
 
-  const handleBuyNow = async (priceId: string, productName: string) => {
+  const handleBuyNow = async (priceId: string, productName: string, amount?: number) => {
     setBuyingOffer(priceId);
     try {
       const chatSessionId = localStorage.getItem("e360_session_id");
@@ -138,7 +138,7 @@ export default function Home() {
       const res = await fetch("/api/checkout/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ priceId, productName, sessionId: chatSessionId }),
+        body: JSON.stringify({ priceId, productName, amount, sessionId: chatSessionId }),
       });
       const data = await res.json();
       if (data.url) {
@@ -1540,7 +1540,7 @@ export default function Home() {
                     </div>
                     <button
                       data-testid={`btn-buy-${offer.productId}`}
-                      onClick={() => handleBuyNow(offer.priceId, offer.name)}
+                      onClick={() => handleBuyNow(offer.priceId, offer.name, offer.amount)}
                       disabled={isBuying}
                       className="btn-primary w-full mt-1 flex items-center justify-center gap-2 text-sm disabled:opacity-60"
                     >

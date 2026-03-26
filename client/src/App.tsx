@@ -29,6 +29,7 @@ function Router() {
       <Route path="/blog/:slug" component={BlogPost} />
       <Route path="/press-kit" component={PressKit} />
       <Route path="/checkout/success" component={CheckoutSuccess} />
+      <Route path="/thank-you" component={CheckoutSuccess} />
       <Route component={NotFound} />
     </Switch>
   );

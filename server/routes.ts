@@ -703,18 +703,25 @@ export async function registerRoutes(
 
   // Phase 37 — Create Stripe Checkout Session
   app.post("/api/checkout/session", async (req, res) => {
-    const { priceId, customerEmail, sessionId: chatSessionId, productName } = req.body;
+    const { priceId, customerEmail, sessionId: chatSessionId, productName, amount } = req.body;
     if (!priceId) return res.status(400).json({ message: "priceId required" });
 
     const origin = `https://${(process.env.REPLIT_DOMAINS ?? "localhost:5000").split(",")[0]}`;
 
     try {
       const stripe = await getUncachableStripeClient();
+
+      // Build rich success URL so the thank-you page can display confirmation details
+      const successParams = new URLSearchParams({ source: "purchase" });
+      if (productName) successParams.set("plan", productName);
+      if (amount) successParams.set("amount", String(amount));
+      successParams.set("session_id", "{CHECKOUT_SESSION_ID}");
+
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
         line_items: [{ price: priceId, quantity: 1 }],
         mode: "payment",
-        success_url: `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+        success_url: `${origin}/checkout/success?${successParams.toString()}`,
         cancel_url: `${origin}/#offers`,
         customer_email: customerEmail || undefined,
         metadata: {
