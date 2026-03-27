@@ -5,6 +5,18 @@ import {
   RefreshCw, Download, ChevronDown, ChevronUp, Edit2, Clock,
   ClipboardList, Info,
 } from "lucide-react";
+import { AutonomousAlertsPanel } from "@/components/dashboard/AutonomousAlertsPanel";
+import type { AutonomousAlert } from "@/types/automation";
+
+async function authedJsonAudit<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, {
+    credentials: "include",
+    headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
+    ...init,
+  });
+  if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+  return res.json();
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -309,6 +321,26 @@ export function AuditTab() {
       qc.invalidateQueries({ queryKey: ["/api/dashboard/audit/issues"] });
       qc.invalidateQueries({ queryKey: ["/api/dashboard/audit/summary"] });
     },
+  });
+
+  const autonomousAlertsQ = useQuery<AutonomousAlert[]>({
+    queryKey: ["autonomous-alerts"],
+    queryFn: () => authedJsonAudit("/api/audit/autonomous-alerts"),
+    refetchInterval: 120_000,
+  });
+
+  const runAutonomousChecks = useMutation({
+    mutationFn: () => authedJsonAudit("/api/audit/run-autonomous-checks", { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["autonomous-alerts"] }),
+  });
+
+  const patchAlert = useMutation({
+    mutationFn: ({ id, status }: { id: number; status: AutonomousAlert["status"] }) =>
+      authedJsonAudit(`/api/audit/autonomous-alerts/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["autonomous-alerts"] }),
   });
 
   const handleExport = () => {
@@ -767,6 +799,24 @@ export function AuditTab() {
           )}
         </>
       )}
+
+      {/* ── Phase 49: Autonomous Alerts ── */}
+      <div className="mt-6">
+        <div className="mb-4 flex justify-end">
+          <button
+            className="rounded-xl border border-white/15 bg-white/5 px-3 py-1.5 text-sm text-white/70 hover:bg-white/10 disabled:opacity-40 transition"
+            onClick={() => runAutonomousChecks.mutate()}
+            disabled={runAutonomousChecks.isPending}
+            data-testid="button-run-autonomous-checks-audit"
+          >
+            {runAutonomousChecks.isPending ? "Running…" : "Run Autonomous Checks"}
+          </button>
+        </div>
+        <AutonomousAlertsPanel
+          rows={autonomousAlertsQ.data || []}
+          onUpdate={(id, status) => patchAlert.mutate({ id, status })}
+        />
+      </div>
     </div>
   );
 }

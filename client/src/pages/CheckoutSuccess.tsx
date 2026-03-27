@@ -1,4 +1,5 @@
 import { useMemo, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
   CheckCircle2,
@@ -66,6 +67,14 @@ function getSourceMeta(source: string) {
   }
 }
 
+type OrderStatusResponse = {
+  source?: "purchase" | "booking" | "order" | "message";
+  paymentStatus?: "paid" | "pending" | "failed";
+  fulfillmentStatus?: "queued" | "processing" | "delivered" | "scheduled";
+  amount?: number | null;
+  offerSlug?: string | null;
+};
+
 export default function CheckoutSuccess() {
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
 
@@ -79,6 +88,17 @@ export default function CheckoutSuccess() {
   const meta = getSourceMeta(source);
   const Icon = meta.Icon;
 
+  const orderStatusQuery = useQuery<OrderStatusResponse>({
+    queryKey: ["order-status", sessionId],
+    queryFn: async () => {
+      const res = await fetch(`/api/orders/status?session_id=${encodeURIComponent(sessionId || "")}`);
+      if (!res.ok) throw new Error("Failed to fetch order status");
+      return res.json();
+    },
+    enabled: !!sessionId,
+    retry: 1,
+  });
+
   // Phase 41 — mark offer accepted in AI Concierge pipeline
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -88,7 +108,7 @@ export default function CheckoutSuccess() {
       fetch("/api/checkout/offer-accepted", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: chatSessionId, offerSlug: lastOffer, source: "page" }),
+        body: JSON.stringify({ sessionId: chatSessionId, offerSlug: lastOffer, source: "page", sourcePage: window.location.pathname }),
       }).catch(() => {});
       sessionStorage.removeItem("e360_last_offer");
     }
@@ -151,6 +171,23 @@ export default function CheckoutSuccess() {
                 )}
               </div>
             </div>
+
+            {/* Live order status */}
+            {orderStatusQuery.data && (
+              <div className="mx-auto mt-6 max-w-2xl rounded-2xl border border-white/10 bg-white/5 p-5" data-testid="panel-order-status">
+                <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-400 mb-4">Live Status</h2>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Payment</p>
+                    <p className="mt-1 text-white font-medium" data-testid="status-payment">{titleCase(orderStatusQuery.data.paymentStatus || "pending")}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Fulfillment</p>
+                    <p className="mt-1 text-white font-medium" data-testid="status-fulfillment">{titleCase(orderStatusQuery.data.fulfillmentStatus || "queued")}</p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* What happens next */}
             <div className="mx-auto mt-6 max-w-2xl rounded-2xl border border-[#F4A62A]/20 bg-[#F4A62A]/5 p-5">

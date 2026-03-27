@@ -11,10 +11,22 @@ import {
   Database, Edit2, Zap, Calendar, DollarSign, Phone, Trophy, XCircle, AlertCircle, GripVertical,
   Clock, Tag, RefreshCw, ExternalLink, BrainCircuit, AlertTriangle, FileBarChart2, Target,
   Filter, Percent, ArrowDown, TrendingDown, Flame, Banknote, Shield, Activity, ShieldCheck, ShieldAlert,
-  ClipboardCheck,
+  ClipboardCheck, Bot, RefreshCcw,
 } from "lucide-react";
 import { AuditTab } from "@/components/AuditTab";
 import DashboardSummaryCards from "@/components/dashboard/DashboardSummaryCards";
+import { AutomationSummaryCards } from "@/components/dashboard/AutomationSummaryCards";
+import { RecoveryQueueTable } from "@/components/dashboard/RecoveryQueueTable";
+import { ContentOpportunitiesPanel } from "@/components/dashboard/ContentOpportunitiesPanel";
+import { AutonomousAlertsPanel } from "@/components/dashboard/AutonomousAlertsPanel";
+import type {
+  AutomationJob,
+  RevenueRecoveryAction,
+  RevenueRecoveryStatus,
+  ContentOpportunity,
+  AutonomousAlert,
+  DigestReportLite,
+} from "@/types/automation";
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -31,6 +43,16 @@ function downloadCSV(filename: string, rows: string[][]): void {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+async function authedJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, {
+    credentials: "include",
+    headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
+    ...init,
+  });
+  if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+  return res.json();
 }
 
 function ExportButton({ onClick, label }: { onClick: () => void; label: string }) {
@@ -357,6 +379,26 @@ function DigestTab() {
     },
   });
 
+  const founderBriefQ = useQuery<DigestReportLite | null>({
+    queryKey: ["founder-brief-latest"],
+    queryFn: () => authedJson("/api/digest/founder-brief/latest"),
+  });
+
+  const monthlyBriefQ = useQuery<DigestReportLite | null>({
+    queryKey: ["monthly-brief-latest"],
+    queryFn: () => authedJson("/api/digest/monthly-strategy/latest"),
+  });
+
+  const generateFounderBrief = useMutation({
+    mutationFn: () => authedJson("/api/digest/founder-brief/generate", { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["founder-brief-latest"] }),
+  });
+
+  const generateMonthlyBrief = useMutation({
+    mutationFn: () => authedJson("/api/digest/monthly-strategy/generate", { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["monthly-brief-latest"] }),
+  });
+
   const intel = intelligenceQ.data;
   const digest = latestDigestQ.data;
 
@@ -601,6 +643,49 @@ function DigestTab() {
           ))}
         </div>
       )}
+
+      {/* ── Phase 49: Typed Digest Reports ── */}
+      <div className="grid gap-6 xl:grid-cols-2">
+        <div className="lux-card p-5" data-testid="panel-founder-brief">
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <div>
+              <h3 className="text-lg font-semibold text-white">Founder Weekly Brief</h3>
+              <p className="text-sm text-slate-400">Latest executive summary for weekly operations.</p>
+            </div>
+            <button
+              className="rounded-xl border border-white/15 bg-white/5 px-3 py-1.5 text-sm text-white/70 hover:bg-white/10 disabled:opacity-40 transition"
+              onClick={() => generateFounderBrief.mutate()}
+              disabled={generateFounderBrief.isPending}
+              data-testid="button-generate-founder-brief"
+            >
+              {generateFounderBrief.isPending ? "Generating…" : "Generate Now"}
+            </button>
+          </div>
+          <div className="text-sm text-slate-300 whitespace-pre-wrap" data-testid="text-founder-brief">
+            {founderBriefQ.data?.content || "No founder brief generated yet."}
+          </div>
+        </div>
+
+        <div className="lux-card p-5" data-testid="panel-monthly-brief">
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <div>
+              <h3 className="text-lg font-semibold text-white">Monthly Strategy Brief</h3>
+              <p className="text-sm text-slate-400">Trend and recommendation summary for monthly planning.</p>
+            </div>
+            <button
+              className="rounded-xl border border-white/15 bg-white/5 px-3 py-1.5 text-sm text-white/70 hover:bg-white/10 disabled:opacity-40 transition"
+              onClick={() => generateMonthlyBrief.mutate()}
+              disabled={generateMonthlyBrief.isPending}
+              data-testid="button-generate-monthly-brief"
+            >
+              {generateMonthlyBrief.isPending ? "Generating…" : "Generate Now"}
+            </button>
+          </div>
+          <div className="text-sm text-slate-300 whitespace-pre-wrap" data-testid="text-monthly-brief">
+            {monthlyBriefQ.data?.content || "No monthly strategy brief generated yet."}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1767,6 +1852,25 @@ function BlogTab() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/dashboard/posts"] }),
   });
 
+  const contentOppsQ = useQuery<ContentOpportunity[]>({
+    queryKey: ["automation-content-opportunities"],
+    queryFn: () => authedJson("/api/automation/content-opportunities"),
+  });
+
+  const generateContentOps = useMutation({
+    mutationFn: () => authedJson("/api/automation/content-opportunities/generate", { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["automation-content-opportunities"] }),
+  });
+
+  const patchContentOpp = useMutation({
+    mutationFn: ({ id, status }: { id: number; status: ContentOpportunity["status"] }) =>
+      authedJson(`/api/automation/content-opportunities/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["automation-content-opportunities"] }),
+  });
+
   const startEdit = (p: DashBlogPost) => {
     setForm({
       title: p.title, slug: p.slug, excerpt: p.excerpt,
@@ -1908,6 +2012,22 @@ function BlogTab() {
           ))}
         </div>
       )}
+
+      {/* ── Phase 49: Content Opportunities ── */}
+      <div className="mt-6 flex justify-end mb-2">
+        <button
+          className="rounded-xl border border-white/15 bg-white/5 px-3 py-1.5 text-sm text-white/70 hover:bg-white/10 disabled:opacity-40 transition"
+          onClick={() => generateContentOps.mutate()}
+          disabled={generateContentOps.isPending}
+          data-testid="button-generate-content-ops-blog"
+        >
+          {generateContentOps.isPending ? "Generating…" : "Generate Content Opportunities"}
+        </button>
+      </div>
+      <ContentOpportunitiesPanel
+        rows={contentOppsQ.data || []}
+        onUpdate={(id, status) => patchContentOpp.mutate({ id, status })}
+      />
     </div>
   );
 }
@@ -2014,6 +2134,25 @@ function KnowledgeTab() {
       await fetch(`/api/dashboard/knowledge/${id}`, { method: "DELETE" });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/dashboard/knowledge"] }),
+  });
+
+  const kbContentOppsQ = useQuery<ContentOpportunity[]>({
+    queryKey: ["automation-content-opportunities"],
+    queryFn: () => authedJson("/api/automation/content-opportunities"),
+  });
+
+  const kbGenerateContentOps = useMutation({
+    mutationFn: () => authedJson("/api/automation/content-opportunities/generate", { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["automation-content-opportunities"] }),
+  });
+
+  const kbPatchContentOpp = useMutation({
+    mutationFn: ({ id, status }: { id: number; status: ContentOpportunity["status"] }) =>
+      authedJson(`/api/automation/content-opportunities/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["automation-content-opportunities"] }),
   });
 
   const loadPreview = async () => {
@@ -2186,6 +2325,22 @@ function KnowledgeTab() {
           ))}
         </div>
       )}
+
+      {/* ── Phase 49: Content Opportunities ── */}
+      <div className="mt-6 flex justify-end mb-2">
+        <button
+          className="rounded-xl border border-white/15 bg-white/5 px-3 py-1.5 text-sm text-white/70 hover:bg-white/10 disabled:opacity-40 transition"
+          onClick={() => kbGenerateContentOps.mutate()}
+          disabled={kbGenerateContentOps.isPending}
+          data-testid="button-generate-content-ops-kb"
+        >
+          {kbGenerateContentOps.isPending ? "Generating…" : "Generate Content Opportunities"}
+        </button>
+      </div>
+      <ContentOpportunitiesPanel
+        rows={kbContentOppsQ.data || []}
+        onUpdate={(id, status) => kbPatchContentOpp.mutate({ id, status })}
+      />
     </div>
   );
 }
@@ -3719,9 +3874,25 @@ function RevBar({ pct, color }: { pct: number; color: string }) {
 }
 
 function RevenueTab() {
+  const qc = useQueryClient();
+
   const q = useQuery<RevAttribData>({
     queryKey: ["/api/dashboard/revenue-attribution"],
     staleTime: 60_000,
+  });
+
+  const recoveryActionsQ = useQuery<RevenueRecoveryAction[]>({
+    queryKey: ["automation-recovery-actions"],
+    queryFn: () => authedJson("/api/automation/revenue-recovery/actions"),
+  });
+
+  const patchRecoveryAction = useMutation({
+    mutationFn: ({ id, status }: { id: number; status: RevenueRecoveryAction["status"] }) =>
+      authedJson(`/api/automation/revenue-recovery/actions/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["automation-recovery-actions"] }),
   });
 
   if (q.isLoading) {
@@ -3915,6 +4086,11 @@ function RevenueTab() {
         </div>
       )}
 
+      {/* ── Phase 49: Revenue Recovery Queue ── */}
+      <RecoveryQueueTable
+        rows={recoveryActionsQ.data || []}
+        onMark={(id, status) => patchRecoveryAction.mutate({ id, status })}
+      />
     </div>
   );
 }
@@ -3960,6 +4136,76 @@ function AutomationTab() {
   const [saveMsg, setSaveMsg] = useState("");
   const [running, setRunning] = useState(false);
   const [runResult, setRunResult] = useState<{ sent: number; skipped: number; errors: number } | null>(null);
+
+  const p49JobsQ = useQuery<AutomationJob[]>({
+    queryKey: ["automation-jobs"],
+    queryFn: () => authedJson("/api/automation/jobs"),
+    refetchInterval: 60_000,
+  });
+
+  const p49RecoveryStatusQ = useQuery<RevenueRecoveryStatus>({
+    queryKey: ["automation-recovery-status"],
+    queryFn: () => authedJson("/api/automation/revenue-recovery/status"),
+    refetchInterval: 120_000,
+  });
+
+  const p49RecoveryActionsQ = useQuery<RevenueRecoveryAction[]>({
+    queryKey: ["automation-recovery-actions"],
+    queryFn: () => authedJson("/api/automation/revenue-recovery/actions"),
+  });
+
+  const p49AlertsQ = useQuery<AutonomousAlert[]>({
+    queryKey: ["autonomous-alerts"],
+    queryFn: () => authedJson("/api/audit/autonomous-alerts"),
+    refetchInterval: 120_000,
+  });
+
+  const p49FounderBriefQ = useQuery<DigestReportLite | null>({
+    queryKey: ["founder-brief-latest"],
+    queryFn: () => authedJson("/api/digest/founder-brief/latest"),
+  });
+
+  const runRecoveryNow = useMutation({
+    mutationFn: () => authedJson("/api/automation/revenue-recovery/run-now", { method: "POST" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["automation-recovery-status"] });
+      qc.invalidateQueries({ queryKey: ["automation-recovery-actions"] });
+      qc.invalidateQueries({ queryKey: ["automation-jobs"] });
+    },
+  });
+
+  const generateContentOpsAuto = useMutation({
+    mutationFn: () => authedJson("/api/automation/content-opportunities/generate", { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["automation-content-opportunities"] }),
+  });
+
+  const generateFounderBriefAuto = useMutation({
+    mutationFn: () => authedJson("/api/digest/founder-brief/generate", { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["founder-brief-latest"] }),
+  });
+
+  const runAutonomousChecks = useMutation({
+    mutationFn: () => authedJson("/api/audit/run-autonomous-checks", { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["autonomous-alerts"] }),
+  });
+
+  const patchRecoveryActionAuto = useMutation({
+    mutationFn: ({ id, status }: { id: number; status: RevenueRecoveryAction["status"] }) =>
+      authedJson(`/api/automation/revenue-recovery/actions/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["automation-recovery-actions"] }),
+  });
+
+  const patchAlertAuto = useMutation({
+    mutationFn: ({ id, status }: { id: number; status: AutonomousAlert["status"] }) =>
+      authedJson(`/api/audit/autonomous-alerts/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["autonomous-alerts"] }),
+  });
 
   const s = localSettings ?? settingsQ.data;
   const enabled = s?.auto_followup_enabled === "true";
@@ -4151,6 +4397,66 @@ function AutomationTab() {
           </div>
         )}
       </div>
+
+      {/* ── Phase 49: Autonomous Operation Layer ── */}
+      <AutomationSummaryCards
+        activeJobs={(p49JobsQ.data || []).filter((x) => x.status === "running").length}
+        failedJobs24h={(p49JobsQ.data || []).filter((x) => x.status === "failed").length}
+        recoveryOpen={p49RecoveryStatusQ.data?.openActions ?? 0}
+        wonRecoveries30d={p49RecoveryStatusQ.data?.wonRecoveries30d ?? 0}
+        openAlerts={(p49AlertsQ.data || []).filter((x) => x.status === "open").length}
+        lastFounderBriefLabel={
+          p49FounderBriefQ.data?.createdAt
+            ? new Date(p49FounderBriefQ.data.createdAt).toLocaleDateString()
+            : "—"
+        }
+        isLoading={p49JobsQ.isLoading || p49RecoveryStatusQ.isLoading || p49AlertsQ.isLoading}
+      />
+
+      <div className="flex flex-wrap gap-3">
+        <button
+          className="rounded-xl bg-[#F4A62A] px-4 py-2 text-sm font-semibold text-black hover:bg-amber-400 disabled:opacity-40 transition"
+          onClick={() => runRecoveryNow.mutate()}
+          disabled={runRecoveryNow.isPending}
+          data-testid="button-run-recovery-now"
+        >
+          {runRecoveryNow.isPending ? "Running…" : "Run Revenue Recovery"}
+        </button>
+        <button
+          className="rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm text-white/70 hover:bg-white/10 disabled:opacity-40 transition"
+          onClick={() => generateContentOpsAuto.mutate()}
+          disabled={generateContentOpsAuto.isPending}
+          data-testid="button-generate-content-ops"
+        >
+          {generateContentOpsAuto.isPending ? "Generating…" : "Generate Content Opportunities"}
+        </button>
+        <button
+          className="rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm text-white/70 hover:bg-white/10 disabled:opacity-40 transition"
+          onClick={() => generateFounderBriefAuto.mutate()}
+          disabled={generateFounderBriefAuto.isPending}
+          data-testid="button-generate-founder-brief-auto"
+        >
+          {generateFounderBriefAuto.isPending ? "Generating…" : "Generate Founder Brief"}
+        </button>
+        <button
+          className="rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm text-white/70 hover:bg-white/10 disabled:opacity-40 transition"
+          onClick={() => runAutonomousChecks.mutate()}
+          disabled={runAutonomousChecks.isPending}
+          data-testid="button-run-autonomous-checks"
+        >
+          {runAutonomousChecks.isPending ? "Running…" : "Run Autonomous Checks"}
+        </button>
+      </div>
+
+      <RecoveryQueueTable
+        rows={(p49RecoveryActionsQ.data || []).slice(0, 8)}
+        onMark={(id, status) => patchRecoveryActionAuto.mutate({ id, status })}
+      />
+
+      <AutonomousAlertsPanel
+        rows={(p49AlertsQ.data || []).slice(0, 8)}
+        onUpdate={(id, status) => patchAlertAuto.mutate({ id, status })}
+      />
     </div>
   );
 }
