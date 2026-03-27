@@ -373,6 +373,17 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 - **Governance modes**: `suggest_only`, `approval_required`, `auto_apply_safe` — controlled per area (offer, cta, links, experiment, override)
 - **Rollback**: automatic if metrics degrade after 24h observation window, manual via PATCH endpoint
 
+## Phase 52 — Founder Control, Scale & Maturity Layer (Complete)
+- **5 new DB tables**: `user_roles`, `approval_requests`, `ai_explanations`, `system_health_snapshots`, `quarterly_strategy_reports`
+- **Storage**: 15 new methods for roles, approval requests, AI explanations, health snapshots, quarterly reports, founder overview, what-changed-today
+- **Services**: `server/services/permissionPolicy.ts` (RBAC: founder/admin/operator/analyst/reviewer), `server/services/explainability.ts` (AI decision logging), `server/services/maturityScoring.ts` (5-dimension platform maturity score)
+- **Engines**: `server/automation/reliabilityWatchdog.ts` (6h cadence — stale jobs, rollback rate, health snapshot), `server/automation/quarterlyStrategyEngine.ts` (30d cadence — cross-platform strategy report)
+- **Routes**: 14 new endpoints — `/api/founder/*` (overview, what-changed-today, approvals, maturity-score, approval-requests PATCH), `/api/admin/roles` (GET/POST/PATCH), `/api/explainability/*` (recent, entity summary), `/api/system/*` (health-summary, run-health-check, safe-mode, kill-switch), `/api/strategy/quarterly/*` (latest, all, generate)
+- **Jobs**: 13 total (5 Phase 49 + 4 Phase 50 + 2 Phase 51 + 2 Phase 52)
+- **Frontend**: 5 new panel components (FounderCommandPanel, ApprovalsQueuePanel, ExplainabilityPanel, SystemHealthPanel, MaturityScorePanel), new "Founder" tab in Dashboard; `client/src/types/founder.ts`
+- **Controls**: Safe Mode (all policies → suggest_only), Kill Switch (all auto-apply disabled), manual Health Check, Generate Quarterly Strategy Report
+- **Maturity scoring**: Job Health + Revenue Truth + Audit Health + Execution Safety + Growth Health → Overall Maturity (0–100, graded A–F)
+
 ## External Links
 - Amazon Books: B0GMBNPZC9, B0G5DWG61V, B0FSDTPVJC
 - Instagram: https://www.instagram.com/officialelevate360/

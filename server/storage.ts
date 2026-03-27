@@ -25,10 +25,16 @@ import {
   type AppliedChange, type InsertAppliedChange, type UpdateAppliedChange,
   type ExecutionQueueItem, type InsertExecutionQueueItem, type UpdateExecutionQueueItem,
   type RollbackEvent, type InsertRollbackEvent,
+  type UserRole, type InsertUserRole,
+  type ApprovalRequest, type InsertApprovalRequest,
+  type AiExplanation, type InsertAiExplanation,
+  type SystemHealthSnapshot, type InsertSystemHealthSnapshot,
+  type QuarterlyStrategyReport, type InsertQuarterlyStrategyReport,
   users, contactMessages, newsletterSubscribers, chatConversations, clickEvents, pageViews, testimonials, blogPosts, knowledgeDocuments, consultations, bookings, orders, digestReports, offerMappingOverrides, auditLogs, automationSettings,
   automationJobs, automationJobLogs, revenueRecoveryActions, contentOpportunities, autonomousAlerts,
   growthExperiments, sourcePerformanceSnapshots, funnelLeakReports, offerPerformanceSnapshots,
   executionPolicies, appliedChanges, executionQueue, rollbackEvents,
+  userRoles, approvalRequests, aiExplanations, systemHealthSnapshots, quarterlyStrategyReports,
 } from "@shared/schema";
 import { db } from "./db";
 import { and, asc, count, desc, eq, gte, isNull, lte, ne, or, sql } from "drizzle-orm";
@@ -236,6 +242,23 @@ export interface IStorage {
   getLinksPriorityCandidates(): Promise<any[]>;
   getChangeImpactMetrics(changeKey: string): Promise<any>;
   seedDefaultExecutionPolicies(): Promise<void>;
+
+  // Phase 52 — Founder Control, Scale & Maturity
+  getUserRoles(): Promise<UserRole[]>;
+  upsertUserRole(input: InsertUserRole): Promise<UserRole>;
+  updateUserRole(id: number, patch: Partial<InsertUserRole>): Promise<UserRole | undefined>;
+  getApprovalRequests(status?: string): Promise<ApprovalRequest[]>;
+  createApprovalRequest(input: InsertApprovalRequest): Promise<ApprovalRequest>;
+  updateApprovalRequest(id: number, patch: Partial<InsertApprovalRequest>): Promise<ApprovalRequest | undefined>;
+  getAiExplanations(entityType?: string, entityId?: string, limit?: number): Promise<AiExplanation[]>;
+  createAiExplanation(input: InsertAiExplanation): Promise<AiExplanation>;
+  getSystemHealthSnapshots(limit?: number): Promise<SystemHealthSnapshot[]>;
+  createSystemHealthSnapshot(input: InsertSystemHealthSnapshot): Promise<SystemHealthSnapshot>;
+  getLatestHealthSnapshot(): Promise<SystemHealthSnapshot | undefined>;
+  getQuarterlyStrategyReports(limit?: number): Promise<QuarterlyStrategyReport[]>;
+  createQuarterlyStrategyReport(input: InsertQuarterlyStrategyReport): Promise<QuarterlyStrategyReport>;
+  getFounderOverview(): Promise<any>;
+  getWhatChangedToday(): Promise<any>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1778,6 +1801,122 @@ export class DatabaseStorage implements IStorage {
       hasRollback: rollbacks.length > 0,
       change,
     };
+  }
+
+  // ── Phase 52: Founder Control, Scale & Maturity ──────────────────────────────
+
+  async getUserRoles(): Promise<UserRole[]> {
+    return db.select().from(userRoles).orderBy(userRoles.role);
+  }
+
+  async upsertUserRole(input: InsertUserRole): Promise<UserRole> {
+    const [row] = await db
+      .insert(userRoles)
+      .values(input)
+      .onConflictDoUpdate({ target: userRoles.email, set: { ...input } })
+      .returning();
+    return row;
+  }
+
+  async updateUserRole(id: number, patch: Partial<InsertUserRole>): Promise<UserRole | undefined> {
+    const [row] = await db.update(userRoles).set(patch).where(eq(userRoles.id, id)).returning();
+    return row;
+  }
+
+  async getApprovalRequests(status?: string): Promise<ApprovalRequest[]> {
+    const q = db.select().from(approvalRequests).orderBy(desc(approvalRequests.createdAt));
+    if (status) {
+      return q.where(eq(approvalRequests.status, status)).limit(100);
+    }
+    return q.limit(100);
+  }
+
+  async createApprovalRequest(input: InsertApprovalRequest): Promise<ApprovalRequest> {
+    const [row] = await db.insert(approvalRequests).values(input).returning();
+    return row;
+  }
+
+  async updateApprovalRequest(id: number, patch: Partial<InsertApprovalRequest>): Promise<ApprovalRequest | undefined> {
+    const [row] = await db.update(approvalRequests).set(patch).where(eq(approvalRequests.id, id)).returning();
+    return row;
+  }
+
+  async getAiExplanations(entityType?: string, entityId?: string, limit = 50): Promise<AiExplanation[]> {
+    const q = db.select().from(aiExplanations).orderBy(desc(aiExplanations.createdAt));
+    if (entityType && entityId) {
+      return q.where(and(eq(aiExplanations.entityType, entityType), eq(aiExplanations.entityId, entityId))).limit(limit);
+    }
+    if (entityType) {
+      return q.where(eq(aiExplanations.entityType, entityType)).limit(limit);
+    }
+    return q.limit(limit);
+  }
+
+  async createAiExplanation(input: InsertAiExplanation): Promise<AiExplanation> {
+    const [row] = await db.insert(aiExplanations).values(input).returning();
+    return row;
+  }
+
+  async getSystemHealthSnapshots(limit = 30): Promise<SystemHealthSnapshot[]> {
+    return db.select().from(systemHealthSnapshots).orderBy(desc(systemHealthSnapshots.snapshotTime)).limit(limit);
+  }
+
+  async createSystemHealthSnapshot(input: InsertSystemHealthSnapshot): Promise<SystemHealthSnapshot> {
+    const [row] = await db.insert(systemHealthSnapshots).values(input).returning();
+    return row;
+  }
+
+  async getLatestHealthSnapshot(): Promise<SystemHealthSnapshot | undefined> {
+    const [row] = await db.select().from(systemHealthSnapshots).orderBy(desc(systemHealthSnapshots.snapshotTime)).limit(1);
+    return row;
+  }
+
+  async getQuarterlyStrategyReports(limit = 10): Promise<QuarterlyStrategyReport[]> {
+    return db.select().from(quarterlyStrategyReports).orderBy(desc(quarterlyStrategyReports.createdAt)).limit(limit);
+  }
+
+  async createQuarterlyStrategyReport(input: InsertQuarterlyStrategyReport): Promise<QuarterlyStrategyReport> {
+    const [row] = await db.insert(quarterlyStrategyReports).values(input).returning();
+    return row;
+  }
+
+  async getFounderOverview(): Promise<any> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const [changedToday] = await db.select({ c: count() }).from(appliedChanges).where(gte(appliedChanges.createdAt, today));
+    const [rolledBackToday] = await db.select({ c: count() }).from(rollbackEvents).where(gte(rollbackEvents.createdAt, today));
+    const [pendingApprovals] = await db.select({ c: count() }).from(executionQueue).where(eq(executionQueue.status, "pending"));
+    const [pendingRequests] = await db.select({ c: count() }).from(approvalRequests).where(eq(approvalRequests.status, "pending"));
+    const latestHealth = await this.getLatestHealthSnapshot();
+    const topExperiment = await db.select().from(growthExperiments)
+      .where(eq(growthExperiments.status, "won"))
+      .orderBy(desc(growthExperiments.expectedImpactScore))
+      .limit(1);
+    const topSource = await db.select().from(sourcePerformanceSnapshots)
+      .orderBy(desc(sourcePerformanceSnapshots.qualityScore))
+      .limit(1);
+    const topOffer = await db.select().from(offerPerformanceSnapshots)
+      .orderBy(desc(offerPerformanceSnapshots.performanceScore))
+      .limit(1);
+    return {
+      changedToday: Number(changedToday?.c ?? 0),
+      rolledBackToday: Number(rolledBackToday?.c ?? 0),
+      pendingApprovals: Number(pendingApprovals?.c ?? 0) + Number(pendingRequests?.c ?? 0),
+      maturityScore: latestHealth?.overallMaturityScore ?? 0,
+      topGrowthWin: topExperiment[0] ?? null,
+      topSource: topSource[0] ?? null,
+      topOffer: topOffer[0] ?? null,
+    };
+  }
+
+  async getWhatChangedToday(): Promise<any> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const changes = await db.select().from(appliedChanges).where(gte(appliedChanges.createdAt, today)).orderBy(desc(appliedChanges.createdAt));
+    const rollbacks = await db.select().from(rollbackEvents).where(gte(rollbackEvents.createdAt, today)).orderBy(desc(rollbackEvents.createdAt));
+    const experiments = await db.select().from(growthExperiments).where(gte(growthExperiments.createdAt, today)).orderBy(desc(growthExperiments.createdAt));
+    const queued = await db.select().from(executionQueue).where(gte(executionQueue.createdAt, today)).orderBy(desc(executionQueue.createdAt));
+    return { changes, rollbacks, experiments, queued };
   }
 
   async seedDefaultExecutionPolicies(): Promise<void> {

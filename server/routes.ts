@@ -1646,5 +1646,140 @@ export async function registerRoutes(
     res.json(metrics);
   });
 
+  // ── Phase 52: Founder Control, Scale & Maturity ───────────────────────────────
+
+  // Founder command
+  app.get("/api/founder/overview", requireDashboardAuth, async (_req, res) => {
+    const overview = await storage.getFounderOverview();
+    res.json(overview);
+  });
+
+  app.get("/api/founder/what-changed-today", requireDashboardAuth, async (_req, res) => {
+    const data = await storage.getWhatChangedToday();
+    res.json(data);
+  });
+
+  app.get("/api/founder/approvals", requireDashboardAuth, async (_req, res) => {
+    const [queue, requests] = await Promise.all([
+      storage.getExecutionQueue(50),
+      storage.getApprovalRequests("pending"),
+    ]);
+    res.json({
+      queuePending: queue.filter((q) => q.status === "pending"),
+      approvalRequests: requests,
+    });
+  });
+
+  app.get("/api/founder/maturity-score", requireDashboardAuth, async (_req, res) => {
+    const { computeMaturityScore } = await import("./services/maturityScoring");
+    const scores = await computeMaturityScore();
+    res.json(scores);
+  });
+
+  // Roles
+  app.get("/api/admin/roles", requireDashboardAuth, async (_req, res) => {
+    const rows = await storage.getUserRoles();
+    res.json(rows);
+  });
+
+  app.patch("/api/admin/roles/:id", requireDashboardAuth, async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ message: "Invalid id" });
+    const { updateUserRoleSchema } = await import("@shared/schema");
+    const patch = updateUserRoleSchema.parse(req.body);
+    const row = await storage.updateUserRole(id, patch);
+    if (!row) return res.status(404).json({ message: "Not found" });
+    res.json(row);
+  });
+
+  app.post("/api/admin/roles", requireDashboardAuth, async (req, res) => {
+    const { insertUserRoleSchema } = await import("@shared/schema");
+    const input = insertUserRoleSchema.parse(req.body);
+    const row = await storage.upsertUserRole(input);
+    res.json(row);
+  });
+
+  // Approval requests
+  app.get("/api/founder/approval-requests", requireDashboardAuth, async (req, res) => {
+    const status = req.query.status as string | undefined;
+    const rows = await storage.getApprovalRequests(status);
+    res.json(rows);
+  });
+
+  app.patch("/api/founder/approval-requests/:id", requireDashboardAuth, async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ message: "Invalid id" });
+    const { updateApprovalRequestSchema } = await import("@shared/schema");
+    const patch = updateApprovalRequestSchema.parse(req.body);
+    const resolvedAt = ["approved", "rejected"].includes(patch.status ?? "") ? new Date() : undefined;
+    const row = await storage.updateApprovalRequest(id, { ...patch, ...(resolvedAt ? { resolvedAt } : {}) });
+    if (!row) return res.status(404).json({ message: "Not found" });
+    res.json(row);
+  });
+
+  // Explainability
+  app.get("/api/explainability/recent", requireDashboardAuth, async (req, res) => {
+    const limit = Number(req.query.limit) || 30;
+    const rows = await storage.getAiExplanations(undefined, undefined, limit);
+    res.json(rows);
+  });
+
+  app.get("/api/explainability/:entityType/:entityId", requireDashboardAuth, async (req, res) => {
+    const { getExplanationSummary } = await import("./services/explainability");
+    const summary = await getExplanationSummary(req.params.entityType, req.params.entityId);
+    res.json(summary);
+  });
+
+  // System health
+  app.get("/api/system/health-summary", requireDashboardAuth, async (_req, res) => {
+    const [latest, history] = await Promise.all([
+      storage.getLatestHealthSnapshot(),
+      storage.getSystemHealthSnapshots(10),
+    ]);
+    res.json({ latest, history });
+  });
+
+  app.post("/api/system/run-health-check", requireDashboardAuth, async (_req, res) => {
+    const { runReliabilityWatchdog } = await import("./automation/reliabilityWatchdog");
+    const result = await runReliabilityWatchdog();
+    res.json({ ok: true, ...result });
+  });
+
+  app.post("/api/system/safe-mode", requireDashboardAuth, async (req, res) => {
+    const { enabled } = req.body as { enabled: boolean };
+    const policies = await storage.getExecutionPolicies();
+    for (const p of policies) {
+      if (enabled) {
+        await storage.updateExecutionPolicy(p.policyKey, { mode: "suggest_only" });
+      }
+    }
+    res.json({ ok: true, safeMode: enabled, policiesUpdated: policies.length });
+  });
+
+  app.post("/api/system/kill-switch", requireDashboardAuth, async (_req, res) => {
+    const policies = await storage.getExecutionPolicies();
+    for (const p of policies) {
+      await storage.updateExecutionPolicy(p.policyKey, { isEnabled: false });
+    }
+    res.json({ ok: true, message: "Kill switch activated — all auto-apply policies disabled", policiesDisabled: policies.length });
+  });
+
+  // Quarterly strategy
+  app.get("/api/strategy/quarterly/latest", requireDashboardAuth, async (_req, res) => {
+    const reports = await storage.getQuarterlyStrategyReports(5);
+    res.json(reports[0] ?? null);
+  });
+
+  app.get("/api/strategy/quarterly/all", requireDashboardAuth, async (_req, res) => {
+    const reports = await storage.getQuarterlyStrategyReports(10);
+    res.json(reports);
+  });
+
+  app.post("/api/strategy/quarterly/generate", requireDashboardAuth, async (_req, res) => {
+    const { runQuarterlyStrategyEngine } = await import("./automation/quarterlyStrategyEngine");
+    const result = await runQuarterlyStrategyEngine();
+    res.json({ ok: true, ...result });
+  });
+
   return httpServer;
 }

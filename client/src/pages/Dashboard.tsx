@@ -11,7 +11,7 @@ import {
   Database, Edit2, Zap, Calendar, DollarSign, Phone, Trophy, XCircle, AlertCircle, GripVertical,
   Clock, Tag, RefreshCw, ExternalLink, BrainCircuit, AlertTriangle, FileBarChart2, Target,
   Filter, Percent, ArrowDown, TrendingDown, Flame, Banknote, Shield, Activity, ShieldCheck, ShieldAlert,
-  ClipboardCheck, Bot, RefreshCcw, BadgeDollarSign, FlaskConical, Cpu, GitMerge, ListTodo,
+  ClipboardCheck, Bot, RefreshCcw, BadgeDollarSign, FlaskConical, Cpu, GitMerge, ListTodo, Crown,
 } from "lucide-react";
 import { AuditTab } from "@/components/AuditTab";
 import DashboardSummaryCards from "@/components/dashboard/DashboardSummaryCards";
@@ -29,6 +29,12 @@ import { ExecutionPoliciesPanel } from "@/components/dashboard/ExecutionPolicies
 import { ExecutionQueuePanel } from "@/components/dashboard/ExecutionQueuePanel";
 import { AppliedChangesPanel } from "@/components/dashboard/AppliedChangesPanel";
 import { RollbackAlertsPanel } from "@/components/dashboard/RollbackAlertsPanel";
+import type { FounderOverview, MaturityScores, AiExplanation, SystemHealthSnapshot, QuarterlyStrategyReport, ApprovalRequest as FounderApprovalRequest } from "@/types/founder";
+import { FounderCommandPanel } from "@/components/dashboard/FounderCommandPanel";
+import { ApprovalsQueuePanel } from "@/components/dashboard/ApprovalsQueuePanel";
+import { ExplainabilityPanel } from "@/components/dashboard/ExplainabilityPanel";
+import { SystemHealthPanel } from "@/components/dashboard/SystemHealthPanel";
+import { MaturityScorePanel } from "@/components/dashboard/MaturityScorePanel";
 import type {
   AutomationJob,
   RevenueRecoveryAction,
@@ -4474,7 +4480,7 @@ function AutomationTab() {
 // ──────────────────────────────────────────────────────────────────────────────
 
 function DashboardContent({ onLogout }: { onLogout: () => void }) {
-  const [tab, setTab] = useState<"analytics" | "funnel" | "offers" | "revenue" | "voice" | "leads" | "contacts" | "newsletter" | "reviews" | "blog" | "knowledge" | "pipeline" | "bookings" | "orders" | "digest" | "automation" | "system" | "audit" | "growth" | "execution">("analytics");
+  const [tab, setTab] = useState<"analytics" | "funnel" | "offers" | "revenue" | "voice" | "leads" | "contacts" | "newsletter" | "reviews" | "blog" | "knowledge" | "pipeline" | "bookings" | "orders" | "digest" | "automation" | "system" | "audit" | "growth" | "execution" | "founder">("analytics");
   const [leadFilter, setLeadFilter] = useState<"all" | "priority" | "hot" | "warm" | "cold">("all");
   const qc = useQueryClient();
 
@@ -4564,6 +4570,51 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
     queryKey: ["rollback-events"],
     queryFn: () => authedJson("/api/execution/rollbacks"),
     enabled: tab === "execution",
+  });
+
+  // ── Phase 52 queries ──────────────────────────────────────────────────────────
+  const [p52Checking, setP52Checking] = useState(false);
+  const [p52Generating, setP52Generating] = useState(false);
+  const [p52RefreshingOverview, setP52RefreshingOverview] = useState(false);
+
+  const founderOverviewQuery = useQuery<FounderOverview>({
+    queryKey: ["founder-overview"],
+    queryFn: () => authedJson("/api/founder/overview"),
+    enabled: tab === "founder",
+  });
+  const maturityQuery = useQuery<MaturityScores>({
+    queryKey: ["founder-maturity"],
+    queryFn: () => authedJson("/api/founder/maturity-score"),
+    enabled: tab === "founder",
+  });
+  const approvalRequestsQuery = useQuery<FounderApprovalRequest[]>({
+    queryKey: ["founder-approval-requests"],
+    queryFn: () => authedJson("/api/founder/approval-requests"),
+    enabled: tab === "founder",
+  });
+  const healthSummaryQuery = useQuery<{ latest: SystemHealthSnapshot | null; history: SystemHealthSnapshot[] }>({
+    queryKey: ["system-health-summary"],
+    queryFn: () => authedJson("/api/system/health-summary"),
+    enabled: tab === "founder",
+  });
+  const explanationsQuery = useQuery<AiExplanation[]>({
+    queryKey: ["ai-explanations-recent"],
+    queryFn: () => authedJson("/api/explainability/recent?limit=30"),
+    enabled: tab === "founder",
+  });
+  const quarterlyQuery = useQuery<QuarterlyStrategyReport | null>({
+    queryKey: ["quarterly-strategy-latest"],
+    queryFn: () => authedJson("/api/strategy/quarterly/latest"),
+    enabled: tab === "founder",
+  });
+
+  const approveRequest = useMutation({
+    mutationFn: (id: number) => authedJson(`/api/founder/approval-requests/${id}`, { method: "PATCH", body: JSON.stringify({ status: "approved" }) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["founder-approval-requests"] }),
+  });
+  const rejectRequest = useMutation({
+    mutationFn: (id: number) => authedJson(`/api/founder/approval-requests/${id}`, { method: "PATCH", body: JSON.stringify({ status: "rejected" }) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["founder-approval-requests"] }),
   });
 
   const seedPolicies = useMutation({
@@ -4700,6 +4751,7 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
     { key: "automation", label: "Automation", icon: Zap },
     { key: "growth", label: "Growth", icon: FlaskConical },
     { key: "execution", label: "Execution", icon: Cpu },
+    { key: "founder", label: "Founder", icon: Crown },
     { key: "system", label: "System", icon: Shield },
     { key: "audit", label: "Audit", icon: ClipboardCheck },
   ] as const;
@@ -5125,6 +5177,76 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
               events={rollbackEventsQ.data ?? []}
               onCheck={() => runRollbackCheck.mutate()}
               checking={runRollbackCheck.isPending}
+            />
+          </div>
+        )}
+
+        {tab === "founder" && (
+          <div className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <StatCard label="Changed Today" value={founderOverviewQuery.data?.changedToday ?? 0} icon={GitMerge} color="#34d399" />
+              <StatCard label="Rolled Back" value={founderOverviewQuery.data?.rolledBackToday ?? 0} icon={RefreshCw} color="#f87171" />
+              <StatCard label="Needs Approval" value={founderOverviewQuery.data?.pendingApprovals ?? 0} icon={Clock} color="#F4A62A" />
+              <StatCard label="Maturity Score" value={founderOverviewQuery.data?.maturityScore ?? 0} icon={Crown} color="#818cf8" />
+            </div>
+
+            <FounderCommandPanel
+              overview={founderOverviewQuery.data ?? null}
+              maturity={maturityQuery.data ?? null}
+              onRefresh={async () => {
+                setP52RefreshingOverview(true);
+                await Promise.all([
+                  qc.invalidateQueries({ queryKey: ["founder-overview"] }),
+                  qc.invalidateQueries({ queryKey: ["founder-maturity"] }),
+                ]);
+                setP52RefreshingOverview(false);
+              }}
+              refreshing={p52RefreshingOverview}
+            />
+
+            <div className="grid md:grid-cols-2 gap-6">
+              <ApprovalsQueuePanel
+                requests={approvalRequestsQuery.data ?? []}
+                onApprove={(id) => approveRequest.mutate(id)}
+                onReject={(id) => rejectRequest.mutate(id)}
+              />
+              <SystemHealthPanel
+                latest={healthSummaryQuery.data?.latest ?? null}
+                history={healthSummaryQuery.data?.history ?? []}
+                onHealthCheck={async () => {
+                  setP52Checking(true);
+                  await authedJson("/api/system/run-health-check", { method: "POST" });
+                  await qc.invalidateQueries({ queryKey: ["system-health-summary"] });
+                  setP52Checking(false);
+                }}
+                onSafeMode={async (enabled) => {
+                  await authedJson("/api/system/safe-mode", { method: "POST", body: JSON.stringify({ enabled }) });
+                  qc.invalidateQueries({ queryKey: ["execution-policies"] });
+                }}
+                onKillSwitch={async () => {
+                  if (!confirm("Activate kill switch? All auto-apply policies will be disabled.")) return;
+                  await authedJson("/api/system/kill-switch", { method: "POST" });
+                  qc.invalidateQueries({ queryKey: ["execution-policies"] });
+                }}
+                checking={p52Checking}
+              />
+            </div>
+
+            <MaturityScorePanel
+              maturity={maturityQuery.data ?? null}
+              quarterly={quarterlyQuery.data ?? null}
+              onGenerateStrategy={async () => {
+                setP52Generating(true);
+                await authedJson("/api/strategy/quarterly/generate", { method: "POST" });
+                await qc.invalidateQueries({ queryKey: ["quarterly-strategy-latest"] });
+                setP52Generating(false);
+              }}
+              generating={p52Generating}
+            />
+
+            <ExplainabilityPanel
+              explanations={explanationsQuery.data ?? []}
+              title="Recent AI Decisions & Explanations"
             />
           </div>
         )}

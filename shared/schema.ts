@@ -681,3 +681,80 @@ export type FunnelLeakReport = typeof funnelLeakReports.$inferSelect;
 export const insertOfferPerformanceSnapshotSchema = createInsertSchema(offerPerformanceSnapshots).omit({ id: true, snapshotDate: true });
 export type InsertOfferPerformanceSnapshot = z.infer<typeof insertOfferPerformanceSnapshotSchema>;
 export type OfferPerformanceSnapshot = typeof offerPerformanceSnapshots.$inferSelect;
+
+// ── Phase 52: Founder Control, Scale & Maturity ───────────────────────────────
+
+export const userRoles = pgTable("user_roles", {
+  id: serial("id").primaryKey(),
+  email: varchar("email", { length: 255 }).notNull().unique(),
+  role: varchar("role", { length: 40 }).notNull().default("analyst"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const approvalRequests = pgTable("approval_requests", {
+  id: serial("id").primaryKey(),
+  requestKey: varchar("request_key", { length: 180 }).notNull().unique(),
+  area: varchar("area", { length: 40 }).notNull(),
+  actionType: varchar("action_type", { length: 80 }).notNull(),
+  payloadJson: jsonb("payload_json"),
+  requestedBy: varchar("requested_by", { length: 80 }).notNull().default("ai"),
+  status: varchar("status", { length: 30 }).notNull().default("pending"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  resolvedAt: timestamp("resolved_at"),
+});
+
+export const aiExplanations = pgTable("ai_explanations", {
+  id: serial("id").primaryKey(),
+  entityType: varchar("entity_type", { length: 80 }).notNull(),
+  entityId: varchar("entity_id", { length: 120 }).notNull(),
+  actionType: varchar("action_type", { length: 80 }).notNull(),
+  reason: text("reason"),
+  evidenceJson: jsonb("evidence_json"),
+  confidence: integer("confidence").notNull().default(0),
+  policyKey: varchar("policy_key", { length: 120 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const systemHealthSnapshots = pgTable("system_health_snapshots", {
+  id: serial("id").primaryKey(),
+  snapshotTime: timestamp("snapshot_time").defaultNow().notNull(),
+  jobHealthScore: integer("job_health_score").notNull().default(0),
+  revenueTruthScore: integer("revenue_truth_score").notNull().default(0),
+  auditHealthScore: integer("audit_health_score").notNull().default(0),
+  executionSafetyScore: integer("execution_safety_score").notNull().default(0),
+  growthHealthScore: integer("growth_health_score").notNull().default(0),
+  overallMaturityScore: integer("overall_maturity_score").notNull().default(0),
+  metaJson: jsonb("meta_json"),
+});
+
+export const quarterlyStrategyReports = pgTable("quarterly_strategy_reports", {
+  id: serial("id").primaryKey(),
+  periodStart: timestamp("period_start").notNull(),
+  periodEnd: timestamp("period_end").notNull(),
+  summary: text("summary"),
+  recommendationsJson: jsonb("recommendations_json"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertUserRoleSchema = createInsertSchema(userRoles).omit({ id: true, createdAt: true });
+export const updateUserRoleSchema = insertUserRoleSchema.partial();
+export type InsertUserRole = z.infer<typeof insertUserRoleSchema>;
+export type UserRole = typeof userRoles.$inferSelect;
+
+export const insertApprovalRequestSchema = createInsertSchema(approvalRequests).omit({ id: true, createdAt: true, resolvedAt: true });
+export const updateApprovalRequestSchema = insertApprovalRequestSchema.partial();
+export type InsertApprovalRequest = z.infer<typeof insertApprovalRequestSchema>;
+export type ApprovalRequest = typeof approvalRequests.$inferSelect;
+
+export const insertAiExplanationSchema = createInsertSchema(aiExplanations).omit({ id: true, createdAt: true });
+export type InsertAiExplanation = z.infer<typeof insertAiExplanationSchema>;
+export type AiExplanation = typeof aiExplanations.$inferSelect;
+
+export const insertSystemHealthSnapshotSchema = createInsertSchema(systemHealthSnapshots).omit({ id: true, snapshotTime: true });
+export type InsertSystemHealthSnapshot = z.infer<typeof insertSystemHealthSnapshotSchema>;
+export type SystemHealthSnapshot = typeof systemHealthSnapshots.$inferSelect;
+
+export const insertQuarterlyStrategyReportSchema = createInsertSchema(quarterlyStrategyReports).omit({ id: true, createdAt: true });
+export type InsertQuarterlyStrategyReport = z.infer<typeof insertQuarterlyStrategyReportSchema>;
+export type QuarterlyStrategyReport = typeof quarterlyStrategyReports.$inferSelect;

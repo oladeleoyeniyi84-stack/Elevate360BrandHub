@@ -100,4 +100,20 @@ export async function startAutomationJobs() {
   );
 
   console.log("[automation] Phase 51 jobs registered (2 jobs)");
+
+  // ── Phase 52: Founder Control & Maturity jobs ─────────────────────────────────
+  const { runReliabilityWatchdog } = await import("./reliabilityWatchdog");
+  const { runQuarterlyStrategyEngine } = await import("./quarterlyStrategyEngine");
+
+  await registerRecurringJob(
+    { jobKey: "phase52_reliability_watchdog", jobGroup: "reliability", cadenceMinutes: 360, run: runReliabilityWatchdog },
+    330_000
+  );
+
+  await registerRecurringJob(
+    { jobKey: "phase52_quarterly_strategy", jobGroup: "strategy", cadenceMinutes: 30 * 24 * 60, run: runQuarterlyStrategyEngine },
+    360_000
+  );
+
+  console.log("[automation] Phase 52 jobs registered (2 jobs)");
 }
