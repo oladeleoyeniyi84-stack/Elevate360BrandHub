@@ -80,6 +80,7 @@ export interface IStorage {
   deleteBooking(id: number): Promise<void>;
   // Phase 37 — Orders
   createOrder(data: any): Promise<Order>;
+  getOrderById(id: number): Promise<Order | undefined>;
   getOrderByStripeSession(stripeSessionId: string): Promise<Order | undefined>;
   updateOrderStatus(stripeSessionId: string, status: string, extra?: any): Promise<Order | undefined>;
   getAllOrders(): Promise<Order[]>;
@@ -575,10 +576,16 @@ export class DatabaseStorage implements IStorage {
     amountPaid?: number;
     currency?: string;
     status?: string;
+    fulfillmentStatus?: string;
     sessionId?: string;
     metadata?: Record<string, any>;
   }): Promise<Order> {
     const [row] = await db.insert(orders).values(data as any).returning();
+    return row;
+  }
+
+  async getOrderById(id: number): Promise<Order | undefined> {
+    const [row] = await db.select().from(orders).where(eq(orders.id, id));
     return row;
   }
 

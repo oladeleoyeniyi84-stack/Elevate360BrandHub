@@ -730,6 +730,13 @@ export async function registerRoutes(
         },
       } as any);
 
+      // Determine if this offer was accepted via AI concierge
+      let acceptedByAi = false;
+      if (chatSessionId) {
+        const conv = await storage.getChatSession(chatSessionId).catch(() => undefined);
+        acceptedByAi = conv?.recommendedOfferAccepted ?? false;
+      }
+
       // Track as initiated order (abandoned checkout if never completed)
       storage.createOrder({
         stripeSessionId: session.id,
@@ -737,13 +744,61 @@ export async function registerRoutes(
         productName: productName ?? "Offer",
         customerEmail: customerEmail ?? "unknown",
         status: "initiated",
+        fulfillmentStatus: "pending",
         sessionId: chatSessionId ?? undefined,
+        metadata: {
+          source: "elevate360-website",
+          checkoutCreatedAt: new Date().toISOString(),
+          acceptedByAi,
+        },
       }).catch(() => {});
 
       res.json({ url: session.url });
     } catch (e: any) {
       console.error("[stripe] checkout error:", e.message);
       res.status(500).json({ message: "Could not create checkout session." });
+    }
+  });
+
+  // Phase 37 — Public Order Status Lookup
+  // GET /api/orders/status?session_id=<stripe_checkout_session_id>
+  // GET /api/orders/status?order_id=<internal_order_id>
+  app.get("/api/orders/status", async (req, res) => {
+    const { session_id, order_id } = req.query as Record<string, string | undefined>;
+    if (!session_id && !order_id) {
+      return res.status(400).json({ message: "Provide session_id or order_id as a query parameter." });
+    }
+    try {
+      let order: import("@shared/schema").Order | undefined;
+      if (session_id) {
+        order = await storage.getOrderByStripeSession(session_id);
+      } else if (order_id) {
+        const numId = parseInt(order_id, 10);
+        if (isNaN(numId)) return res.status(400).json({ message: "order_id must be a number." });
+        order = await storage.getOrderById(numId);
+      }
+      if (!order) return res.status(404).json({ message: "Order not found." });
+
+      const meta = (order.metadata as Record<string, any>) ?? {};
+      return res.json({
+        id: order.id,
+        productName: order.productName,
+        customerEmail: order.customerEmail,
+        amountPaid: order.amountPaid,
+        currency: order.currency,
+        paymentStatus: order.status,
+        fulfillmentStatus: order.fulfillmentStatus,
+        stripeSessionId: order.stripeSessionId,
+        metadata: {
+          acceptedByAi: meta.acceptedByAi ?? false,
+          source: meta.source ?? "elevate360-website",
+          checkoutCreatedAt: meta.checkoutCreatedAt ?? order.createdAt,
+        },
+        updatedAt: order.updatedAt,
+      });
+    } catch (e: any) {
+      console.error("[orders/status] error:", e.message);
+      return res.status(500).json({ message: "Could not look up order status." });
     }
   });
 

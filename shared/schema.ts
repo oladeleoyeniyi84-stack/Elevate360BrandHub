@@ -177,6 +177,7 @@ export const orders = pgTable("orders", {
   amountPaid: integer("amount_paid"),
   currency: varchar("currency", { length: 10 }).default("usd"),
   status: varchar("status", { length: 40 }).notNull().default("initiated"),
+  fulfillmentStatus: varchar("fulfillment_status", { length: 40 }).notNull().default("pending"),
   sessionId: varchar("session_id", { length: 64 }),
   metadata: jsonb("metadata"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
