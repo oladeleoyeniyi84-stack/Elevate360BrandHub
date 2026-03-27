@@ -148,6 +148,14 @@ export interface IStorage {
     conversionByIntent: Record<string, { total: number; won: number; rate: number }>;
     overdueLeads: { sessionId: string; leadName: string | null; leadEmail: string | null; intent: string | null; followupDueDate: Date | null }[];
   }>;
+  getDashboardSummary(): Promise<{
+    leads: { total: number; emailCaptured: number; hot: number; qualified: number; bookedThisWeek: number; wonThisMonth: number };
+    revenue: { totalPaid: number; paidOrders: number; avgOrderValue: number; abandoned: number };
+    engagement: { newsletterSubscribers: number; contactForms: number; unrepliedContacts: number; pendingBookings: number };
+    topIntent: string | null;
+    topRecommendedOffer: string | null;
+    generatedAt: string;
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1177,6 +1185,63 @@ export class DatabaseStorage implements IStorage {
         intent: l.intent,
         followupDueDate: l.followupDueDate,
       })),
+    };
+  }
+
+  async getDashboardSummary() {
+    const now = new Date();
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const [allLeads, allOrders, allSubscribers, allContacts, allBookings] = await Promise.all([
+      db.select().from(chatConversations),
+      db.select().from(orders),
+      db.select({ id: newsletterSubscribers.id }).from(newsletterSubscribers),
+      db.select({ id: contactMessages.id, repliedAt: contactMessages.repliedAt }).from(contactMessages),
+      db.select({ id: bookings.id, status: bookings.status }).from(bookings),
+    ]);
+
+    const paidOrders = allOrders.filter((o) => o.status === "paid");
+    const stripeRevenue = paidOrders.reduce((s, o) => s + (o.amountPaid ?? 0), 0);
+
+    const intentCounts = new Map<string, number>();
+    const offerCounts = new Map<string, number>();
+    for (const l of allLeads) {
+      if (l.intent) intentCounts.set(l.intent, (intentCounts.get(l.intent) ?? 0) + 1);
+      if (l.recommendedOffer && (l.leadScore ?? 0) >= 50)
+        offerCounts.set(l.recommendedOffer, (offerCounts.get(l.recommendedOffer) ?? 0) + 1);
+    }
+    const topIntent = intentCounts.size > 0
+      ? [...intentCounts.entries()].sort((a, b) => b[1] - a[1])[0][0]
+      : null;
+    const topRecommendedOffer = offerCounts.size > 0
+      ? [...offerCounts.entries()].sort((a, b) => b[1] - a[1])[0][0]
+      : null;
+
+    return {
+      leads: {
+        total: allLeads.length,
+        emailCaptured: allLeads.filter((l) => l.capturedEmail || l.leadEmail).length,
+        hot: allLeads.filter((l) => l.leadTemperature === "hot" || l.leadTemperature === "priority").length,
+        qualified: allLeads.filter((l) => ["qualified", "booked", "won", "converted"].includes(l.pipelineStage)).length,
+        bookedThisWeek: allLeads.filter((l) => l.pipelineStage === "booked" && l.lastActivityAt && new Date(l.lastActivityAt) >= weekAgo).length,
+        wonThisMonth: allLeads.filter((l) => ["won", "converted"].includes(l.pipelineStage) && l.lastActivityAt && new Date(l.lastActivityAt) >= monthAgo).length,
+      },
+      revenue: {
+        totalPaid: stripeRevenue,
+        paidOrders: paidOrders.length,
+        avgOrderValue: paidOrders.length > 0 ? Math.round(stripeRevenue / paidOrders.length) : 0,
+        abandoned: allOrders.filter((o) => o.status === "initiated").length,
+      },
+      engagement: {
+        newsletterSubscribers: allSubscribers.length,
+        contactForms: allContacts.length,
+        unrepliedContacts: allContacts.filter((c) => !c.repliedAt).length,
+        pendingBookings: allBookings.filter((b) => b.status === "pending").length,
+      },
+      topIntent,
+      topRecommendedOffer,
+      generatedAt: now.toISOString(),
     };
   }
 }

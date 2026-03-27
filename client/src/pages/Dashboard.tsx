@@ -3918,6 +3918,103 @@ function RevenueTab() {
   );
 }
 
+// ── Phase 47 — Dashboard Summary Cards ───────────────────────────────────────
+
+type DashboardSummaryData = {
+  leads: { total: number; emailCaptured: number; hot: number; qualified: number; bookedThisWeek: number; wonThisMonth: number };
+  revenue: { totalPaid: number; paidOrders: number; avgOrderValue: number; abandoned: number };
+  engagement: { newsletterSubscribers: number; contactForms: number; unrepliedContacts: number; pendingBookings: number };
+  topIntent: string | null;
+  topRecommendedOffer: string | null;
+  generatedAt: string;
+};
+
+function formatMoney(cents: number) {
+  if (cents === 0) return "$0";
+  const dollars = cents / 100;
+  if (dollars >= 1000) return `$${(dollars / 1000).toFixed(1)}k`;
+  return `$${dollars.toFixed(0)}`;
+}
+
+function SummaryCard({
+  label, value, sub, color = "#F4A62A", icon: Icon,
+}: {
+  label: string; value: string | number; sub?: string;
+  color?: string; icon: React.ElementType;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/8 bg-white/3 px-4 py-3 flex flex-col gap-1">
+      <div className="flex items-center gap-1.5">
+        <Icon style={{ color }} className="h-3.5 w-3.5 shrink-0" />
+        <span className="text-[11px] text-white/45 font-medium uppercase tracking-wide truncate">{label}</span>
+      </div>
+      <p className="text-xl font-bold text-white leading-none">{value}</p>
+      {sub && <p className="text-[11px] text-white/30 mt-0.5">{sub}</p>}
+    </div>
+  );
+}
+
+function SummaryCards() {
+  const summaryQ = useQuery<DashboardSummaryData>({
+    queryKey: ["/api/dashboard/summary"],
+    queryFn: async () => {
+      const res = await fetch("/api/dashboard/summary");
+      if (!res.ok) throw new Error("Unauthorized");
+      return res.json();
+    },
+    refetchInterval: 120_000,
+  });
+
+  if (summaryQ.isLoading) {
+    return (
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8 animate-pulse">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div key={i} className="rounded-2xl border border-white/5 bg-white/3 h-[72px]" />
+        ))}
+      </div>
+    );
+  }
+
+  if (!summaryQ.data) return null;
+  const { leads, revenue, engagement } = summaryQ.data;
+
+  return (
+    <div className="space-y-3">
+      {/* Row 1 — Revenue */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <SummaryCard label="Total Revenue" value={formatMoney(revenue.totalPaid)}
+          sub={`${revenue.paidOrders} paid order${revenue.paidOrders !== 1 ? "s" : ""}`}
+          color="#22c55e" icon={DollarSign}
+        />
+        <SummaryCard label="Avg Order" value={formatMoney(revenue.avgOrderValue)}
+          sub="per paid order" color="#F4A62A" icon={TrendingUp}
+        />
+        <SummaryCard label="Abandoned" value={revenue.abandoned}
+          sub="initiated · not paid" color="#f87171" icon={XCircle}
+        />
+        <SummaryCard label="Pending Bookings" value={engagement.pendingBookings}
+          sub="awaiting confirmation" color="#fb923c" icon={Calendar}
+        />
+      </div>
+      {/* Row 2 — Pipeline */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <SummaryCard label="Chat Leads" value={leads.total}
+          sub={`${leads.emailCaptured} with email`} color="#6366f1" icon={MessageSquare}
+        />
+        <SummaryCard label="Hot Leads" value={leads.hot}
+          sub="hot + priority" color="#f59e0b" icon={Flame}
+        />
+        <SummaryCard label="Qualified" value={leads.qualified}
+          sub={`${leads.bookedThisWeek} booked this week`} color="#34d399" icon={CheckCircle2}
+        />
+        <SummaryCard label="Won This Month" value={leads.wonThisMonth}
+          sub={`${engagement.unrepliedContacts} unreplied contacts`} color="#c084fc" icon={Trophy}
+        />
+      </div>
+    </div>
+  );
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 
 function DashboardContent({ onLogout }: { onLogout: () => void }) {
@@ -4038,6 +4135,9 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
             Logout
           </button>
         </div>
+
+        {/* Summary metric cards — Phase 47 */}
+        <SummaryCards />
 
         {/* Urgency action row — Phase 41 */}
         {urgencyQuery.data && (

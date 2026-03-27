@@ -880,6 +880,18 @@ export async function registerRoutes(
     }
   });
 
+  // Phase 47 — Dashboard Summary (single-call snapshot for summary cards)
+  app.get("/api/dashboard/summary", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    try {
+      const summary = await storage.getDashboardSummary();
+      res.json(summary);
+    } catch (e: any) {
+      console.error("[dashboard/summary] error:", e.message);
+      res.status(500).json({ message: "Could not load dashboard summary." });
+    }
+  });
+
   app.get("/api/dashboard/system-health", async (req, res) => {
     if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
     try {
