@@ -673,7 +673,7 @@ export class DatabaseStorage implements IStorage {
     topPaths: { intent: string; offer: string; revenue: number; count: number }[];
     totals: { stripeRevenue: number; wonRevenue: number; combinedRevenue: number; paidOrders: number; wonDeals: number; avgOrderValue: number };
   }> {
-    const [paidOrders, wonSessions] = await Promise.all([
+    const [paidOrders, allWonSessions] = await Promise.all([
       db.select().from(orders).where(eq(orders.status, "paid")).orderBy(asc(orders.createdAt)),
       db.select({
         intent: chatConversations.intent,
@@ -685,6 +685,10 @@ export class DatabaseStorage implements IStorage {
       }).from(chatConversations)
         .where(sql`${chatConversations.pipelineStage} = 'won' AND ${chatConversations.wonValue} IS NOT NULL AND ${chatConversations.wonValue} > 0`),
     ]);
+
+    // M01 fix — exclude won sessions that already have a paid Stripe order to prevent double-counting
+    const paidStripeSessionIds = new Set(paidOrders.map((o) => o.sessionId).filter(Boolean));
+    const wonSessions = allWonSessions.filter((w) => !paidStripeSessionIds.has(w.sessionId));
 
     // Build session map for joining orders → intents
     const sessionIntentMap: Record<string, string | null> = {};
@@ -916,8 +920,9 @@ export class DatabaseStorage implements IStorage {
   async getReminderQueue(): Promise<{ overdue: ChatConversation[]; silentHot: ChatConversation[] }> {
     const now = new Date();
     const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+    // M04 fix — removed email-only filter so hot leads without a captured email still appear;
+    // the UI already reads capturedEmail/leadEmail from each lead to decide which CTA to show.
     const all = await db.select().from(chatConversations)
-      .where(sql`(${chatConversations.leadEmail} IS NOT NULL OR ${chatConversations.capturedEmail} IS NOT NULL)`)
       .orderBy(desc(chatConversations.leadScore));
 
     const overdue = all.filter((s) =>

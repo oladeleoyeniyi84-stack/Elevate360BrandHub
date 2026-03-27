@@ -567,6 +567,13 @@ export async function registerRoutes(
     const { status } = req.body;
     if (!status) return res.status(400).json({ message: "status required" });
     const item = await storage.updateBookingStatus(Number(req.params.id), status);
+    // M03 fix — revert lead pipeline stage when booking is cancelled
+    if (status === "cancelled" && item?.sessionId) {
+      const lead = await storage.getChatConversation(item.sessionId);
+      if (lead && lead.pipelineStage === "booked") {
+        storage.updateLeadPipelineStage(item.sessionId, "qualified", "Booking cancelled — reverted to qualified").catch(() => {});
+      }
+    }
     res.json(item);
   });
 
@@ -638,15 +645,19 @@ export async function registerRoutes(
               amountPaid: session.amount_total ?? undefined,
               customerName: session.customer_details?.name ?? undefined,
             });
-            // Auto-advance pipeline to "won"
+            // M02 fix — auto-advance pipeline to "won" + mark offer accepted
+            // NOTE: do NOT pass wonValue here; revenue is already tracked via the orders table (M01 fix)
             const sessionChatId = session.metadata?.sessionId;
             if (sessionChatId) {
+              const amtLabel = session.amount_total ? `$${(session.amount_total / 100).toFixed(2)}` : "unknown amount";
               storage.updateLeadPipelineStage(
                 sessionChatId,
                 "won",
-                `Paid via Stripe — ${session.amount_total ? `$${(session.amount_total / 100).toFixed(2)}` : "unknown amount"}`,
-                session.amount_total ?? undefined
+                `Paid via Stripe — ${amtLabel}`
+                // wonValue intentionally omitted — Stripe order row is the source of truth
               ).catch(() => {});
+              const productName = session.metadata?.productName ?? session.line_items?.data?.[0]?.description ?? "stripe-checkout";
+              storage.markOfferAccepted(sessionChatId, productName, "stripe").catch(() => {});
             }
           }
         }
