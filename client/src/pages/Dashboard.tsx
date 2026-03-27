@@ -3918,6 +3918,242 @@ function RevenueTab() {
   );
 }
 
+// ── Phase 48 — Automation Tab ─────────────────────────────────────────────────
+
+type AutomationSettings = {
+  auto_followup_enabled: string;
+  auto_followup_min_score: string;
+  auto_followup_max_per_day: string;
+  auto_followup_max_per_lead: string;
+  auto_followup_interval_hours: string;
+};
+
+type EngineStatus = {
+  running: boolean;
+  lastRunAt: string | null;
+  lastRunResult: { sent: number; skipped: number; errors: number } | null;
+};
+
+function AutomationTab() {
+  const qc = useQueryClient();
+
+  const settingsQ = useQuery<AutomationSettings>({
+    queryKey: ["/api/dashboard/automation/settings"],
+    queryFn: () => fetch("/api/dashboard/automation/settings").then((r) => r.json()),
+  });
+
+  const statusQ = useQuery<EngineStatus>({
+    queryKey: ["/api/dashboard/automation/status"],
+    queryFn: () => fetch("/api/dashboard/automation/status").then((r) => r.json()),
+    refetchInterval: 30_000,
+  });
+
+  const logQ = useQuery<{ id: number; resourceId: string | null; meta: any; createdAt: string }[]>({
+    queryKey: ["/api/dashboard/automation/log"],
+    queryFn: () => fetch("/api/dashboard/automation/log").then((r) => r.json()),
+    refetchInterval: 30_000,
+  });
+
+  const [localSettings, setLocalSettings] = useState<AutomationSettings | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState("");
+  const [running, setRunning] = useState(false);
+  const [runResult, setRunResult] = useState<{ sent: number; skipped: number; errors: number } | null>(null);
+
+  const s = localSettings ?? settingsQ.data;
+  const enabled = s?.auto_followup_enabled === "true";
+
+  function patch(key: keyof AutomationSettings, val: string) {
+    setLocalSettings((prev) => ({ ...(prev ?? settingsQ.data!), [key]: val }));
+  }
+
+  async function saveSettings() {
+    if (!localSettings) return;
+    setSaving(true);
+    setSaveMsg("");
+    try {
+      await fetch("/api/dashboard/automation/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(localSettings),
+      });
+      qc.invalidateQueries({ queryKey: ["/api/dashboard/automation/settings"] });
+      setSaveMsg("Saved!");
+    } catch {
+      setSaveMsg("Error saving.");
+    } finally {
+      setSaving(false);
+      setTimeout(() => setSaveMsg(""), 3000);
+    }
+  }
+
+  async function runNow() {
+    setRunning(true);
+    setRunResult(null);
+    try {
+      const res = await fetch("/api/dashboard/automation/run-now", { method: "POST" });
+      const data = await res.json();
+      setRunResult(data);
+      qc.invalidateQueries({ queryKey: ["/api/dashboard/automation/status"] });
+      qc.invalidateQueries({ queryKey: ["/api/dashboard/automation/log"] });
+    } catch {
+      setRunResult({ sent: 0, skipped: 0, errors: 1 });
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  const status = statusQ.data;
+  const logs = logQ.data ?? [];
+
+  return (
+    <div className="space-y-6" data-testid="panel-automation">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-white font-heading">AI Follow-Up Automation</h2>
+          <p className="text-sm text-white/45 mt-0.5">Automatically sends personalized follow-up emails to overdue hot leads via OpenAI + Resend.</p>
+        </div>
+        <div className={`px-3 py-1 rounded-full text-xs font-bold border ${enabled ? "border-green-500/40 bg-green-500/10 text-green-400" : "border-white/10 bg-white/5 text-white/30"}`}>
+          {enabled ? "● Active" : "○ Paused"}
+        </div>
+      </div>
+
+      {settingsQ.isLoading ? (
+        <div className="animate-pulse space-y-3">
+          {[1, 2, 3].map((i) => <div key={i} className="h-14 rounded-xl bg-white/5" />)}
+        </div>
+      ) : s ? (
+        <div className="space-y-4">
+          {/* Enable toggle */}
+          <div className="lux-card flex items-center justify-between gap-4">
+            <div>
+              <p className="font-semibold text-white">Enable Automation</p>
+              <p className="text-xs text-white/40 mt-0.5">When on, the engine runs every {s.auto_followup_interval_hours}h and auto-sends follow-ups.</p>
+            </div>
+            <button
+              data-testid="toggle-auto-followup"
+              onClick={() => patch("auto_followup_enabled", enabled ? "false" : "true")}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${enabled ? "bg-[#F4A62A]" : "bg-white/15"}`}
+            >
+              <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${enabled ? "translate-x-6" : "translate-x-1"}`} />
+            </button>
+          </div>
+
+          {/* Config grid */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[
+              { key: "auto_followup_min_score" as const, label: "Min Lead Score", min: 1, max: 100, hint: "Only scores ≥ this get emailed" },
+              { key: "auto_followup_max_per_day" as const, label: "Max Sends / Day", min: 1, max: 50, hint: "Daily cap across all leads" },
+              { key: "auto_followup_max_per_lead" as const, label: "Max / Lead", min: 1, max: 10, hint: "Lifetime cap per lead" },
+              { key: "auto_followup_interval_hours" as const, label: "Cycle (hours)", min: 1, max: 72, hint: "How often the engine checks" },
+            ].map(({ key, label, min, max, hint }) => (
+              <div key={key} className="rounded-xl border border-white/8 bg-white/3 p-3">
+                <label className="text-[11px] text-white/40 uppercase tracking-wide font-medium block mb-1">{label}</label>
+                <input
+                  data-testid={`input-${key}`}
+                  type="number"
+                  min={min}
+                  max={max}
+                  value={s[key]}
+                  onChange={(e) => patch(key, e.target.value)}
+                  className="w-full bg-transparent text-white text-xl font-bold outline-none [appearance:textfield]"
+                />
+                <p className="text-[10px] text-white/25 mt-1 leading-tight">{hint}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Save + Run Now */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <button
+              data-testid="button-save-automation"
+              onClick={saveSettings}
+              disabled={saving || !localSettings}
+              className="btn-primary text-sm px-5 py-2 disabled:opacity-50"
+            >
+              {saving ? "Saving…" : "Save Settings"}
+            </button>
+            <button
+              data-testid="button-run-now"
+              onClick={runNow}
+              disabled={running}
+              className="btn-secondary text-sm px-5 py-2 flex items-center gap-2 disabled:opacity-50"
+            >
+              <Zap className="h-3.5 w-3.5" />
+              {running ? "Running…" : "Run Now"}
+            </button>
+            {saveMsg && <span className="text-xs text-green-400">{saveMsg}</span>}
+            {runResult && (
+              <span className="text-xs text-white/60">
+                Last run: <span className="text-green-400">{runResult.sent} sent</span>
+                {runResult.skipped > 0 && <> · {runResult.skipped} skipped</>}
+                {runResult.errors > 0 && <> · <span className="text-red-400">{runResult.errors} errors</span></>}
+              </span>
+            )}
+          </div>
+        </div>
+      ) : null}
+
+      {/* Engine status */}
+      {status && (
+        <div className="lux-card flex items-center gap-6 flex-wrap">
+          <div>
+            <p className="text-[11px] text-white/40 uppercase tracking-wide font-medium">Last Run</p>
+            <p className="text-white font-semibold mt-0.5">
+              {status.lastRunAt ? new Date(status.lastRunAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "Never"}
+            </p>
+          </div>
+          {status.lastRunResult && (
+            <>
+              <div>
+                <p className="text-[11px] text-white/40 uppercase tracking-wide font-medium">Sent</p>
+                <p className="text-green-400 font-bold text-lg">{status.lastRunResult.sent}</p>
+              </div>
+              <div>
+                <p className="text-[11px] text-white/40 uppercase tracking-wide font-medium">Skipped</p>
+                <p className="text-white/50 font-semibold text-lg">{status.lastRunResult.skipped}</p>
+              </div>
+              <div>
+                <p className="text-[11px] text-white/40 uppercase tracking-wide font-medium">Errors</p>
+                <p className={`font-bold text-lg ${status.lastRunResult.errors > 0 ? "text-red-400" : "text-white/30"}`}>{status.lastRunResult.errors}</p>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Auto-send log */}
+      <div>
+        <h3 className="text-sm font-semibold text-white/60 uppercase tracking-wide mb-3">Recent Auto-Sends</h3>
+        {logs.length === 0 ? (
+          <div className="rounded-xl border border-white/8 bg-white/3 p-6 text-center text-white/30 text-sm">
+            No automated follow-ups sent yet. Enable the engine and run a cycle to start.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {logs.map((log) => {
+              const m = log.meta as { toEmail?: string; subject?: string; daysSilent?: number } | null;
+              return (
+                <div key={log.id} className="rounded-xl border border-white/8 bg-white/3 px-4 py-3 flex items-start gap-3">
+                  <CheckCircle2 className="h-4 w-4 text-green-400 mt-0.5 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-white truncate">{m?.subject ?? "Follow-up email"}</p>
+                    <p className="text-xs text-white/35 mt-0.5">{m?.toEmail ?? log.resourceId} · {m?.daysSilent != null ? `${m.daysSilent}d silent` : ""}</p>
+                  </div>
+                  <p className="text-xs text-white/25 shrink-0 mt-0.5">
+                    {new Date(log.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Phase 47 — Dashboard Summary Cards ───────────────────────────────────────
 
 type DashboardSummaryData = {
@@ -4018,7 +4254,7 @@ function SummaryCards() {
 // ──────────────────────────────────────────────────────────────────────────────
 
 function DashboardContent({ onLogout }: { onLogout: () => void }) {
-  const [tab, setTab] = useState<"analytics" | "funnel" | "offers" | "revenue" | "voice" | "leads" | "contacts" | "newsletter" | "reviews" | "blog" | "knowledge" | "pipeline" | "bookings" | "orders" | "digest" | "system">("analytics");
+  const [tab, setTab] = useState<"analytics" | "funnel" | "offers" | "revenue" | "voice" | "leads" | "contacts" | "newsletter" | "reviews" | "blog" | "knowledge" | "pipeline" | "bookings" | "orders" | "digest" | "automation" | "system" | "audit">("analytics");
   const [leadFilter, setLeadFilter] = useState<"all" | "priority" | "hot" | "warm" | "cold">("all");
   const qc = useQueryClient();
 
@@ -4116,6 +4352,7 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
     { key: "newsletter", label: "Newsletter", icon: Mail },
     { key: "reviews", label: "Reviews", icon: Star },
     { key: "blog", label: "Blog", icon: PenLine },
+    { key: "automation", label: "Automation", icon: Zap },
     { key: "system", label: "System", icon: Shield },
     { key: "audit", label: "Audit", icon: ClipboardCheck },
   ] as const;
@@ -4413,6 +4650,7 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
         {tab === "blog" && <BlogTab />}
         {tab === "knowledge" && <KnowledgeTab />}
         {tab === "digest" && <DigestTab />}
+        {tab === "automation" && <AutomationTab />}
         {tab === "pipeline" && <PipelineTab leads={leads} onStageChange={() => qc.invalidateQueries({ queryKey: ["/api/dashboard/leads"] })} />}
         {tab === "revenue" && <RevenueTab />}
         {tab === "system" && <SystemTab />}

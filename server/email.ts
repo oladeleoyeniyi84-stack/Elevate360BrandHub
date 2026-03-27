@@ -299,6 +299,31 @@ export async function sendDigestEmail(stats: DigestStats): Promise<void> {
   );
 }
 
+// Phase 48 — Automated Lead Follow-Up
+export async function sendLeadFollowupEmail(params: {
+  toName: string | null | undefined;
+  toEmail: string;
+  subject: string;
+  bodyText: string;
+}): Promise<void> {
+  const { toName, toEmail, subject, bodyText } = params;
+  const displayName = toName || "there";
+
+  const body = `
+    <h2 style="margin:0 0 12px;font-size:20px;font-weight:700;color:#111827;">Hey ${displayName},</h2>
+    <div style="font-size:15px;color:#374151;line-height:1.85;">
+      ${bodyText.replace(/\n\n/g, '</p><p style="margin:0 0 12px;">').replace(/\n/g, "<br>")}
+    </div>
+    <div style="margin-top:32px;padding:20px;background:#f9fafb;border-radius:12px;text-align:center;">
+      <a href="https://www.elevate360official.com" style="display:inline-block;padding:12px 28px;background:${BRAND_GOLD};color:#0d1a2e;font-weight:800;border-radius:8px;text-decoration:none;font-size:14px;">Visit Elevate360 →</a>
+    </div>
+    <p style="margin:24px 0 0;font-size:13px;color:#9ca3af;text-align:center;">
+      — Oladele Oyeniyi · <a href="https://www.elevate360official.com" style="color:${BRAND_GOLD};text-decoration:none;">Elevate360Official</a>
+    </p>`;
+
+  await sendEmail(toEmail, subject, baseTemplate("A Note from Elevate360", body));
+}
+
 export async function notifyNewBooking(params: {
   clientName: string;
   clientEmail: string;

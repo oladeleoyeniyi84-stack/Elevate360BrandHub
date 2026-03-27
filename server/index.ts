@@ -107,6 +107,10 @@ app.use((req, res, next) => {
   const { storage } = await import("./storage");
   storage.seedDefaultConsultations().catch((e) => console.error("[seed] consultations:", e));
 
+  // Phase 48 — Start automated lead follow-up engine
+  const { startFollowupEngine } = await import("./automation/followupEngine");
+  startFollowupEngine().catch((e: Error) => console.error("[followupEngine] start error:", e.message));
+
   // Phase 37 — Stripe init (migrations → sync → webhook)
   try {
     const { runMigrations } = await import("stripe-replit-sync");

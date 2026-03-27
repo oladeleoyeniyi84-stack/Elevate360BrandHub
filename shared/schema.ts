@@ -138,6 +138,15 @@ export type InsertConsultation = z.infer<typeof insertConsultationSchema>;
 export type UpdateConsultation = z.infer<typeof updateConsultationSchema>;
 export type Consultation = typeof consultations.$inferSelect;
 
+// Phase 48 — Automation Settings (key-value config store)
+export const automationSettings = pgTable("automation_settings", {
+  id: serial("id").primaryKey(),
+  key: varchar("key", { length: 100 }).notNull().unique(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+export type AutomationSetting = typeof automationSettings.$inferSelect;
+
 // Phase 36 — Bookings
 export const bookings = pgTable("bookings", {
   id: serial("id").primaryKey(),

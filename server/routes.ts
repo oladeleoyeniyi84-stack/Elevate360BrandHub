@@ -986,6 +986,70 @@ export async function registerRoutes(
     }
   });
 
+  // Phase 48 — Automation Engine Settings & Control
+  app.get("/api/dashboard/automation/settings", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    try {
+      const DEFAULTS: Record<string, string> = {
+        auto_followup_enabled: "false",
+        auto_followup_min_score: "50",
+        auto_followup_max_per_day: "5",
+        auto_followup_max_per_lead: "3",
+        auto_followup_interval_hours: "6",
+      };
+      const entries = await Promise.all(
+        Object.keys(DEFAULTS).map(async (k) => [k, (await storage.getAutomationSetting(k)) ?? DEFAULTS[k]])
+      );
+      res.json(Object.fromEntries(entries));
+    } catch (e: any) {
+      res.status(500).json({ message: "Could not load settings." });
+    }
+  });
+
+  app.patch("/api/dashboard/automation/settings", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    const allowed = ["auto_followup_enabled", "auto_followup_min_score", "auto_followup_max_per_day", "auto_followup_max_per_lead", "auto_followup_interval_hours"];
+    try {
+      const updates = Object.entries(req.body as Record<string, string>).filter(([k]) => allowed.includes(k));
+      await Promise.all(updates.map(([k, v]) => storage.setAutomationSetting(k, String(v))));
+      res.json({ ok: true, updated: updates.map(([k]) => k) });
+    } catch (e: any) {
+      res.status(500).json({ message: "Could not save settings." });
+    }
+  });
+
+  app.post("/api/dashboard/automation/run-now", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    try {
+      const { runFollowupCycle } = await import("./automation/followupEngine");
+      const result = await runFollowupCycle();
+      res.json(result);
+    } catch (e: any) {
+      console.error("[automation/run-now] error:", e.message);
+      res.status(500).json({ message: "Cycle failed: " + e.message });
+    }
+  });
+
+  app.get("/api/dashboard/automation/status", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    try {
+      const { getEngineStatus } = await import("./automation/followupEngine");
+      res.json(getEngineStatus());
+    } catch (e: any) {
+      res.status(500).json({ message: "Could not get status." });
+    }
+  });
+
+  app.get("/api/dashboard/automation/log", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    try {
+      const all = await storage.getAuditLogs(200);
+      res.json(all.filter((l) => l.action === "auto_followup_sent").slice(0, 50));
+    } catch (e: any) {
+      res.status(500).json({ message: "Could not load automation log." });
+    }
+  });
+
   // Phase 42 — Follow-Up Automation: Reminder Queue
   app.get("/api/dashboard/reminder-queue", async (req, res) => {
     if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });

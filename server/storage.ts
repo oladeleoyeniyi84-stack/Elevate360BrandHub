@@ -12,7 +12,7 @@ import {
   type DigestReport,
   type OfferMappingOverride,
   type AuditLog, type InsertAuditLog,
-  users, contactMessages, newsletterSubscribers, chatConversations, clickEvents, pageViews, testimonials, blogPosts, knowledgeDocuments, consultations, bookings, orders, digestReports, offerMappingOverrides, auditLogs,
+  users, contactMessages, newsletterSubscribers, chatConversations, clickEvents, pageViews, testimonials, blogPosts, knowledgeDocuments, consultations, bookings, orders, digestReports, offerMappingOverrides, auditLogs, automationSettings,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, sql, desc, asc } from "drizzle-orm";
@@ -156,6 +156,8 @@ export interface IStorage {
     topRecommendedOffer: string | null;
     generatedAt: string;
   }>;
+  getAutomationSetting(key: string): Promise<string | null>;
+  setAutomationSetting(key: string, value: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1191,6 +1193,17 @@ export class DatabaseStorage implements IStorage {
         followupDueDate: l.followupDueDate,
       })),
     };
+  }
+
+  async getAutomationSetting(key: string): Promise<string | null> {
+    const [row] = await db.select().from(automationSettings).where(eq(automationSettings.key, key)).limit(1);
+    return row?.value ?? null;
+  }
+
+  async setAutomationSetting(key: string, value: string): Promise<void> {
+    await db.insert(automationSettings)
+      .values({ key, value, updatedAt: new Date() })
+      .onConflictDoUpdate({ target: automationSettings.key, set: { value, updatedAt: new Date() } });
   }
 
   async getDashboardSummary() {
