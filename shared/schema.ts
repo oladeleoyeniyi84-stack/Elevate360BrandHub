@@ -1,5 +1,7 @@
 import { sql } from "drizzle-orm";
 import { pgTable, text, varchar, timestamp, serial, boolean, jsonb, integer, json } from "drizzle-orm/pg-core";
+// relations imported for future relation definitions
+import type {} from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -191,6 +193,9 @@ export const orders = pgTable("orders", {
   metadata: jsonb("metadata"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  // Phase 49 — Recovery tracking
+  lastRecoveryEvaluatedAt: timestamp("last_recovery_evaluated_at"),
+  recoveryStatus: varchar("recovery_status", { length: 30 }).default("none"),
 });
 
 export type Order = typeof orders.$inferSelect;
@@ -309,6 +314,11 @@ export const digestReports = pgTable("digest_reports", {
   contentOpportunities: text("content_opportunities"),
   conversionByIntent: jsonb("conversion_by_intent").default(sql`'{}'::jsonb`).notNull(),
   emailSentAt: timestamp("email_sent_at"),
+  // Phase 49 — Typed report support
+  reportType: varchar("report_type", { length: 40 }).notNull().default("weekly_digest"),
+  periodStart: timestamp("period_start"),
+  periodEnd: timestamp("period_end"),
+  meta: jsonb("meta"),
 });
 
 export type DigestReport = typeof digestReports.$inferSelect;
@@ -412,3 +422,108 @@ export const updateAuditIssueSchema = z.object({
   notes: z.string().optional(),
   resolvedAt: z.string().datetime().optional(),
 });
+
+// ── Phase 49 — Autonomous Operation Layer ────────────────────────────────────
+
+export const automationJobs = pgTable("automation_jobs", {
+  id: serial("id").primaryKey(),
+  jobKey: varchar("job_key", { length: 80 }).notNull().unique(),
+  jobGroup: varchar("job_group", { length: 40 }).notNull(),
+  status: varchar("status", { length: 30 }).notNull().default("idle"),
+  isEnabled: boolean("is_enabled").notNull().default(true),
+  cadenceMinutes: integer("cadence_minutes"),
+  lastStartedAt: timestamp("last_started_at"),
+  lastFinishedAt: timestamp("last_finished_at"),
+  lastSucceededAt: timestamp("last_succeeded_at"),
+  lastFailedAt: timestamp("last_failed_at"),
+  lastError: text("last_error"),
+  nextRunAt: timestamp("next_run_at"),
+  runCount: integer("run_count").notNull().default(0),
+  successCount: integer("success_count").notNull().default(0),
+  failureCount: integer("failure_count").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const automationJobLogs = pgTable("automation_job_logs", {
+  id: serial("id").primaryKey(),
+  jobKey: varchar("job_key", { length: 80 }).notNull(),
+  status: varchar("status", { length: 30 }).notNull(),
+  summary: text("summary"),
+  meta: jsonb("meta"),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  finishedAt: timestamp("finished_at"),
+});
+
+export const revenueRecoveryActions = pgTable("revenue_recovery_actions", {
+  id: serial("id").primaryKey(),
+  sessionId: varchar("session_id", { length: 64 }),
+  orderId: integer("order_id"),
+  recoveryType: varchar("recovery_type", { length: 40 }).notNull(),
+  priorityScore: integer("priority_score").notNull().default(0),
+  status: varchar("status", { length: 30 }).notNull().default("open"),
+  recommendedAction: text("recommended_action"),
+  draftSubject: text("draft_subject"),
+  draftBody: text("draft_body"),
+  targetEmail: text("target_email"),
+  targetPhone: text("target_phone"),
+  reason: text("reason"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  actedAt: timestamp("acted_at"),
+});
+
+export const contentOpportunities = pgTable("content_opportunities", {
+  id: serial("id").primaryKey(),
+  topic: varchar("topic", { length: 240 }).notNull(),
+  contentType: varchar("content_type", { length: 40 }).notNull(),
+  sourceIntent: varchar("source_intent", { length: 80 }),
+  opportunityScore: integer("opportunity_score").notNull().default(0),
+  evidenceJson: jsonb("evidence_json"),
+  recommendation: text("recommendation"),
+  status: varchar("status", { length: 30 }).notNull().default("new"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const autonomousAlerts = pgTable("autonomous_alerts", {
+  id: serial("id").primaryKey(),
+  alertKey: varchar("alert_key", { length: 120 }).notNull(),
+  area: varchar("area", { length: 60 }).notNull(),
+  severity: varchar("severity", { length: 20 }).notNull(),
+  title: varchar("title", { length: 240 }).notNull(),
+  summary: text("summary").notNull(),
+  suggestedFix: text("suggested_fix"),
+  autoFixEligible: boolean("auto_fix_eligible").notNull().default(false),
+  status: varchar("status", { length: 30 }).notNull().default("open"),
+  meta: jsonb("meta"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  resolvedAt: timestamp("resolved_at"),
+});
+
+// Zod schemas
+export const insertAutomationJobSchema = createInsertSchema(automationJobs).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertAutomationJob = z.infer<typeof insertAutomationJobSchema>;
+export type AutomationJob = typeof automationJobs.$inferSelect;
+
+export const insertAutomationJobLogSchema = createInsertSchema(automationJobLogs).omit({ id: true, startedAt: true });
+export type InsertAutomationJobLog = z.infer<typeof insertAutomationJobLogSchema>;
+export type AutomationJobLog = typeof automationJobLogs.$inferSelect;
+
+export const insertRevenueRecoveryActionSchema = createInsertSchema(revenueRecoveryActions).omit({ id: true, createdAt: true, updatedAt: true, actedAt: true });
+export const updateRevenueRecoveryActionSchema = insertRevenueRecoveryActionSchema.partial();
+export type InsertRevenueRecoveryAction = z.infer<typeof insertRevenueRecoveryActionSchema>;
+export type UpdateRevenueRecoveryAction = z.infer<typeof updateRevenueRecoveryActionSchema>;
+export type RevenueRecoveryAction = typeof revenueRecoveryActions.$inferSelect;
+
+export const insertContentOpportunitySchema = createInsertSchema(contentOpportunities).omit({ id: true, createdAt: true, updatedAt: true });
+export const updateContentOpportunitySchema = insertContentOpportunitySchema.partial();
+export type InsertContentOpportunity = z.infer<typeof insertContentOpportunitySchema>;
+export type UpdateContentOpportunity = z.infer<typeof updateContentOpportunitySchema>;
+export type ContentOpportunity = typeof contentOpportunities.$inferSelect;
+
+export const insertAutonomousAlertSchema = createInsertSchema(autonomousAlerts).omit({ id: true, createdAt: true, resolvedAt: true });
+export const updateAutonomousAlertSchema = insertAutonomousAlertSchema.partial();
+export type InsertAutonomousAlert = z.infer<typeof insertAutonomousAlertSchema>;
+export type UpdateAutonomousAlert = z.infer<typeof updateAutonomousAlertSchema>;
+export type AutonomousAlert = typeof autonomousAlerts.$inferSelect;

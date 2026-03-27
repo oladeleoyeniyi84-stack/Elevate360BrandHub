@@ -1,0 +1,902 @@
+Below is the paste-ready Phase 49 patch plan for the backend surfaces you named. I’m aligning it to the current codebase shape you shared: Drizzle schema in shared/schema.ts, storage-driven route handlers in server/routes.ts, session boot in server/index.ts, existing audit/digest/follow-up systems, and the live dashboard/automation architecture from the Phase 48 build report.
+
+1) shared/schema.ts
+
+Your schema already has chat_conversations, orders, knowledge_documents, digest_reports, audit_*, and the order ledger fields that Phase 48 relies on, including chat scoring/pipeline fields and Stripe order tracking.
+
+Add these imports
+import { relations } from "drizzle-orm";
+Add these new tables under your existing Phase 48/Phase 37 sections
+// Phase 49 — Automation Jobs
+export const automationJobs = pgTable("automation_jobs", {
+  id: serial("id").primaryKey(),
+  jobKey: varchar("job_key", { length: 80 }).notNull().unique(),
+  jobGroup: varchar("job_group", { length: 40 }).notNull(),
+  status: varchar("status", { length: 30 }).notNull().default("idle"),
+  isEnabled: boolean("is_enabled").notNull().default(true),
+  cadenceMinutes: integer("cadence_minutes"),
+  lastStartedAt: timestamp("last_started_at"),
+  lastFinishedAt: timestamp("last_finished_at"),
+  lastSucceededAt: timestamp("last_succeeded_at"),
+  lastFailedAt: timestamp("last_failed_at"),
+  lastError: text("last_error"),
+  nextRunAt: timestamp("next_run_at"),
+  runCount: integer("run_count").notNull().default(0),
+  successCount: integer("success_count").notNull().default(0),
+  failureCount: integer("failure_count").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const automationJobLogs = pgTable("automation_job_logs", {
+  id: serial("id").primaryKey(),
+  jobKey: varchar("job_key", { length: 80 }).notNull(),
+  status: varchar("status", { length: 30 }).notNull(),
+  summary: text("summary"),
+  meta: jsonb("meta"),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  finishedAt: timestamp("finished_at"),
+});
+
+export const revenueRecoveryActions = pgTable("revenue_recovery_actions", {
+  id: serial("id").primaryKey(),
+  sessionId: varchar("session_id", { length: 64 }),
+  orderId: integer("order_id"),
+  recoveryType: varchar("recovery_type", { length: 40 }).notNull(), // accepted_not_paid | abandoned_checkout | stale_fulfillment
+  priorityScore: integer("priority_score").notNull().default(0),
+  status: varchar("status", { length: 30 }).notNull().default("open"), // open | queued | sent | suppressed | won | ignored
+  recommendedAction: text("recommended_action"),
+  draftSubject: text("draft_subject"),
+  draftBody: text("draft_body"),
+  targetEmail: text("target_email"),
+  targetPhone: text("target_phone"),
+  reason: text("reason"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  actedAt: timestamp("acted_at"),
+});
+
+export const contentOpportunities = pgTable("content_opportunities", {
+  id: serial("id").primaryKey(),
+  topic: varchar("topic", { length: 240 }).notNull(),
+  contentType: varchar("content_type", { length: 40 }).notNull(), // blog | faq | landing_page | knowledge_doc | video
+  sourceIntent: varchar("source_intent", { length: 80 }),
+  opportunityScore: integer("opportunity_score").notNull().default(0),
+  evidenceJson: jsonb("evidence_json"),
+  recommendation: text("recommendation"),
+  status: varchar("status", { length: 30 }).notNull().default("new"), // new | approved | in_progress | published | ignored
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const autonomousAlerts = pgTable("autonomous_alerts", {
+  id: serial("id").primaryKey(),
+  alertKey: varchar("alert_key", { length: 120 }).notNull(),
+  area: varchar("area", { length: 60 }).notNull(), // revenue | bookings | followup | digest | audit | knowledge
+  severity: varchar("severity", { length: 20 }).notNull(), // critical | high | medium | low
+  title: varchar("title", { length: 240 }).notNull(),
+  summary: text("summary").notNull(),
+  suggestedFix: text("suggested_fix"),
+  autoFixEligible: boolean("auto_fix_eligible").notNull().default(false),
+  status: varchar("status", { length: 30 }).notNull().default("open"), // open | acknowledged | fixed | ignored
+  meta: jsonb("meta"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  resolvedAt: timestamp("resolved_at"),
+});
+Patch orders
+
+Your current orders table includes Stripe session/payment ids, product, customer, amount, status, session id, and metadata. Add these two automation fields plus fulfillmentStatus if it is not already present in your local source copy. The build report says it is live already.
+
+// inside export const orders = pgTable("orders", { ... })
+fulfillmentStatus: varchar("fulfillment_status", { length: 40 }).notNull().default("queued"),
+lastRecoveryEvaluatedAt: timestamp("last_recovery_evaluated_at"),
+recoveryStatus: varchar("recovery_status", { length: 30 }).default("none"),
+Patch digest_reports
+
+The platform already uses weekly AI digests. Add typing so Phase 49 can store founder and monthly strategy briefs separately.
+
+// inside export const digestReports = pgTable("digest_reports", { ... })
+reportType: varchar("report_type", { length: 40 }).notNull().default("weekly_digest"),
+periodStart: timestamp("period_start"),
+periodEnd: timestamp("period_end"),
+meta: jsonb("meta"),
+Add insert/update schemas and exported types
+export const insertAutomationJobSchema = createInsertSchema(automationJobs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertAutomationJob = z.infer<typeof insertAutomationJobSchema>;
+export type AutomationJob = typeof automationJobs.$inferSelect;
+
+export const insertAutomationJobLogSchema = createInsertSchema(automationJobLogs).omit({
+  id: true,
+  startedAt: true,
+});
+export type InsertAutomationJobLog = z.infer<typeof insertAutomationJobLogSchema>;
+export type AutomationJobLog = typeof automationJobLogs.$inferSelect;
+
+export const insertRevenueRecoveryActionSchema = createInsertSchema(revenueRecoveryActions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  actedAt: true,
+});
+export const updateRevenueRecoveryActionSchema = insertRevenueRecoveryActionSchema.partial();
+export type InsertRevenueRecoveryAction = z.infer<typeof insertRevenueRecoveryActionSchema>;
+export type UpdateRevenueRecoveryAction = z.infer<typeof updateRevenueRecoveryActionSchema>;
+export type RevenueRecoveryAction = typeof revenueRecoveryActions.$inferSelect;
+
+export const insertContentOpportunitySchema = createInsertSchema(contentOpportunities).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export const updateContentOpportunitySchema = insertContentOpportunitySchema.partial();
+export type InsertContentOpportunity = z.infer<typeof insertContentOpportunitySchema>;
+export type UpdateContentOpportunity = z.infer<typeof updateContentOpportunitySchema>;
+export type ContentOpportunity = typeof contentOpportunities.$inferSelect;
+
+export const insertAutonomousAlertSchema = createInsertSchema(autonomousAlerts).omit({
+  id: true,
+  createdAt: true,
+  resolvedAt: true,
+});
+export const updateAutonomousAlertSchema = insertAutonomousAlertSchema.partial();
+export type InsertAutonomousAlert = z.infer<typeof insertAutonomousAlertSchema>;
+export type UpdateAutonomousAlert = z.infer<typeof updateAutonomousAlertSchema>;
+export type AutonomousAlert = typeof autonomousAlerts.$inferSelect;
+2) server/storage.ts
+
+Your routes file is already storage-driven, so the cleanest Phase 49 patch is to extend that pattern instead of adding raw DB logic inside routes.
+
+Add these imports
+import {
+  automationJobs,
+  automationJobLogs,
+  revenueRecoveryActions,
+  contentOpportunities,
+  autonomousAlerts,
+  digestReports,
+  orders,
+  chatConversations,
+  auditIssues,
+  type AutomationJob,
+  type InsertAutomationJob,
+  type InsertAutomationJobLog,
+  type RevenueRecoveryAction,
+  type InsertRevenueRecoveryAction,
+  type UpdateRevenueRecoveryAction,
+  type ContentOpportunity,
+  type InsertContentOpportunity,
+  type UpdateContentOpportunity,
+  type AutonomousAlert,
+  type InsertAutonomousAlert,
+  type UpdateAutonomousAlert,
+} from "@shared/schema";
+import { and, asc, count, desc, eq, gte, isNull, lte, ne, or, sql } from "drizzle-orm";
+Add these method signatures to your storage interface/class
+getAutomationJobs(): Promise<AutomationJob[]>;
+upsertAutomationJob(jobKey: string, patch: Partial<InsertAutomationJob>): Promise<AutomationJob>;
+createAutomationJobLog(input: InsertAutomationJobLog): Promise<void>;
+getAutomationJobLogs(jobKey: string, limit?: number): Promise<AutomationJobLog[]>;
+
+getRevenueRecoveryActions(limit?: number): Promise<RevenueRecoveryAction[]>;
+createRevenueRecoveryAction(input: InsertRevenueRecoveryAction): Promise<RevenueRecoveryAction>;
+updateRevenueRecoveryAction(id: number, patch: UpdateRevenueRecoveryAction): Promise<RevenueRecoveryAction | undefined>;
+listAcceptedButUnpaidSessions(): Promise<any[]>;
+listAbandonedCheckoutOrders(hoursSinceCreated?: number): Promise<any[]>;
+listStaleFulfillmentOrders(hoursStale?: number): Promise<any[]>;
+
+getContentOpportunities(limit?: number): Promise<ContentOpportunity[]>;
+createContentOpportunity(input: InsertContentOpportunity): Promise<ContentOpportunity>;
+updateContentOpportunity(id: number, patch: UpdateContentOpportunity): Promise<ContentOpportunity | undefined>;
+
+getLatestDigestByType(reportType: string): Promise<any | undefined>;
+createDigestReportTyped(input: any): Promise<any>;
+
+getAutonomousAlerts(limit?: number): Promise<AutonomousAlert[]>;
+createAutonomousAlert(input: InsertAutonomousAlert): Promise<AutonomousAlert>;
+updateAutonomousAlert(id: number, patch: UpdateAutonomousAlert): Promise<AutonomousAlert | undefined>;
+Add these implementations
+async getAutomationJobs() {
+  return db.select().from(automationJobs).orderBy(asc(automationJobs.jobGroup), asc(automationJobs.jobKey));
+}
+
+async upsertAutomationJob(jobKey: string, patch: Partial<InsertAutomationJob>) {
+  const existing = await db.select().from(automationJobs).where(eq(automationJobs.jobKey, jobKey)).limit(1);
+  if (existing[0]) {
+    const [updated] = await db.update(automationJobs)
+      .set({ ...patch, updatedAt: new Date() })
+      .where(eq(automationJobs.jobKey, jobKey))
+      .returning();
+    return updated;
+  }
+  const [created] = await db.insert(automationJobs)
+    .values({
+      jobKey,
+      jobGroup: patch.jobGroup ?? "autonomous",
+      status: patch.status ?? "idle",
+      isEnabled: patch.isEnabled ?? true,
+      cadenceMinutes: patch.cadenceMinutes ?? null,
+      nextRunAt: patch.nextRunAt ?? null,
+    })
+    .returning();
+  return created;
+}
+
+async createAutomationJobLog(input: InsertAutomationJobLog) {
+  await db.insert(automationJobLogs).values(input);
+}
+
+async getAutomationJobLogs(jobKey: string, limit = 50) {
+  return db.select().from(automationJobLogs)
+    .where(eq(automationJobLogs.jobKey, jobKey))
+    .orderBy(desc(automationJobLogs.startedAt))
+    .limit(limit);
+}
+
+async getRevenueRecoveryActions(limit = 100) {
+  return db.select().from(revenueRecoveryActions)
+    .orderBy(desc(revenueRecoveryActions.priorityScore), desc(revenueRecoveryActions.createdAt))
+    .limit(limit);
+}
+
+async createRevenueRecoveryAction(input: InsertRevenueRecoveryAction) {
+  const [row] = await db.insert(revenueRecoveryActions).values(input).returning();
+  return row;
+}
+
+async updateRevenueRecoveryAction(id: number, patch: UpdateRevenueRecoveryAction) {
+  const [row] = await db.update(revenueRecoveryActions)
+    .set({ ...patch, updatedAt: new Date() })
+    .where(eq(revenueRecoveryActions.id, id))
+    .returning();
+  return row;
+}
+
+async listAcceptedButUnpaidSessions() {
+  return db.select({
+      sessionId: chatConversations.sessionId,
+      leadEmail: chatConversations.leadEmail,
+      leadName: chatConversations.leadName,
+      leadScore: chatConversations.leadScore,
+      productName: orders.productName,
+      orderId: orders.id,
+      orderStatus: orders.status,
+      recoveryStatus: orders.recoveryStatus,
+      createdAt: orders.createdAt,
+    })
+    .from(chatConversations)
+    .leftJoin(orders, eq(orders.sessionId, chatConversations.sessionId))
+    .where(
+      and(
+        eq(chatConversations.requiresFollowup, true),
+        gte(chatConversations.leadScore, 60),
+        or(isNull(orders.id), ne(orders.status, "paid"))
+      )
+    )
+    .orderBy(desc(chatConversations.leadScore), desc(chatConversations.updatedAt));
+}
+
+async listAbandonedCheckoutOrders(hoursSinceCreated = 1) {
+  const cutoff = new Date(Date.now() - hoursSinceCreated * 60 * 60 * 1000);
+  return db.select().from(orders).where(
+    and(
+      lte(orders.createdAt, cutoff),
+      ne(orders.status, "paid"),
+      or(eq(orders.recoveryStatus, "none"), isNull(orders.recoveryStatus))
+    )
+  ).orderBy(desc(orders.createdAt));
+}
+
+async listStaleFulfillmentOrders(hoursStale = 24) {
+  const cutoff = new Date(Date.now() - hoursStale * 60 * 60 * 1000);
+  return db.select().from(orders).where(
+    and(
+      eq(orders.status, "paid"),
+      or(eq(orders.fulfillmentStatus, "queued"), eq(orders.fulfillmentStatus, "processing")),
+      lte(orders.updatedAt, cutoff)
+    )
+  ).orderBy(desc(orders.updatedAt));
+}
+
+async getContentOpportunities(limit = 100) {
+  return db.select().from(contentOpportunities)
+    .orderBy(desc(contentOpportunities.opportunityScore), desc(contentOpportunities.createdAt))
+    .limit(limit);
+}
+
+async createContentOpportunity(input: InsertContentOpportunity) {
+  const [row] = await db.insert(contentOpportunities).values(input).returning();
+  return row;
+}
+
+async updateContentOpportunity(id: number, patch: UpdateContentOpportunity) {
+  const [row] = await db.update(contentOpportunities)
+    .set({ ...patch, updatedAt: new Date() })
+    .where(eq(contentOpportunities.id, id))
+    .returning();
+  return row;
+}
+
+async getLatestDigestByType(reportType: string) {
+  const [row] = await db.select().from(digestReports)
+    .where(eq(digestReports.reportType, reportType))
+    .orderBy(desc(digestReports.createdAt))
+    .limit(1);
+  return row;
+}
+
+async createDigestReportTyped(input: any) {
+  const [row] = await db.insert(digestReports).values(input).returning();
+  return row;
+}
+
+async getAutonomousAlerts(limit = 100) {
+  return db.select().from(autonomousAlerts)
+    .orderBy(
+      sql`CASE ${autonomousAlerts.severity}
+        WHEN 'critical' THEN 1
+        WHEN 'high' THEN 2
+        WHEN 'medium' THEN 3
+        ELSE 4 END`,
+      desc(autonomousAlerts.createdAt)
+    )
+    .limit(limit);
+}
+
+async createAutonomousAlert(input: InsertAutonomousAlert) {
+  const [row] = await db.insert(autonomousAlerts).values(input).returning();
+  return row;
+}
+
+async updateAutonomousAlert(id: number, patch: UpdateAutonomousAlert) {
+  const [row] = await db.update(autonomousAlerts)
+    .set(patch)
+    .where(eq(autonomousAlerts.id, id))
+    .returning();
+  return row;
+}
+3) New file: server/automation/jobRunner.ts
+
+Phase 48 already has a recurring automation engine and auth-gated controls, so Phase 49 should reuse that operational pattern rather than invent a second scheduler.
+
+import { storage } from "../storage";
+
+type JobConfig = {
+  jobKey: string;
+  jobGroup: string;
+  cadenceMinutes: number;
+  run: () => Promise<{ summary?: string; meta?: Record<string, unknown> } | void>;
+};
+
+const timers = new Map<string, NodeJS.Timeout>();
+
+export async function registerRecurringJob(config: JobConfig, bootDelayMs = 60_000) {
+  await storage.upsertAutomationJob(config.jobKey, {
+    jobGroup: config.jobGroup,
+    cadenceMinutes: config.cadenceMinutes,
+    status: "idle",
+    isEnabled: true,
+    nextRunAt: new Date(Date.now() + bootDelayMs),
+  });
+
+  const invoke = async () => {
+    const startedAt = new Date();
+    try {
+      await storage.upsertAutomationJob(config.jobKey, {
+        status: "running",
+        lastStartedAt: startedAt,
+      });
+
+      const result = await config.run();
+
+      await storage.upsertAutomationJob(config.jobKey, {
+        status: "succeeded",
+        lastFinishedAt: new Date(),
+        lastSucceededAt: new Date(),
+        nextRunAt: new Date(Date.now() + config.cadenceMinutes * 60_000),
+      });
+
+      await storage.createAutomationJobLog({
+        jobKey: config.jobKey,
+        status: "succeeded",
+        summary: result?.summary ?? "ok",
+        meta: result?.meta ?? null,
+        finishedAt: new Date(),
+      });
+    } catch (error: any) {
+      await storage.upsertAutomationJob(config.jobKey, {
+        status: "failed",
+        lastFinishedAt: new Date(),
+        lastFailedAt: new Date(),
+        lastError: error?.message ?? "unknown error",
+        nextRunAt: new Date(Date.now() + config.cadenceMinutes * 60_000),
+      });
+
+      await storage.createAutomationJobLog({
+        jobKey: config.jobKey,
+        status: "failed",
+        summary: error?.message ?? "unknown error",
+        meta: { stack: error?.stack ?? null },
+        finishedAt: new Date(),
+      });
+    }
+  };
+
+  const start = () => {
+    const timeout = setTimeout(async function tick() {
+      await invoke();
+      timers.set(config.jobKey, setTimeout(tick, config.cadenceMinutes * 60_000));
+    }, bootDelayMs);
+    timers.set(config.jobKey, timeout);
+  };
+
+  start();
+}
+
+export function stopAllAutomationJobs() {
+  for (const timer of timers.values()) clearTimeout(timer);
+  timers.clear();
+}
+4) New file: server/automation/revenueRecoveryEngine.ts
+
+This extends the live revenue/order/follow-up infrastructure: Stripe checkout metadata, webhook fulfillment, fulfillment tracking, and the follow-up automation model already in production.
+
+import { storage } from "../storage";
+
+function computePriorityScore(input: {
+  leadScore?: number | null;
+  acceptedOffer?: boolean;
+  amountPaid?: number | null;
+  hoursSinceCreated?: number;
+}) {
+  const leadScore = input.leadScore ?? 0;
+  const acceptedBonus = input.acceptedOffer ? 20 : 0;
+  const amountBucket = input.amountPaid && input.amountPaid > 0 ? 10 : 0;
+  const ageBucket = Math.min(20, Math.floor((input.hoursSinceCreated ?? 0) / 6));
+  return leadScore + acceptedBonus + amountBucket + ageBucket;
+}
+
+export async function runRevenueRecoveryEngine() {
+  const acceptedButUnpaid = await storage.listAcceptedButUnpaidSessions();
+  const abandonedOrders = await storage.listAbandonedCheckoutOrders(1);
+  const staleFulfillment = await storage.listStaleFulfillmentOrders(24);
+
+  let created = 0;
+
+  for (const row of acceptedButUnpaid) {
+    await storage.createRevenueRecoveryAction({
+      sessionId: row.sessionId,
+      orderId: row.orderId ?? null,
+      recoveryType: "accepted_not_paid",
+      priorityScore: computePriorityScore({
+        leadScore: row.leadScore,
+        acceptedOffer: true,
+      }),
+      status: "open",
+      targetEmail: row.leadEmail ?? null,
+      recommendedAction: "Send high-intent offer recovery follow-up",
+      reason: "Lead is hot or warm, follow-up is required, and no paid order is attached.",
+    });
+    created++;
+  }
+
+  for (const order of abandonedOrders) {
+    const hoursSinceCreated = Math.max(1, Math.floor((Date.now() - new Date(order.createdAt).getTime()) / 3_600_000));
+    await storage.createRevenueRecoveryAction({
+      sessionId: order.sessionId ?? null,
+      orderId: order.id,
+      recoveryType: "abandoned_checkout",
+      priorityScore: computePriorityScore({
+        amountPaid: order.amountPaid,
+        hoursSinceCreated,
+      }),
+      status: "open",
+      targetEmail: order.customerEmail ?? null,
+      recommendedAction: "Send checkout recovery reminder",
+      reason: `Checkout/order exists but is not paid after ${hoursSinceCreated}h.`,
+    });
+    created++;
+  }
+
+  for (const order of staleFulfillment) {
+    await storage.createRevenueRecoveryAction({
+      sessionId: order.sessionId ?? null,
+      orderId: order.id,
+      recoveryType: "stale_fulfillment",
+      priorityScore: 75,
+      status: "open",
+      targetEmail: order.customerEmail ?? null,
+      recommendedAction: "Escalate fulfillment review",
+      reason: `Paid order is still ${order.fulfillmentStatus} beyond SLA.`,
+    });
+    created++;
+  }
+
+  return {
+    summary: `created ${created} recovery actions`,
+    meta: {
+      acceptedButUnpaid: acceptedButUnpaid.length,
+      abandonedOrders: abandonedOrders.length,
+      staleFulfillment: staleFulfillment.length,
+      created,
+    },
+  };
+}
+5) New file: server/automation/contentOpportunityEngine.ts
+
+The live platform already stores AI chat summaries, intent routing, knowledge docs, and weekly digests, so this engine should mine that data rather than introducing a separate content source.
+
+import { db } from "../db";
+import { chatConversations, knowledgeDocuments } from "@shared/schema";
+import { desc, eq, gte, sql } from "drizzle-orm";
+import { storage } from "../storage";
+
+export async function runContentOpportunityEngine() {
+  const hotIntentRows = await db.execute(sql`
+    select
+      intent,
+      count(*)::int as count,
+      avg(lead_score)::int as avg_score
+    from chat_conversations
+    where intent is not null
+      and created_at >= now() - interval '14 days'
+    group by intent
+    order by count(*) desc
+    limit 10
+  `);
+
+  let created = 0;
+
+  for (const row of hotIntentRows.rows as any[]) {
+    const topic = `High-intent ${row.intent} questions and objections`;
+    await storage.createContentOpportunity({
+      topic,
+      contentType: "faq",
+      sourceIntent: row.intent,
+      opportunityScore: Number(row.count) * 5 + Number(row.avg_score ?? 0),
+      evidenceJson: {
+        frequency: row.count,
+        avgScore: row.avg_score,
+        window: "14d",
+      },
+      recommendation: `Create a FAQ or landing-page support section for ${row.intent} traffic.`,
+      status: "new",
+    });
+    created++;
+  }
+
+  return {
+    summary: `created ${created} content opportunities`,
+    meta: { created },
+  };
+}
+6) New file: server/automation/executiveDigestEngine.ts
+
+The system already has AI-written weekly digests. This extends that into typed founder and monthly strategy briefs.
+
+import { db } from "../db";
+import { orders, bookings, chatConversations } from "@shared/schema";
+import { sql } from "drizzle-orm";
+import { storage } from "../storage";
+
+export async function generateFounderWeeklyBrief() {
+  const [metrics] = await db.execute(sql`
+    select
+      coalesce(sum(case when status = 'paid' then amount_paid else 0 end), 0)::int as revenue,
+      coalesce(avg(case when status = 'paid' then amount_paid end), 0)::int as avg_order,
+      coalesce(sum(case when lead_temperature = 'hot' then 1 else 0 end), 0)::int as hot_leads
+    from orders, chat_conversations
+  `).then((r: any) => r.rows);
+
+  const report = await storage.createDigestReportTyped({
+    title: "Founder Weekly Brief",
+    content: JSON.stringify(metrics),
+    reportType: "founder_weekly_brief",
+    periodStart: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+    periodEnd: new Date(),
+    meta: metrics,
+  });
+
+  return {
+    summary: "generated founder weekly brief",
+    meta: { reportId: report.id },
+  };
+}
+
+export async function generateMonthlyStrategyBrief() {
+  const report = await storage.createDigestReportTyped({
+    title: "Monthly Strategy Brief",
+    content: "Monthly strategy brief generated by Phase 49 automation.",
+    reportType: "monthly_strategy_brief",
+    periodStart: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+    periodEnd: new Date(),
+    meta: {},
+  });
+
+  return {
+    summary: "generated monthly strategy brief",
+    meta: { reportId: report.id },
+  };
+}
+7) New file: server/automation/anomalyEngine.ts
+
+This should extend the existing audit framework rather than bypassing it, because the platform already has audit_runs, audit_checks, and audit_issues plus an Audit tab.
+
+import { storage } from "../storage";
+
+export async function runAnomalyEngine() {
+  const staleFulfillment = await storage.listStaleFulfillmentOrders(24);
+  const recoveryActions = await storage.getRevenueRecoveryActions(200);
+
+  let alertsCreated = 0;
+
+  if (staleFulfillment.length > 0) {
+    await storage.createAutonomousAlert({
+      alertKey: `stale-fulfillment-${new Date().toISOString().slice(0, 13)}`,
+      area: "revenue",
+      severity: staleFulfillment.length >= 5 ? "high" : "medium",
+      title: "Stale fulfillment orders detected",
+      summary: `${staleFulfillment.length} paid orders remain queued/processing beyond SLA.`,
+      suggestedFix: "Review fulfillment queue and escalate blocked orders.",
+      autoFixEligible: false,
+      status: "open",
+      meta: { count: staleFulfillment.length },
+    });
+    alertsCreated++;
+  }
+
+  const openRecovery = recoveryActions.filter((x) => x.status === "open").length;
+  if (openRecovery >= 10) {
+    await storage.createAutonomousAlert({
+      alertKey: `open-recovery-${new Date().toISOString().slice(0, 13)}`,
+      area: "followup",
+      severity: openRecovery >= 25 ? "high" : "medium",
+      title: "Recovery queue backlog growing",
+      summary: `${openRecovery} recovery actions are still open.`,
+      suggestedFix: "Run recovery automation now or review suppression/contact rules.",
+      autoFixEligible: true,
+      status: "open",
+      meta: { openRecovery },
+    });
+    alertsCreated++;
+  }
+
+  return {
+    summary: `created ${alertsCreated} autonomous alerts`,
+    meta: { alertsCreated },
+  };
+}
+8) New file: server/automation/index.ts
+import { registerRecurringJob } from "./jobRunner";
+import { runRevenueRecoveryEngine } from "./revenueRecoveryEngine";
+import { runContentOpportunityEngine } from "./contentOpportunityEngine";
+import { generateFounderWeeklyBrief, generateMonthlyStrategyBrief } from "./executiveDigestEngine";
+import { runAnomalyEngine } from "./anomalyEngine";
+
+export async function startAutomationJobs() {
+  await registerRecurringJob(
+    {
+      jobKey: "phase49_revenue_recovery",
+      jobGroup: "revenue",
+      cadenceMinutes: 120,
+      run: runRevenueRecoveryEngine,
+    },
+    75_000
+  );
+
+  await registerRecurringJob(
+    {
+      jobKey: "phase49_content_opportunities",
+      jobGroup: "content",
+      cadenceMinutes: 24 * 60,
+      run: runContentOpportunityEngine,
+    },
+    120_000
+  );
+
+  await registerRecurringJob(
+    {
+      jobKey: "phase49_anomaly_engine",
+      jobGroup: "audit",
+      cadenceMinutes: 60,
+      run: runAnomalyEngine,
+    },
+    90_000
+  );
+
+  await registerRecurringJob(
+    {
+      jobKey: "phase49_founder_brief",
+      jobGroup: "digest",
+      cadenceMinutes: 7 * 24 * 60,
+      run: generateFounderWeeklyBrief,
+    },
+    180_000
+  );
+
+  await registerRecurringJob(
+    {
+      jobKey: "phase49_monthly_strategy",
+      jobGroup: "digest",
+      cadenceMinutes: 30 * 24 * 60,
+      run: generateMonthlyStrategyBrief,
+    },
+    240_000
+  );
+}
+9) server/routes.ts
+
+Your routes file already has dashboard auth, /api/orders/status, audit service integration, Stripe handlers, and Phase 48 automation endpoints. Phase 49 should slot into that same authenticated namespace.
+
+Add these imports
+import {
+  insertRevenueRecoveryActionSchema,
+  updateRevenueRecoveryActionSchema,
+  insertContentOpportunitySchema,
+  updateContentOpportunitySchema,
+  insertAutonomousAlertSchema,
+  updateAutonomousAlertSchema,
+} from "@shared/schema";
+import { runRevenueRecoveryEngine } from "./automation/revenueRecoveryEngine";
+import { runContentOpportunityEngine } from "./automation/contentOpportunityEngine";
+import { generateFounderWeeklyBrief, generateMonthlyStrategyBrief } from "./automation/executiveDigestEngine";
+import { runAnomalyEngine } from "./automation/anomalyEngine";
+Add these helpers near existing dashboard auth helpers
+function requireDashboardAuth(req: any, res: any, next: any) {
+  if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+  next();
+}
+Add these routes inside registerRoutes(...)
+app.get("/api/automation/jobs", requireDashboardAuth, async (_req, res) => {
+  const jobs = await storage.getAutomationJobs();
+  res.json(jobs);
+});
+
+app.get("/api/automation/jobs/:jobKey/log", requireDashboardAuth, async (req, res) => {
+  const logs = await storage.getAutomationJobLogs(req.params.jobKey, 100);
+  res.json(logs);
+});
+
+app.get("/api/automation/revenue-recovery/status", requireDashboardAuth, async (_req, res) => {
+  const actions = await storage.getRevenueRecoveryActions(500);
+  const jobs = await storage.getAutomationJobs();
+  const job = jobs.find((x) => x.jobKey === "phase49_revenue_recovery");
+  res.json({
+    enabled: job?.isEnabled ?? true,
+    lastRunAt: job?.lastFinishedAt ?? null,
+    nextRunAt: job?.nextRunAt ?? null,
+    openActions: actions.filter((x) => x.status === "open").length,
+    queuedActions: actions.filter((x) => x.status === "queued").length,
+    wonRecoveries30d: actions.filter((x) => x.status === "won").length,
+    staleFulfillmentCount: actions.filter((x) => x.recoveryType === "stale_fulfillment" && x.status === "open").length,
+  });
+});
+
+app.post("/api/automation/revenue-recovery/run-now", requireDashboardAuth, async (_req, res) => {
+  const result = await runRevenueRecoveryEngine();
+  res.json({ ok: true, ...result });
+});
+
+app.get("/api/automation/revenue-recovery/actions", requireDashboardAuth, async (_req, res) => {
+  const rows = await storage.getRevenueRecoveryActions(200);
+  res.json(rows);
+});
+
+app.patch("/api/automation/revenue-recovery/actions/:id", requireDashboardAuth, async (req, res) => {
+  const id = Number(req.params.id);
+  const patch = updateRevenueRecoveryActionSchema.parse(req.body);
+  const row = await storage.updateRevenueRecoveryAction(id, patch);
+  if (!row) return res.status(404).json({ message: "Not found" });
+  res.json(row);
+});
+
+app.get("/api/automation/content-opportunities", requireDashboardAuth, async (_req, res) => {
+  const rows = await storage.getContentOpportunities(200);
+  res.json(rows);
+});
+
+app.post("/api/automation/content-opportunities/generate", requireDashboardAuth, async (_req, res) => {
+  const result = await runContentOpportunityEngine();
+  res.json({ ok: true, ...result });
+});
+
+app.patch("/api/automation/content-opportunities/:id", requireDashboardAuth, async (req, res) => {
+  const id = Number(req.params.id);
+  const patch = updateContentOpportunitySchema.parse(req.body);
+  const row = await storage.updateContentOpportunity(id, patch);
+  if (!row) return res.status(404).json({ message: "Not found" });
+  res.json(row);
+});
+
+app.get("/api/digest/founder-brief/latest", requireDashboardAuth, async (_req, res) => {
+  const row = await storage.getLatestDigestByType("founder_weekly_brief");
+  res.json(row ?? null);
+});
+
+app.post("/api/digest/founder-brief/generate", requireDashboardAuth, async (_req, res) => {
+  const result = await generateFounderWeeklyBrief();
+  res.json({ ok: true, ...result });
+});
+
+app.get("/api/digest/monthly-strategy/latest", requireDashboardAuth, async (_req, res) => {
+  const row = await storage.getLatestDigestByType("monthly_strategy_brief");
+  res.json(row ?? null);
+});
+
+app.post("/api/digest/monthly-strategy/generate", requireDashboardAuth, async (_req, res) => {
+  const result = await generateMonthlyStrategyBrief();
+  res.json({ ok: true, ...result });
+});
+
+app.get("/api/audit/autonomous-alerts", requireDashboardAuth, async (_req, res) => {
+  const rows = await storage.getAutonomousAlerts(200);
+  res.json(rows);
+});
+
+app.post("/api/audit/run-autonomous-checks", requireDashboardAuth, async (_req, res) => {
+  const result = await runAnomalyEngine();
+  res.json({ ok: true, ...result });
+});
+
+app.patch("/api/audit/autonomous-alerts/:id", requireDashboardAuth, async (req, res) => {
+  const id = Number(req.params.id);
+  const patch = updateAutonomousAlertSchema.parse(req.body);
+  const row = await storage.updateAutonomousAlert(id, patch);
+  if (!row) return res.status(404).json({ message: "Not found" });
+  res.json(row);
+});
+10) server/index.ts
+
+Your current boot path sets trust proxy, applies canonicalRedirect, initializes the session store, registers routes, seeds consultations, initializes Stripe sync, and then serves static/Vite. It still uses the SESSION_SECRET || DASHBOARD_PIN || "e360-secret-fallback" chain.
+
+Add import
+import { startAutomationJobs } from "./automation";
+Replace session secret assignment
+const sessionSecret =
+  process.env.NODE_ENV === "production"
+    ? process.env.SESSION_SECRET
+    : process.env.SESSION_SECRET || process.env.DASHBOARD_PIN || "e360-secret-fallback";
+
+if (process.env.NODE_ENV === "production" && !sessionSecret) {
+  throw new Error("SESSION_SECRET is required in production");
+}
+
+Then use:
+
+secret: sessionSecret,
+Start Phase 49 jobs after route registration
+(async () => {
+  await registerRoutes(httpServer, app);
+
+  const { storage } = await import("./storage");
+  storage.seedDefaultConsultations().catch((e: any) => console.error("[seed] consultations:", e));
+
+  await startAutomationJobs();
+
+  // existing Stripe init + error handler + static/vite + listen...
+})();
+11) Rollout order
+
+Because the platform already has a live follow-up engine, audit tab, digest tab, order ledger, and dashboard auth model, the lowest-risk rollout is: schema first, storage second, engines third, routes fourth, then dashboard UI.
+
+apply shared/schema.ts
+generate and run migration
+patch server/storage.ts
+add server/automation/*
+patch server/routes.ts
+patch server/index.ts
+deploy
+verify:
+/api/automation/jobs
+/api/automation/revenue-recovery/status
+/api/automation/revenue-recovery/actions
+/api/automation/content-opportunities
+/api/digest/founder-brief/latest
+/api/audit/autonomous-alerts
+
+This patch set is the backend half of Phase 49. It extends the exact systems already present rather than replacing them: AI lead scoring and summaries, the Stripe order ledger with fulfillment tracking, the audit framework, weekly digests, and the Phase 48 automation model.
+
+The next useful step is the frontend patc

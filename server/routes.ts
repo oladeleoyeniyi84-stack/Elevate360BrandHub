@@ -22,13 +22,22 @@ import { WebhookHandlers } from "./webhookHandlers";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
 import { db } from "./db";
 import { sql, eq, desc } from "drizzle-orm";
-import { auditRuns, auditChecks, auditIssues, insertAuditIssueSchema, updateAuditIssueSchema } from "@shared/schema";
+import { auditRuns, auditChecks, auditIssues, insertAuditIssueSchema, updateAuditIssueSchema, updateRevenueRecoveryActionSchema, updateContentOpportunitySchema, updateAutonomousAlertSchema } from "@shared/schema";
 import { runAudit } from "./services/auditService";
+import { runRevenueRecoveryEngine } from "./automation/revenueRecoveryEngine";
+import { runContentOpportunityEngine } from "./automation/contentOpportunityEngine";
+import { generateFounderWeeklyBrief, generateMonthlyStrategyBrief } from "./automation/executiveDigestEngine";
+import { runAnomalyEngine } from "./automation/anomalyEngine";
 
 const DASHBOARD_PIN = process.env.DASHBOARD_PIN;
 
 function isDashboardAuthed(req: any): boolean {
   return req.session?.dashboardAuthed === true;
+}
+
+function requireDashboardAuth(req: any, res: any, next: any) {
+  if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+  next();
 }
 
 // ─── IP resolution ────────────────────────────────────────────────────────────
@@ -1306,6 +1315,140 @@ export async function registerRoutes(
     res.setHeader("Content-Type", "text/markdown; charset=utf-8");
     res.setHeader("Content-Disposition", `attachment; filename="elevate360-audit-${now}.md"`);
     return res.send(md);
+  });
+
+  // ── Phase 49 — Automation Jobs ───────────────────────────────────────────────
+
+  app.get("/api/automation/jobs", requireDashboardAuth, async (_req, res) => {
+    const jobs = await storage.getAutomationJobs();
+    res.json(jobs);
+  });
+
+  app.get("/api/automation/jobs/:jobKey/log", requireDashboardAuth, async (req, res) => {
+    const logs = await storage.getAutomationJobLogs(req.params.jobKey, 100);
+    res.json(logs);
+  });
+
+  // ── Phase 49 — Revenue Recovery ──────────────────────────────────────────────
+
+  app.get("/api/automation/revenue-recovery/status", requireDashboardAuth, async (_req, res) => {
+    const [actions, jobs] = await Promise.all([
+      storage.getRevenueRecoveryActions(500),
+      storage.getAutomationJobs(),
+    ]);
+    const job = jobs.find((x) => x.jobKey === "phase49_revenue_recovery");
+    res.json({
+      enabled: job?.isEnabled ?? true,
+      lastRunAt: job?.lastFinishedAt ?? null,
+      nextRunAt: job?.nextRunAt ?? null,
+      openActions: actions.filter((x) => x.status === "open").length,
+      queuedActions: actions.filter((x) => x.status === "queued").length,
+      wonRecoveries30d: actions.filter((x) => x.status === "won").length,
+      staleFulfillmentCount: actions.filter((x) => x.recoveryType === "stale_fulfillment" && x.status === "open").length,
+    });
+  });
+
+  app.post("/api/automation/revenue-recovery/run-now", requireDashboardAuth, async (_req, res) => {
+    try {
+      const result = await runRevenueRecoveryEngine();
+      res.json({ ok: true, ...result });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/automation/revenue-recovery/actions", requireDashboardAuth, async (_req, res) => {
+    const rows = await storage.getRevenueRecoveryActions(200);
+    res.json(rows);
+  });
+
+  app.patch("/api/automation/revenue-recovery/actions/:id", requireDashboardAuth, async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ message: "Invalid id" });
+    const patch = updateRevenueRecoveryActionSchema.parse(req.body);
+    const row = await storage.updateRevenueRecoveryAction(id, patch);
+    if (!row) return res.status(404).json({ message: "Not found" });
+    res.json(row);
+  });
+
+  // ── Phase 49 — Content Opportunities ─────────────────────────────────────────
+
+  app.get("/api/automation/content-opportunities", requireDashboardAuth, async (_req, res) => {
+    const rows = await storage.getContentOpportunities(200);
+    res.json(rows);
+  });
+
+  app.post("/api/automation/content-opportunities/generate", requireDashboardAuth, async (_req, res) => {
+    try {
+      const result = await runContentOpportunityEngine();
+      res.json({ ok: true, ...result });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.patch("/api/automation/content-opportunities/:id", requireDashboardAuth, async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ message: "Invalid id" });
+    const patch = updateContentOpportunitySchema.parse(req.body);
+    const row = await storage.updateContentOpportunity(id, patch);
+    if (!row) return res.status(404).json({ message: "Not found" });
+    res.json(row);
+  });
+
+  // ── Phase 49 — Executive Digests ─────────────────────────────────────────────
+
+  app.get("/api/digest/founder-brief/latest", requireDashboardAuth, async (_req, res) => {
+    const row = await storage.getLatestDigestByType("founder_weekly_brief");
+    res.json(row ?? null);
+  });
+
+  app.post("/api/digest/founder-brief/generate", requireDashboardAuth, async (_req, res) => {
+    try {
+      const result = await generateFounderWeeklyBrief();
+      res.json({ ok: true, ...result });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/digest/monthly-strategy/latest", requireDashboardAuth, async (_req, res) => {
+    const row = await storage.getLatestDigestByType("monthly_strategy_brief");
+    res.json(row ?? null);
+  });
+
+  app.post("/api/digest/monthly-strategy/generate", requireDashboardAuth, async (_req, res) => {
+    try {
+      const result = await generateMonthlyStrategyBrief();
+      res.json({ ok: true, ...result });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // ── Phase 49 — Autonomous Alerts ─────────────────────────────────────────────
+
+  app.get("/api/audit/autonomous-alerts", requireDashboardAuth, async (_req, res) => {
+    const rows = await storage.getAutonomousAlerts(200);
+    res.json(rows);
+  });
+
+  app.post("/api/audit/run-autonomous-checks", requireDashboardAuth, async (_req, res) => {
+    try {
+      const result = await runAnomalyEngine();
+      res.json({ ok: true, ...result });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.patch("/api/audit/autonomous-alerts/:id", requireDashboardAuth, async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ message: "Invalid id" });
+    const patch = updateAutonomousAlertSchema.parse(req.body);
+    const row = await storage.updateAutonomousAlert(id, patch);
+    if (!row) return res.status(404).json({ message: "Not found" });
+    res.json(row);
   });
 
   return httpServer;

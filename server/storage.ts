@@ -12,10 +12,16 @@ import {
   type DigestReport,
   type OfferMappingOverride,
   type AuditLog, type InsertAuditLog,
+  type AutomationJob, type InsertAutomationJob,
+  type AutomationJobLog, type InsertAutomationJobLog,
+  type RevenueRecoveryAction, type InsertRevenueRecoveryAction, type UpdateRevenueRecoveryAction,
+  type ContentOpportunity, type InsertContentOpportunity, type UpdateContentOpportunity,
+  type AutonomousAlert, type InsertAutonomousAlert, type UpdateAutonomousAlert,
   users, contactMessages, newsletterSubscribers, chatConversations, clickEvents, pageViews, testimonials, blogPosts, knowledgeDocuments, consultations, bookings, orders, digestReports, offerMappingOverrides, auditLogs, automationSettings,
+  automationJobs, automationJobLogs, revenueRecoveryActions, contentOpportunities, autonomousAlerts,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, sql, desc, asc } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull, lte, ne, or, sql } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -158,6 +164,34 @@ export interface IStorage {
   }>;
   getAutomationSetting(key: string): Promise<string | null>;
   setAutomationSetting(key: string, value: string): Promise<void>;
+
+  // Phase 49 — Automation Jobs
+  getAutomationJobs(): Promise<AutomationJob[]>;
+  upsertAutomationJob(jobKey: string, patch: Partial<InsertAutomationJob>): Promise<AutomationJob>;
+  createAutomationJobLog(input: InsertAutomationJobLog): Promise<void>;
+  getAutomationJobLogs(jobKey: string, limit?: number): Promise<AutomationJobLog[]>;
+
+  // Phase 49 — Revenue Recovery
+  getRevenueRecoveryActions(limit?: number): Promise<RevenueRecoveryAction[]>;
+  createRevenueRecoveryAction(input: InsertRevenueRecoveryAction): Promise<RevenueRecoveryAction>;
+  updateRevenueRecoveryAction(id: number, patch: UpdateRevenueRecoveryAction): Promise<RevenueRecoveryAction | undefined>;
+  listAcceptedButUnpaidSessions(): Promise<any[]>;
+  listAbandonedCheckoutOrders(hoursSinceCreated?: number): Promise<any[]>;
+  listStaleFulfillmentOrders(hoursStale?: number): Promise<any[]>;
+
+  // Phase 49 — Content Opportunities
+  getContentOpportunities(limit?: number): Promise<ContentOpportunity[]>;
+  createContentOpportunity(input: InsertContentOpportunity): Promise<ContentOpportunity>;
+  updateContentOpportunity(id: number, patch: UpdateContentOpportunity): Promise<ContentOpportunity | undefined>;
+
+  // Phase 49 — Executive Digests
+  getLatestDigestByType(reportType: string): Promise<any | undefined>;
+  createDigestReportTyped(input: any): Promise<any>;
+
+  // Phase 49 — Autonomous Alerts
+  getAutonomousAlerts(limit?: number): Promise<AutonomousAlert[]>;
+  createAutonomousAlert(input: InsertAutonomousAlert): Promise<AutonomousAlert>;
+  updateAutonomousAlert(id: number, patch: UpdateAutonomousAlert): Promise<AutonomousAlert | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1261,6 +1295,176 @@ export class DatabaseStorage implements IStorage {
       topRecommendedOffer,
       generatedAt: now.toISOString(),
     };
+  }
+
+  // ── Phase 49 — Automation Jobs ──────────────────────────────────────────────
+
+  async getAutomationJobs(): Promise<AutomationJob[]> {
+    return db.select().from(automationJobs).orderBy(asc(automationJobs.jobGroup), asc(automationJobs.jobKey));
+  }
+
+  async upsertAutomationJob(jobKey: string, patch: Partial<InsertAutomationJob>): Promise<AutomationJob> {
+    const existing = await db.select().from(automationJobs).where(eq(automationJobs.jobKey, jobKey)).limit(1);
+    if (existing[0]) {
+      const [updated] = await db.update(automationJobs)
+        .set({ ...patch, updatedAt: new Date() })
+        .where(eq(automationJobs.jobKey, jobKey))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(automationJobs)
+      .values({
+        jobKey,
+        jobGroup: patch.jobGroup ?? "autonomous",
+        status: patch.status ?? "idle",
+        isEnabled: patch.isEnabled ?? true,
+        cadenceMinutes: patch.cadenceMinutes ?? null,
+        nextRunAt: patch.nextRunAt ?? null,
+      })
+      .returning();
+    return created;
+  }
+
+  async createAutomationJobLog(input: InsertAutomationJobLog): Promise<void> {
+    await db.insert(automationJobLogs).values(input);
+  }
+
+  async getAutomationJobLogs(jobKey: string, limit = 50): Promise<AutomationJobLog[]> {
+    return db.select().from(automationJobLogs)
+      .where(eq(automationJobLogs.jobKey, jobKey))
+      .orderBy(desc(automationJobLogs.startedAt))
+      .limit(limit);
+  }
+
+  // ── Phase 49 — Revenue Recovery ─────────────────────────────────────────────
+
+  async getRevenueRecoveryActions(limit = 100): Promise<RevenueRecoveryAction[]> {
+    return db.select().from(revenueRecoveryActions)
+      .orderBy(desc(revenueRecoveryActions.priorityScore), desc(revenueRecoveryActions.createdAt))
+      .limit(limit);
+  }
+
+  async createRevenueRecoveryAction(input: InsertRevenueRecoveryAction): Promise<RevenueRecoveryAction> {
+    const [row] = await db.insert(revenueRecoveryActions).values(input).returning();
+    return row;
+  }
+
+  async updateRevenueRecoveryAction(id: number, patch: UpdateRevenueRecoveryAction): Promise<RevenueRecoveryAction | undefined> {
+    const [row] = await db.update(revenueRecoveryActions)
+      .set({ ...patch, updatedAt: new Date() })
+      .where(eq(revenueRecoveryActions.id, id))
+      .returning();
+    return row;
+  }
+
+  async listAcceptedButUnpaidSessions(): Promise<any[]> {
+    return db.select({
+        sessionId: chatConversations.sessionId,
+        leadEmail: chatConversations.leadEmail,
+        leadName: chatConversations.leadName,
+        leadScore: chatConversations.leadScore,
+        productName: orders.productName,
+        orderId: orders.id,
+        orderStatus: orders.status,
+        recoveryStatus: orders.recoveryStatus,
+        createdAt: orders.createdAt,
+      })
+      .from(chatConversations)
+      .leftJoin(orders, eq(orders.sessionId, chatConversations.sessionId))
+      .where(
+        and(
+          eq(chatConversations.requiresFollowup, true),
+          gte(chatConversations.leadScore, 60),
+          or(isNull(orders.id), ne(orders.status, "paid"))
+        )
+      )
+      .orderBy(desc(chatConversations.leadScore), desc(chatConversations.updatedAt));
+  }
+
+  async listAbandonedCheckoutOrders(hoursSinceCreated = 1): Promise<any[]> {
+    const cutoff = new Date(Date.now() - hoursSinceCreated * 60 * 60 * 1000);
+    return db.select().from(orders).where(
+      and(
+        lte(orders.createdAt, cutoff),
+        ne(orders.status, "paid"),
+        or(eq(orders.recoveryStatus, "none"), isNull(orders.recoveryStatus))
+      )
+    ).orderBy(desc(orders.createdAt));
+  }
+
+  async listStaleFulfillmentOrders(hoursStale = 24): Promise<any[]> {
+    const cutoff = new Date(Date.now() - hoursStale * 60 * 60 * 1000);
+    return db.select().from(orders).where(
+      and(
+        eq(orders.status, "paid"),
+        or(eq(orders.fulfillmentStatus, "queued"), eq(orders.fulfillmentStatus, "processing")),
+        lte(orders.updatedAt, cutoff)
+      )
+    ).orderBy(desc(orders.updatedAt));
+  }
+
+  // ── Phase 49 — Content Opportunities ────────────────────────────────────────
+
+  async getContentOpportunities(limit = 100): Promise<ContentOpportunity[]> {
+    return db.select().from(contentOpportunities)
+      .orderBy(desc(contentOpportunities.opportunityScore), desc(contentOpportunities.createdAt))
+      .limit(limit);
+  }
+
+  async createContentOpportunity(input: InsertContentOpportunity): Promise<ContentOpportunity> {
+    const [row] = await db.insert(contentOpportunities).values(input).returning();
+    return row;
+  }
+
+  async updateContentOpportunity(id: number, patch: UpdateContentOpportunity): Promise<ContentOpportunity | undefined> {
+    const [row] = await db.update(contentOpportunities)
+      .set({ ...patch, updatedAt: new Date() })
+      .where(eq(contentOpportunities.id, id))
+      .returning();
+    return row;
+  }
+
+  // ── Phase 49 — Executive Digests ─────────────────────────────────────────────
+
+  async getLatestDigestByType(reportType: string): Promise<any | undefined> {
+    const [row] = await db.select().from(digestReports)
+      .where(eq(digestReports.reportType, reportType))
+      .orderBy(desc(digestReports.generatedAt))
+      .limit(1);
+    return row;
+  }
+
+  async createDigestReportTyped(input: any): Promise<any> {
+    const [row] = await db.insert(digestReports).values(input).returning();
+    return row;
+  }
+
+  // ── Phase 49 — Autonomous Alerts ─────────────────────────────────────────────
+
+  async getAutonomousAlerts(limit = 100): Promise<AutonomousAlert[]> {
+    return db.select().from(autonomousAlerts)
+      .orderBy(
+        sql`CASE ${autonomousAlerts.severity}
+          WHEN 'critical' THEN 1
+          WHEN 'high' THEN 2
+          WHEN 'medium' THEN 3
+          ELSE 4 END`,
+        desc(autonomousAlerts.createdAt)
+      )
+      .limit(limit);
+  }
+
+  async createAutonomousAlert(input: InsertAutonomousAlert): Promise<AutonomousAlert> {
+    const [row] = await db.insert(autonomousAlerts).values(input).returning();
+    return row;
+  }
+
+  async updateAutonomousAlert(id: number, patch: UpdateAutonomousAlert): Promise<AutonomousAlert | undefined> {
+    const [row] = await db.update(autonomousAlerts)
+      .set(patch)
+      .where(eq(autonomousAlerts.id, id))
+      .returning();
+    return row;
   }
 }
 

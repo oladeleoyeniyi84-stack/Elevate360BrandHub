@@ -28,7 +28,9 @@ app.use(
       tableName: "user_sessions",
       createTableIfMissing: true,
     }),
-    secret: process.env.SESSION_SECRET || process.env.DASHBOARD_PIN || "e360-secret-fallback",
+    secret: process.env.NODE_ENV === "production"
+      ? (process.env.SESSION_SECRET ?? (() => { throw new Error("SESSION_SECRET required in production"); })())
+      : (process.env.SESSION_SECRET || process.env.DASHBOARD_PIN || "e360-secret-fallback"),
     resave: false,
     saveUninitialized: false,
     cookie: {
@@ -110,6 +112,10 @@ app.use((req, res, next) => {
   // Phase 48 — Start automated lead follow-up engine
   const { startFollowupEngine } = await import("./automation/followupEngine");
   startFollowupEngine().catch((e: Error) => console.error("[followupEngine] start error:", e.message));
+
+  // Phase 49 — Start autonomous operation jobs
+  const { startAutomationJobs } = await import("./automation");
+  startAutomationJobs().catch((e: Error) => console.error("[automationJobs] start error:", e.message));
 
   // Phase 37 — Stripe init (migrations → sync → webhook)
   try {
