@@ -24,3 +24,9 @@ id = "FxM4T5_cpkx7JYU6wNljg"
 uri = "file://docs/elevate360-data-truth-audit-sections-11-14.md"
 type = "text"
 title = "Elevate360Official — Data Truth Audit Sections 11–14 (Final)"
+
+[[outputs]]
+id = "j2n5MNs1qF5lRj-5Y0ww5"
+uri = "file://workspace_export.tar.gz"
+type = "unspecified"
+title = "Elevate360Official — Full Project Export"
