@@ -1542,5 +1542,109 @@ export async function registerRoutes(
     });
   });
 
+  // ── Phase 51: Autonomous Execution ───────────────────────────────────────────
+
+  // Policies
+  app.get("/api/execution/policies", requireDashboardAuth, async (_req, res) => {
+    const rows = await storage.getExecutionPolicies();
+    res.json(rows);
+  });
+
+  app.patch("/api/execution/policies/:key", requireDashboardAuth, async (req, res) => {
+    const { updateExecutionPolicySchema } = await import("@shared/schema");
+    const patch = updateExecutionPolicySchema.parse(req.body);
+    const row = await storage.updateExecutionPolicy(req.params.key, patch);
+    if (!row) return res.status(404).json({ message: "Policy not found" });
+    res.json(row);
+  });
+
+  app.post("/api/execution/policies/seed", requireDashboardAuth, async (_req, res) => {
+    await storage.seedDefaultExecutionPolicies();
+    const rows = await storage.getExecutionPolicies();
+    res.json({ ok: true, count: rows.length, policies: rows });
+  });
+
+  // Queue
+  app.get("/api/execution/queue", requireDashboardAuth, async (req, res) => {
+    const limit = Number(req.query.limit) || 50;
+    const rows = await storage.getExecutionQueue(limit);
+    res.json(rows);
+  });
+
+  app.post("/api/execution/queue/generate", requireDashboardAuth, async (_req, res) => {
+    const { runExecutionEngine } = await import("./automation/executionEngine");
+    const result = await runExecutionEngine();
+    res.json({ ok: true, ...result });
+  });
+
+  app.patch("/api/execution/queue/:id", requireDashboardAuth, async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ message: "Invalid id" });
+    const { updateExecutionQueueSchema } = await import("@shared/schema");
+    const patch = updateExecutionQueueSchema.parse(req.body);
+    const row = await storage.updateExecutionQueueItem(id, patch);
+    if (!row) return res.status(404).json({ message: "Not found" });
+    res.json(row);
+  });
+
+  // Applied changes
+  app.get("/api/execution/applied-changes", requireDashboardAuth, async (req, res) => {
+    const limit = Number(req.query.limit) || 100;
+    const rows = await storage.getAppliedChanges(limit);
+    res.json(rows);
+  });
+
+  app.post("/api/execution/apply-now", requireDashboardAuth, async (_req, res) => {
+    const { runExecutionEngine } = await import("./automation/executionEngine");
+    const result = await runExecutionEngine();
+    const changes = await storage.getAppliedChanges(20);
+    res.json({ ok: true, ...result, recentChanges: changes.slice(0, 5) });
+  });
+
+  app.patch("/api/execution/applied-changes/:id", requireDashboardAuth, async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ message: "Invalid id" });
+    const { updateAppliedChangeSchema } = await import("@shared/schema");
+    const patch = updateAppliedChangeSchema.parse(req.body);
+    const row = await storage.updateAppliedChange(id, patch);
+    if (!row) return res.status(404).json({ message: "Not found" });
+    res.json(row);
+  });
+
+  // Rollbacks
+  app.get("/api/execution/rollbacks", requireDashboardAuth, async (req, res) => {
+    const limit = Number(req.query.limit) || 50;
+    const rows = await storage.getRollbackEvents(limit);
+    res.json(rows);
+  });
+
+  app.post("/api/execution/rollback-check", requireDashboardAuth, async (_req, res) => {
+    const { runRollbackEngine } = await import("./automation/rollbackEngine");
+    const result = await runRollbackEngine();
+    res.json({ ok: true, ...result });
+  });
+
+  app.post("/api/execution/rollback/:id", requireDashboardAuth, async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ message: "Invalid id" });
+    const change = await storage.updateAppliedChange(id, { status: "rolled_back", rolledBackAt: new Date() });
+    if (!change) return res.status(404).json({ message: "Not found" });
+    const rollback = await storage.createRollbackEvent({
+      appliedChangeId: id,
+      reason: "Manual rollback by admin",
+      metricsBeforeJson: change.beforeJson as any,
+      metricsAfterJson: null,
+      status: "completed",
+    });
+    res.json({ ok: true, change, rollback });
+  });
+
+  // Impact evaluation
+  app.get("/api/execution/impact/:changeKey", requireDashboardAuth, async (req, res) => {
+    const metrics = await storage.getChangeImpactMetrics(req.params.changeKey);
+    if (!metrics) return res.status(404).json({ message: "Change not found" });
+    res.json(metrics);
+  });
+
   return httpServer;
 }

@@ -588,6 +588,82 @@ export const offerPerformanceSnapshots = pgTable("offer_performance_snapshots", 
   performanceScore: integer("performance_score").notNull().default(0),
 });
 
+// ── Phase 51: Autonomous Execution ──────────────────────────────────────────
+
+export const executionPolicies = pgTable("execution_policies", {
+  id: serial("id").primaryKey(),
+  policyKey: varchar("policy_key", { length: 120 }).notNull().unique(),
+  area: varchar("area", { length: 40 }).notNull(),
+  mode: varchar("mode", { length: 30 }).notNull().default("suggest_only"),
+  minConfidence: integer("min_confidence").notNull().default(70),
+  maxRiskScore: integer("max_risk_score").notNull().default(30),
+  isEnabled: boolean("is_enabled").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const appliedChanges = pgTable("applied_changes", {
+  id: serial("id").primaryKey(),
+  changeKey: varchar("change_key", { length: 180 }).notNull().unique(),
+  area: varchar("area", { length: 40 }).notNull(),
+  targetType: varchar("target_type", { length: 80 }),
+  targetId: varchar("target_id", { length: 120 }),
+  changeType: varchar("change_type", { length: 80 }).notNull(),
+  beforeJson: jsonb("before_json"),
+  afterJson: jsonb("after_json"),
+  reason: text("reason"),
+  evidenceJson: jsonb("evidence_json"),
+  confidence: integer("confidence").notNull().default(0),
+  riskScore: integer("risk_score").notNull().default(0),
+  status: varchar("status", { length: 30 }).notNull().default("proposed"),
+  appliedBy: varchar("applied_by", { length: 30 }).notNull().default("ai"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  appliedAt: timestamp("applied_at"),
+  rolledBackAt: timestamp("rolled_back_at"),
+});
+
+export const executionQueue = pgTable("execution_queue", {
+  id: serial("id").primaryKey(),
+  queueKey: varchar("queue_key", { length: 180 }).notNull().unique(),
+  area: varchar("area", { length: 40 }).notNull(),
+  actionType: varchar("action_type", { length: 80 }).notNull(),
+  payloadJson: jsonb("payload_json"),
+  priorityScore: integer("priority_score").notNull().default(0),
+  status: varchar("status", { length: 30 }).notNull().default("pending"),
+  requiresApproval: boolean("requires_approval").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  executedAt: timestamp("executed_at"),
+});
+
+export const rollbackEvents = pgTable("rollback_events", {
+  id: serial("id").primaryKey(),
+  appliedChangeId: integer("applied_change_id").notNull(),
+  reason: text("reason"),
+  metricsBeforeJson: jsonb("metrics_before_json"),
+  metricsAfterJson: jsonb("metrics_after_json"),
+  status: varchar("status", { length: 30 }).notNull().default("triggered"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertExecutionPolicySchema = createInsertSchema(executionPolicies).omit({ id: true, createdAt: true, updatedAt: true });
+export const updateExecutionPolicySchema = insertExecutionPolicySchema.partial();
+export type InsertExecutionPolicy = z.infer<typeof insertExecutionPolicySchema>;
+export type ExecutionPolicy = typeof executionPolicies.$inferSelect;
+
+export const insertAppliedChangeSchema = createInsertSchema(appliedChanges).omit({ id: true, createdAt: true, appliedAt: true, rolledBackAt: true });
+export const updateAppliedChangeSchema = insertAppliedChangeSchema.partial();
+export type InsertAppliedChange = z.infer<typeof insertAppliedChangeSchema>;
+export type AppliedChange = typeof appliedChanges.$inferSelect;
+
+export const insertExecutionQueueSchema = createInsertSchema(executionQueue).omit({ id: true, createdAt: true, executedAt: true });
+export const updateExecutionQueueSchema = insertExecutionQueueSchema.partial();
+export type InsertExecutionQueueItem = z.infer<typeof insertExecutionQueueSchema>;
+export type ExecutionQueueItem = typeof executionQueue.$inferSelect;
+
+export const insertRollbackEventSchema = createInsertSchema(rollbackEvents).omit({ id: true, createdAt: true });
+export type InsertRollbackEvent = z.infer<typeof insertRollbackEventSchema>;
+export type RollbackEvent = typeof rollbackEvents.$inferSelect;
+
 export const insertGrowthExperimentSchema = createInsertSchema(growthExperiments).omit({ id: true, createdAt: true, startedAt: true, completedAt: true });
 export const updateGrowthExperimentSchema = insertGrowthExperimentSchema.partial();
 export type InsertGrowthExperiment = z.infer<typeof insertGrowthExperimentSchema>;

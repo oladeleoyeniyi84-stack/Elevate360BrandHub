@@ -362,6 +362,17 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 - `server/db.ts` - Database connection
 - `server/canonicalRedirect.ts` - Canonical host redirect middleware
 
+## Phase 51 — Autonomous Execution Under Governance (Complete)
+- **4 new DB tables**: `execution_policies`, `applied_changes`, `execution_queue`, `rollback_events`
+- **Storage**: 12 new methods for policies, queue, applied changes, rollbacks, and evaluation helpers
+- **Services**: `server/services/executionPolicy.ts` (resolveExecutionDecision), `server/services/experimentEvaluator.ts` (evaluateExperimentOutcome)
+- **Engines**: `server/automation/executionEngine.ts` (6h cadence), `server/automation/rollbackEngine.ts` (12h cadence)
+- **Routes**: 13 new `/api/execution/*` endpoints (policies, queue, applied-changes, rollbacks, rollback/:id, apply-now, rollback-check, impact/:changeKey)
+- **Jobs**: 11 total (5 Phase 49 + 4 Phase 50 + 2 Phase 51)
+- **Frontend**: 4 panels (ExecutionPoliciesPanel, ExecutionQueuePanel, AppliedChangesPanel, RollbackAlertsPanel), new "execution" tab in Dashboard
+- **Governance modes**: `suggest_only`, `approval_required`, `auto_apply_safe` — controlled per area (offer, cta, links, experiment, override)
+- **Rollback**: automatic if metrics degrade after 24h observation window, manual via PATCH endpoint
+
 ## External Links
 - Amazon Books: B0GMBNPZC9, B0G5DWG61V, B0FSDTPVJC
 - Instagram: https://www.instagram.com/officialelevate360/

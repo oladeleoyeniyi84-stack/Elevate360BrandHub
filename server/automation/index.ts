@@ -84,4 +84,20 @@ export async function startAutomationJobs() {
   );
 
   console.log("[automation] Phase 50 jobs registered (4 jobs)");
+
+  // ── Phase 51: Autonomous Execution jobs ─────────────────────────────────────
+  const { runExecutionEngine } = await import("./executionEngine");
+  const { runRollbackEngine } = await import("./rollbackEngine");
+
+  await registerRecurringJob(
+    { jobKey: "phase51_execution_engine", jobGroup: "execution", cadenceMinutes: 360, run: runExecutionEngine },
+    270_000
+  );
+
+  await registerRecurringJob(
+    { jobKey: "phase51_rollback_engine", jobGroup: "execution", cadenceMinutes: 720, run: runRollbackEngine },
+    300_000
+  );
+
+  console.log("[automation] Phase 51 jobs registered (2 jobs)");
 }

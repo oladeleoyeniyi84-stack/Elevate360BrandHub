@@ -21,9 +21,14 @@ import {
   type SourcePerformanceSnapshot, type InsertSourcePerformanceSnapshot,
   type FunnelLeakReport, type InsertFunnelLeakReport,
   type OfferPerformanceSnapshot, type InsertOfferPerformanceSnapshot,
+  type ExecutionPolicy, type InsertExecutionPolicy, type UpdateExecutionPolicy,
+  type AppliedChange, type InsertAppliedChange, type UpdateAppliedChange,
+  type ExecutionQueueItem, type InsertExecutionQueueItem, type UpdateExecutionQueueItem,
+  type RollbackEvent, type InsertRollbackEvent,
   users, contactMessages, newsletterSubscribers, chatConversations, clickEvents, pageViews, testimonials, blogPosts, knowledgeDocuments, consultations, bookings, orders, digestReports, offerMappingOverrides, auditLogs, automationSettings,
   automationJobs, automationJobLogs, revenueRecoveryActions, contentOpportunities, autonomousAlerts,
   growthExperiments, sourcePerformanceSnapshots, funnelLeakReports, offerPerformanceSnapshots,
+  executionPolicies, appliedChanges, executionQueue, rollbackEvents,
 } from "@shared/schema";
 import { db } from "./db";
 import { and, asc, count, desc, eq, gte, isNull, lte, ne, or, sql } from "drizzle-orm";
@@ -211,6 +216,26 @@ export interface IStorage {
   getSourcePerformanceCandidates(periodDays?: number): Promise<any[]>;
   getOfferPerformanceCandidates(periodDays?: number): Promise<any[]>;
   getFunnelLeakCandidates(periodDays?: number): Promise<any>;
+
+  // Phase 51 — Autonomous Execution
+  getExecutionPolicies(): Promise<ExecutionPolicy[]>;
+  upsertExecutionPolicy(input: InsertExecutionPolicy): Promise<ExecutionPolicy>;
+  updateExecutionPolicy(policyKey: string, patch: Partial<InsertExecutionPolicy>): Promise<ExecutionPolicy | undefined>;
+  getExecutionQueue(limit?: number): Promise<ExecutionQueueItem[]>;
+  createExecutionQueueItem(input: InsertExecutionQueueItem): Promise<ExecutionQueueItem>;
+  updateExecutionQueueItem(id: number, patch: Partial<InsertExecutionQueueItem>): Promise<ExecutionQueueItem | undefined>;
+  getAppliedChanges(limit?: number): Promise<AppliedChange[]>;
+  createAppliedChange(input: InsertAppliedChange): Promise<AppliedChange>;
+  updateAppliedChange(id: number, patch: Partial<InsertAppliedChange>): Promise<AppliedChange | undefined>;
+  getAppliedChangeByKey(changeKey: string): Promise<AppliedChange | undefined>;
+  getRollbackEvents(limit?: number): Promise<RollbackEvent[]>;
+  createRollbackEvent(input: InsertRollbackEvent): Promise<RollbackEvent>;
+  getApprovedExperimentsReadyForExecution(): Promise<GrowthExperiment[]>;
+  getSafeOverrideCandidates(): Promise<any[]>;
+  getSafeCtaCandidates(): Promise<any[]>;
+  getLinksPriorityCandidates(): Promise<any[]>;
+  getChangeImpactMetrics(changeKey: string): Promise<any>;
+  seedDefaultExecutionPolicies(): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1622,6 +1647,150 @@ export class DatabaseStorage implements IStorage {
       periodStart: start,
       periodEnd: new Date(),
     };
+  }
+  // ── Phase 51: Autonomous Execution ──────────────────────────────────────────
+
+  async getExecutionPolicies(): Promise<ExecutionPolicy[]> {
+    return db.select().from(executionPolicies).orderBy(executionPolicies.area);
+  }
+
+  async upsertExecutionPolicy(input: InsertExecutionPolicy): Promise<ExecutionPolicy> {
+    const [row] = await db
+      .insert(executionPolicies)
+      .values(input)
+      .onConflictDoUpdate({
+        target: executionPolicies.policyKey,
+        set: { ...input, updatedAt: new Date() },
+      })
+      .returning();
+    return row;
+  }
+
+  async updateExecutionPolicy(policyKey: string, patch: Partial<InsertExecutionPolicy>): Promise<ExecutionPolicy | undefined> {
+    const [row] = await db
+      .update(executionPolicies)
+      .set({ ...patch, updatedAt: new Date() })
+      .where(eq(executionPolicies.policyKey, policyKey))
+      .returning();
+    return row;
+  }
+
+  async getExecutionQueue(limit = 50): Promise<ExecutionQueueItem[]> {
+    return db.select().from(executionQueue)
+      .orderBy(desc(executionQueue.priorityScore), desc(executionQueue.createdAt))
+      .limit(limit);
+  }
+
+  async createExecutionQueueItem(input: InsertExecutionQueueItem): Promise<ExecutionQueueItem> {
+    const [row] = await db.insert(executionQueue).values(input).returning();
+    return row;
+  }
+
+  async updateExecutionQueueItem(id: number, patch: Partial<InsertExecutionQueueItem>): Promise<ExecutionQueueItem | undefined> {
+    const [row] = await db.update(executionQueue).set(patch).where(eq(executionQueue.id, id)).returning();
+    return row;
+  }
+
+  async getAppliedChanges(limit = 100): Promise<AppliedChange[]> {
+    return db.select().from(appliedChanges)
+      .orderBy(desc(appliedChanges.createdAt))
+      .limit(limit);
+  }
+
+  async createAppliedChange(input: InsertAppliedChange): Promise<AppliedChange> {
+    const [row] = await db.insert(appliedChanges).values(input).returning();
+    return row;
+  }
+
+  async updateAppliedChange(id: number, patch: Partial<InsertAppliedChange>): Promise<AppliedChange | undefined> {
+    const [row] = await db.update(appliedChanges).set(patch).where(eq(appliedChanges.id, id)).returning();
+    return row;
+  }
+
+  async getAppliedChangeByKey(changeKey: string): Promise<AppliedChange | undefined> {
+    const [row] = await db.select().from(appliedChanges).where(eq(appliedChanges.changeKey, changeKey));
+    return row;
+  }
+
+  async getRollbackEvents(limit = 50): Promise<RollbackEvent[]> {
+    return db.select().from(rollbackEvents).orderBy(desc(rollbackEvents.createdAt)).limit(limit);
+  }
+
+  async createRollbackEvent(input: InsertRollbackEvent): Promise<RollbackEvent> {
+    const [row] = await db.insert(rollbackEvents).values(input).returning();
+    return row;
+  }
+
+  async getApprovedExperimentsReadyForExecution(): Promise<GrowthExperiment[]> {
+    return db.select().from(growthExperiments)
+      .where(eq(growthExperiments.status, "approved"))
+      .orderBy(desc(growthExperiments.expectedImpactScore))
+      .limit(10);
+  }
+
+  async getSafeOverrideCandidates(): Promise<any[]> {
+    const rows = await db.select().from(offerPerformanceSnapshots)
+      .orderBy(desc(offerPerformanceSnapshots.performanceScore))
+      .limit(10);
+    return rows.filter((r) => r.performanceScore >= 70);
+  }
+
+  async getSafeCtaCandidates(): Promise<any[]> {
+    const leaks = await db.select().from(funnelLeakReports)
+      .orderBy(desc(funnelLeakReports.severityScore))
+      .limit(5);
+    return leaks.map((l) => ({
+      stage: l.leakStage,
+      severityScore: l.severityScore,
+      dropoffRate: l.dropoffRate,
+      recommendedFix: l.recommendedFix,
+    }));
+  }
+
+  async getLinksPriorityCandidates(): Promise<any[]> {
+    const clicks = await db.select().from(clickEvents)
+      .orderBy(desc(clickEvents.createdAt))
+      .limit(200);
+    const byProduct: Record<string, number> = {};
+    for (const c of clicks) {
+      byProduct[c.product] = (byProduct[c.product] ?? 0) + 1;
+    }
+    return Object.entries(byProduct)
+      .map(([product, count]) => ({ product, count }))
+      .sort((a, b) => b.count - a.count);
+  }
+
+  async getChangeImpactMetrics(changeKey: string): Promise<any> {
+    const change = await this.getAppliedChangeByKey(changeKey);
+    if (!change) return null;
+    const since = change.appliedAt ?? change.createdAt;
+    const [leadsAfter] = await db.select({ c: count() }).from(chatConversations)
+      .where(gte(chatConversations.createdAt, since));
+    const [ordersAfter] = await db.select({ c: count() }).from(orders)
+      .where(and(gte(orders.createdAt, since), eq(orders.status, "paid")));
+    const rollbacks = await db.select().from(rollbackEvents)
+      .where(eq(rollbackEvents.appliedChangeId, change.id));
+    return {
+      changeKey,
+      appliedAt: since,
+      leadsAfter: Number(leadsAfter?.c ?? 0),
+      ordersAfter: Number(ordersAfter?.c ?? 0),
+      hasRollback: rollbacks.length > 0,
+      change,
+    };
+  }
+
+  async seedDefaultExecutionPolicies(): Promise<void> {
+    const defaults: InsertExecutionPolicy[] = [
+      { policyKey: "offer_auto_apply", area: "offer", mode: "suggest_only", minConfidence: 75, maxRiskScore: 20, isEnabled: true },
+      { policyKey: "cta_auto_apply", area: "cta", mode: "approval_required", minConfidence: 70, maxRiskScore: 25, isEnabled: true },
+      { policyKey: "links_auto_apply", area: "links", mode: "auto_apply_safe", minConfidence: 80, maxRiskScore: 15, isEnabled: true },
+      { policyKey: "experiment_auto_apply", area: "experiment", mode: "approval_required", minConfidence: 80, maxRiskScore: 20, isEnabled: true },
+      { policyKey: "override_auto_apply", area: "override", mode: "suggest_only", minConfidence: 85, maxRiskScore: 10, isEnabled: true },
+    ];
+    for (const policy of defaults) {
+      await this.upsertExecutionPolicy(policy);
+    }
   }
 }
 

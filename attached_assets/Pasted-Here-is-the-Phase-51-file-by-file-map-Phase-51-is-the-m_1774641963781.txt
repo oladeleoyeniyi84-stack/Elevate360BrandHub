@@ -1,0 +1,352 @@
+Here is the Phase 51 file-by-file map.
+
+Phase 51 is the move from autonomous analysis and recommendation to controlled autonomous execution. That is the right next step because Phase 49 and Phase 50 are already complete: operations automation is live, growth optimization is live, 9 automation jobs are registered, 4 Phase 50 jobs are running, experiment status updates work, and the system is generating recommendations from real business activity.
+
+Phase 51 goal
+
+Turn Elevate360 into a platform that can:
+
+apply safe changes automatically
+require approval for higher-risk changes
+monitor impact after changes
+roll back weak changes
+keep a full execution ledger
+Files to add
+Backend
+server/automation/executionEngine.ts
+server/automation/rollbackEngine.ts
+server/services/executionPolicy.ts
+server/services/experimentEvaluator.ts
+Frontend
+client/src/types/execution.ts
+client/src/components/dashboard/ExecutionQueuePanel.tsx
+client/src/components/dashboard/AppliedChangesPanel.tsx
+client/src/components/dashboard/ExecutionPoliciesPanel.tsx
+client/src/components/dashboard/RollbackAlertsPanel.tsx
+Files to patch
+Backend
+shared/schema.ts
+server/storage.ts
+server/routes.ts
+server/automation/index.ts
+Frontend
+client/src/pages/Dashboard.tsx
+1. shared/schema.ts
+
+Add 4 new tables.
+
+executionPolicies
+
+Controls whether AI can suggest, require approval, or auto-apply.
+
+Suggested fields:
+
+id
+policy_key
+area (offer, cta, links, experiment, override)
+mode (suggest_only, approval_required, auto_apply_safe)
+min_confidence
+max_risk_score
+is_enabled
+created_at
+updated_at
+appliedChanges
+
+Ledger of every AI-executed change.
+
+Suggested fields:
+
+id
+change_key
+area
+target_type
+target_id
+change_type
+before_json
+after_json
+reason
+evidence_json
+confidence
+risk_score
+status (proposed, approved, applied, rolled_back, rejected)
+applied_by (ai, admin)
+created_at
+applied_at
+rolled_back_at
+executionQueue
+
+Queue of pending actions.
+
+Suggested fields:
+
+id
+queue_key
+area
+action_type
+payload_json
+priority_score
+status (pending, approved, executing, completed, failed, cancelled)
+requires_approval
+created_at
+executed_at
+rollbackEvents
+
+Tracks auto or manual rollback actions.
+
+Suggested fields:
+
+id
+applied_change_id
+reason
+metrics_before_json
+metrics_after_json
+status
+created_at
+2. server/storage.ts
+
+Add methods for these new execution objects.
+
+Policies
+getExecutionPolicies()
+upsertExecutionPolicy(...)
+Queue
+getExecutionQueue(limit?)
+createExecutionQueueItem(...)
+updateExecutionQueueItem(...)
+Applied changes
+getAppliedChanges(limit?)
+createAppliedChange(...)
+updateAppliedChange(...)
+Rollbacks
+getRollbackEvents(limit?)
+createRollbackEvent(...)
+Evaluation helpers
+getApprovedExperimentsReadyForExecution()
+getSafeOverrideCandidates()
+getSafeCtaCandidates()
+getLinksPriorityCandidates()
+getChangeImpactMetrics(changeKey: string)
+3. New backend services
+server/services/executionPolicy.ts
+
+Purpose:
+
+decide whether a proposed change is:
+suggest only
+approval required
+safe to auto-apply
+
+Core function:
+
+resolveExecutionDecision(area, confidence, riskScore)
+
+Output:
+
+mode
+requiresApproval
+canAutoApply
+server/services/experimentEvaluator.ts
+
+Purpose:
+
+compare before vs after metrics for an applied change or experiment
+
+Core function:
+
+evaluateExperimentOutcome(changeKey)
+
+Metrics to compare:
+
+click-through rate
+acceptance rate
+close rate
+booking rate
+revenue per source/page
+anomaly count
+4. New automation engines
+server/automation/executionEngine.ts
+
+Purpose:
+
+pull approved/safe items from experiments and optimization candidates
+apply changes under policy
+write to appliedChanges
+update queue status
+
+Examples of executable changes:
+
+reorder homepage CTA priority
+reorder links page priorities
+adjust offer override priority
+promote top offer by intent
+demote underperforming offer mapping
+
+Cadence:
+
+every 6 hours
+server/automation/rollbackEngine.ts
+
+Purpose:
+
+evaluate applied changes after observation window
+roll back if metrics worsen beyond threshold
+write rollback event
+update applied change status
+
+Cadence:
+
+every 12 hours
+5. server/routes.ts
+
+Add authenticated execution endpoints.
+
+Policies
+GET /api/execution/policies
+PATCH /api/execution/policies/:key
+Queue
+GET /api/execution/queue
+POST /api/execution/queue/generate
+PATCH /api/execution/queue/:id
+Applied changes
+GET /api/execution/applied-changes
+POST /api/execution/apply-now
+PATCH /api/execution/applied-changes/:id
+Rollbacks
+GET /api/execution/rollbacks
+POST /api/execution/rollback-check
+POST /api/execution/rollback/:id
+
+These should use the same dashboard auth model as the current automation/growth endpoints.
+
+6. server/automation/index.ts
+
+Register 2 new jobs.
+
+phase51_execution_engine
+
+Cadence:
+
+every 6 hours
+phase51_rollback_engine
+
+Cadence:
+
+every 12 hours
+
+That would bring the total job count from 9 to 11.
+
+7. Frontend types
+client/src/types/execution.ts
+
+Add:
+
+ExecutionPolicy
+ExecutionQueueItem
+AppliedChange
+RollbackEvent
+8. Dashboard panels
+ExecutionPoliciesPanel.tsx
+
+Show:
+
+area
+mode
+min confidence
+max risk
+enabled state
+
+Actions:
+
+change mode
+adjust thresholds
+ExecutionQueuePanel.tsx
+
+Show:
+
+action type
+area
+priority
+requires approval
+status
+
+Actions:
+
+approve
+reject
+execute now
+cancel
+AppliedChangesPanel.tsx
+
+Show:
+
+change type
+target
+before/after summary
+confidence
+risk
+status
+applied by
+applied at
+RollbackAlertsPanel.tsx
+
+Show:
+
+change key
+rollback reason
+metrics degraded
+rollback status
+9. client/src/pages/Dashboard.tsx
+
+Add a new tab:
+
+execution
+
+This tab should contain:
+
+execution policy panel
+execution queue
+applied changes ledger
+rollback alerts
+
+Also extend:
+
+Growth tab with “Send to execution queue”
+Offers tab with “Apply override”
+Analytics/Funnel tab with “Create experiment from this insight”
+10. Phase 51 rollout order
+51A — governance
+schema
+storage
+execution policies
+routes for policies
+51B — queue and ledger
+execution queue
+applied changes
+dashboard execution tab
+51C — safe auto-apply
+execution engine
+apply-now routes
+policy evaluation
+51D — rollback safety
+rollback engine
+rollback endpoints
+rollback alerts panel
+11. Definition of done
+
+Phase 51 is complete when:
+
+AI can apply safe approved changes
+risky changes require approval
+every applied change is logged
+impact is evaluated automatically
+weak changes are rolled back
+dashboard gives founder full control over execution policy
+
+At that point, Elevate360 moves from:
+
+autonomous operations
+autonomous growth optimization
+
+to:
+
+autonomous execution under governance

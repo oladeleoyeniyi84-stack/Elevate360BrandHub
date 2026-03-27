@@ -11,7 +11,7 @@ import {
   Database, Edit2, Zap, Calendar, DollarSign, Phone, Trophy, XCircle, AlertCircle, GripVertical,
   Clock, Tag, RefreshCw, ExternalLink, BrainCircuit, AlertTriangle, FileBarChart2, Target,
   Filter, Percent, ArrowDown, TrendingDown, Flame, Banknote, Shield, Activity, ShieldCheck, ShieldAlert,
-  ClipboardCheck, Bot, RefreshCcw, BadgeDollarSign, FlaskConical,
+  ClipboardCheck, Bot, RefreshCcw, BadgeDollarSign, FlaskConical, Cpu, GitMerge, ListTodo,
 } from "lucide-react";
 import { AuditTab } from "@/components/AuditTab";
 import DashboardSummaryCards from "@/components/dashboard/DashboardSummaryCards";
@@ -24,6 +24,11 @@ import { SourcePerformancePanel } from "@/components/dashboard/SourcePerformance
 import { FunnelLeakPanel } from "@/components/dashboard/FunnelLeakPanel";
 import { OfferPerformancePanel } from "@/components/dashboard/OfferPerformancePanel";
 import { GrowthExperimentsPanel } from "@/components/dashboard/GrowthExperimentsPanel";
+import type { ExecutionPolicy, ExecutionQueueItem, AppliedChange, RollbackEvent } from "@/types/execution";
+import { ExecutionPoliciesPanel } from "@/components/dashboard/ExecutionPoliciesPanel";
+import { ExecutionQueuePanel } from "@/components/dashboard/ExecutionQueuePanel";
+import { AppliedChangesPanel } from "@/components/dashboard/AppliedChangesPanel";
+import { RollbackAlertsPanel } from "@/components/dashboard/RollbackAlertsPanel";
 import type {
   AutomationJob,
   RevenueRecoveryAction,
@@ -4469,7 +4474,7 @@ function AutomationTab() {
 // ──────────────────────────────────────────────────────────────────────────────
 
 function DashboardContent({ onLogout }: { onLogout: () => void }) {
-  const [tab, setTab] = useState<"analytics" | "funnel" | "offers" | "revenue" | "voice" | "leads" | "contacts" | "newsletter" | "reviews" | "blog" | "knowledge" | "pipeline" | "bookings" | "orders" | "digest" | "automation" | "system" | "audit" | "growth">("analytics");
+  const [tab, setTab] = useState<"analytics" | "funnel" | "offers" | "revenue" | "voice" | "leads" | "contacts" | "newsletter" | "reviews" | "blog" | "knowledge" | "pipeline" | "bookings" | "orders" | "digest" | "automation" | "system" | "audit" | "growth" | "execution">("analytics");
   const [leadFilter, setLeadFilter] = useState<"all" | "priority" | "hot" | "warm" | "cold">("all");
   const qc = useQueryClient();
 
@@ -4534,6 +4539,80 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
     mutationFn: ({ id, status }: { id: number; status: GrowthExperiment["status"] }) =>
       authedJson(`/api/growth/experiments/${id}`, { method: "PATCH", body: JSON.stringify({ status }) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["growth-experiments"] }),
+  });
+
+  // ── Phase 51: Autonomous Execution queries ──────────────────────────────────
+  const executionPoliciesQ = useQuery<ExecutionPolicy[]>({
+    queryKey: ["execution-policies"],
+    queryFn: () => authedJson("/api/execution/policies"),
+    enabled: tab === "execution",
+  });
+
+  const executionQueueQ = useQuery<ExecutionQueueItem[]>({
+    queryKey: ["execution-queue"],
+    queryFn: () => authedJson("/api/execution/queue"),
+    enabled: tab === "execution",
+  });
+
+  const appliedChangesQ = useQuery<AppliedChange[]>({
+    queryKey: ["applied-changes"],
+    queryFn: () => authedJson("/api/execution/applied-changes"),
+    enabled: tab === "execution",
+  });
+
+  const rollbackEventsQ = useQuery<RollbackEvent[]>({
+    queryKey: ["rollback-events"],
+    queryFn: () => authedJson("/api/execution/rollbacks"),
+    enabled: tab === "execution",
+  });
+
+  const seedPolicies = useMutation({
+    mutationFn: () => authedJson("/api/execution/policies/seed", { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["execution-policies"] }),
+  });
+
+  const patchExecutionPolicy = useMutation({
+    mutationFn: ({ key, patch }: { key: string; patch: Partial<ExecutionPolicy> }) =>
+      authedJson(`/api/execution/policies/${key}`, { method: "PATCH", body: JSON.stringify(patch) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["execution-policies"] }),
+  });
+
+  const generateExecutionQueue = useMutation({
+    mutationFn: () => authedJson("/api/execution/queue/generate", { method: "POST" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["execution-queue"] });
+      qc.invalidateQueries({ queryKey: ["applied-changes"] });
+    },
+  });
+
+  const patchQueueItem = useMutation({
+    mutationFn: ({ id, patch }: { id: number; patch: Partial<ExecutionQueueItem> }) =>
+      authedJson(`/api/execution/queue/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["execution-queue"] }),
+  });
+
+  const applyNow = useMutation({
+    mutationFn: () => authedJson("/api/execution/apply-now", { method: "POST" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["applied-changes"] });
+      qc.invalidateQueries({ queryKey: ["execution-queue"] });
+    },
+  });
+
+  const rollbackChange = useMutation({
+    mutationFn: (id: number) => authedJson(`/api/execution/rollback/${id}`, { method: "POST" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["applied-changes"] });
+      qc.invalidateQueries({ queryKey: ["rollback-events"] });
+    },
+  });
+
+  const runRollbackCheck = useMutation({
+    mutationFn: () => authedJson("/api/execution/rollback-check", { method: "POST" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["rollback-events"] });
+      qc.invalidateQueries({ queryKey: ["applied-changes"] });
+    },
   });
 
   const contactsQuery = useQuery<ContactMessage[]>({
@@ -4620,6 +4699,7 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
     { key: "blog", label: "Blog", icon: PenLine },
     { key: "automation", label: "Automation", icon: Zap },
     { key: "growth", label: "Growth", icon: FlaskConical },
+    { key: "execution", label: "Execution", icon: Cpu },
     { key: "system", label: "System", icon: Shield },
     { key: "audit", label: "Audit", icon: ClipboardCheck },
   ] as const;
@@ -5004,6 +5084,47 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
             <GrowthExperimentsPanel
               rows={growthExperimentsQ.data || []}
               onUpdate={(id, status) => patchGrowthExperiment.mutate({ id, status })}
+            />
+          </div>
+        )}
+
+        {tab === "execution" && (
+          <div className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <StatCard label="Applied Changes" value={appliedChangesQ.data?.length ?? 0} icon={GitMerge} color="#34d399" />
+              <StatCard label="Queue Pending" value={(executionQueueQ.data ?? []).filter((i) => i.status === "pending").length} icon={ListTodo} color="#F4A62A" />
+              <StatCard label="Rollbacks" value={rollbackEventsQ.data?.length ?? 0} icon={RefreshCw} color="#f87171" />
+              <StatCard label="Policies Active" value={(executionPoliciesQ.data ?? []).filter((p) => p.isEnabled).length} icon={Shield} color="#60a5fa" />
+            </div>
+
+            <ExecutionPoliciesPanel
+              policies={executionPoliciesQ.data ?? []}
+              onModeChange={(key, mode) => patchExecutionPolicy.mutate({ key, patch: { mode: mode as ExecutionPolicy["mode"] } })}
+              onToggle={(key, enabled) => patchExecutionPolicy.mutate({ key, patch: { isEnabled: enabled } })}
+              seeding={seedPolicies.isPending}
+              onSeed={() => seedPolicies.mutate()}
+            />
+
+            <ExecutionQueuePanel
+              items={executionQueueQ.data ?? []}
+              onApprove={(id) => patchQueueItem.mutate({ id, patch: { status: "approved" } })}
+              onReject={(id) => patchQueueItem.mutate({ id, patch: { status: "cancelled" } })}
+              onExecuteNow={(id) => patchQueueItem.mutate({ id, patch: { status: "executing" } })}
+              generating={generateExecutionQueue.isPending}
+              onGenerate={() => generateExecutionQueue.mutate()}
+            />
+
+            <AppliedChangesPanel
+              changes={appliedChangesQ.data ?? []}
+              onRollback={(id) => rollbackChange.mutate(id)}
+              onApplyNow={() => applyNow.mutate()}
+              applying={applyNow.isPending}
+            />
+
+            <RollbackAlertsPanel
+              events={rollbackEventsQ.data ?? []}
+              onCheck={() => runRollbackCheck.mutate()}
+              checking={runRollbackCheck.isPending}
             />
           </div>
         )}
