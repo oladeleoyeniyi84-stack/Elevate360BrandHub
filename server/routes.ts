@@ -1451,5 +1451,96 @@ export async function registerRoutes(
     res.json(row);
   });
 
+  // ─── Phase 50: Growth Optimization ─────────────────────────────────────────
+
+  app.get("/api/growth/source-performance", requireDashboardAuth, async (_req, res) => {
+    const rows = await storage.getLatestSourcePerformance(100);
+    res.json(rows);
+  });
+
+  app.post("/api/growth/source-performance/generate", requireDashboardAuth, async (_req, res) => {
+    const { runSourcePerformanceEngine } = await import("./automation/sourcePerformanceEngine");
+    const result = await runSourcePerformanceEngine();
+    res.json({ ok: true, ...result });
+  });
+
+  app.get("/api/growth/funnel-leaks", requireDashboardAuth, async (_req, res) => {
+    const rows = await storage.getLatestFunnelLeaks(50);
+    res.json(rows);
+  });
+
+  app.post("/api/growth/funnel-leaks/generate", requireDashboardAuth, async (_req, res) => {
+    const { runFunnelLeakEngine } = await import("./automation/funnelLeakEngine");
+    const result = await runFunnelLeakEngine();
+    res.json({ ok: true, ...result });
+  });
+
+  app.get("/api/growth/offer-performance", requireDashboardAuth, async (_req, res) => {
+    const rows = await storage.getLatestOfferPerformance(100);
+    res.json(rows);
+  });
+
+  app.post("/api/growth/offer-performance/generate", requireDashboardAuth, async (_req, res) => {
+    const { runOfferPerformanceEngine } = await import("./automation/offerPerformanceEngine");
+    const result = await runOfferPerformanceEngine();
+    res.json({ ok: true, ...result });
+  });
+
+  app.get("/api/growth/experiments", requireDashboardAuth, async (_req, res) => {
+    const rows = await storage.getGrowthExperiments(100);
+    res.json(rows);
+  });
+
+  app.post("/api/growth/experiments/generate", requireDashboardAuth, async (_req, res) => {
+    const { runGrowthExperimentEngine } = await import("./automation/growthExperimentEngine");
+    const result = await runGrowthExperimentEngine();
+    res.json({ ok: true, ...result });
+  });
+
+  app.patch("/api/growth/experiments/:id", requireDashboardAuth, async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ message: "Invalid id" });
+    const { updateGrowthExperimentSchema } = await import("@shared/schema");
+    const patch = updateGrowthExperimentSchema.parse(req.body);
+    const row = await storage.updateGrowthExperiment(id, patch);
+    if (!row) return res.status(404).json({ message: "Not found" });
+    res.json(row);
+  });
+
+  app.post("/api/growth/offer-overrides/recommend", requireDashboardAuth, async (_req, res) => {
+    const rows = await storage.getLatestOfferPerformance(20);
+    const weak = [...rows].sort((a, b) => a.performanceScore - b.performanceScore).slice(0, 5);
+    res.json({
+      recommendations: weak.map((x) => ({
+        offerSlug: x.offerSlug,
+        intent: x.intent,
+        sourceName: x.sourceName,
+        suggestion: `Consider demoting or retuning ${x.offerSlug} for this segment.`,
+        performanceScore: x.performanceScore,
+      })),
+    });
+  });
+
+  app.post("/api/growth/cta-optimization/generate", requireDashboardAuth, async (_req, res) => {
+    const leaks = await storage.getLatestFunnelLeaks(5);
+    res.json({
+      recommendations: leaks.map((x) => ({
+        stage: x.leakStage,
+        suggestion: `Test stronger CTA placement and copy around ${x.leakStage}.`,
+      })),
+    });
+  });
+
+  app.post("/api/growth/win-loss-analysis/generate", requireDashboardAuth, async (_req, res) => {
+    const offers = await storage.getLatestOfferPerformance(20);
+    res.json({
+      recommendations: offers.slice(0, 5).map((x) => ({
+        offerSlug: x.offerSlug,
+        closeRate: x.closeRate,
+        summary: `Offer ${x.offerSlug} currently closes at ${x.closeRate}% from recommendation.`,
+      })),
+    });
+  });
+
   return httpServer;
 }

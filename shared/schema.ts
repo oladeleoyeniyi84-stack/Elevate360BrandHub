@@ -527,3 +527,81 @@ export const updateAutonomousAlertSchema = insertAutonomousAlertSchema.partial()
 export type InsertAutonomousAlert = z.infer<typeof insertAutonomousAlertSchema>;
 export type UpdateAutonomousAlert = z.infer<typeof updateAutonomousAlertSchema>;
 export type AutonomousAlert = typeof autonomousAlerts.$inferSelect;
+
+// ─── Phase 50: Growth Optimization ─────────────────────────────────────────
+
+export const growthExperiments = pgTable("growth_experiments", {
+  id: serial("id").primaryKey(),
+  experimentKey: varchar("experiment_key", { length: 120 }).notNull().unique(),
+  title: varchar("title", { length: 240 }).notNull(),
+  area: varchar("area", { length: 40 }).notNull(),
+  hypothesis: text("hypothesis").notNull(),
+  proposedChange: text("proposed_change").notNull(),
+  evidenceJson: jsonb("evidence_json"),
+  expectedImpactScore: integer("expected_impact_score").notNull().default(0),
+  status: varchar("status", { length: 30 }).notNull().default("proposed"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+});
+
+export const sourcePerformanceSnapshots = pgTable("source_performance_snapshots", {
+  id: serial("id").primaryKey(),
+  snapshotDate: timestamp("snapshot_date").defaultNow().notNull(),
+  sourceName: varchar("source_name", { length: 120 }).notNull(),
+  visits: integer("visits").notNull().default(0),
+  chatLeads: integer("chat_leads").notNull().default(0),
+  qualifiedLeads: integer("qualified_leads").notNull().default(0),
+  bookings: integer("bookings").notNull().default(0),
+  paidOrders: integer("paid_orders").notNull().default(0),
+  revenue: integer("revenue").notNull().default(0),
+  avgOrderValue: integer("avg_order_value").notNull().default(0),
+  recoveryWinRate: integer("recovery_win_rate").notNull().default(0),
+  qualityScore: integer("quality_score").notNull().default(0),
+});
+
+export const funnelLeakReports = pgTable("funnel_leak_reports", {
+  id: serial("id").primaryKey(),
+  periodStart: timestamp("period_start").notNull(),
+  periodEnd: timestamp("period_end").notNull(),
+  leakStage: varchar("leak_stage", { length: 80 }).notNull(),
+  severityScore: integer("severity_score").notNull().default(0),
+  dropoffCount: integer("dropoff_count").notNull().default(0),
+  dropoffRate: integer("dropoff_rate").notNull().default(0),
+  suspectedCausesJson: jsonb("suspected_causes_json"),
+  recommendedFix: text("recommended_fix"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const offerPerformanceSnapshots = pgTable("offer_performance_snapshots", {
+  id: serial("id").primaryKey(),
+  snapshotDate: timestamp("snapshot_date").defaultNow().notNull(),
+  offerSlug: varchar("offer_slug", { length: 120 }).notNull(),
+  intent: varchar("intent", { length: 80 }),
+  sourceName: varchar("source_name", { length: 120 }),
+  recommendedCount: integer("recommended_count").notNull().default(0),
+  acceptedCount: integer("accepted_count").notNull().default(0),
+  paidCount: integer("paid_count").notNull().default(0),
+  acceptanceRate: integer("acceptance_rate").notNull().default(0),
+  closeRate: integer("close_rate").notNull().default(0),
+  avgOrderValue: integer("avg_order_value").notNull().default(0),
+  performanceScore: integer("performance_score").notNull().default(0),
+});
+
+export const insertGrowthExperimentSchema = createInsertSchema(growthExperiments).omit({ id: true, createdAt: true, startedAt: true, completedAt: true });
+export const updateGrowthExperimentSchema = insertGrowthExperimentSchema.partial();
+export type InsertGrowthExperiment = z.infer<typeof insertGrowthExperimentSchema>;
+export type UpdateGrowthExperiment = z.infer<typeof updateGrowthExperimentSchema>;
+export type GrowthExperiment = typeof growthExperiments.$inferSelect;
+
+export const insertSourcePerformanceSnapshotSchema = createInsertSchema(sourcePerformanceSnapshots).omit({ id: true, snapshotDate: true });
+export type InsertSourcePerformanceSnapshot = z.infer<typeof insertSourcePerformanceSnapshotSchema>;
+export type SourcePerformanceSnapshot = typeof sourcePerformanceSnapshots.$inferSelect;
+
+export const insertFunnelLeakReportSchema = createInsertSchema(funnelLeakReports).omit({ id: true, createdAt: true });
+export type InsertFunnelLeakReport = z.infer<typeof insertFunnelLeakReportSchema>;
+export type FunnelLeakReport = typeof funnelLeakReports.$inferSelect;
+
+export const insertOfferPerformanceSnapshotSchema = createInsertSchema(offerPerformanceSnapshots).omit({ id: true, snapshotDate: true });
+export type InsertOfferPerformanceSnapshot = z.infer<typeof insertOfferPerformanceSnapshotSchema>;
+export type OfferPerformanceSnapshot = typeof offerPerformanceSnapshots.$inferSelect;

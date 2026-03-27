@@ -1,0 +1,590 @@
+Here is the Phase 50 file-by-file implementation blueprint for Elevate360.
+
+It is designed to extend what is already live, not replace it. The current platform already has intent routing, lead scoring, offer mapping overrides, weekly AI digests, Stripe-reconciled orders, fulfillment tracking, a funnel view, analytics, an audit system, and Phase 49’s autonomous jobs and control surfaces.
+
+1. Phase 50 goal
+
+Phase 49 made the platform autonomous in operations. Phase 50 should make it autonomous in growth optimization.
+
+The new layer should answer:
+
+which sources bring the best leads and revenue
+where the funnel is leaking most
+which offers actually win by intent/source
+which experiments should be proposed next
+which CTA placements should be promoted or demoted
+
+That fits the current system because you already track page views, click events, chat sessions with scoring and offer acceptance, bookings, orders, funnel stages, and digests.
+
+2. Files to add
+
+Create these backend files:
+
+server/automation/sourcePerformanceEngine.ts
+server/automation/funnelLeakEngine.ts
+server/automation/offerPerformanceEngine.ts
+server/automation/growthExperimentEngine.ts
+server/services/growthScoring.ts
+
+Create these frontend files:
+
+client/src/types/growth.ts
+client/src/components/dashboard/SourcePerformancePanel.tsx
+client/src/components/dashboard/FunnelLeakPanel.tsx
+client/src/components/dashboard/OfferPerformancePanel.tsx
+client/src/components/dashboard/GrowthExperimentsPanel.tsx
+3. shared/schema.ts additions
+
+Your schema already includes the right base tables: page_views, click_events, chat_conversations, bookings, orders, digest_reports, and offer_mapping_overrides. It also already stores recommended-offer confidence, accepted offer flags, accepted offer slug/source, and follow-up counters on chat conversations.
+
+Add these new tables.
+
+growthExperiments
+export const growthExperiments = pgTable("growth_experiments", {
+  id: serial("id").primaryKey(),
+  experimentKey: varchar("experiment_key", { length: 120 }).notNull().unique(),
+  title: varchar("title", { length: 240 }).notNull(),
+  area: varchar("area", { length: 40 }).notNull(), // source | funnel | offer | cta | content
+  hypothesis: text("hypothesis").notNull(),
+  proposedChange: text("proposed_change").notNull(),
+  evidenceJson: jsonb("evidence_json"),
+  expectedImpactScore: integer("expected_impact_score").notNull().default(0),
+  status: varchar("status", { length: 30 }).notNull().default("proposed"), // proposed | approved | running | won | lost | archived
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+});
+sourcePerformanceSnapshots
+export const sourcePerformanceSnapshots = pgTable("source_performance_snapshots", {
+  id: serial("id").primaryKey(),
+  snapshotDate: timestamp("snapshot_date").defaultNow().notNull(),
+  sourceName: varchar("source_name", { length: 120 }).notNull(),
+  visits: integer("visits").notNull().default(0),
+  chatLeads: integer("chat_leads").notNull().default(0),
+  qualifiedLeads: integer("qualified_leads").notNull().default(0),
+  bookings: integer("bookings").notNull().default(0),
+  paidOrders: integer("paid_orders").notNull().default(0),
+  revenue: integer("revenue").notNull().default(0),
+  avgOrderValue: integer("avg_order_value").notNull().default(0),
+  recoveryWinRate: integer("recovery_win_rate").notNull().default(0),
+  qualityScore: integer("quality_score").notNull().default(0),
+});
+funnelLeakReports
+export const funnelLeakReports = pgTable("funnel_leak_reports", {
+  id: serial("id").primaryKey(),
+  periodStart: timestamp("period_start").notNull(),
+  periodEnd: timestamp("period_end").notNull(),
+  leakStage: varchar("leak_stage", { length: 80 }).notNull(),
+  severityScore: integer("severity_score").notNull().default(0),
+  dropoffCount: integer("dropoff_count").notNull().default(0),
+  dropoffRate: integer("dropoff_rate").notNull().default(0),
+  suspectedCausesJson: jsonb("suspected_causes_json"),
+  recommendedFix: text("recommended_fix"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+offerPerformanceSnapshots
+export const offerPerformanceSnapshots = pgTable("offer_performance_snapshots", {
+  id: serial("id").primaryKey(),
+  snapshotDate: timestamp("snapshot_date").defaultNow().notNull(),
+  offerSlug: varchar("offer_slug", { length: 120 }).notNull(),
+  intent: varchar("intent", { length: 80 }),
+  sourceName: varchar("source_name", { length: 120 }),
+  recommendedCount: integer("recommended_count").notNull().default(0),
+  acceptedCount: integer("accepted_count").notNull().default(0),
+  paidCount: integer("paid_count").notNull().default(0),
+  acceptanceRate: integer("acceptance_rate").notNull().default(0),
+  closeRate: integer("close_rate").notNull().default(0),
+  avgOrderValue: integer("avg_order_value").notNull().default(0),
+  performanceScore: integer("performance_score").notNull().default(0),
+});
+
+Also add createInsertSchema(...), update schemas, and exported TS types for all four tables, matching your current schema style. That style is already used for contacts, newsletters, consultations, bookings, blog posts, and other models.
+
+4. server/storage.ts additions
+
+The current backend is route-to-storage driven, so Phase 50 should follow that pattern just like the existing routes do.
+
+Add methods like these:
+
+getGrowthExperiments(limit?: number): Promise<GrowthExperiment[]>;
+createGrowthExperiment(input: InsertGrowthExperiment): Promise<GrowthExperiment>;
+updateGrowthExperiment(id: number, patch: UpdateGrowthExperiment): Promise<GrowthExperiment | undefined>;
+
+getLatestSourcePerformance(limit?: number): Promise<SourcePerformanceSnapshot[]>;
+createSourcePerformanceSnapshot(input: InsertSourcePerformanceSnapshot): Promise<SourcePerformanceSnapshot>;
+
+getLatestFunnelLeaks(limit?: number): Promise<FunnelLeakReport[]>;
+createFunnelLeakReport(input: InsertFunnelLeakReport): Promise<FunnelLeakReport>;
+
+getLatestOfferPerformance(limit?: number): Promise<OfferPerformanceSnapshot[]>;
+createOfferPerformanceSnapshot(input: InsertOfferPerformanceSnapshot): Promise<OfferPerformanceSnapshot>;
+
+Add three high-value query helpers:
+
+getSourcePerformanceCandidates(periodDays?: number): Promise<any[]>;
+getOfferPerformanceCandidates(periodDays?: number): Promise<any[]>;
+getFunnelLeakCandidates(periodDays?: number): Promise<any>;
+
+These should use current live data:
+
+visits and clicks from analytics tables
+chat lead score and accepted-offer fields from chat_conversations
+bookings from bookings
+paid state and revenue from orders
+5. New automation engine files
+server/services/growthScoring.ts
+
+Shared scoring logic.
+
+Functions:
+
+computeSourceQualityScore(...)
+computeOfferPerformanceScore(...)
+computeLeakSeverityScore(...)
+computeExperimentImpactScore(...)
+server/automation/sourcePerformanceEngine.ts
+
+Purpose:
+
+rank sources by quality, bookings, paid orders, revenue, and recovery wins
+
+Cadence:
+
+every 12 hours
+
+Output:
+
+rows in source_performance_snapshots
+server/automation/funnelLeakEngine.ts
+
+Purpose:
+
+detect the largest current dropoff between visit → chat → qualified → booked → won
+
+Cadence:
+
+every 12 hours
+
+Output:
+
+rows in funnel_leak_reports
+server/automation/offerPerformanceEngine.ts
+
+Purpose:
+
+score offers by recommendation → acceptance → payment outcomes
+
+Cadence:
+
+every 24 hours
+
+Output:
+
+rows in offer_performance_snapshots
+server/automation/growthExperimentEngine.ts
+
+Purpose:
+
+turn source/funnel/offer insights into proposed growth experiments
+
+Cadence:
+
+every 24 hours
+
+Output:
+
+rows in growth_experiments
+6. Suggested engine logic
+Source performance engine
+
+Use:
+
+visits from page_views
+lead sessions from chat_conversations
+qualified leads based on score/temperature
+bookings from bookings
+paid orders and revenue from orders
+
+The current system already exposes analytics, lead scores, hot/warm/cold labels, bookings, orders, and a funnel view, so this engine is using existing truth sources.
+
+Funnel leak engine
+
+Compute dropoff across:
+
+visits
+chat leads
+qualified leads
+booked leads
+won leads
+
+That matches the funnel waterfall already in the live dashboard.
+
+Offer performance engine
+
+Use:
+
+recommended offer fields
+accepted offer fields
+offer override table
+paid orders
+
+The schema already stores recommended-offer confidence plus accepted offer fields, and the app already uses offer_mapping_overrides.
+
+Growth experiment engine
+
+Generate experiments such as:
+
+promote booking CTA for warm leads on homepage
+demote a low-close offer for a given intent
+add FAQ content for a high-dropoff intent
+reorder Links page priorities
+change default recommended offer for a specific intent
+7. server/automation/index.ts additions
+
+Register four new recurring jobs in addition to the five Phase 49 jobs you already validated live.
+
+Add:
+
+await registerRecurringJob(
+  {
+    jobKey: "phase50_source_performance",
+    jobGroup: "growth",
+    cadenceMinutes: 720,
+    run: runSourcePerformanceEngine,
+  },
+  150_000
+);
+
+await registerRecurringJob(
+  {
+    jobKey: "phase50_funnel_leak_optimizer",
+    jobGroup: "growth",
+    cadenceMinutes: 720,
+    run: runFunnelLeakEngine,
+  },
+  180_000
+);
+
+await registerRecurringJob(
+  {
+    jobKey: "phase50_offer_optimizer",
+    jobGroup: "growth",
+    cadenceMinutes: 1440,
+    run: runOfferPerformanceEngine,
+  },
+  210_000
+);
+
+await registerRecurringJob(
+  {
+    jobKey: "phase50_experiment_generator",
+    jobGroup: "growth",
+    cadenceMinutes: 1440,
+    run: runGrowthExperimentEngine,
+  },
+  240_000
+);
+8. server/routes.ts additions
+
+Your current routes file already exposes authenticated dashboard APIs, Stripe flows, and operational endpoints. Phase 50 should extend that same auth-gated namespace.
+
+Add these endpoints:
+
+Growth snapshots
+GET /api/growth/source-performance
+POST /api/growth/source-performance/generate
+GET /api/growth/funnel-leaks
+POST /api/growth/funnel-leaks/generate
+GET /api/growth/offer-performance
+POST /api/growth/offer-performance/generate
+Experiments
+GET /api/growth/experiments
+POST /api/growth/experiments/generate
+PATCH /api/growth/experiments/:id
+Optimization helpers
+POST /api/growth/offer-overrides/recommend
+POST /api/growth/cta-optimization/generate
+POST /api/growth/win-loss-analysis/generate
+
+Use the same requireDashboardAuth pattern as the existing dashboard and Phase 49 automation endpoints.
+
+Suggested response shapes
+
+GET /api/growth/source-performance
+
+type SourcePerformanceDto = {
+  sourceName: string;
+  visits: number;
+  chatLeads: number;
+  qualifiedLeads: number;
+  bookings: number;
+  paidOrders: number;
+  revenue: number;
+  avgOrderValue: number;
+  recoveryWinRate: number;
+  qualityScore: number;
+  snapshotDate: string;
+};
+
+GET /api/growth/funnel-leaks
+
+type FunnelLeakDto = {
+  leakStage: string;
+  severityScore: number;
+  dropoffCount: number;
+  dropoffRate: number;
+  suspectedCausesJson?: unknown;
+  recommendedFix?: string | null;
+  createdAt: string;
+};
+
+GET /api/growth/offer-performance
+
+type OfferPerformanceDto = {
+  offerSlug: string;
+  intent?: string | null;
+  sourceName?: string | null;
+  recommendedCount: number;
+  acceptedCount: number;
+  paidCount: number;
+  acceptanceRate: number;
+  closeRate: number;
+  avgOrderValue: number;
+  performanceScore: number;
+  snapshotDate: string;
+};
+
+GET /api/growth/experiments
+
+type GrowthExperimentDto = {
+  id: number;
+  experimentKey: string;
+  title: string;
+  area: "source" | "funnel" | "offer" | "cta" | "content";
+  hypothesis: string;
+  proposedChange: string;
+  expectedImpactScore: number;
+  status: "proposed" | "approved" | "running" | "won" | "lost" | "archived";
+  createdAt: string;
+};
+9. client/src/types/growth.ts
+
+Create this file.
+
+export type SourcePerformanceSnapshot = {
+  id: number;
+  sourceName: string;
+  visits: number;
+  chatLeads: number;
+  qualifiedLeads: number;
+  bookings: number;
+  paidOrders: number;
+  revenue: number;
+  avgOrderValue: number;
+  recoveryWinRate: number;
+  qualityScore: number;
+  snapshotDate: string;
+};
+
+export type FunnelLeakReport = {
+  id: number;
+  leakStage: string;
+  severityScore: number;
+  dropoffCount: number;
+  dropoffRate: number;
+  suspectedCausesJson?: unknown;
+  recommendedFix?: string | null;
+  createdAt: string;
+};
+
+export type OfferPerformanceSnapshot = {
+  id: number;
+  offerSlug: string;
+  intent?: string | null;
+  sourceName?: string | null;
+  recommendedCount: number;
+  acceptedCount: number;
+  paidCount: number;
+  acceptanceRate: number;
+  closeRate: number;
+  avgOrderValue: number;
+  performanceScore: number;
+  snapshotDate: string;
+};
+
+export type GrowthExperiment = {
+  id: number;
+  experimentKey: string;
+  title: string;
+  area: "source" | "funnel" | "offer" | "cta" | "content";
+  hypothesis: string;
+  proposedChange: string;
+  evidenceJson?: unknown;
+  expectedImpactScore: number;
+  status: "proposed" | "approved" | "running" | "won" | "lost" | "archived";
+  createdAt: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
+};
+10. Frontend dashboard panels
+
+The dashboard already has Analytics, Funnel, Offers, Digest, Audit, and Automation tabs. Phase 50 should extend those rather than rebuilding the dashboard shell.
+
+Create:
+
+SourcePerformancePanel.tsx
+
+Show:
+
+source name
+visits
+qualified leads
+bookings
+paid orders
+revenue
+quality score
+
+Place in:
+
+Analytics tab
+Growth tab
+FunnelLeakPanel.tsx
+
+Show:
+
+biggest leak stage
+severity score
+dropoff rate
+suspected causes
+recommended fix
+
+Place in:
+
+Funnel tab
+Growth tab
+OfferPerformancePanel.tsx
+
+Show:
+
+offer slug
+recommended count
+accepted count
+paid count
+close rate
+performance score
+
+Place in:
+
+Offers tab
+Growth tab
+GrowthExperimentsPanel.tsx
+
+Show:
+
+title
+area
+hypothesis
+proposed change
+expected impact
+status buttons
+
+Place in:
+
+new Growth tab
+11. client/src/pages/Dashboard.tsx changes
+
+Add a new tab:
+
+growth
+
+The current dashboard already had a prior type-union fix for "audit" and uses extracted card components, so adding a new tab here is consistent with the current dashboard evolution.
+
+Add queries:
+
+["growth-source-performance"]
+["growth-funnel-leaks"]
+["growth-offer-performance"]
+["growth-experiments"]
+
+Add mutations:
+
+generate source performance
+generate funnel leaks
+generate offer performance
+generate experiments
+patch experiment status
+Growth tab contents
+
+Top cards:
+
+Top Source
+Biggest Funnel Leak
+Best Offer This Week
+Proposed Experiments
+
+Panels:
+
+source leaderboard
+funnel leak report
+offer performance table
+experiments queue
+Extend existing tabs
+Analytics: add source performance panel
+Funnel: add leak panel
+Offers: add offer performance panel
+12. Job schedules
+
+Recommended live cadence:
+
+phase50_source_performance: every 12 hours
+phase50_funnel_leak_optimizer: every 12 hours
+phase50_offer_optimizer: every 24 hours
+phase50_experiment_generator: every 24 hours
+
+This cadence is appropriate because these are optimization jobs, not transaction-critical jobs like Stripe webhook handling. The current platform already separates transaction paths from recurring automation.
+
+13. Rollout order
+Phase 50A
+
+Measurement
+
+schema additions
+storage methods
+source performance engine
+funnel leak engine
+offer performance engine
+Phase 50B
+
+Recommendation
+
+growth experiment engine
+growth endpoints
+experiment storage and mutations
+Phase 50C
+
+UI
+
+growth types
+panels
+dashboard Growth tab
+Analytics/Funnel/Offers tab extensions
+Phase 50D
+
+Controlled autonomy
+
+optional approve-vs-auto-apply toggles
+safe automatic override recommendations
+14. Definition of done
+
+Phase 50 is complete when:
+
+AI can rank sources by business value
+AI can identify the biggest current funnel leak
+AI can score offer performance from recommendation to payment
+AI can generate experiments with evidence
+dashboard shows growth actions, not only operational actions
+executive briefs include optimization recommendations, not just summaries
+
+That is the point where Elevate360 moves from autonomous operations to autonomous growth optimization.
+
+The next strongest deliverable is the paste-ready Phase 50 code patch plan for shared/schema.ts, server/storage.ts, server/routes.ts, server/automation/index.ts, the four new Phase 50 engines, and the dashboard Growth tab components.

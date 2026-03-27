@@ -1,0 +1,1084 @@
+Here is the paste-ready Phase 50 code patch plan for the backend and dashboard surfaces.
+
+It extends the current live architecture rather than changing direction: the system already has analytics tables, chat lead scoring, offer mapping overrides, funnel tracking, bookings, orders, digests, audit, and Phase 49 autonomous jobs. Phase 50 adds the optimization layer on top of those signals.
+
+1) shared/schema.ts
+
+Add these tables below your existing Phase 49 additions.
+
+export const growthExperiments = pgTable("growth_experiments", {
+  id: serial("id").primaryKey(),
+  experimentKey: varchar("experiment_key", { length: 120 }).notNull().unique(),
+  title: varchar("title", { length: 240 }).notNull(),
+  area: varchar("area", { length: 40 }).notNull(), // source | funnel | offer | cta | content
+  hypothesis: text("hypothesis").notNull(),
+  proposedChange: text("proposed_change").notNull(),
+  evidenceJson: jsonb("evidence_json"),
+  expectedImpactScore: integer("expected_impact_score").notNull().default(0),
+  status: varchar("status", { length: 30 }).notNull().default("proposed"), // proposed | approved | running | won | lost | archived
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+});
+
+export const sourcePerformanceSnapshots = pgTable("source_performance_snapshots", {
+  id: serial("id").primaryKey(),
+  snapshotDate: timestamp("snapshot_date").defaultNow().notNull(),
+  sourceName: varchar("source_name", { length: 120 }).notNull(),
+  visits: integer("visits").notNull().default(0),
+  chatLeads: integer("chat_leads").notNull().default(0),
+  qualifiedLeads: integer("qualified_leads").notNull().default(0),
+  bookings: integer("bookings").notNull().default(0),
+  paidOrders: integer("paid_orders").notNull().default(0),
+  revenue: integer("revenue").notNull().default(0),
+  avgOrderValue: integer("avg_order_value").notNull().default(0),
+  recoveryWinRate: integer("recovery_win_rate").notNull().default(0),
+  qualityScore: integer("quality_score").notNull().default(0),
+});
+
+export const funnelLeakReports = pgTable("funnel_leak_reports", {
+  id: serial("id").primaryKey(),
+  periodStart: timestamp("period_start").notNull(),
+  periodEnd: timestamp("period_end").notNull(),
+  leakStage: varchar("leak_stage", { length: 80 }).notNull(),
+  severityScore: integer("severity_score").notNull().default(0),
+  dropoffCount: integer("dropoff_count").notNull().default(0),
+  dropoffRate: integer("dropoff_rate").notNull().default(0),
+  suspectedCausesJson: jsonb("suspected_causes_json"),
+  recommendedFix: text("recommended_fix"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const offerPerformanceSnapshots = pgTable("offer_performance_snapshots", {
+  id: serial("id").primaryKey(),
+  snapshotDate: timestamp("snapshot_date").defaultNow().notNull(),
+  offerSlug: varchar("offer_slug", { length: 120 }).notNull(),
+  intent: varchar("intent", { length: 80 }),
+  sourceName: varchar("source_name", { length: 120 }),
+  recommendedCount: integer("recommended_count").notNull().default(0),
+  acceptedCount: integer("accepted_count").notNull().default(0),
+  paidCount: integer("paid_count").notNull().default(0),
+  acceptanceRate: integer("acceptance_rate").notNull().default(0),
+  closeRate: integer("close_rate").notNull().default(0),
+  avgOrderValue: integer("avg_order_value").notNull().default(0),
+  performanceScore: integer("performance_score").notNull().default(0),
+});
+
+Add schemas and exported types:
+
+export const insertGrowthExperimentSchema = createInsertSchema(growthExperiments).omit({
+  id: true,
+  createdAt: true,
+  startedAt: true,
+  completedAt: true,
+});
+export const updateGrowthExperimentSchema = insertGrowthExperimentSchema.partial();
+export type InsertGrowthExperiment = z.infer<typeof insertGrowthExperimentSchema>;
+export type UpdateGrowthExperiment = z.infer<typeof updateGrowthExperimentSchema>;
+export type GrowthExperiment = typeof growthExperiments.$inferSelect;
+
+export const insertSourcePerformanceSnapshotSchema = createInsertSchema(sourcePerformanceSnapshots).omit({
+  id: true,
+  snapshotDate: true,
+});
+export type InsertSourcePerformanceSnapshot = z.infer<typeof insertSourcePerformanceSnapshotSchema>;
+export type SourcePerformanceSnapshot = typeof sourcePerformanceSnapshots.$inferSelect;
+
+export const insertFunnelLeakReportSchema = createInsertSchema(funnelLeakReports).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertFunnelLeakReport = z.infer<typeof insertFunnelLeakReportSchema>;
+export type FunnelLeakReport = typeof funnelLeakReports.$inferSelect;
+
+export const insertOfferPerformanceSnapshotSchema = createInsertSchema(offerPerformanceSnapshots).omit({
+  id: true,
+  snapshotDate: true,
+});
+export type InsertOfferPerformanceSnapshot = z.infer<typeof insertOfferPerformanceSnapshotSchema>;
+export type OfferPerformanceSnapshot = typeof offerPerformanceSnapshots.$inferSelect;
+2) server/storage.ts
+
+Add imports:
+
+import {
+  growthExperiments,
+  sourcePerformanceSnapshots,
+  funnelLeakReports,
+  offerPerformanceSnapshots,
+  type GrowthExperiment,
+  type InsertGrowthExperiment,
+  type UpdateGrowthExperiment,
+  type SourcePerformanceSnapshot,
+  type InsertSourcePerformanceSnapshot,
+  type FunnelLeakReport,
+  type InsertFunnelLeakReport,
+  type OfferPerformanceSnapshot,
+  type InsertOfferPerformanceSnapshot,
+  pageViews,
+  clickEvents,
+  bookings,
+  orders,
+  chatConversations,
+} from "@shared/schema";
+import { and, desc, eq, gte, sql } from "drizzle-orm";
+
+Add interface/class methods:
+
+getGrowthExperiments(limit?: number): Promise<GrowthExperiment[]>;
+createGrowthExperiment(input: InsertGrowthExperiment): Promise<GrowthExperiment>;
+updateGrowthExperiment(id: number, patch: UpdateGrowthExperiment): Promise<GrowthExperiment | undefined>;
+
+getLatestSourcePerformance(limit?: number): Promise<SourcePerformanceSnapshot[]>;
+createSourcePerformanceSnapshot(input: InsertSourcePerformanceSnapshot): Promise<SourcePerformanceSnapshot>;
+
+getLatestFunnelLeaks(limit?: number): Promise<FunnelLeakReport[]>;
+createFunnelLeakReport(input: InsertFunnelLeakReport): Promise<FunnelLeakReport>;
+
+getLatestOfferPerformance(limit?: number): Promise<OfferPerformanceSnapshot[]>;
+createOfferPerformanceSnapshot(input: InsertOfferPerformanceSnapshot): Promise<OfferPerformanceSnapshot>;
+
+getSourcePerformanceCandidates(periodDays?: number): Promise<any[]>;
+getOfferPerformanceCandidates(periodDays?: number): Promise<any[]>;
+getFunnelLeakCandidates(periodDays?: number): Promise<any>;
+
+Add implementations:
+
+async getGrowthExperiments(limit = 100) {
+  return db.select().from(growthExperiments)
+    .orderBy(desc(growthExperiments.expectedImpactScore), desc(growthExperiments.createdAt))
+    .limit(limit);
+}
+
+async createGrowthExperiment(input: InsertGrowthExperiment) {
+  const [row] = await db.insert(growthExperiments).values(input).returning();
+  return row;
+}
+
+async updateGrowthExperiment(id: number, patch: UpdateGrowthExperiment) {
+  const [row] = await db.update(growthExperiments)
+    .set(patch)
+    .where(eq(growthExperiments.id, id))
+    .returning();
+  return row;
+}
+
+async getLatestSourcePerformance(limit = 100) {
+  return db.select().from(sourcePerformanceSnapshots)
+    .orderBy(desc(sourcePerformanceSnapshots.snapshotDate), desc(sourcePerformanceSnapshots.qualityScore))
+    .limit(limit);
+}
+
+async createSourcePerformanceSnapshot(input: InsertSourcePerformanceSnapshot) {
+  const [row] = await db.insert(sourcePerformanceSnapshots).values(input).returning();
+  return row;
+}
+
+async getLatestFunnelLeaks(limit = 50) {
+  return db.select().from(funnelLeakReports)
+    .orderBy(desc(funnelLeakReports.createdAt), desc(funnelLeakReports.severityScore))
+    .limit(limit);
+}
+
+async createFunnelLeakReport(input: InsertFunnelLeakReport) {
+  const [row] = await db.insert(funnelLeakReports).values(input).returning();
+  return row;
+}
+
+async getLatestOfferPerformance(limit = 100) {
+  return db.select().from(offerPerformanceSnapshots)
+    .orderBy(desc(offerPerformanceSnapshots.snapshotDate), desc(offerPerformanceSnapshots.performanceScore))
+    .limit(limit);
+}
+
+async createOfferPerformanceSnapshot(input: InsertOfferPerformanceSnapshot) {
+  const [row] = await db.insert(offerPerformanceSnapshots).values(input).returning();
+  return row;
+}
+
+Add candidate queries:
+
+async getSourcePerformanceCandidates(periodDays = 14) {
+  const start = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000);
+
+  return db.execute(sql`
+    with pv as (
+      select coalesce(source, 'direct') as source_name, count(*)::int as visits
+      from page_views
+      where created_at >= ${start}
+      group by 1
+    ),
+    chats as (
+      select
+        coalesce(source_page, 'unknown') as source_name,
+        count(*)::int as chat_leads,
+        count(*) filter (where lead_score >= 60)::int as qualified_leads
+      from chat_conversations
+      where created_at >= ${start}
+      group by 1
+    ),
+    b as (
+      select
+        coalesce(source_page, 'unknown') as source_name,
+        count(*)::int as bookings
+      from bookings
+      where created_at >= ${start}
+      group by 1
+    ),
+    o as (
+      select
+        coalesce(source_page, 'unknown') as source_name,
+        count(*) filter (where status = 'paid')::int as paid_orders,
+        coalesce(sum(case when status = 'paid' then amount_paid else 0 end), 0)::int as revenue,
+        coalesce(avg(case when status = 'paid' then amount_paid end), 0)::int as avg_order_value
+      from orders
+      where created_at >= ${start}
+      group by 1
+    )
+    select
+      coalesce(pv.source_name, chats.source_name, b.source_name, o.source_name) as source_name,
+      coalesce(pv.visits, 0) as visits,
+      coalesce(chats.chat_leads, 0) as chat_leads,
+      coalesce(chats.qualified_leads, 0) as qualified_leads,
+      coalesce(b.bookings, 0) as bookings,
+      coalesce(o.paid_orders, 0) as paid_orders,
+      coalesce(o.revenue, 0) as revenue,
+      coalesce(o.avg_order_value, 0) as avg_order_value
+    from pv
+    full outer join chats on chats.source_name = pv.source_name
+    full outer join b on b.source_name = coalesce(pv.source_name, chats.source_name)
+    full outer join o on o.source_name = coalesce(pv.source_name, chats.source_name, b.source_name)
+  `);
+}
+
+async getOfferPerformanceCandidates(periodDays = 30) {
+  const start = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000);
+
+  return db.execute(sql`
+    with chat_offer as (
+      select
+        coalesce(recommended_offer_slug, accepted_offer_slug) as offer_slug,
+        intent,
+        source_page as source_name,
+        count(*) filter (where recommended_offer_slug is not null)::int as recommended_count,
+        count(*) filter (where recommended_offer_accepted = true)::int as accepted_count
+      from chat_conversations
+      where created_at >= ${start}
+        and coalesce(recommended_offer_slug, accepted_offer_slug) is not null
+      group by 1,2,3
+    ),
+    paid as (
+      select
+        offer_slug,
+        source_page as source_name,
+        count(*) filter (where status = 'paid')::int as paid_count,
+        coalesce(avg(case when status = 'paid' then amount_paid end), 0)::int as avg_order_value
+      from orders
+      where created_at >= ${start}
+        and offer_slug is not null
+      group by 1,2
+    )
+    select
+      co.offer_slug,
+      co.intent,
+      co.source_name,
+      co.recommended_count,
+      co.accepted_count,
+      coalesce(p.paid_count, 0) as paid_count,
+      coalesce(p.avg_order_value, 0) as avg_order_value
+    from chat_offer co
+    left join paid p
+      on p.offer_slug = co.offer_slug
+     and coalesce(p.source_name, '') = coalesce(co.source_name, '')
+  `);
+}
+
+async getFunnelLeakCandidates(periodDays = 14) {
+  const start = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000);
+
+  const [visits] = await db.select({ c: count() }).from(pageViews).where(gte(pageViews.createdAt, start));
+  const [chats] = await db.select({ c: count() }).from(chatConversations).where(gte(chatConversations.createdAt, start));
+  const [qualified] = await db.select({ c: count() }).from(chatConversations)
+    .where(and(gte(chatConversations.createdAt, start), gte(chatConversations.leadScore, 60)));
+  const [booked] = await db.select({ c: count() }).from(bookings).where(gte(bookings.createdAt, start));
+  const [won] = await db.select({ c: count() }).from(orders)
+    .where(and(gte(orders.createdAt, start), eq(orders.status, "paid")));
+
+  return {
+    visits: visits?.c ?? 0,
+    chats: chats?.c ?? 0,
+    qualified: qualified?.c ?? 0,
+    booked: booked?.c ?? 0,
+    won: won?.c ?? 0,
+    periodStart: start,
+    periodEnd: new Date(),
+  };
+}
+3) New file: server/services/growthScoring.ts
+export function computeSourceQualityScore(input: {
+  visits: number;
+  qualifiedLeads: number;
+  bookings: number;
+  paidOrders: number;
+  revenue: number;
+}) {
+  const qualifiedRate = input.visits > 0 ? input.qualifiedLeads / input.visits : 0;
+  const bookingRate = input.visits > 0 ? input.bookings / input.visits : 0;
+  const paidRate = input.visits > 0 ? input.paidOrders / input.visits : 0;
+  const revenueFactor = Math.min(40, Math.floor(input.revenue / 100));
+  return Math.round(qualifiedRate * 35 + bookingRate * 25 + paidRate * 30 + revenueFactor);
+}
+
+export function computeOfferPerformanceScore(input: {
+  recommendedCount: number;
+  acceptedCount: number;
+  paidCount: number;
+  avgOrderValue: number;
+}) {
+  const acceptanceRate = input.recommendedCount > 0 ? input.acceptedCount / input.recommendedCount : 0;
+  const closeRate = input.recommendedCount > 0 ? input.paidCount / input.recommendedCount : 0;
+  const valueFactor = Math.min(30, Math.floor(input.avgOrderValue / 100));
+  return Math.round(acceptanceRate * 40 + closeRate * 30 + valueFactor);
+}
+
+export function computeLeakSeverityScore(input: {
+  fromCount: number;
+  toCount: number;
+}) {
+  if (input.fromCount <= 0) return 0;
+  const dropoff = input.fromCount - input.toCount;
+  const rate = dropoff / input.fromCount;
+  return Math.max(0, Math.round(rate * 100));
+}
+
+export function computeExperimentImpactScore(input: {
+  severityScore?: number;
+  performanceScore?: number;
+  revenueAtRisk?: number;
+}) {
+  return Math.min(
+    100,
+    Math.round(
+      (input.severityScore ?? 0) * 0.45 +
+      (input.performanceScore ?? 0) * 0.35 +
+      Math.min(100, (input.revenueAtRisk ?? 0) / 100) * 0.20
+    )
+  );
+}
+4) New file: server/automation/sourcePerformanceEngine.ts
+import { storage } from "../storage";
+import { computeSourceQualityScore } from "../services/growthScoring";
+
+export async function runSourcePerformanceEngine() {
+  const result: any = await storage.getSourcePerformanceCandidates(14);
+  const rows = result.rows ?? result;
+
+  let created = 0;
+
+  for (const row of rows) {
+    const qualityScore = computeSourceQualityScore({
+      visits: Number(row.visits ?? 0),
+      qualifiedLeads: Number(row.qualified_leads ?? 0),
+      bookings: Number(row.bookings ?? 0),
+      paidOrders: Number(row.paid_orders ?? 0),
+      revenue: Number(row.revenue ?? 0),
+    });
+
+    await storage.createSourcePerformanceSnapshot({
+      sourceName: row.source_name,
+      visits: Number(row.visits ?? 0),
+      chatLeads: Number(row.chat_leads ?? 0),
+      qualifiedLeads: Number(row.qualified_leads ?? 0),
+      bookings: Number(row.bookings ?? 0),
+      paidOrders: Number(row.paid_orders ?? 0),
+      revenue: Number(row.revenue ?? 0),
+      avgOrderValue: Number(row.avg_order_value ?? 0),
+      recoveryWinRate: 0,
+      qualityScore,
+    });
+
+    created++;
+  }
+
+  return {
+    summary: `created ${created} source performance snapshots`,
+    meta: { created },
+  };
+}
+5) New file: server/automation/funnelLeakEngine.ts
+import { storage } from "../storage";
+import { computeLeakSeverityScore } from "../services/growthScoring";
+
+export async function runFunnelLeakEngine() {
+  const funnel = await storage.getFunnelLeakCandidates(14);
+
+  const stages = [
+    { from: "visits", to: "chats", fromCount: funnel.visits, toCount: funnel.chats },
+    { from: "chats", to: "qualified", fromCount: funnel.chats, toCount: funnel.qualified },
+    { from: "qualified", to: "booked", fromCount: funnel.qualified, toCount: funnel.booked },
+    { from: "booked", to: "won", fromCount: funnel.booked, toCount: funnel.won },
+  ];
+
+  const sorted = stages
+    .map((s) => ({
+      leakStage: `${s.from}->${s.to}`,
+      severityScore: computeLeakSeverityScore({ fromCount: s.fromCount, toCount: s.toCount }),
+      dropoffCount: Math.max(0, s.fromCount - s.toCount),
+      dropoffRate: s.fromCount > 0 ? Math.round(((s.fromCount - s.toCount) / s.fromCount) * 100) : 0,
+    }))
+    .sort((a, b) => b.severityScore - a.severityScore);
+
+  const top = sorted[0];
+
+  await storage.createFunnelLeakReport({
+    periodStart: funnel.periodStart,
+    periodEnd: funnel.periodEnd,
+    leakStage: top.leakStage,
+    severityScore: top.severityScore,
+    dropoffCount: top.dropoffCount,
+    dropoffRate: top.dropoffRate,
+    suspectedCausesJson: {
+      likely: ["CTA mismatch", "offer friction", "follow-up lag", "content gap"],
+    },
+    recommendedFix: `Review ${top.leakStage} and test improved CTA/offer sequencing.`,
+  });
+
+  return {
+    summary: `created funnel leak report for ${top.leakStage}`,
+    meta: top,
+  };
+}
+6) New file: server/automation/offerPerformanceEngine.ts
+import { storage } from "../storage";
+import { computeOfferPerformanceScore } from "../services/growthScoring";
+
+export async function runOfferPerformanceEngine() {
+  const result: any = await storage.getOfferPerformanceCandidates(30);
+  const rows = result.rows ?? result;
+
+  let created = 0;
+
+  for (const row of rows) {
+    const recommendedCount = Number(row.recommended_count ?? 0);
+    const acceptedCount = Number(row.accepted_count ?? 0);
+    const paidCount = Number(row.paid_count ?? 0);
+    const avgOrderValue = Number(row.avg_order_value ?? 0);
+
+    const acceptanceRate = recommendedCount > 0 ? Math.round((acceptedCount / recommendedCount) * 100) : 0;
+    const closeRate = recommendedCount > 0 ? Math.round((paidCount / recommendedCount) * 100) : 0;
+    const performanceScore = computeOfferPerformanceScore({
+      recommendedCount,
+      acceptedCount,
+      paidCount,
+      avgOrderValue,
+    });
+
+    await storage.createOfferPerformanceSnapshot({
+      offerSlug: row.offer_slug,
+      intent: row.intent ?? null,
+      sourceName: row.source_name ?? null,
+      recommendedCount,
+      acceptedCount,
+      paidCount,
+      acceptanceRate,
+      closeRate,
+      avgOrderValue,
+      performanceScore,
+    });
+
+    created++;
+  }
+
+  return {
+    summary: `created ${created} offer performance snapshots`,
+    meta: { created },
+  };
+}
+7) New file: server/automation/growthExperimentEngine.ts
+import { storage } from "../storage";
+import { computeExperimentImpactScore } from "../services/growthScoring";
+
+function keyify(input: string) {
+  return input.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+export async function runGrowthExperimentEngine() {
+  const sources = await storage.getLatestSourcePerformance(20);
+  const leaks = await storage.getLatestFunnelLeaks(10);
+  const offers = await storage.getLatestOfferPerformance(20);
+
+  let created = 0;
+
+  const weakSource = [...sources].sort((a, b) => a.qualityScore - b.qualityScore)[0];
+  if (weakSource) {
+    await storage.createGrowthExperiment({
+      experimentKey: `source-${keyify(weakSource.sourceName)}-${Date.now()}`,
+      title: `Improve conversion from ${weakSource.sourceName}`,
+      area: "source",
+      hypothesis: `${weakSource.sourceName} brings traffic but underperforms on lead quality or revenue.`,
+      proposedChange: `Adjust CTA path or landing-page message for ${weakSource.sourceName} traffic.`,
+      evidenceJson: weakSource,
+      expectedImpactScore: computeExperimentImpactScore({
+        performanceScore: 100 - weakSource.qualityScore,
+      }),
+      status: "proposed",
+    });
+    created++;
+  }
+
+  const topLeak = leaks[0];
+  if (topLeak) {
+    await storage.createGrowthExperiment({
+      experimentKey: `funnel-${keyify(topLeak.leakStage)}-${Date.now()}`,
+      title: `Reduce leak at ${topLeak.leakStage}`,
+      area: "funnel",
+      hypothesis: `${topLeak.leakStage} is the biggest current funnel dropoff.`,
+      proposedChange: topLeak.recommendedFix || `Test improved CTA and offer sequencing for ${topLeak.leakStage}.`,
+      evidenceJson: topLeak,
+      expectedImpactScore: computeExperimentImpactScore({
+        severityScore: topLeak.severityScore,
+      }),
+      status: "proposed",
+    });
+    created++;
+  }
+
+  const weakOffer = [...offers].sort((a, b) => a.performanceScore - b.performanceScore)[0];
+  if (weakOffer) {
+    await storage.createGrowthExperiment({
+      experimentKey: `offer-${keyify(weakOffer.offerSlug)}-${Date.now()}`,
+      title: `Improve offer ${weakOffer.offerSlug}`,
+      area: "offer",
+      hypothesis: `${weakOffer.offerSlug} is being recommended but under-closing.`,
+      proposedChange: `Change offer ordering, override logic, or CTA copy for ${weakOffer.offerSlug}.`,
+      evidenceJson: weakOffer,
+      expectedImpactScore: computeExperimentImpactScore({
+        performanceScore: 100 - weakOffer.performanceScore,
+        revenueAtRisk: weakOffer.avgOrderValue,
+      }),
+      status: "proposed",
+    });
+    created++;
+  }
+
+  return {
+    summary: `created ${created} growth experiments`,
+    meta: { created },
+  };
+}
+8) server/automation/index.ts
+
+Add imports:
+
+import { runSourcePerformanceEngine } from "./sourcePerformanceEngine";
+import { runFunnelLeakEngine } from "./funnelLeakEngine";
+import { runOfferPerformanceEngine } from "./offerPerformanceEngine";
+import { runGrowthExperimentEngine } from "./growthExperimentEngine";
+
+Add job registrations:
+
+await registerRecurringJob(
+  {
+    jobKey: "phase50_source_performance",
+    jobGroup: "growth",
+    cadenceMinutes: 720,
+    run: runSourcePerformanceEngine,
+  },
+  150_000
+);
+
+await registerRecurringJob(
+  {
+    jobKey: "phase50_funnel_leak_optimizer",
+    jobGroup: "growth",
+    cadenceMinutes: 720,
+    run: runFunnelLeakEngine,
+  },
+  180_000
+);
+
+await registerRecurringJob(
+  {
+    jobKey: "phase50_offer_optimizer",
+    jobGroup: "growth",
+    cadenceMinutes: 1440,
+    run: runOfferPerformanceEngine,
+  },
+  210_000
+);
+
+await registerRecurringJob(
+  {
+    jobKey: "phase50_experiment_generator",
+    jobGroup: "growth",
+    cadenceMinutes: 1440,
+    run: runGrowthExperimentEngine,
+  },
+  240_000
+);
+9) server/routes.ts
+
+Add imports:
+
+import {
+  updateGrowthExperimentSchema,
+} from "@shared/schema";
+import { runSourcePerformanceEngine } from "./automation/sourcePerformanceEngine";
+import { runFunnelLeakEngine } from "./automation/funnelLeakEngine";
+import { runOfferPerformanceEngine } from "./automation/offerPerformanceEngine";
+import { runGrowthExperimentEngine } from "./automation/growthExperimentEngine";
+
+Add routes inside the authenticated dashboard area:
+
+app.get("/api/growth/source-performance", requireDashboardAuth, async (_req, res) => {
+  const rows = await storage.getLatestSourcePerformance(100);
+  res.json(rows);
+});
+
+app.post("/api/growth/source-performance/generate", requireDashboardAuth, async (_req, res) => {
+  const result = await runSourcePerformanceEngine();
+  res.json({ ok: true, ...result });
+});
+
+app.get("/api/growth/funnel-leaks", requireDashboardAuth, async (_req, res) => {
+  const rows = await storage.getLatestFunnelLeaks(50);
+  res.json(rows);
+});
+
+app.post("/api/growth/funnel-leaks/generate", requireDashboardAuth, async (_req, res) => {
+  const result = await runFunnelLeakEngine();
+  res.json({ ok: true, ...result });
+});
+
+app.get("/api/growth/offer-performance", requireDashboardAuth, async (_req, res) => {
+  const rows = await storage.getLatestOfferPerformance(100);
+  res.json(rows);
+});
+
+app.post("/api/growth/offer-performance/generate", requireDashboardAuth, async (_req, res) => {
+  const result = await runOfferPerformanceEngine();
+  res.json({ ok: true, ...result });
+});
+
+app.get("/api/growth/experiments", requireDashboardAuth, async (_req, res) => {
+  const rows = await storage.getGrowthExperiments(100);
+  res.json(rows);
+});
+
+app.post("/api/growth/experiments/generate", requireDashboardAuth, async (_req, res) => {
+  const result = await runGrowthExperimentEngine();
+  res.json({ ok: true, ...result });
+});
+
+app.patch("/api/growth/experiments/:id", requireDashboardAuth, async (req, res) => {
+  const id = Number(req.params.id);
+  const patch = updateGrowthExperimentSchema.parse(req.body);
+  const row = await storage.updateGrowthExperiment(id, patch);
+  if (!row) return res.status(404).json({ message: "Not found" });
+  res.json(row);
+});
+
+app.post("/api/growth/offer-overrides/recommend", requireDashboardAuth, async (_req, res) => {
+  const rows = await storage.getLatestOfferPerformance(20);
+  const weak = [...rows].sort((a, b) => a.performanceScore - b.performanceScore).slice(0, 5);
+  res.json({
+    recommendations: weak.map((x) => ({
+      offerSlug: x.offerSlug,
+      intent: x.intent,
+      sourceName: x.sourceName,
+      suggestion: `Consider demoting or retuning ${x.offerSlug} for this segment.`,
+      performanceScore: x.performanceScore,
+    })),
+  });
+});
+
+app.post("/api/growth/cta-optimization/generate", requireDashboardAuth, async (_req, res) => {
+  const leaks = await storage.getLatestFunnelLeaks(5);
+  res.json({
+    recommendations: leaks.map((x) => ({
+      stage: x.leakStage,
+      suggestion: `Test stronger CTA placement and copy around ${x.leakStage}.`,
+    })),
+  });
+});
+
+app.post("/api/growth/win-loss-analysis/generate", requireDashboardAuth, async (_req, res) => {
+  const offers = await storage.getLatestOfferPerformance(20);
+  res.json({
+    recommendations: offers.slice(0, 5).map((x) => ({
+      offerSlug: x.offerSlug,
+      closeRate: x.closeRate,
+      summary: `Offer ${x.offerSlug} currently closes at ${x.closeRate}% from recommendation.`,
+    })),
+  });
+});
+10) client/src/types/growth.ts
+
+Create:
+
+export type SourcePerformanceSnapshot = {
+  id: number;
+  sourceName: string;
+  visits: number;
+  chatLeads: number;
+  qualifiedLeads: number;
+  bookings: number;
+  paidOrders: number;
+  revenue: number;
+  avgOrderValue: number;
+  recoveryWinRate: number;
+  qualityScore: number;
+  snapshotDate: string;
+};
+
+export type FunnelLeakReport = {
+  id: number;
+  leakStage: string;
+  severityScore: number;
+  dropoffCount: number;
+  dropoffRate: number;
+  suspectedCausesJson?: unknown;
+  recommendedFix?: string | null;
+  createdAt: string;
+};
+
+export type OfferPerformanceSnapshot = {
+  id: number;
+  offerSlug: string;
+  intent?: string | null;
+  sourceName?: string | null;
+  recommendedCount: number;
+  acceptedCount: number;
+  paidCount: number;
+  acceptanceRate: number;
+  closeRate: number;
+  avgOrderValue: number;
+  performanceScore: number;
+  snapshotDate: string;
+};
+
+export type GrowthExperiment = {
+  id: number;
+  experimentKey: string;
+  title: string;
+  area: "source" | "funnel" | "offer" | "cta" | "content";
+  hypothesis: string;
+  proposedChange: string;
+  evidenceJson?: unknown;
+  expectedImpactScore: number;
+  status: "proposed" | "approved" | "running" | "won" | "lost" | "archived";
+  createdAt: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
+};
+11) New frontend panels
+client/src/components/dashboard/SourcePerformancePanel.tsx
+import { SourcePerformanceSnapshot } from "@/types/growth";
+
+export function SourcePerformancePanel({ rows }: { rows: SourcePerformanceSnapshot[] }) {
+  return (
+    <div className="lux-card overflow-hidden">
+      <div className="border-b border-white/10 px-5 py-4">
+        <h3 className="text-lg font-semibold text-white">Source Performance</h3>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-sm">
+          <thead className="bg-white/5 text-slate-300">
+            <tr>
+              <th className="px-4 py-3 text-left">Source</th>
+              <th className="px-4 py-3 text-left">Visits</th>
+              <th className="px-4 py-3 text-left">Qualified</th>
+              <th className="px-4 py-3 text-left">Bookings</th>
+              <th className="px-4 py-3 text-left">Paid</th>
+              <th className="px-4 py-3 text-left">Revenue</th>
+              <th className="px-4 py-3 text-left">Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.id} className="border-t border-white/10 text-slate-200">
+                <td className="px-4 py-3">{row.sourceName}</td>
+                <td className="px-4 py-3">{row.visits}</td>
+                <td className="px-4 py-3">{row.qualifiedLeads}</td>
+                <td className="px-4 py-3">{row.bookings}</td>
+                <td className="px-4 py-3">{row.paidOrders}</td>
+                <td className="px-4 py-3">${(row.revenue / 100).toFixed(2)}</td>
+                <td className="px-4 py-3 font-semibold text-[#F4A62A]">{row.qualityScore}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+client/src/components/dashboard/FunnelLeakPanel.tsx
+import { FunnelLeakReport } from "@/types/growth";
+
+export function FunnelLeakPanel({ rows }: { rows: FunnelLeakReport[] }) {
+  return (
+    <div className="lux-card p-5">
+      <h3 className="text-lg font-semibold text-white">Funnel Leaks</h3>
+      <div className="mt-4 space-y-4">
+        {rows.map((row) => (
+          <div key={row.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div className="flex flex-wrap gap-2">
+              <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs text-slate-300">{row.leakStage}</span>
+              <span className="rounded-full bg-rose-500/15 px-2.5 py-1 text-xs text-rose-300">
+                Severity {row.severityScore}
+              </span>
+            </div>
+            <p className="mt-3 text-sm text-slate-300">
+              Dropoff: {row.dropoffCount} ({row.dropoffRate}%)
+            </p>
+            {row.recommendedFix && (
+              <p className="mt-2 text-sm text-[#F4A62A]">Recommended fix: {row.recommendedFix}</p>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+client/src/components/dashboard/OfferPerformancePanel.tsx
+import { OfferPerformanceSnapshot } from "@/types/growth";
+
+export function OfferPerformancePanel({ rows }: { rows: OfferPerformanceSnapshot[] }) {
+  return (
+    <div className="lux-card overflow-hidden">
+      <div className="border-b border-white/10 px-5 py-4">
+        <h3 className="text-lg font-semibold text-white">Offer Performance</h3>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-sm">
+          <thead className="bg-white/5 text-slate-300">
+            <tr>
+              <th className="px-4 py-3 text-left">Offer</th>
+              <th className="px-4 py-3 text-left">Intent</th>
+              <th className="px-4 py-3 text-left">Recommended</th>
+              <th className="px-4 py-3 text-left">Accepted</th>
+              <th className="px-4 py-3 text-left">Paid</th>
+              <th className="px-4 py-3 text-left">Close Rate</th>
+              <th className="px-4 py-3 text-left">Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.id} className="border-t border-white/10 text-slate-200">
+                <td className="px-4 py-3">{row.offerSlug}</td>
+                <td className="px-4 py-3">{row.intent || "—"}</td>
+                <td className="px-4 py-3">{row.recommendedCount}</td>
+                <td className="px-4 py-3">{row.acceptedCount}</td>
+                <td className="px-4 py-3">{row.paidCount}</td>
+                <td className="px-4 py-3">{row.closeRate}%</td>
+                <td className="px-4 py-3 font-semibold text-[#F4A62A]">{row.performanceScore}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+client/src/components/dashboard/GrowthExperimentsPanel.tsx
+import { GrowthExperiment } from "@/types/growth";
+import { Button } from "@/components/ui/button";
+
+export function GrowthExperimentsPanel({
+  rows,
+  onUpdate,
+}: {
+  rows: GrowthExperiment[];
+  onUpdate: (id: number, status: GrowthExperiment["status"]) => void;
+}) {
+  return (
+    <div className="lux-card p-5">
+      <h3 className="text-lg font-semibold text-white">Growth Experiments</h3>
+      <div className="mt-4 space-y-4">
+        {rows.map((row) => (
+          <div key={row.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div className="flex flex-wrap gap-2">
+              <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs text-slate-300">{row.area}</span>
+              <span className="rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs text-emerald-300">
+                Impact {row.expectedImpactScore}
+              </span>
+              <span className="rounded-full bg-[#F4A62A]/15 px-2.5 py-1 text-xs text-[#F4A62A]">{row.status}</span>
+            </div>
+            <h4 className="mt-3 text-base font-semibold text-white">{row.title}</h4>
+            <p className="mt-2 text-sm text-slate-300">{row.hypothesis}</p>
+            <p className="mt-2 text-sm text-[#F4A62A]">Change: {row.proposedChange}</p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" onClick={() => onUpdate(row.id, "approved")}>Approve</Button>
+              <Button size="sm" variant="outline" onClick={() => onUpdate(row.id, "running")}>Start</Button>
+              <Button size="sm" variant="outline" onClick={() => onUpdate(row.id, "won")}>Won</Button>
+              <Button size="sm" variant="outline" onClick={() => onUpdate(row.id, "lost")}>Lost</Button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+12) client/src/pages/Dashboard.tsx
+
+Add imports:
+
+import type {
+  SourcePerformanceSnapshot,
+  FunnelLeakReport,
+  OfferPerformanceSnapshot,
+  GrowthExperiment,
+} from "@/types/growth";
+import { SourcePerformancePanel } from "@/components/dashboard/SourcePerformancePanel";
+import { FunnelLeakPanel } from "@/components/dashboard/FunnelLeakPanel";
+import { OfferPerformancePanel } from "@/components/dashboard/OfferPerformancePanel";
+import { GrowthExperimentsPanel } from "@/components/dashboard/GrowthExperimentsPanel";
+
+Extend tab union with "growth".
+
+Add queries:
+
+const sourcePerformanceQuery = useQuery<SourcePerformanceSnapshot[]>({
+  queryKey: ["growth-source-performance"],
+  queryFn: () => authedJson("/api/growth/source-performance"),
+  enabled: activeTab === "growth" || activeTab === "analytics",
+});
+
+const funnelLeaksQuery = useQuery<FunnelLeakReport[]>({
+  queryKey: ["growth-funnel-leaks"],
+  queryFn: () => authedJson("/api/growth/funnel-leaks"),
+  enabled: activeTab === "growth" || activeTab === "funnel",
+});
+
+const offerPerformanceQuery = useQuery<OfferPerformanceSnapshot[]>({
+  queryKey: ["growth-offer-performance"],
+  queryFn: () => authedJson("/api/growth/offer-performance"),
+  enabled: activeTab === "growth" || activeTab === "offers",
+});
+
+const growthExperimentsQuery = useQuery<GrowthExperiment[]>({
+  queryKey: ["growth-experiments"],
+  queryFn: () => authedJson("/api/growth/experiments"),
+  enabled: activeTab === "growth",
+});
+
+Add mutations:
+
+const generateSourcePerformance = useMutation({
+  mutationFn: () => authedJson("/api/growth/source-performance/generate", { method: "POST" }),
+  onSuccess: () => queryClient.invalidateQueries({ queryKey: ["growth-source-performance"] }),
+});
+
+const generateFunnelLeaks = useMutation({
+  mutationFn: () => authedJson("/api/growth/funnel-leaks/generate", { method: "POST" }),
+  onSuccess: () => queryClient.invalidateQueries({ queryKey: ["growth-funnel-leaks"] }),
+});
+
+const generateOfferPerformance = useMutation({
+  mutationFn: () => authedJson("/api/growth/offer-performance/generate", { method: "POST" }),
+  onSuccess: () => queryClient.invalidateQueries({ queryKey: ["growth-offer-performance"] }),
+});
+
+const generateGrowthExperiments = useMutation({
+  mutationFn: () => authedJson("/api/growth/experiments/generate", { method: "POST" }),
+  onSuccess: () => queryClient.invalidateQueries({ queryKey: ["growth-experiments"] }),
+});
+
+const patchGrowthExperiment = useMutation({
+  mutationFn: ({ id, status }: { id: number; status: GrowthExperiment["status"] }) =>
+    authedJson(`/api/growth/experiments/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    }),
+  onSuccess: () => queryClient.invalidateQueries({ queryKey: ["growth-experiments"] }),
+});
+
+Add Growth tab block:
+
+{activeTab === "growth" && (
+  <div className="space-y-6">
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <StatCard
+        title="Top Source"
+        value={sourcePerformanceQuery.data?.[0]?.sourceName || "—"}
+        icon={TrendingUp}
+      />
+      <StatCard
+        title="Biggest Leak"
+        value={funnelLeaksQuery.data?.[0]?.leakStage || "—"}
+        icon={AlertTriangle}
+      />
+      <StatCard
+        title="Best Offer"
+        value={offerPerformanceQuery.data?.[0]?.offerSlug || "—"}
+        icon={BadgeDollarSign}
+      />
+      <StatCard
+        title="Experiments"
+        value={String(growthExperimentsQuery.data?.length || 0)}
+        icon={FlaskConical}
+      />
+    </div>
+
+    <div className="flex flex-wrap gap-3">
+      <Button variant="outline" onClick={() => generateSourcePerformance.mutate()}>Generate Source Performance</Button>
+      <Button variant="outline" onClick={() => generateFunnelLeaks.mutate()}>Generate Funnel Leaks</Button>
+      <Button variant="outline" onClick={() => generateOfferPerformance.mutate()}>Generate Offer Performance</Button>
+      <Button variant="outline" onClick={() => generateGrowthExperiments.mutate()}>Generate Experiments</Button>
+    </div>
+
+    <SourcePerformancePanel rows={sourcePerformanceQuery.data || []} />
+    <FunnelLeakPanel rows={funnelLeaksQuery.data || []} />
+    <OfferPerformancePanel rows={offerPerformanceQuery.data || []} />
+    <GrowthExperimentsPanel
+      rows={growthExperimentsQuery.data || []}
+      onUpdate={(id, status) => patchGrowthExperiment.mutate({ id, status })}
+    />
+  </div>
+)}
+
+Extend existing tabs:
+
+add <SourcePerformancePanel ... /> to Analytics
+add <FunnelLeakPanel ... /> to Funnel
+add <OfferPerformancePanel ... /> to Offers
+13) Replit rollout order
+
+Apply in this order:
+
+shared/schema.ts
+generate/run migration
+server/storage.ts
+create Phase 50 engine files
+patch server/automation/index.ts
+patch server/routes.ts
+add client/src/types/growth.ts
+add dashboard panels
+patch client/src/pages/Dashboard.tsx
+restart app
+verify endpoints
+verify Growth tab
+publish
+14) Phase 50 verification checklist
+
+Backend:
+
+GET /api/growth/source-performance
+POST /api/growth/source-performance/generate
+GET /api/growth/funnel-leaks
+POST /api/growth/funnel-leaks/generate
+GET /api/growth/offer-performance
+POST /api/growth/offer-performance/generate
+GET /api/growth/experiments
+POST /api/growth/experiments/generate
+PATCH /api/growth/experiments/:id
+
+Frontend:
+
+Growth tab renders
+Analytics shows source panel
+Funnel shows leak panel
+Offers shows offer performance panel
+experiment status buttons update correctly
+
+When these pass, Elevate360 moves from autonomous operations to autonomous growth optimization, because the platform will not just run itself operationally — it will also analyze, rank, and improve its own growth levers using live business data.

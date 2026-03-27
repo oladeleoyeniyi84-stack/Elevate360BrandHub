@@ -11,7 +11,7 @@ import {
   Database, Edit2, Zap, Calendar, DollarSign, Phone, Trophy, XCircle, AlertCircle, GripVertical,
   Clock, Tag, RefreshCw, ExternalLink, BrainCircuit, AlertTriangle, FileBarChart2, Target,
   Filter, Percent, ArrowDown, TrendingDown, Flame, Banknote, Shield, Activity, ShieldCheck, ShieldAlert,
-  ClipboardCheck, Bot, RefreshCcw,
+  ClipboardCheck, Bot, RefreshCcw, BadgeDollarSign, FlaskConical,
 } from "lucide-react";
 import { AuditTab } from "@/components/AuditTab";
 import DashboardSummaryCards from "@/components/dashboard/DashboardSummaryCards";
@@ -19,6 +19,11 @@ import { AutomationSummaryCards } from "@/components/dashboard/AutomationSummary
 import { RecoveryQueueTable } from "@/components/dashboard/RecoveryQueueTable";
 import { ContentOpportunitiesPanel } from "@/components/dashboard/ContentOpportunitiesPanel";
 import { AutonomousAlertsPanel } from "@/components/dashboard/AutonomousAlertsPanel";
+import type { SourcePerformanceSnapshot, FunnelLeakReport, OfferPerformanceSnapshot, GrowthExperiment } from "@/types/growth";
+import { SourcePerformancePanel } from "@/components/dashboard/SourcePerformancePanel";
+import { FunnelLeakPanel } from "@/components/dashboard/FunnelLeakPanel";
+import { OfferPerformancePanel } from "@/components/dashboard/OfferPerformancePanel";
+import { GrowthExperimentsPanel } from "@/components/dashboard/GrowthExperimentsPanel";
 import type {
   AutomationJob,
   RevenueRecoveryAction,
@@ -4464,7 +4469,7 @@ function AutomationTab() {
 // ──────────────────────────────────────────────────────────────────────────────
 
 function DashboardContent({ onLogout }: { onLogout: () => void }) {
-  const [tab, setTab] = useState<"analytics" | "funnel" | "offers" | "revenue" | "voice" | "leads" | "contacts" | "newsletter" | "reviews" | "blog" | "knowledge" | "pipeline" | "bookings" | "orders" | "digest" | "automation" | "system" | "audit">("analytics");
+  const [tab, setTab] = useState<"analytics" | "funnel" | "offers" | "revenue" | "voice" | "leads" | "contacts" | "newsletter" | "reviews" | "blog" | "knowledge" | "pipeline" | "bookings" | "orders" | "digest" | "automation" | "system" | "audit" | "growth">("analytics");
   const [leadFilter, setLeadFilter] = useState<"all" | "priority" | "hot" | "warm" | "cold">("all");
   const qc = useQueryClient();
 
@@ -4478,6 +4483,57 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
       if (!res.ok) throw new Error("Unauthorized");
       return res.json();
     },
+  });
+
+  // Phase 50 — Growth Optimization queries
+  const sourcePerformanceQ = useQuery<SourcePerformanceSnapshot[]>({
+    queryKey: ["growth-source-performance"],
+    queryFn: () => authedJson("/api/growth/source-performance"),
+    enabled: tab === "growth" || tab === "analytics",
+  });
+
+  const funnelLeaksQ = useQuery<FunnelLeakReport[]>({
+    queryKey: ["growth-funnel-leaks"],
+    queryFn: () => authedJson("/api/growth/funnel-leaks"),
+    enabled: tab === "growth" || tab === "funnel",
+  });
+
+  const offerPerformanceQ = useQuery<OfferPerformanceSnapshot[]>({
+    queryKey: ["growth-offer-performance"],
+    queryFn: () => authedJson("/api/growth/offer-performance"),
+    enabled: tab === "growth" || tab === "offers",
+  });
+
+  const growthExperimentsQ = useQuery<GrowthExperiment[]>({
+    queryKey: ["growth-experiments"],
+    queryFn: () => authedJson("/api/growth/experiments"),
+    enabled: tab === "growth",
+  });
+
+  const generateSourcePerformance = useMutation({
+    mutationFn: () => authedJson("/api/growth/source-performance/generate", { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["growth-source-performance"] }),
+  });
+
+  const generateFunnelLeaks = useMutation({
+    mutationFn: () => authedJson("/api/growth/funnel-leaks/generate", { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["growth-funnel-leaks"] }),
+  });
+
+  const generateOfferPerformance = useMutation({
+    mutationFn: () => authedJson("/api/growth/offer-performance/generate", { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["growth-offer-performance"] }),
+  });
+
+  const generateGrowthExperiments = useMutation({
+    mutationFn: () => authedJson("/api/growth/experiments/generate", { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["growth-experiments"] }),
+  });
+
+  const patchGrowthExperiment = useMutation({
+    mutationFn: ({ id, status }: { id: number; status: GrowthExperiment["status"] }) =>
+      authedJson(`/api/growth/experiments/${id}`, { method: "PATCH", body: JSON.stringify({ status }) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["growth-experiments"] }),
   });
 
   const contactsQuery = useQuery<ContactMessage[]>({
@@ -4563,6 +4619,7 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
     { key: "reviews", label: "Reviews", icon: Star },
     { key: "blog", label: "Blog", icon: PenLine },
     { key: "automation", label: "Automation", icon: Zap },
+    { key: "growth", label: "Growth", icon: FlaskConical },
     { key: "system", label: "System", icon: Shield },
     { key: "audit", label: "Audit", icon: ClipboardCheck },
   ] as const;
@@ -4699,6 +4756,12 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
           <div className="space-y-6">
             <DigestButton />
             <Analytics leads={leads} contacts={contacts} subscribers={subscribers} clicks={clicks} pageViewData={pageViewData} />
+            <SourcePerformancePanel rows={sourcePerformanceQ.data || []} />
+            <div className="flex gap-3">
+              <button className="lux-card px-4 py-2 text-sm text-white hover:bg-white/10 transition" onClick={() => generateSourcePerformance.mutate()} disabled={generateSourcePerformance.isPending}>
+                {generateSourcePerformance.isPending ? "Generating…" : "Generate Source Performance"}
+              </button>
+            </div>
           </div>
         )}
 
@@ -4854,8 +4917,28 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
           </div>
         )}
 
-        {tab === "offers" && <OfferOptimizerTab />}
-        {tab === "funnel" && <FunnelTab />}
+        {tab === "offers" && (
+          <div className="space-y-6">
+            <OfferOptimizerTab />
+            <OfferPerformancePanel rows={offerPerformanceQ.data || []} />
+            <div className="flex gap-3">
+              <button className="lux-card px-4 py-2 text-sm text-white hover:bg-white/10 transition" onClick={() => generateOfferPerformance.mutate()} disabled={generateOfferPerformance.isPending}>
+                {generateOfferPerformance.isPending ? "Generating…" : "Generate Offer Performance"}
+              </button>
+            </div>
+          </div>
+        )}
+        {tab === "funnel" && (
+          <div className="space-y-6">
+            <FunnelTab />
+            <FunnelLeakPanel rows={funnelLeaksQ.data || []} />
+            <div className="flex gap-3">
+              <button className="lux-card px-4 py-2 text-sm text-white hover:bg-white/10 transition" onClick={() => generateFunnelLeaks.mutate()} disabled={generateFunnelLeaks.isPending}>
+                {generateFunnelLeaks.isPending ? "Generating…" : "Generate Funnel Leak Report"}
+              </button>
+            </div>
+          </div>
+        )}
         {tab === "reviews" && <ReviewsTab />}
         {tab === "blog" && <BlogTab />}
         {tab === "knowledge" && <KnowledgeTab />}
@@ -4867,6 +4950,63 @@ function DashboardContent({ onLogout }: { onLogout: () => void }) {
         {tab === "audit" && <AuditTab />}
         {tab === "orders" && <OrdersTab />}
         {tab === "bookings" && <BookingsTab />}
+
+        {tab === "growth" && (
+          <div className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <StatCard label="Top Source" value={0} icon={TrendingUp} color="#F4A62A" />
+              <StatCard label="Biggest Leak" value={0} icon={AlertTriangle} color="#f87171" />
+              <StatCard label="Best Offer" value={0} icon={BadgeDollarSign} color="#22c55e" />
+              <StatCard label="Experiments" value={growthExperimentsQ.data?.length ?? 0} icon={FlaskConical} color="#a78bfa" />
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <button className="lux-card px-4 py-2 text-sm text-white hover:bg-white/10 transition" onClick={() => generateSourcePerformance.mutate()} disabled={generateSourcePerformance.isPending} data-testid="btn-gen-source">
+                {generateSourcePerformance.isPending ? "Generating…" : "Generate Source Performance"}
+              </button>
+              <button className="lux-card px-4 py-2 text-sm text-white hover:bg-white/10 transition" onClick={() => generateFunnelLeaks.mutate()} disabled={generateFunnelLeaks.isPending} data-testid="btn-gen-funnel">
+                {generateFunnelLeaks.isPending ? "Generating…" : "Generate Funnel Leaks"}
+              </button>
+              <button className="lux-card px-4 py-2 text-sm text-white hover:bg-white/10 transition" onClick={() => generateOfferPerformance.mutate()} disabled={generateOfferPerformance.isPending} data-testid="btn-gen-offers">
+                {generateOfferPerformance.isPending ? "Generating…" : "Generate Offer Performance"}
+              </button>
+              <button className="lux-card px-4 py-2 text-sm text-white hover:bg-white/10 transition" onClick={() => generateGrowthExperiments.mutate()} disabled={generateGrowthExperiments.isPending} data-testid="btn-gen-experiments">
+                {generateGrowthExperiments.isPending ? "Generating…" : "Generate Experiments"}
+              </button>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="lux-card p-4">
+                <p className="text-xs uppercase tracking-widest text-slate-400 mb-1">Top Source</p>
+                <p className="text-xl font-semibold text-white">{sourcePerformanceQ.data?.[0]?.sourceName || "—"}</p>
+                <p className="text-sm text-slate-400">Score {sourcePerformanceQ.data?.[0]?.qualityScore ?? "—"}</p>
+              </div>
+              <div className="lux-card p-4">
+                <p className="text-xs uppercase tracking-widest text-slate-400 mb-1">Biggest Leak</p>
+                <p className="text-xl font-semibold text-white">{funnelLeaksQ.data?.[0]?.leakStage || "—"}</p>
+                <p className="text-sm text-slate-400">Severity {funnelLeaksQ.data?.[0]?.severityScore ?? "—"}</p>
+              </div>
+              <div className="lux-card p-4">
+                <p className="text-xs uppercase tracking-widest text-slate-400 mb-1">Best Offer</p>
+                <p className="text-xl font-semibold text-white">{offerPerformanceQ.data?.[0]?.offerSlug || "—"}</p>
+                <p className="text-sm text-slate-400">Score {offerPerformanceQ.data?.[0]?.performanceScore ?? "—"}</p>
+              </div>
+              <div className="lux-card p-4">
+                <p className="text-xs uppercase tracking-widest text-slate-400 mb-1">Proposed Experiments</p>
+                <p className="text-xl font-semibold text-white">{growthExperimentsQ.data?.filter(e => e.status === "proposed").length ?? "—"}</p>
+                <p className="text-sm text-slate-400">pending review</p>
+              </div>
+            </div>
+
+            <SourcePerformancePanel rows={sourcePerformanceQ.data || []} />
+            <FunnelLeakPanel rows={funnelLeaksQ.data || []} />
+            <OfferPerformancePanel rows={offerPerformanceQ.data || []} />
+            <GrowthExperimentsPanel
+              rows={growthExperimentsQ.data || []}
+              onUpdate={(id, status) => patchGrowthExperiment.mutate({ id, status })}
+            />
+          </div>
+        )}
 
       </div>
     </div>

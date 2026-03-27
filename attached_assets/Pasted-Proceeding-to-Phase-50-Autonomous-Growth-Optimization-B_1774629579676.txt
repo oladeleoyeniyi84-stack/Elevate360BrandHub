@@ -1,0 +1,409 @@
+Proceeding to Phase 50: Autonomous Growth Optimization.
+
+Because Phase 49 is already passing end-to-end with 5 scheduled jobs, working run-now triggers, authenticated control surfaces, founder/monthly briefs, content opportunities, autonomous alerts, and graceful order-status handling, Phase 50 should not add more basic automation. It should optimize growth, conversion, and allocation using the systems already live in Elevate360.
+
+Phase 50 objective
+
+Turn Elevate360 from an autonomous operations platform into an autonomous growth optimization platform.
+
+That means AI should now:
+
+identify which traffic and lead sources produce the best outcomes
+detect where the funnel is leaking
+recommend or auto-apply better offer ordering and CTA placement
+generate experiment ideas
+promote what is winning and suppress what is underperforming
+
+This is a natural next step because the current platform already has:
+
+KPI summary cards and funnel analytics
+lead scoring and temperature labels
+offer mapping overrides
+Stripe-reconciled revenue reporting
+content opportunity generation
+weekly/monthly digesting
+audit and anomaly systems
+follow-up automation and recovery jobs
+Phase 50 modules
+1. Source Performance Autopilot
+
+Purpose:
+
+rank traffic/acquisition sources by quality, not just volume
+
+Inputs:
+
+page_views
+click_events
+chat_conversations
+bookings
+orders
+
+Outputs:
+
+best source by:
+lead quality
+booking rate
+order rate
+average order value
+recovery win rate
+
+Key dashboard surfaces:
+
+top source this week
+top source by revenue
+top source by qualified lead rate
+underperforming source alerts
+2. Funnel Leak Optimizer
+
+Purpose:
+
+identify where users stall between:
+visit
+chat
+qualified
+booked
+won
+
+Inputs:
+
+existing funnel waterfall
+lead stages
+order/payment states
+accepted-offer vs paid-order gap
+
+Outputs:
+
+ranked funnel leaks
+suggested fixes
+experiment candidates
+
+This builds directly on the Funnel tab and pipeline model already live.
+
+3. Offer Optimization Autopilot
+
+Purpose:
+
+learn which offers convert best by intent, source, and lead quality
+
+Inputs:
+
+offer_mapping_overrides
+recommended offer
+accepted offer
+paid order
+session intent
+lead score
+
+Outputs:
+
+promote winning offers
+demote weak offers
+recommend override changes
+recommend new CTA copy
+
+This is a direct extension of the live offer mapper and manual override system.
+
+4. CTA and Placement Optimizer
+
+Purpose:
+
+improve where and how calls-to-action appear across the site
+
+Inputs:
+
+click events
+source page
+route
+offer acceptance rate
+scroll behavior / page visit sequences
+
+Outputs:
+
+top CTA placements
+weak CTA placements
+recommendations for:
+homepage hero CTA
+links page ordering
+blog inline CTA
+press kit CTA
+checkout success next-step CTA
+5. Growth Experiment Generator
+
+Purpose:
+
+propose high-value tests automatically
+
+Examples:
+
+promote booking CTA above offer CTA for warm leads
+switch default offer recommendation for a given intent
+change homepage hero CTA from “Chat” to “Book”
+add FAQ content for high-dropoff objections
+surface monthly strategy brief insights as action items
+
+Outputs:
+
+experiment cards in dashboard
+expected impact
+reason/evidence
+status:
+proposed
+approved
+running
+won
+lost
+6. Win/Loss Learning Loop
+
+Purpose:
+
+learn why deals close or stall
+
+Inputs:
+
+wonValue
+lostReason
+pipeline stage history
+session summary
+accepted offer and payment result
+booking cancellation events
+
+Outputs:
+
+most common win patterns
+most common loss reasons
+suggestions for:
+better follow-up copy
+better offer mapping
+new landing-page messaging
+better qualification thresholds
+Phase 50 database additions
+
+Add these tables.
+
+growth_experiments
+
+Tracks AI-generated or admin-approved experiments.
+
+Suggested fields:
+
+id
+experiment_key
+title
+area (source, funnel, offer, cta, content)
+hypothesis
+proposed_change
+evidence_json
+expected_impact_score
+status (proposed, approved, running, won, lost, archived)
+created_at
+started_at
+completed_at
+source_performance_snapshots
+
+Stores periodic source ranking.
+
+Suggested fields:
+
+id
+snapshot_date
+source_name
+visits
+chat_leads
+qualified_leads
+bookings
+paid_orders
+revenue
+avg_order_value
+recovery_win_rate
+quality_score
+funnel_leak_reports
+
+Stores AI-detected funnel breakdowns.
+
+Suggested fields:
+
+id
+period_start
+period_end
+leak_stage
+severity_score
+dropoff_count
+dropoff_rate
+suspected_causes_json
+recommended_fix
+created_at
+offer_performance_snapshots
+
+Tracks offer performance by intent/source.
+
+Suggested fields:
+
+id
+snapshot_date
+offer_slug
+intent
+source_name
+recommended_count
+accepted_count
+paid_count
+acceptance_rate
+close_rate
+avg_order_value
+performance_score
+Phase 50 backend endpoints
+
+Add these under the authenticated dashboard namespace.
+
+Growth optimization
+GET /api/growth/source-performance
+POST /api/growth/source-performance/generate
+GET /api/growth/funnel-leaks
+POST /api/growth/funnel-leaks/generate
+GET /api/growth/offer-performance
+POST /api/growth/offer-performance/generate
+Experiments
+GET /api/growth/experiments
+POST /api/growth/experiments/generate
+PATCH /api/growth/experiments/:id
+Optimization actions
+POST /api/growth/offer-overrides/recommend
+POST /api/growth/cta-optimization/generate
+POST /api/growth/win-loss-analysis/generate
+Phase 50 scheduled jobs
+
+Add 4 new recurring jobs.
+
+phase50_source_performance
+
+Cadence:
+
+every 12 hours
+
+Purpose:
+
+build fresh source ranking
+detect winners and weak sources
+phase50_funnel_leak_optimizer
+
+Cadence:
+
+every 12 hours
+
+Purpose:
+
+detect current funnel drop-off concentration
+create/update leak reports
+phase50_offer_optimizer
+
+Cadence:
+
+every 24 hours
+
+Purpose:
+
+score offers by recommendation, acceptance, and payment outcomes
+recommend override changes
+phase50_experiment_generator
+
+Cadence:
+
+every 24 hours
+
+Purpose:
+
+convert source/funnel/offer findings into actionable experiments
+Phase 50 dashboard widgets
+Automation tab
+
+Add 4 more cards:
+
+Top Source
+Biggest Funnel Leak
+Best Offer This Week
+Proposed Experiments
+Analytics tab
+
+Add:
+
+source performance leaderboard
+source quality score trend
+recovery win rate by source
+Funnel tab
+
+Add:
+
+leak report cards
+suspected cause badges
+recommended fixes
+Offers tab
+
+Add:
+
+offer performance table
+recommendation → acceptance → paid conversion chain
+suggested override actions
+New “Growth” tab
+
+Recommended sections:
+
+experiments queue
+top source
+top leak
+top offer
+recommended changes to apply
+Phase 50 rollout order
+50A — Measurement
+
+Build first:
+
+source performance snapshots
+offer performance snapshots
+funnel leak reports
+50B — Recommendation
+
+Build next:
+
+source ranking engine
+offer optimizer
+funnel leak optimizer
+50C — Action
+
+Build next:
+
+experiment generator
+growth tab
+override recommendation actions
+50D — Controlled autonomy
+
+Build last:
+
+admin-approve vs auto-apply toggle
+safe automatic reorder/promote/demote rules
+What “done” looks like for Phase 50
+
+Phase 50 is complete when:
+
+AI can rank sources by business value
+AI can identify the biggest funnel leak automatically
+AI can score which offers are actually winning
+AI can generate experiments with evidence
+dashboard can show growth actions, not just operational actions
+founder/monthly briefs include optimization recommendations, not just summaries
+Strategic result
+
+Phase 49 made Elevate360 autonomous in operations.
+
+Phase 50 makes Elevate360 autonomous in growth optimization.
+
+That is the phase where the system starts improving itself commercially using the data it already collects from:
+
+leads
+bookings
+paid orders
+accepted offers
+funnel stages
+content opportunities
+audit signals
+
+The next strongest deliverable is the Phase 50 file-by-file implementation blueprint with exact schema additions, endpoints, job schedules, and dashboard panels.

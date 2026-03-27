@@ -17,11 +17,16 @@ import {
   type RevenueRecoveryAction, type InsertRevenueRecoveryAction, type UpdateRevenueRecoveryAction,
   type ContentOpportunity, type InsertContentOpportunity, type UpdateContentOpportunity,
   type AutonomousAlert, type InsertAutonomousAlert, type UpdateAutonomousAlert,
+  type GrowthExperiment, type InsertGrowthExperiment, type UpdateGrowthExperiment,
+  type SourcePerformanceSnapshot, type InsertSourcePerformanceSnapshot,
+  type FunnelLeakReport, type InsertFunnelLeakReport,
+  type OfferPerformanceSnapshot, type InsertOfferPerformanceSnapshot,
   users, contactMessages, newsletterSubscribers, chatConversations, clickEvents, pageViews, testimonials, blogPosts, knowledgeDocuments, consultations, bookings, orders, digestReports, offerMappingOverrides, auditLogs, automationSettings,
   automationJobs, automationJobLogs, revenueRecoveryActions, contentOpportunities, autonomousAlerts,
+  growthExperiments, sourcePerformanceSnapshots, funnelLeakReports, offerPerformanceSnapshots,
 } from "@shared/schema";
 import { db } from "./db";
-import { and, asc, desc, eq, gte, isNull, lte, ne, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, isNull, lte, ne, or, sql } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -192,6 +197,20 @@ export interface IStorage {
   getAutonomousAlerts(limit?: number): Promise<AutonomousAlert[]>;
   createAutonomousAlert(input: InsertAutonomousAlert): Promise<AutonomousAlert>;
   updateAutonomousAlert(id: number, patch: UpdateAutonomousAlert): Promise<AutonomousAlert | undefined>;
+
+  // Phase 50 — Growth Optimization
+  getGrowthExperiments(limit?: number): Promise<GrowthExperiment[]>;
+  createGrowthExperiment(input: InsertGrowthExperiment): Promise<GrowthExperiment>;
+  updateGrowthExperiment(id: number, patch: UpdateGrowthExperiment): Promise<GrowthExperiment | undefined>;
+  getLatestSourcePerformance(limit?: number): Promise<SourcePerformanceSnapshot[]>;
+  createSourcePerformanceSnapshot(input: InsertSourcePerformanceSnapshot): Promise<SourcePerformanceSnapshot>;
+  getLatestFunnelLeaks(limit?: number): Promise<FunnelLeakReport[]>;
+  createFunnelLeakReport(input: InsertFunnelLeakReport): Promise<FunnelLeakReport>;
+  getLatestOfferPerformance(limit?: number): Promise<OfferPerformanceSnapshot[]>;
+  createOfferPerformanceSnapshot(input: InsertOfferPerformanceSnapshot): Promise<OfferPerformanceSnapshot>;
+  getSourcePerformanceCandidates(periodDays?: number): Promise<any[]>;
+  getOfferPerformanceCandidates(periodDays?: number): Promise<any[]>;
+  getFunnelLeakCandidates(periodDays?: number): Promise<any>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1465,6 +1484,144 @@ export class DatabaseStorage implements IStorage {
       .where(eq(autonomousAlerts.id, id))
       .returning();
     return row;
+  }
+
+  // ─── Phase 50: Growth Optimization ──────────────────────────────────────────
+
+  async getGrowthExperiments(limit = 100): Promise<GrowthExperiment[]> {
+    return db.select().from(growthExperiments)
+      .orderBy(desc(growthExperiments.expectedImpactScore), desc(growthExperiments.createdAt))
+      .limit(limit);
+  }
+
+  async createGrowthExperiment(input: InsertGrowthExperiment): Promise<GrowthExperiment> {
+    const [row] = await db.insert(growthExperiments).values(input).returning();
+    return row;
+  }
+
+  async updateGrowthExperiment(id: number, patch: UpdateGrowthExperiment): Promise<GrowthExperiment | undefined> {
+    const [row] = await db.update(growthExperiments)
+      .set(patch)
+      .where(eq(growthExperiments.id, id))
+      .returning();
+    return row;
+  }
+
+  async getLatestSourcePerformance(limit = 100): Promise<SourcePerformanceSnapshot[]> {
+    return db.select().from(sourcePerformanceSnapshots)
+      .orderBy(desc(sourcePerformanceSnapshots.snapshotDate), desc(sourcePerformanceSnapshots.qualityScore))
+      .limit(limit);
+  }
+
+  async createSourcePerformanceSnapshot(input: InsertSourcePerformanceSnapshot): Promise<SourcePerformanceSnapshot> {
+    const [row] = await db.insert(sourcePerformanceSnapshots).values(input).returning();
+    return row;
+  }
+
+  async getLatestFunnelLeaks(limit = 50): Promise<FunnelLeakReport[]> {
+    return db.select().from(funnelLeakReports)
+      .orderBy(desc(funnelLeakReports.createdAt), desc(funnelLeakReports.severityScore))
+      .limit(limit);
+  }
+
+  async createFunnelLeakReport(input: InsertFunnelLeakReport): Promise<FunnelLeakReport> {
+    const [row] = await db.insert(funnelLeakReports).values(input).returning();
+    return row;
+  }
+
+  async getLatestOfferPerformance(limit = 100): Promise<OfferPerformanceSnapshot[]> {
+    return db.select().from(offerPerformanceSnapshots)
+      .orderBy(desc(offerPerformanceSnapshots.snapshotDate), desc(offerPerformanceSnapshots.performanceScore))
+      .limit(limit);
+  }
+
+  async createOfferPerformanceSnapshot(input: InsertOfferPerformanceSnapshot): Promise<OfferPerformanceSnapshot> {
+    const [row] = await db.insert(offerPerformanceSnapshots).values(input).returning();
+    return row;
+  }
+
+  async getSourcePerformanceCandidates(periodDays = 14): Promise<any[]> {
+    const start = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000);
+    const result: any = await db.execute(sql`
+      with pv as (
+        select coalesce(page, 'unknown') as source_name,
+          count(*)::int as visits
+        from page_views where created_at >= ${start} group by 1
+      ),
+      chats as (
+        select
+          coalesce(intent, 'unknown') as source_name,
+          count(*)::int as chat_leads,
+          count(*) filter (where lead_score >= 60)::int as qualified_leads
+        from chat_conversations where created_at >= ${start} group by 1
+      ),
+      b as (
+        select 'bookings' as source_name, count(*)::int as bookings
+        from bookings where created_at >= ${start}
+      ),
+      o as (
+        select 'orders' as source_name,
+          count(*) filter (where status = 'paid')::int as paid_orders,
+          coalesce(sum(case when status = 'paid' then amount_paid else 0 end), 0)::int as revenue,
+          coalesce(avg(case when status = 'paid' then amount_paid end), 0)::int as avg_order_value
+        from orders where created_at >= ${start}
+      )
+      select
+        pv.source_name,
+        pv.visits,
+        coalesce(chats.chat_leads, 0) as chat_leads,
+        coalesce(chats.qualified_leads, 0) as qualified_leads,
+        (select bookings from b limit 1) as bookings,
+        (select paid_orders from o limit 1) as paid_orders,
+        (select revenue from o limit 1) as revenue,
+        (select avg_order_value from o limit 1) as avg_order_value
+      from pv
+      left join chats on chats.source_name = pv.source_name
+      order by pv.visits desc
+      limit 20
+    `);
+    return result.rows ?? result;
+  }
+
+  async getOfferPerformanceCandidates(periodDays = 30): Promise<any[]> {
+    const start = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000);
+    const result: any = await db.execute(sql`
+      select
+        coalesce(recommended_offer, accepted_offer_slug, 'unknown') as offer_slug,
+        intent,
+        null::text as source_name,
+        count(*) filter (where recommended_offer is not null)::int as recommended_count,
+        count(*) filter (where recommended_offer_accepted = true)::int as accepted_count,
+        0::int as paid_count,
+        0::int as avg_order_value
+      from chat_conversations
+      where created_at >= ${start}
+        and coalesce(recommended_offer, accepted_offer_slug) is not null
+      group by 1,2,3
+      order by recommended_count desc
+      limit 30
+    `);
+    return result.rows ?? result;
+  }
+
+  async getFunnelLeakCandidates(periodDays = 14): Promise<any> {
+    const start = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000);
+    const [visitsRow] = await db.select({ c: count() }).from(pageViews).where(gte(pageViews.createdAt, start));
+    const [chatsRow] = await db.select({ c: count() }).from(chatConversations).where(gte(chatConversations.createdAt, start));
+    const [qualifiedRow] = await db.select({ c: count() }).from(chatConversations)
+      .where(and(gte(chatConversations.createdAt, start), gte(chatConversations.leadScore, 60)));
+    const [bookedRow] = await db.select({ c: count() }).from(bookings).where(gte(bookings.createdAt, start));
+    const [wonRow] = await db.select({ c: count() }).from(orders)
+      .where(and(gte(orders.createdAt, start), eq(orders.status, "paid")));
+    return {
+      visits: Number(visitsRow?.c ?? 0),
+      chats: Number(chatsRow?.c ?? 0),
+      qualified: Number(qualifiedRow?.c ?? 0),
+      booked: Number(bookedRow?.c ?? 0),
+      won: Number(wonRow?.c ?? 0),
+      periodStart: start,
+      periodEnd: new Date(),
+    };
   }
 }
 
