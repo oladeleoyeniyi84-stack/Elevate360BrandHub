@@ -1,0 +1,338 @@
+Here is the Replit-ready implementation order for Phase 49.
+
+1. Edit order
+
+Apply changes in this order so the app stays compile-safe as you go.
+
+Step 1 — schema
+
+Edit:
+
+shared/schema.ts
+
+Add:
+
+automationJobs
+automationJobLogs
+revenueRecoveryActions
+contentOpportunities
+autonomousAlerts
+
+Patch:
+
+orders
+digestReports
+
+Also add:
+
+insert/update schemas
+exported TS types
+
+Reason: everything else depends on these types and tables.
+
+Step 2 — storage
+
+Edit:
+
+server/storage.ts
+
+Add:
+
+automation job methods
+revenue recovery methods
+content opportunity methods
+digest typed fetch/create methods
+autonomous alert methods
+
+Reason: routes and engines should call storage, not inline DB queries.
+
+Step 3 — automation engine files
+
+Create:
+
+server/automation/jobRunner.ts
+server/automation/revenueRecoveryEngine.ts
+server/automation/contentOpportunityEngine.ts
+server/automation/executiveDigestEngine.ts
+server/automation/anomalyEngine.ts
+server/automation/index.ts
+
+Reason: these are isolated and can be built before wiring routes.
+
+Step 4 — routes
+
+Edit:
+
+server/routes.ts
+
+Add:
+
+/api/automation/jobs
+/api/automation/jobs/:jobKey/log
+/api/automation/revenue-recovery/status
+/api/automation/revenue-recovery/run-now
+/api/automation/revenue-recovery/actions
+PATCH /api/automation/revenue-recovery/actions/:id
+/api/automation/content-opportunities
+/api/automation/content-opportunities/generate
+PATCH /api/automation/content-opportunities/:id
+/api/digest/founder-brief/latest
+/api/digest/founder-brief/generate
+/api/digest/monthly-strategy/latest
+/api/digest/monthly-strategy/generate
+/api/audit/autonomous-alerts
+/api/audit/run-autonomous-checks
+PATCH /api/audit/autonomous-alerts/:id
+
+Reason: once storage exists, route wiring is straightforward.
+
+Step 5 — server boot
+
+Edit:
+
+server/index.ts
+
+Add:
+
+import { startAutomationJobs } from "./automation";
+
+Patch:
+
+production session secret handling
+call await startAutomationJobs(); after route registration / startup init
+
+Reason: start jobs only after routes, DB, and storage are ready.
+
+Step 6 — frontend types
+
+Create:
+
+client/src/types/automation.ts
+
+Reason: compile-safe shared UI typing before component work.
+
+Step 7 — dashboard components
+
+Create:
+
+client/src/components/dashboard/AutomationSummaryCards.tsx
+client/src/components/dashboard/RecoveryQueueTable.tsx
+client/src/components/dashboard/ContentOpportunitiesPanel.tsx
+client/src/components/dashboard/AutonomousAlertsPanel.tsx
+
+Reason: modular UI pieces before patching the dashboard page.
+
+Step 8 — dashboard page
+
+Edit:
+
+client/src/pages/Dashboard.tsx
+
+Add:
+
+Phase 49 queries
+Phase 49 mutations
+Automation tab extensions
+Revenue tab recovery queue
+Digest tab founder/monthly brief cards
+Knowledge or Blog tab content opportunities panel
+Audit tab autonomous alerts panel
+
+Reason: this is where all Phase 49 operator surfaces come together.
+
+Step 9 — app shell
+
+Edit:
+
+client/src/App.tsx
+
+Add:
+
+optional RouteTracker
+
+Reason: helpful for richer opportunity mining, but not blocking for Phase 49.
+
+Step 10 — success page
+
+Edit:
+
+client/src/pages/CheckoutSuccess.tsx
+
+Add:
+
+/api/orders/status query
+live status card
+include sourcePage when posting offer acceptance
+
+Reason: not strictly Phase 49 core, but it completes the operational loop.
+
+2. Migration sequence
+
+After shared/schema.ts is updated, run your normal Drizzle migration flow.
+
+Typical order:
+
+npm run db:generate
+npm run db:migrate
+
+If your project uses different scripts, use the ones already defined in package.json.
+
+You should expect a migration that adds:
+
+5 new tables
+new columns on orders
+new columns on digest_reports
+
+Before migrating production, verify:
+
+existing orders.fulfillment_status is not duplicated if it already exists live
+the migration only adds missing fields
+
+Because your deployment report says fulfillment_status is already live, this is the one place to be careful. If your local schema is behind production, reconcile that first.
+
+3. Local verification order
+
+Before publishing, check these in Replit preview or local dev.
+
+Backend smoke tests
+
+Open or call:
+
+GET /api/automation/jobs
+GET /api/automation/revenue-recovery/status
+GET /api/automation/revenue-recovery/actions
+GET /api/automation/content-opportunities
+GET /api/digest/founder-brief/latest
+GET /api/digest/monthly-strategy/latest
+GET /api/audit/autonomous-alerts
+
+Expected:
+
+authenticated JSON
+empty arrays or nulls are fine at first
+no 500s
+Run-now tests
+
+Trigger:
+
+POST /api/automation/revenue-recovery/run-now
+POST /api/automation/content-opportunities/generate
+POST /api/digest/founder-brief/generate
+POST /api/digest/monthly-strategy/generate
+POST /api/audit/run-autonomous-checks
+
+Expected:
+
+{ ok: true, ... }
+new rows appear in corresponding tables/endpoints
+/api/automation/jobs updates timestamps/status
+Dashboard UI tests
+
+Check:
+
+Automation tab loads cards and queue
+Revenue tab shows recovery queue
+Digest tab shows founder/monthly cards
+Knowledge/Blog tab shows opportunities
+Audit tab shows alerts
+no broken tab render
+no TypeScript runtime crashes from undefined data
+Order-status test
+
+Open a success URL with a valid session_id and confirm:
+
+live status card appears
+payment status is returned
+fulfillment status is returned
+4. Replit publish order
+
+Once local/dev checks pass:
+
+save all files
+run migration
+restart app
+verify dashboard auth still works
+verify the new endpoints
+verify the dashboard tabs
+hit Publish in Replit
+verify on:
+https://www.elevate360official.com
+dashboard route
+one known success-page URL with session_id
+5. Publish checklist
+
+Use this exact acceptance list after deploy.
+
+Automation
+Automation tab shows 6 Phase 49 cards
+Run Revenue Recovery works
+Run Autonomous Checks works
+Generate Founder Brief works
+Generate Content Opportunities works
+Revenue
+recovery queue appears
+status patch buttons work
+Digest
+founder brief loads
+monthly brief loads
+generate buttons work
+Knowledge / Blog
+content opportunities panel renders
+status actions work
+Audit
+autonomous alerts load
+acknowledge/fixed/ignore actions work
+Jobs
+/api/automation/jobs returns active job definitions
+timestamps update after runs
+logs populate
+Security / boot
+production boots with SESSION_SECRET
+no fallback-secret usage in production
+6. Rollback-safe strategy
+
+If you want the safest rollout, publish in two pushes.
+
+Push 1
+
+Backend only:
+
+schema
+migration
+storage
+automation engines
+routes
+server boot
+
+Verify endpoints first.
+
+Push 2
+
+Frontend:
+
+types
+dashboard components
+dashboard page
+success page
+optional route tracker
+
+That reduces the chance of UI + backend failures being mixed together.
+
+7. Definition of successful Phase 49 deploy
+
+Phase 49 is successfully live when:
+
+recurring automation jobs are registered
+recovery actions can be generated and viewed
+founder/monthly digests can be generated and fetched
+autonomous alerts can be generated and managed
+dashboard exposes all four new control surfaces
+no auth regressions
+no Stripe/order regressions
+no migration conflicts
+
+At that point, Elevate360 moves from AI-orchestrated to functionally fully AI automated for brand operations.
+
+The next best move after this is a single copy-paste deployment checklist formatted for Replit execution.
+
+Proceed
