@@ -1,6 +1,9 @@
-import { useState, useRef, useEffect, useCallback } from "react";
-import { MessageCircle, X, Send, Sparkles, Loader2 } from "lucide-react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { X, Send, Loader2 } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
+import { conciergeModes, type ConciergeModeKey } from "@/config/conciergeModes";
+import { ConciergePresenceHeader } from "@/components/concierge/ConciergePresenceHeader";
+import { CreatorAvatar } from "@/components/concierge/CreatorAvatar";
 
 interface Message {
   role: "user" | "assistant";
@@ -21,10 +24,13 @@ function getOrCreateSessionId(): string {
   return id;
 }
 
-const WELCOME_MESSAGE: Message = {
-  role: "assistant",
-  content: "Hello! I'm your Elevate360 AI Concierge. I can help you discover our apps, books, music, and art studio — or connect you with the right resource. What brings you here today?",
-};
+const SESSION_CHIPS: { label: string; mode: ConciergeModeKey }[] = [
+  { label: "Brand Strategy", mode: "brandStrategy" },
+  { label: "AI Content", mode: "aiContent" },
+  { label: "Creative Direction", mode: "creativeDirection" },
+  { label: "App / Product", mode: "appProduct" },
+  { label: "Collaboration", mode: "collaboration" },
+];
 
 const QUICK_PROMPTS = [
   "Tell me about your apps",
@@ -35,7 +41,9 @@ const QUICK_PROMPTS = [
 
 export function AIConcierge() {
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE]);
+  const [mode, setMode] = useState<ConciergeModeKey>("default");
+  const [speaking, setSpeaking] = useState(false);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sessionId] = useState(getOrCreateSessionId);
   const [leadCaptured, setLeadCaptured] = useState(false);
@@ -45,12 +53,37 @@ export function AIConcierge() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const modeConfig = useMemo(() => conciergeModes[mode], [mode]);
+
+  const welcomeMessage = useMemo<Message>(
+    () => ({ role: "assistant", content: modeConfig.intro }),
+    [modeConfig]
+  );
+
+  // Reset messages when mode changes
+  useEffect(() => {
+    setMessages([welcomeMessage]);
+  }, [welcomeMessage]);
+
   useEffect(() => {
     if (open) {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [open, messages]);
+
+  // Listen for external mode changes from session card clicks
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const custom = event as CustomEvent<{ mode: ConciergeModeKey }>;
+      if (custom.detail?.mode) {
+        setMode(custom.detail.mode);
+        setOpen(true);
+      }
+    };
+    window.addEventListener("e360:set-concierge-mode", handler as EventListener);
+    return () => window.removeEventListener("e360:set-concierge-mode", handler as EventListener);
+  }, []);
 
   const chatMutation = useMutation({
     mutationFn: async ({ message, name, email }: { message: string; name?: string; email?: string }) => {
@@ -60,6 +93,7 @@ export function AIConcierge() {
         body: JSON.stringify({
           sessionId,
           message,
+          sessionMode: mode,
           ...(name && { leadName: name }),
           ...(email && { leadEmail: email }),
         }),
@@ -70,13 +104,12 @@ export function AIConcierge() {
       }
       return res.json() as Promise<{ reply: string }>;
     },
-    onSuccess: ({ reply }, { message }) => {
-      setMessages((prev) => [
-        ...prev,
-        { role: "user", content: message },
-        { role: "assistant", content: reply },
-      ]);
-
+    onMutate: ({ message }) => {
+      setMessages((prev) => [...prev, { role: "user", content: message }]);
+      setSpeaking(true);
+    },
+    onSuccess: ({ reply }) => {
+      setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
       if (!leadCaptured && messages.length >= 4) {
         setShowLeadForm(true);
       }
@@ -84,11 +117,11 @@ export function AIConcierge() {
     onError: () => {
       setMessages((prev) => [
         ...prev,
-        {
-          role: "assistant",
-          content: "Sorry, I'm having a moment. Please try again!",
-        },
+        { role: "assistant", content: "Sorry, I'm having a moment. Please try again!" },
       ]);
+    },
+    onSettled: () => {
+      setTimeout(() => setSpeaking(false), 900);
     },
   });
 
@@ -118,16 +151,30 @@ export function AIConcierge() {
     });
   };
 
+  const handleModeChange = (newMode: ConciergeModeKey) => {
+    setMode(newMode);
+    setShowLeadForm(false);
+  };
+
+  const isLive = mode !== "default";
+
   return (
     <>
-      {/* Launcher button */}
+      {/* Floating launcher — creator avatar */}
       <button
         data-testid="button-ai-concierge-launcher"
         onClick={() => setOpen((v) => !v)}
         aria-label="Open Elevate360 AI Concierge"
-        className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-[#F4A62A] shadow-[0_8px_32px_rgba(244,166,42,0.45)] flex items-center justify-center text-black hover:bg-[#ffb84d] transition-all duration-300 hover:scale-105 active:scale-95"
+        className="fixed bottom-6 right-6 z-50 transition-all duration-300 hover:scale-105 active:scale-95"
+        style={{ filter: "drop-shadow(0 8px 24px rgba(244,166,42,0.45))" }}
       >
-        {open ? <X className="h-6 w-6" /> : <MessageCircle className="h-6 w-6" />}
+        {open ? (
+          <div className="w-14 h-14 rounded-full bg-[#F4A62A] flex items-center justify-center text-black shadow-lg">
+            <X className="h-6 w-6" />
+          </div>
+        ) : (
+          <CreatorAvatar size="lg" live />
+        )}
       </button>
 
       {/* Chat panel */}
@@ -136,35 +183,26 @@ export function AIConcierge() {
           open ? "opacity-100 translate-y-0 pointer-events-auto" : "opacity-0 translate-y-4 pointer-events-none"
         }`}
       >
-        <div className="rounded-3xl overflow-hidden shadow-[0_32px_80px_rgba(0,0,0,0.55)] border border-white/10 flex flex-col"
-          style={{ maxHeight: "70vh", background: "hsl(220 50% 10%)" }}>
-
-          {/* Header */}
-          <div className="flex items-center gap-3 px-5 py-4 border-b border-white/10"
-            style={{ background: "linear-gradient(135deg, hsl(220 50% 13%), hsl(220 50% 16%))" }}>
-            <div className="w-9 h-9 rounded-full bg-[#F4A62A] flex items-center justify-center flex-shrink-0">
-              <Sparkles className="h-4 w-4 text-black" />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-white font-heading">Elevate360 Concierge</p>
-              <p className="text-xs text-white/50">AI-powered · Always here</p>
-            </div>
-            <div className="ml-auto flex h-2 w-2">
-              <span className="animate-ping absolute h-2 w-2 rounded-full bg-[#F4A62A] opacity-75"></span>
-              <span className="relative h-2 w-2 rounded-full bg-[#F4A62A]"></span>
-            </div>
-          </div>
+        <div
+          className="rounded-3xl overflow-hidden shadow-[0_32px_80px_rgba(0,0,0,0.55)] border border-white/10 flex flex-col"
+          style={{ maxHeight: "72vh", background: "hsl(220 50% 10%)" }}
+        >
+          {/* Founder-presence header */}
+          <ConciergePresenceHeader mode={mode} live={isLive} speaking={speaking} />
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 scrollbar-thin">
             {messages.map((msg, i) => (
               <div
                 key={i}
-                className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                className={`flex gap-2 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
               >
+                {msg.role === "assistant" && (
+                  <CreatorAvatar size="sm" live={isLive} className="mt-0.5 flex-shrink-0" />
+                )}
                 <div
                   data-testid={`chat-message-${msg.role}-${i}`}
-                  className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                  className={`max-w-[76%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
                     msg.role === "user"
                       ? "bg-[#F4A62A] text-black font-medium rounded-br-sm"
                       : "bg-white/8 text-white/90 rounded-bl-sm border border-white/8"
@@ -176,10 +214,11 @@ export function AIConcierge() {
             ))}
 
             {chatMutation.isPending && (
-              <div className="flex justify-start">
+              <div className="flex gap-2 justify-start">
+                <CreatorAvatar size="sm" speaking className="mt-0.5 flex-shrink-0" />
                 <div className="bg-white/8 border border-white/8 rounded-2xl rounded-bl-sm px-4 py-3 flex items-center gap-2">
                   <Loader2 className="h-3.5 w-3.5 animate-spin text-[#F4A62A]" />
-                  <span className="text-xs text-white/50">Thinking...</span>
+                  <span className="text-xs text-white/50">Thinking…</span>
                 </div>
               </div>
             )}
@@ -232,9 +271,32 @@ export function AIConcierge() {
             <div ref={bottomRef} />
           </div>
 
-          {/* Quick prompts (only on first message) */}
-          {messages.length === 1 && (
-            <div className="px-4 pb-2 flex flex-wrap gap-2">
+          {/* Session mode chips — always visible */}
+          <div className="px-4 pb-2 pt-1 flex flex-wrap gap-1.5 border-t border-white/5">
+            {SESSION_CHIPS.map((chip) => (
+              <button
+                key={chip.mode}
+                data-testid={`button-mode-${chip.mode}`}
+                onClick={() => handleModeChange(chip.mode)}
+                className={`e360-chip text-xs ${mode === chip.mode ? "e360-chip-active" : ""}`}
+              >
+                {chip.label}
+              </button>
+            ))}
+            {mode !== "default" && (
+              <button
+                data-testid="button-mode-default"
+                onClick={() => handleModeChange("default")}
+                className="e360-chip text-xs opacity-50"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+
+          {/* Quick prompts (only on first message in default mode) */}
+          {messages.length === 1 && mode === "default" && (
+            <div className="px-4 pb-2 flex flex-wrap gap-1.5">
               {QUICK_PROMPTS.map((prompt) => (
                 <button
                   key={prompt}
@@ -256,7 +318,7 @@ export function AIConcierge() {
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask me anything about Elevate360..."
+              placeholder={modeConfig.placeholder}
               disabled={chatMutation.isPending}
               className="flex-1 bg-white/6 border border-white/10 rounded-full px-4 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#F4A62A]/40 disabled:opacity-50"
             />

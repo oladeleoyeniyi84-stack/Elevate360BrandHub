@@ -1,0 +1,459 @@
+Here is the exact React/Replit code patch plan to turn the Elevate360 AI Concierge into a founder-faced, session-aware live presence system.
+
+Goal
+
+Replace the current generic concierge icon/header with your verified creator photo, then make that presence feel “alive” when users enter these session flows:
+
+Brand Strategy Session
+AI Content Consultation
+Creative Direction Call
+App / Product Consultation
+Collaboration Discovery Call
+1. Files to add
+Frontend assets
+
+Add your verified creator photo in these optimized versions:
+
+client/src/assets/creator/creator-avatar.png
+client/src/assets/creator/creator-avatar.webp
+client/src/assets/creator/creator-avatar-live.webp
+optional if you want a slightly different brighter/live version
+New config file
+client/src/config/conciergeModes.ts
+New components
+client/src/components/concierge/CreatorAvatar.tsx
+client/src/components/concierge/ConciergePresenceHeader.tsx
+client/src/components/concierge/SessionPresenceCard.tsx
+2. Files to patch
+client/src/components/AIConcierge.tsx
+or whatever file renders the Elevate360 Concierge widget
+client/src/pages/Home.tsx
+or the page that renders the session cards
+client/src/components/ConsultationCards.tsx
+if your consultation grid is split into its own component
+client/src/index.css
+or your main global stylesheet
+optional: shared/schema.ts and backend chat/session route if you want session mode persisted server-side
+3. Add the session-mode config
+client/src/config/conciergeModes.ts
+export type ConciergeModeKey =
+  | "default"
+  | "brandStrategy"
+  | "aiContent"
+  | "creativeDirection"
+  | "appProduct"
+  | "collaboration";
+
+export const conciergeModes: Record<
+  ConciergeModeKey,
+  {
+    title: string;
+    subtitle: string;
+    intro: string;
+    chip: string;
+    placeholder: string;
+  }
+> = {
+  default: {
+    title: "Elevate360 Concierge",
+    subtitle: "AI-powered • Founder-guided",
+    intro:
+      "Hi, I’m your Elevate360 Concierge. I can help you discover the right session, product, book, or next step.",
+    chip: "Always here",
+    placeholder: "Ask me anything about Elevate360...",
+  },
+  brandStrategy: {
+    title: "Brand Strategy Guide",
+    subtitle: "Founder-guided strategic mode",
+    intro:
+      "Let’s clarify your brand positioning, messaging, and growth roadmap so your next move is sharper and more profitable.",
+    chip: "Strategic mode",
+    placeholder: "Tell me about your brand goals...",
+  },
+  aiContent: {
+    title: "AI Content Guide",
+    subtitle: "Founder-guided content mode",
+    intro:
+      "Let’s build a smarter content system using AI tools, workflow structure, and platform-specific growth strategy.",
+    chip: "Creative mode",
+    placeholder: "What kind of content do you want to create?",
+  },
+  creativeDirection: {
+    title: "Creative Direction Guide",
+    subtitle: "Founder-guided visual mode",
+    intro:
+      "Let’s refine your visuals, campaigns, messaging, and premium brand edge so your presentation feels elevated.",
+    chip: "Visual mode",
+    placeholder: "What creative direction do you need help with?",
+  },
+  appProduct: {
+    title: "Product Consultation Guide",
+    subtitle: "Founder-guided product mode",
+    intro:
+      "Let’s shape your app or digital product from concept to launch with better UX, monetization, and growth thinking.",
+    chip: "Product mode",
+    placeholder: "Tell me about your app or product idea...",
+  },
+  collaboration: {
+    title: "Collaboration Guide",
+    subtitle: "Founder-guided partnership mode",
+    intro:
+      "Let’s explore partnerships, licensing, co-creation, or strategic collaboration opportunities that fit Elevate360.",
+    chip: "Partnership mode",
+    placeholder: "What kind of collaboration are you exploring?",
+  },
+};
+4. Add reusable creator avatar component
+client/src/components/concierge/CreatorAvatar.tsx
+import creatorAvatar from "@/assets/creator/creator-avatar.webp";
+import clsx from "clsx";
+
+type CreatorAvatarProps = {
+  size?: "sm" | "md" | "lg";
+  live?: boolean;
+  speaking?: boolean;
+  className?: string;
+};
+
+export function CreatorAvatar({
+  size = "md",
+  live = false,
+  speaking = false,
+  className,
+}: CreatorAvatarProps) {
+  const sizeClass =
+    size === "sm"
+      ? "h-10 w-10"
+      : size === "lg"
+      ? "h-20 w-20"
+      : "h-14 w-14";
+
+  return (
+    <div
+      className={clsx(
+        "relative rounded-full p-[2px] bg-gradient-to-br from-[#F4A62A] via-[#D8A12F] to-[#2A2E4A]",
+        live && "e360-avatar-live",
+        speaking && "e360-avatar-speaking",
+        className
+      )}
+    >
+      <div className="relative overflow-hidden rounded-full bg-[#0B1020]">
+        <img
+          src={creatorAvatar}
+          alt="Elevate360 founder concierge"
+          className={clsx(sizeClass, "rounded-full object-cover")}
+        />
+      </div>
+
+      <span className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-[#0B1020] bg-[#F4A62A]" />
+    </div>
+  );
+}
+5. Add concierge header with founder photo
+client/src/components/concierge/ConciergePresenceHeader.tsx
+import { CreatorAvatar } from "./CreatorAvatar";
+import { conciergeModes, ConciergeModeKey } from "@/config/conciergeModes";
+
+type Props = {
+  mode: ConciergeModeKey;
+  live?: boolean;
+  speaking?: boolean;
+};
+
+export function ConciergePresenceHeader({ mode, live, speaking }: Props) {
+  const config = conciergeModes[mode];
+
+  return (
+    <div className="flex items-center gap-3 border-b border-white/10 px-4 py-4">
+      <CreatorAvatar size="md" live={live} speaking={speaking} />
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <h3 className="truncate text-base font-semibold text-white">
+            {config.title}
+          </h3>
+          <span className="rounded-full bg-[#F4A62A]/15 px-2 py-0.5 text-[10px] font-medium text-[#F4A62A]">
+            {config.chip}
+          </span>
+        </div>
+        <p className="text-xs text-slate-300">{config.subtitle}</p>
+      </div>
+    </div>
+  );
+}
+6. Add session presence card
+client/src/components/concierge/SessionPresenceCard.tsx
+import { ConciergeModeKey, conciergeModes } from "@/config/conciergeModes";
+import { CreatorAvatar } from "./CreatorAvatar";
+
+type Props = {
+  mode: ConciergeModeKey;
+};
+
+export function SessionPresenceCard({ mode }: Props) {
+  const config = conciergeModes[mode];
+
+  return (
+    <div className="rounded-3xl border border-[#F4A62A]/20 bg-[#11162A]/90 p-4 shadow-[0_10px_40px_rgba(0,0,0,0.25)]">
+      <div className="flex items-start gap-3">
+        <CreatorAvatar size="lg" live />
+        <div>
+          <h4 className="text-sm font-semibold text-white">{config.title}</h4>
+          <p className="mt-1 text-sm leading-6 text-slate-300">{config.intro}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+7. Patch the concierge widget
+client/src/components/AIConcierge.tsx
+
+Patch this component in four ways:
+
+A. Add mode state
+import { useMemo, useState } from "react";
+import { conciergeModes, ConciergeModeKey } from "@/config/conciergeModes";
+import { ConciergePresenceHeader } from "@/components/concierge/ConciergePresenceHeader";
+
+Inside component:
+
+const [mode, setMode] = useState<ConciergeModeKey>("default");
+const [speaking, setSpeaking] = useState(false);
+
+const modeConfig = useMemo(() => conciergeModes[mode], [mode]);
+B. Replace current header block
+
+Replace the existing icon/title header with:
+
+<ConciergePresenceHeader
+  mode={mode}
+  live={mode !== "default"}
+  speaking={speaking}
+/>
+C. Replace the default intro bubble
+
+Use:
+
+<div className="rounded-3xl border border-white/10 bg-white/5 p-4 text-slate-100">
+  <p className="text-base leading-7">{modeConfig.intro}</p>
+</div>
+D. Update quick actions to set modes
+
+Replace generic action chips with:
+
+<div className="flex flex-wrap gap-2">
+  <button onClick={() => setMode("brandStrategy")} className="e360-chip">Brand Strategy</button>
+  <button onClick={() => setMode("aiContent")} className="e360-chip">AI Content</button>
+  <button onClick={() => setMode("creativeDirection")} className="e360-chip">Creative Direction</button>
+  <button onClick={() => setMode("appProduct")} className="e360-chip">App / Product</button>
+  <button onClick={() => setMode("collaboration")} className="e360-chip">Collaboration</button>
+</div>
+E. Update input placeholder
+<input
+  placeholder={modeConfig.placeholder}
+  ...
+/>
+F. Make photo feel “alive” during response
+
+When sending a message:
+
+setSpeaking(true);
+try {
+  // existing send logic
+} finally {
+  setTimeout(() => setSpeaking(false), 900);
+}
+8. Patch the floating launcher
+
+Wherever the launcher button currently uses a generic icon, replace it with:
+
+import { CreatorAvatar } from "@/components/concierge/CreatorAvatar";
+
+<button
+  type="button"
+  onClick={toggleOpen}
+  className="fixed bottom-6 right-6 z-50 rounded-full shadow-2xl"
+  aria-label="Open Elevate360 Concierge"
+>
+  <CreatorAvatar size="lg" live />
+</button>
+
+This makes the launcher itself your verified creator face.
+
+9. Patch the consultation/session cards
+
+From your screenshots, the session cards are already visible on the booking section. Add a small founder-guided presence panel tied to card hover/select.
+
+In the sessions grid component
+
+Add state:
+
+const [activeSessionMode, setActiveSessionMode] = useState<ConciergeModeKey>("default");
+Map each card to a mode
+const sessionModeMap = {
+  "Brand Strategy Session": "brandStrategy",
+  "AI Content Consultation": "aiContent",
+  "Creative Direction Call": "creativeDirection",
+  "App/Product Consultation": "appProduct",
+  "Collaboration Discovery Call": "collaboration",
+} as const;
+On hover or click
+onMouseEnter={() => setActiveSessionMode("brandStrategy")}
+onFocus={() => setActiveSessionMode("brandStrategy")}
+onClick={() => setActiveSessionMode("brandStrategy")}
+Add a right-side or top presence panel
+<SessionPresenceCard mode={activeSessionMode} />
+
+So when a visitor interacts with a session card, your founder image appears with the matching live concierge context.
+
+10. Patch the consultation card CTA behavior
+
+When a user clicks a session, also sync concierge mode:
+
+const handleSessionSelect = (mode: ConciergeModeKey, bookingUrl: string) => {
+  setActiveSessionMode(mode);
+  window.dispatchEvent(
+    new CustomEvent("e360:set-concierge-mode", { detail: { mode } })
+  );
+  window.open(bookingUrl, "_blank");
+};
+
+In AIConcierge.tsx, listen for it:
+
+useEffect(() => {
+  const handler = (event: Event) => {
+    const custom = event as CustomEvent<{ mode: ConciergeModeKey }>;
+    if (custom.detail?.mode) setMode(custom.detail.mode);
+  };
+
+  window.addEventListener("e360:set-concierge-mode", handler as EventListener);
+  return () => window.removeEventListener("e360:set-concierge-mode", handler as EventListener);
+}, []);
+
+This keeps the booking cards and concierge panel synchronized.
+
+11. Add premium motion styles
+client/src/index.css
+.e360-chip {
+  border-radius: 9999px;
+  border: 1px solid rgba(244, 166, 42, 0.35);
+  background: rgba(244, 166, 42, 0.08);
+  color: #f8e7b0;
+  padding: 0.55rem 0.9rem;
+  font-size: 0.875rem;
+  transition: all 180ms ease;
+}
+
+.e360-chip:hover {
+  background: rgba(244, 166, 42, 0.16);
+  border-color: rgba(244, 166, 42, 0.55);
+  transform: translateY(-1px);
+}
+
+.e360-avatar-live {
+  box-shadow: 0 0 0 0 rgba(244, 166, 42, 0.45);
+  animation: e360Pulse 2.8s infinite;
+}
+
+.e360-avatar-speaking {
+  animation:
+    e360Pulse 1.1s infinite,
+    e360Float 2.2s ease-in-out infinite;
+}
+
+@keyframes e360Pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(244, 166, 42, 0.42);
+  }
+  70% {
+    box-shadow: 0 0 0 12px rgba(244, 166, 42, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(244, 166, 42, 0);
+  }
+}
+
+@keyframes e360Float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+This gives a subtle “alive” feel without becoming noisy.
+
+12. Optional backend persistence upgrade
+
+If you want each session type tracked in analytics/chat history, patch your chat session payload.
+
+Add field to chat request
+sessionMode?: "default" | "brandStrategy" | "aiContent" | "creativeDirection" | "appProduct" | "collaboration";
+
+Then persist it in chat session storage. That lets you later measure:
+
+which consultation mode users select most
+which mode converts best
+which mode leads to more bookings
+
+This is optional but smart.
+
+13. Replit implementation order
+
+Use this order:
+
+add creator photo assets
+add conciergeModes.ts
+add CreatorAvatar.tsx
+add ConciergePresenceHeader.tsx
+add SessionPresenceCard.tsx
+patch concierge widget
+patch floating launcher
+patch consultation/session grid
+add CSS animation styles
+optional: patch backend session tracking
+test locally in Replit
+publish
+14. Production verification checklist
+
+After deploy, verify these on https://www.elevate360official.com:
+
+Concierge
+launcher shows your creator photo
+header shows your creator photo
+intro changes by selected session mode
+avatar pulses while AI is responding
+Session cards
+Brand Strategy Session activates brand strategy mode
+AI Content Consultation activates AI content mode
+Creative Direction Call activates creative direction mode
+App / Product Consultation activates product mode
+Collaboration Discovery Call activates collaboration mode
+UX quality
+no layout shift
+photo crops cleanly in circular frame
+hover/click transitions feel smooth
+mobile view still works cleanly
+15. Best premium version
+
+For the strongest result, implement in 2 passes:
+
+Pass 1
+
+Static creator photo everywhere:
+
+launcher
+concierge header
+session cards/presence panel
+Pass 2
+
+Live founder-presence behavior:
+
+pulse
+speaking state
+session-aware intro
+synchronized booking/session mode
+
+If you want, I’ll 
+convert this into paste-ready code blocks for the exact files one by one, 
+starting with the concierge component.

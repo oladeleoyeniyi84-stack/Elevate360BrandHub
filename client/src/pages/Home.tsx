@@ -6,6 +6,8 @@ import { useCountUp } from "@/hooks/useCountUp";
 import { useTrackClick } from "@/hooks/useTrackClick";
 import { useTrackPageView } from "@/hooks/useTrackPageView";
 import { AIConcierge } from "@/components/AIConcierge";
+import { SessionPresenceCard } from "@/components/concierge/SessionPresenceCard";
+import { type ConciergeModeKey, SESSION_MODE_MAP } from "@/config/conciergeModes";
 import { Link } from "wouter";
 import {
   ArrowRight,
@@ -71,6 +73,101 @@ function StatCard({ target, suffix = "", label, description, emoji, delay = "0ms
       </p>
       <p className="text-sm font-semibold text-foreground">{label}</p>
       <p className="text-xs text-muted-foreground leading-relaxed">{description}</p>
+    </div>
+  );
+}
+
+type ConsultationItem = {
+  id: number;
+  title: string;
+  price: number;
+  currency: string;
+  duration: number;
+  description: string;
+  tag?: string | null;
+};
+
+function ConsultationGrid({
+  consultations,
+  onBook,
+}: {
+  consultations: ConsultationItem[];
+  onBook: (c: ConsultationItem) => void;
+}) {
+  const [activeMode, setActiveMode] = useState<ConciergeModeKey>("default");
+  const COLORS = ["#F4A62A", "#22c55e", "#38bdf8", "#a78bfa", "#fb923c", "#f472b6"];
+
+  const handleCardEnter = (title: string) => {
+    const mapped = SESSION_MODE_MAP[title] ?? "default";
+    setActiveMode(mapped);
+  };
+
+  const handleCardSelect = (c: ConsultationItem) => {
+    const mapped = SESSION_MODE_MAP[c.title] ?? "default";
+    setActiveMode(mapped);
+    window.dispatchEvent(
+      new CustomEvent("e360:set-concierge-mode", { detail: { mode: mapped } })
+    );
+    onBook(c);
+  };
+
+  return (
+    <div className="space-y-6 reveal">
+      {/* Active session presence card */}
+      {activeMode !== "default" && (
+        <div className="max-w-lg mx-auto transition-all duration-300">
+          <SessionPresenceCard mode={activeMode} />
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        {consultations.map((c, idx) => {
+          const isFree = c.price === 0;
+          const priceLabel = isFree ? "Free" : `$${(c.price / 100).toFixed(0)}`;
+          const accent = COLORS[idx % COLORS.length];
+          const isActive = SESSION_MODE_MAP[c.title] === activeMode;
+          return (
+            <div
+              key={c.id}
+              className="lux-card flex flex-col p-6 gap-4 hover:-translate-y-1 transition-all duration-200 cursor-pointer"
+              data-testid={`card-consultation-${c.id}`}
+              style={{
+                borderTop: `2px solid ${accent}${isActive ? "80" : "30"}`,
+                boxShadow: isActive ? `0 0 0 1px ${accent}30, 0 8px 24px rgba(0,0,0,0.25)` : undefined,
+              }}
+              onMouseEnter={() => handleCardEnter(c.title)}
+              onFocus={() => handleCardEnter(c.title)}
+            >
+              {c.tag && (
+                <span
+                  className="self-start text-[11px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
+                  style={{ background: `${accent}20`, color: accent }}
+                >
+                  {c.tag}
+                </span>
+              )}
+              <h3 className="text-white font-heading font-bold text-lg leading-tight">{c.title}</h3>
+              <p className="text-white/50 text-sm flex-1">{c.description}</p>
+              <div className="flex items-center gap-4 text-sm mt-auto">
+                <span className="flex items-center gap-1.5 text-white/40">
+                  <Clock className="w-3.5 h-3.5" />
+                  {c.duration} min
+                </span>
+                <span className="ml-auto font-bold text-xl" style={{ color: accent }}>
+                  {priceLabel}
+                </span>
+              </div>
+              <button
+                data-testid={`btn-book-${c.id}`}
+                onClick={() => handleCardSelect(c)}
+                className="btn-primary w-full mt-2 flex items-center justify-center gap-2 text-sm"
+              >
+                <Calendar className="w-4 h-4" /> Book This Session
+              </button>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -1568,44 +1665,10 @@ export default function Home() {
               <p className="text-white/50 max-w-xl mx-auto">Strategy, creativity, and execution — tailored to your goals. Choose a session type below and secure your spot.</p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 reveal">
-              {consultations.map((c) => {
-                const isFree = c.price === 0;
-                const priceLabel = isFree ? "Free" : `$${(c.price / 100).toFixed(0)}`;
-                const COLORS = ["#F4A62A","#22c55e","#38bdf8","#a78bfa","#fb923c","#f472b6"];
-                const colorIdx = c.id % COLORS.length;
-                const accent = COLORS[colorIdx];
-                return (
-                  <div key={c.id}
-                    className="lux-card flex flex-col p-6 gap-4 hover:-translate-y-1 transition-transform duration-200"
-                    data-testid={`card-consultation-${c.id}`}
-                    style={{ borderTop: `2px solid ${accent}30` }}
-                  >
-                    {c.tag && (
-                      <span className="self-start text-[11px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
-                        style={{ background: `${accent}20`, color: accent }}>
-                        {c.tag}
-                      </span>
-                    )}
-                    <h3 className="text-white font-heading font-bold text-lg leading-tight">{c.title}</h3>
-                    <p className="text-white/50 text-sm flex-1">{c.description}</p>
-                    <div className="flex items-center gap-4 text-sm mt-auto">
-                      <span className="flex items-center gap-1.5 text-white/40">
-                        <Clock className="w-3.5 h-3.5" />{c.duration} min
-                      </span>
-                      <span className="ml-auto font-bold text-xl" style={{ color: accent }}>{priceLabel}</span>
-                    </div>
-                    <button
-                      data-testid={`btn-book-${c.id}`}
-                      onClick={() => { setBookingConsultation(c); setBookingSuccess(false); setBookingError(""); }}
-                      className="btn-primary w-full mt-2 flex items-center justify-center gap-2 text-sm"
-                    >
-                      <Calendar className="w-4 h-4" /> Book This Session
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
+            <ConsultationGrid
+              consultations={consultations}
+              onBook={(c) => { setBookingConsultation(c); setBookingSuccess(false); setBookingError(""); }}
+            />
           </div>
         </section>
       )}
