@@ -30,3 +30,9 @@ id = "j2n5MNs1qF5lRj-5Y0ww5"
 uri = "file://workspace_export.tar.gz"
 type = "unspecified"
 title = "Elevate360Official — Full Project Export"
+
+[[outputs]]
+id = "B6H3uteKZWuJu8p-c4SNX"
+uri = "file://docs/Elevate360_Executive_Handoff.md"
+type = "text"
+title = "Elevate360 Executive Handoff Document"
