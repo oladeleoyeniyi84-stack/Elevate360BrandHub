@@ -232,7 +232,7 @@ export interface IStorage {
   updateExecutionQueueItem(id: number, patch: Partial<InsertExecutionQueueItem>): Promise<ExecutionQueueItem | undefined>;
   getAppliedChanges(limit?: number): Promise<AppliedChange[]>;
   createAppliedChange(input: InsertAppliedChange): Promise<AppliedChange>;
-  updateAppliedChange(id: number, patch: Partial<InsertAppliedChange>): Promise<AppliedChange | undefined>;
+  updateAppliedChange(id: number, patch: UpdateAppliedChange): Promise<AppliedChange | undefined>;
   getAppliedChangeByKey(changeKey: string): Promise<AppliedChange | undefined>;
   getRollbackEvents(limit?: number): Promise<RollbackEvent[]>;
   createRollbackEvent(input: InsertRollbackEvent): Promise<RollbackEvent>;
@@ -1090,7 +1090,7 @@ export class DatabaseStorage implements IStorage {
       intentGroups.get(key)!.push(s);
     }
     const byIntent: Record<string, any> = {};
-    for (const [intent, sessions] of intentGroups.entries()) {
+    for (const [intent, sessions] of Array.from(intentGroups.entries())) {
       const total = sessions.length;
       const qualified = sessions.filter((s) => ["qualified", "booked", "won", "converted"].includes(s.pipelineStage)).length;
       const booked = sessions.filter((s) => ["booked", "won", "converted"].includes(s.pipelineStage)).length;
@@ -1177,7 +1177,7 @@ export class DatabaseStorage implements IStorage {
     }
     let topRecommendedOffer: string | null = null;
     let topCount = 0;
-    for (const [o, c] of offerCounts.entries()) {
+    for (const [o, c] of Array.from(offerCounts.entries())) {
       if (c > topCount) { topCount = c; topRecommendedOffer = o; }
     }
     return { overdueHotLeads, newQualifiedLeads, pendingBookings, paidOrdersToday, unrepliedContacts, topRecommendedOffer };
@@ -1257,7 +1257,7 @@ export class DatabaseStorage implements IStorage {
       }
     }
     const topRecommendedOffer = offerMap.size > 0
-      ? [...offerMap.entries()].sort((a, b) => b[1] - a[1])[0][0]
+      ? Array.from(offerMap.entries()).sort((a, b) => b[1] - a[1])[0][0]
       : null;
 
     const knowledgeBackedChats = all.filter((l) => l.sessionSummary).length;
@@ -1273,7 +1273,7 @@ export class DatabaseStorage implements IStorage {
       }
     }
     const conversionByIntent: Record<string, { total: number; won: number; rate: number }> = {};
-    for (const [intent, total] of intentTotals) {
+    for (const [intent, total] of Array.from(intentTotals.entries())) {
       const won = intentWons.get(intent) ?? 0;
       conversionByIntent[intent] = { total, won, rate: total > 0 ? Math.round((won / total) * 100) : 0 };
     }
@@ -1331,10 +1331,10 @@ export class DatabaseStorage implements IStorage {
         offerCounts.set(l.recommendedOffer, (offerCounts.get(l.recommendedOffer) ?? 0) + 1);
     }
     const topIntent = intentCounts.size > 0
-      ? [...intentCounts.entries()].sort((a, b) => b[1] - a[1])[0][0]
+      ? Array.from(intentCounts.entries()).sort((a, b) => b[1] - a[1])[0][0]
       : null;
     const topRecommendedOffer = offerCounts.size > 0
-      ? [...offerCounts.entries()].sort((a, b) => b[1] - a[1])[0][0]
+      ? Array.from(offerCounts.entries()).sort((a, b) => b[1] - a[1])[0][0]
       : null;
 
     return {
@@ -1725,7 +1725,7 @@ export class DatabaseStorage implements IStorage {
     return row;
   }
 
-  async updateAppliedChange(id: number, patch: Partial<InsertAppliedChange>): Promise<AppliedChange | undefined> {
+  async updateAppliedChange(id: number, patch: UpdateAppliedChange): Promise<AppliedChange | undefined> {
     const [row] = await db.update(appliedChanges).set(patch).where(eq(appliedChanges.id, id)).returning();
     return row;
   }

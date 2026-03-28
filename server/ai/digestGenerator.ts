@@ -71,7 +71,7 @@ export async function buildDigestData(): Promise<DigestData> {
       intentMap.set(l.intent, (intentMap.get(l.intent) ?? 0) + 1);
     }
   }
-  const topIntents = [...intentMap.entries()]
+  const topIntents = Array.from(intentMap.entries())
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5)
     .map(([intent, count]) => ({ intent, count }));
@@ -84,7 +84,7 @@ export async function buildDigestData(): Promise<DigestData> {
     }
   }
   const topRecommendedOffer = offerMap.size > 0
-    ? [...offerMap.entries()].sort((a, b) => b[1] - a[1])[0][0]
+    ? Array.from(offerMap.entries()).sort((a, b) => b[1] - a[1])[0][0]
     : null;
 
   // Knowledge-backed chats: leads with session summary (summarizer ran = knowledge was used)
@@ -101,7 +101,7 @@ export async function buildDigestData(): Promise<DigestData> {
       intentWons.set(l.intent, (intentWons.get(l.intent) ?? 0) + 1);
     }
   }
-  for (const [intent, total] of intentTotals) {
+  for (const [intent, total] of Array.from(intentTotals.entries())) {
     const wons = intentWons.get(intent) ?? 0;
     conversionByIntent[intent] = total > 0 ? Math.round((wons / total) * 100) : 0;
   }

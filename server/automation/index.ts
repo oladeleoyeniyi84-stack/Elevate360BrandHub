@@ -90,12 +90,12 @@ export async function startAutomationJobs() {
   const { runRollbackEngine } = await import("./rollbackEngine");
 
   await registerRecurringJob(
-    { jobKey: "phase51_execution_engine", jobGroup: "execution", cadenceMinutes: 360, run: runExecutionEngine },
+    { jobKey: "phase51_execution_engine", jobGroup: "execution", cadenceMinutes: 360, run: () => runExecutionEngine().then(() => undefined) },
     270_000
   );
 
   await registerRecurringJob(
-    { jobKey: "phase51_rollback_engine", jobGroup: "execution", cadenceMinutes: 720, run: runRollbackEngine },
+    { jobKey: "phase51_rollback_engine", jobGroup: "execution", cadenceMinutes: 720, run: () => runRollbackEngine().then(() => undefined) },
     300_000
   );
 
@@ -106,7 +106,7 @@ export async function startAutomationJobs() {
   const { runQuarterlyStrategyEngine } = await import("./quarterlyStrategyEngine");
 
   await registerRecurringJob(
-    { jobKey: "phase52_reliability_watchdog", jobGroup: "reliability", cadenceMinutes: 360, run: runReliabilityWatchdog },
+    { jobKey: "phase52_reliability_watchdog", jobGroup: "reliability", cadenceMinutes: 360, run: () => runReliabilityWatchdog().then(() => undefined) },
     330_000
   );
 

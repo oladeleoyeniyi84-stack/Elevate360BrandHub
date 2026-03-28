@@ -393,6 +393,11 @@ export async function registerRoutes(
     res.json(posts);
   });
 
+  app.get("/api/blog/posts", async (_req, res) => {
+    const posts = await storage.getBlogPosts(true);
+    res.json(posts);
+  });
+
   app.get("/api/blog/:slug", async (req, res) => {
     const post = await storage.getBlogPostBySlug(req.params.slug);
     if (!post || !post.published) return res.status(404).json({ error: "Not found" });

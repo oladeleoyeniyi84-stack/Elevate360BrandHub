@@ -7,6 +7,7 @@ export type Intent =
   | "sales_service"
   | "sales_consultation"
   | "support"
+  | "support_request"
   | "collaboration"
   | "art_commission"
   | "app_interest"
@@ -37,6 +38,7 @@ const ROUTE_TARGETS: Record<Intent, string> = {
   music_interest: "streaming_cta",
   media_press: "press_contact",
   newsletter: "newsletter_signup",
+  support_request: "support_form",
   general_brand: "brand_info",
   unknown: "general",
 };

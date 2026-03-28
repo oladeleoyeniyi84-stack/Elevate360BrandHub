@@ -81,6 +81,6 @@ export async function registerRecurringJob(config: JobConfig, bootDelayMs = 60_0
 }
 
 export function stopAllAutomationJobs() {
-  for (const timer of timers.values()) clearTimeout(timer);
+  for (const timer of Array.from(timers.values())) clearTimeout(timer);
   timers.clear();
 }

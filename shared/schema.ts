@@ -648,16 +648,19 @@ export const rollbackEvents = pgTable("rollback_events", {
 export const insertExecutionPolicySchema = createInsertSchema(executionPolicies).omit({ id: true, createdAt: true, updatedAt: true });
 export const updateExecutionPolicySchema = insertExecutionPolicySchema.partial();
 export type InsertExecutionPolicy = z.infer<typeof insertExecutionPolicySchema>;
+export type UpdateExecutionPolicy = z.infer<typeof updateExecutionPolicySchema>;
 export type ExecutionPolicy = typeof executionPolicies.$inferSelect;
 
-export const insertAppliedChangeSchema = createInsertSchema(appliedChanges).omit({ id: true, createdAt: true, appliedAt: true, rolledBackAt: true });
-export const updateAppliedChangeSchema = insertAppliedChangeSchema.partial();
+export const insertAppliedChangeSchema = createInsertSchema(appliedChanges).omit({ id: true, createdAt: true, rolledBackAt: true });
+export const updateAppliedChangeSchema = createInsertSchema(appliedChanges).omit({ id: true, createdAt: true }).partial();
 export type InsertAppliedChange = z.infer<typeof insertAppliedChangeSchema>;
+export type UpdateAppliedChange = z.infer<typeof updateAppliedChangeSchema>;
 export type AppliedChange = typeof appliedChanges.$inferSelect;
 
 export const insertExecutionQueueSchema = createInsertSchema(executionQueue).omit({ id: true, createdAt: true, executedAt: true });
 export const updateExecutionQueueSchema = insertExecutionQueueSchema.partial();
 export type InsertExecutionQueueItem = z.infer<typeof insertExecutionQueueSchema>;
+export type UpdateExecutionQueueItem = z.infer<typeof updateExecutionQueueSchema>;
 export type ExecutionQueueItem = typeof executionQueue.$inferSelect;
 
 export const insertRollbackEventSchema = createInsertSchema(rollbackEvents).omit({ id: true, createdAt: true });
@@ -665,7 +668,7 @@ export type InsertRollbackEvent = z.infer<typeof insertRollbackEventSchema>;
 export type RollbackEvent = typeof rollbackEvents.$inferSelect;
 
 export const insertGrowthExperimentSchema = createInsertSchema(growthExperiments).omit({ id: true, createdAt: true, startedAt: true, completedAt: true });
-export const updateGrowthExperimentSchema = insertGrowthExperimentSchema.partial();
+export const updateGrowthExperimentSchema = createInsertSchema(growthExperiments).omit({ id: true, createdAt: true }).partial();
 export type InsertGrowthExperiment = z.infer<typeof insertGrowthExperimentSchema>;
 export type UpdateGrowthExperiment = z.infer<typeof updateGrowthExperimentSchema>;
 export type GrowthExperiment = typeof growthExperiments.$inferSelect;

@@ -114,20 +114,21 @@ function VerdictCard({ verdict }: { verdict: string | null }) {
 
 // ─── Controlled Test Matrix (local state, 10 cases) ──────────────────────────
 
-const DEFAULT_TEST_CASES = [
-  { id: "T01", path: "Chat → click recommended offer → Stripe checkout", expected: "Order linked to session, attribution = ai_originated", actual: "", result: "pending" as const, notes: "" },
-  { id: "T02", path: "Direct checkout with no prior chat", expected: "Order has sessionId=null, shown as direct in Revenue tab", actual: "", result: "pending" as const, notes: "" },
-  { id: "T03", path: "Chat → WhatsApp → purchase confirmed manually", expected: "Admin marks offer accepted with source=whatsapp", actual: "", result: "pending" as const, notes: "" },
-  { id: "T04", path: "Book a consultation via booking form", expected: "Booking row created, status=pending, urgency bar increments", actual: "", result: "pending" as const, notes: "" },
-  { id: "T05", path: "Cancel a booking in dashboard", expected: "Booking status=cancelled, funnel Booked count decrements", actual: "", result: "pending" as const, notes: "" },
-  { id: "T06", path: "Send follow-up to a hot lead via reminder queue", expected: "followupCount+1, lastFollowupSentAt set, audit log entry created", actual: "", result: "pending" as const, notes: "" },
-  { id: "T07", path: "Trigger 16 rapid /api/chat requests from same IP", expected: "429 response on hit #16", actual: "", result: "pending" as const, notes: "" },
-  { id: "T08", path: "Log in to dashboard with correct PIN", expected: "audit_logs: dashboard_login event with IP in meta", actual: "", result: "pending" as const, notes: "" },
-  { id: "T09", path: "Log in with wrong PIN", expected: "401 returned, audit_logs: dashboard_login_failed event", actual: "", result: "pending" as const, notes: "" },
-  { id: "T10", path: "GET /api/health with all services running", expected: "200 with status=healthy and all checks ok=true", actual: "", result: "pending" as const, notes: "" },
-];
-
 type TestResult = "pending" | "pass" | "fail";
+type TestCase = { id: string; path: string; expected: string; actual: string; result: TestResult; notes: string };
+
+const DEFAULT_TEST_CASES: TestCase[] = [
+  { id: "T01", path: "Chat → click recommended offer → Stripe checkout", expected: "Order linked to session, attribution = ai_originated", actual: "", result: "pending", notes: "" },
+  { id: "T02", path: "Direct checkout with no prior chat", expected: "Order has sessionId=null, shown as direct in Revenue tab", actual: "", result: "pending", notes: "" },
+  { id: "T03", path: "Chat → WhatsApp → purchase confirmed manually", expected: "Admin marks offer accepted with source=whatsapp", actual: "", result: "pending", notes: "" },
+  { id: "T04", path: "Book a consultation via booking form", expected: "Booking row created, status=pending, urgency bar increments", actual: "", result: "pending", notes: "" },
+  { id: "T05", path: "Cancel a booking in dashboard", expected: "Booking status=cancelled, funnel Booked count decrements", actual: "", result: "pending", notes: "" },
+  { id: "T06", path: "Send follow-up to a hot lead via reminder queue", expected: "followupCount+1, lastFollowupSentAt set, audit log entry created", actual: "", result: "pending", notes: "" },
+  { id: "T07", path: "Trigger 16 rapid /api/chat requests from same IP", expected: "429 response on hit #16", actual: "", result: "pending", notes: "" },
+  { id: "T08", path: "Log in to dashboard with correct PIN", expected: "audit_logs: dashboard_login event with IP in meta", actual: "", result: "pending", notes: "" },
+  { id: "T09", path: "Log in with wrong PIN", expected: "401 returned, audit_logs: dashboard_login_failed event", actual: "", result: "pending", notes: "" },
+  { id: "T10", path: "GET /api/health with all services running", expected: "200 with status=healthy and all checks ok=true", actual: "", result: "pending", notes: "" },
+];
 
 const MATRIX_STORAGE_KEY = "e360_audit_test_matrix_v1";
 

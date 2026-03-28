@@ -16,7 +16,7 @@ export async function runReliabilityWatchdog(): Promise<{
   const staleThreshold = Date.now() - STALE_THRESHOLD_HOURS * 60 * 60 * 1000;
 
   for (const job of jobs) {
-    if (job.lastRunAt && new Date(job.lastRunAt).getTime() < staleThreshold) {
+    if (job.lastStartedAt && new Date(job.lastStartedAt).getTime() < staleThreshold) {
       staleJobs.push(job.jobKey);
       warnings.push(`Job ${job.jobKey} has not run in over ${STALE_THRESHOLD_HOURS}h`);
     }

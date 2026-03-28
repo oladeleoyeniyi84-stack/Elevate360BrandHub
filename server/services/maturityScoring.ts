@@ -17,7 +17,7 @@ export async function computeMaturityScore(): Promise<MaturityScores> {
   const jobs = await storage.getAutomationJobs();
   const staleThresholdMs = 48 * 60 * 60 * 1000;
   const staleJobs = jobs.filter(
-    (j) => j.lastRunAt && Date.now() - new Date(j.lastRunAt).getTime() > staleThresholdMs
+    (j) => j.lastStartedAt && Date.now() - new Date(j.lastStartedAt).getTime() > staleThresholdMs
   );
   const jobHealthScore = jobs.length === 0 ? 50 : Math.max(0, 100 - Math.round((staleJobs.length / jobs.length) * 100));
   details.jobHealth = `${jobs.length} jobs, ${staleJobs.length} stale`;
