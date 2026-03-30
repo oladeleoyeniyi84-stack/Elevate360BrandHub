@@ -123,10 +123,17 @@ app.use((req, res, next) => {
     const { getStripeSync } = await import("./stripeClient");
     await runMigrations({ databaseUrl: process.env.DATABASE_URL!, schema: "stripe" } as any);
     const stripeSync = await getStripeSync();
-    const webhookBase = `https://${(process.env.REPLIT_DOMAINS ?? "").split(",")[0]}`;
-    await stripeSync.findOrCreateManagedWebhook(`${webhookBase}/api/stripe/webhook`).catch((e: Error) =>
-      console.error("[stripe] webhook setup:", e.message)
-    );
+    const primaryDomain = (process.env.REPLIT_DOMAINS ?? "").split(",")[0];
+    const CANONICAL = "www.elevate360official.com";
+    const isProduction = primaryDomain === CANONICAL || process.env.NODE_ENV === "production";
+    if (isProduction) {
+      const webhookBase = `https://${primaryDomain}`;
+      await stripeSync.findOrCreateManagedWebhook(`${webhookBase}/api/stripe/webhook`).catch((e: Error) =>
+        console.error("[stripe] webhook setup:", e.message)
+      );
+    } else {
+      console.log("[stripe] webhook registration skipped in dev (non-canonical domain)");
+    }
     stripeSync.syncBackfill().catch((e: Error) => console.error("[stripe] syncBackfill:", e.message));
     console.log("[stripe] initialized");
   } catch (e: any) {
