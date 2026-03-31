@@ -130,6 +130,7 @@ function App() {
       <LanguageProvider>
         <Helmet>
           <meta name="google-site-verification" content="DgUWn97PPSSeSgoFrwQwx4W-byMJ9QiyYCRqrxsS9vI" />
+          <meta property="fb:app_id" content="122150153540988040" />
         </Helmet>
         <TooltipProvider>
           <Toaster />
