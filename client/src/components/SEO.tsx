@@ -68,6 +68,7 @@ export function SEO({
       <meta name="twitter:image" content={image} />
 
       <meta name="theme-color" content="#06142f" />
+      <meta property="fb:app_id" content="122150153540988040" />
     </Helmet>
   );
 }
