@@ -1,0 +1,1364 @@
+Based on your actual structure, here is the exact file-by-file SEO patch for your current Replit project.
+
+This patch is designed to:
+
+improve indexing
+improve social previews
+improve route metadata
+add structured data
+keep your current UI unchanged
+1) Install dependency
+
+Run this in Replit Shell:
+
+npm install react-helmet-async
+2) Patch client/src/main.tsx
+Replace the file with this:
+import { createRoot } from "react-dom/client";
+import { HelmetProvider } from "react-helmet-async";
+import App from "./App";
+import "./index.css";
+
+// Register service worker for PWA support
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker
+      .register("/sw.js")
+      .catch((err) => console.warn("SW registration failed:", err));
+  });
+}
+
+createRoot(document.getElementById("root")!).render(
+  <HelmetProvider>
+    <App />
+  </HelmetProvider>
+);
+3) Create client/src/components/SEO.tsx
+New file:
+import { Helmet } from "react-helmet-async";
+
+type SEOProps = {
+  title: string;
+  description: string;
+  path?: string;
+  image?: string;
+  type?: "website" | "article";
+  keywords?: string;
+};
+
+const SITE_NAME = "Elevate360Official";
+const SITE_URL = "https://www.elevate360official.com";
+const DEFAULT_IMAGE = `${SITE_URL}/social-preview/elevate360-social-share.png`;
+
+export function SEO({
+  title,
+  description,
+  path = "/",
+  image = DEFAULT_IMAGE,
+  type = "website",
+  keywords = [
+    "Elevate360Official",
+    "Elevate360",
+    "Oladele Oyeniyi",
+    "apps",
+    "books",
+    "music",
+    "art",
+    "video crafter",
+    "Bondedlove",
+    "Healthwisesupport",
+    "digital ecosystem",
+    "brand hub",
+    "technology and words",
+    "creative tools",
+    "AI content consultation",
+    "brand strategy",
+    "digital experiences",
+  ].join(", "),
+}: SEOProps) {
+  const canonical = `${SITE_URL}${path}`;
+
+  return (
+    <Helmet>
+      <html lang="en" />
+      <title>{title}</title>
+
+      <meta name="description" content={description} />
+      <meta name="keywords" content={keywords} />
+      <meta
+        name="robots"
+        content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1"
+      />
+      <link rel="canonical" href={canonical} />
+
+      <meta property="og:locale" content="en_US" />
+      <meta property="og:site_name" content={SITE_NAME} />
+      <meta property="og:type" content={type} />
+      <meta property="og:title" content={title} />
+      <meta property="og:description" content={description} />
+      <meta property="og:url" content={canonical} />
+      <meta property="og:image" content={image} />
+      <meta property="og:image:secure_url" content={image} />
+      <meta property="og:image:width" content="1200" />
+      <meta property="og:image:height" content="630" />
+      <meta property="og:image:alt" content="Elevate360Official brand preview" />
+
+      <meta name="twitter:card" content="summary_large_image" />
+      <meta name="twitter:title" content={title} />
+      <meta name="twitter:description" content={description} />
+      <meta name="twitter:image" content={image} />
+
+      <meta name="theme-color" content="#06142f" />
+
+      <script type="application/ld+json">
+        {JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "Organization",
+          name: "Elevate360Official",
+          url: SITE_URL,
+          logo: `${SITE_URL}/images/elevate360-logo.png`,
+          founder: {
+            "@type": "Person",
+            name: "Oladele Oyeniyi",
+          },
+          sameAs: [
+            "https://www.youtube.com/@Elevate360Official",
+          ],
+        })}
+      </script>
+
+      <script type="application/ld+json">
+        {JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "WebSite",
+          name: "Elevate360Official",
+          url: SITE_URL,
+        })}
+      </script>
+    </Helmet>
+  );
+}
+
+export default SEO;
+4) Patch client/src/App.tsx
+
+This adds route-level SEO for the routes that already exist in your app.
+
+Replace the file with this:
+import { useEffect } from "react";
+import { Switch, Route, useLocation } from "wouter";
+import { queryClient } from "./lib/queryClient";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { Toaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import NotFound from "@/pages/not-found";
+import Home from "@/pages/Home";
+import Dashboard from "@/pages/Dashboard";
+import Links from "@/pages/Links";
+import Blog from "@/pages/Blog";
+import BlogPost from "@/pages/BlogPost";
+import PressKit from "@/pages/PressKit";
+import CheckoutSuccess from "@/pages/CheckoutSuccess";
+import { CookieBanner } from "@/components/CookieBanner";
+import { ScrollUtilities } from "@/components/ScrollUtilities";
+import { NewsletterPopup } from "@/components/NewsletterPopup";
+import { WhatsAppButton } from "@/components/WhatsAppButton";
+import { MobileBottomNav } from "@/components/MobileBottomNav";
+import { AnnouncementBanner } from "@/components/AnnouncementBanner";
+import { LanguageProvider } from "@/contexts/LanguageContext";
+import SEO from "@/components/SEO";
+
+function RouteTracker() {
+  const [location] = useLocation();
+
+  useEffect(() => {
+    fetch("/api/track/visit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ page: location }),
+    }).catch(() => {});
+  }, [location]);
+
+  return null;
+}
+
+function Router() {
+  return (
+    <Switch>
+      <Route path="/" component={Home} />
+      <Route path="/links">
+        <>
+          <SEO
+            title="Links | Elevate360Official"
+            description="Explore official Elevate360Official links, destinations, brand channels, and digital experiences."
+            path="/links"
+          />
+          <Links />
+        </>
+      </Route>
+
+      <Route path="/dashboard">
+        <>
+          <SEO
+            title="Dashboard | Elevate360Official"
+            description="Internal dashboard and system overview for Elevate360Official."
+            path="/dashboard"
+          />
+          <Dashboard />
+        </>
+      </Route>
+
+      <Route path="/blog">
+        <>
+          <SEO
+            title="Blog | Elevate360Official"
+            description="Read insights, inspiration, and updates from Elevate360Official on wellness, creativity, technology, relationships, and growth."
+            path="/blog"
+            type="article"
+          />
+          <Blog />
+        </>
+      </Route>
+
+      <Route path="/blog/:slug" component={BlogPost} />
+
+      <Route path="/press-kit">
+        <>
+          <SEO
+            title="Press Kit | Elevate360Official"
+            description="Access the official Elevate360Official press kit, brand information, founder details, and media assets."
+            path="/press-kit"
+          />
+          <PressKit />
+        </>
+      </Route>
+
+      <Route path="/checkout/success">
+        <>
+          <SEO
+            title="Thank You | Elevate360Official"
+            description="Thank you for engaging with Elevate360Official."
+            path="/checkout/success"
+          />
+          <CheckoutSuccess />
+        </>
+      </Route>
+
+      <Route path="/thank-you">
+        <>
+          <SEO
+            title="Thank You | Elevate360Official"
+            description="Thank you for engaging with Elevate360Official."
+            path="/thank-you"
+          />
+          <CheckoutSuccess />
+        </>
+      </Route>
+
+      <Route>
+        <>
+          <SEO
+            title="Page Not Found | Elevate360Official"
+            description="The page you are looking for could not be found."
+            path="/404"
+          />
+          <NotFound />
+        </>
+      </Route>
+    </Switch>
+  );
+}
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <LanguageProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Router />
+          <RouteTracker />
+          <ScrollUtilities />
+          <NewsletterPopup />
+          <AnnouncementBanner />
+          <WhatsAppButton />
+          <MobileBottomNav />
+          <CookieBanner />
+        </TooltipProvider>
+      </LanguageProvider>
+    </QueryClientProvider>
+  );
+}
+
+export default App;
+5) Patch client/src/pages/Home.tsx
+
+Since you gave the structure summary rather than the full file, here is the exact change to make.
+
+Add this import near the top with the other imports:
+import SEO from "@/components/SEO";
+import { Helmet } from "react-helmet-async";
+Then inside the Home component’s returned JSX, place this as the first element inside the top-level fragment or wrapper, before <nav>:
+<SEO
+  title="Elevate360Official | Empowering Lives Through Technology & Words"
+  description="Explore Elevate360Official — a premium digital ecosystem of apps, books, music, art, consultations, and creative experiences designed to connect, heal, inspire creativity, and elevate everyday life."
+  path="/"
+/>
+
+<Helmet>
+  <script type="application/ld+json">
+    {JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "Person",
+      name: "Oladele Oyeniyi",
+      jobTitle:
+        "Founder, Entrepreneur, Author, App Developer, Visual Artist, Music Producer",
+      worksFor: {
+        "@type": "Organization",
+        name: "Elevate360Official",
+      },
+      url: "https://www.elevate360official.com/",
+    })}
+  </script>
+
+  <script type="application/ld+json">
+    {JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "ItemList",
+      name: "Elevate360Official Digital Ecosystem",
+      itemListElement: [
+        {
+          "@type": "SoftwareApplication",
+          position: 1,
+          name: "Bondedlove",
+          applicationCategory: "LifestyleApplication",
+        },
+        {
+          "@type": "SoftwareApplication",
+          position: 2,
+          name: "Healthwisesupport",
+          applicationCategory: "HealthApplication",
+        },
+        {
+          "@type": "SoftwareApplication",
+          position: 3,
+          name: "Video Crafter",
+          applicationCategory: "MultimediaApplication",
+        },
+        {
+          "@type": "Book",
+          position: 4,
+          name: "Healthwise: Stay Healthy",
+        },
+        {
+          "@type": "Book",
+          position: 5,
+          name: "Together: Let There Be Love",
+        },
+        {
+          "@type": "Book",
+          position: 6,
+          name: "One Clean Meal: A 7-Day Reset",
+        },
+      ],
+    })}
+  </script>
+</Helmet>
+Important placement
+
+If your Home.tsx currently returns:
+
+return (
+  <div>...</div>
+);
+
+keep it inside that wrapper, like:
+
+return (
+  <>
+    <SEO ... />
+    <Helmet>...</Helmet>
+    <nav>...</nav>
+    ...
+  </>
+);
+
+or if you already return a single outer <div>, put the SEO components before <nav> but still inside the outer <div>.
+
+6) Patch client/src/pages/Blog.tsx
+Add this import:
+import SEO from "@/components/SEO";
+Add this at the top of the returned JSX:
+<SEO
+  title="Blog | Elevate360Official"
+  description="Read insights, inspiration, and updates from Elevate360Official on technology, creativity, wellness, relationships, and intentional growth."
+  path="/blog"
+  type="article"
+/>
+7) Patch client/src/pages/BlogPost.tsx
+Add these imports:
+import SEO from "@/components/SEO";
+import { Helmet } from "react-helmet-async";
+Add this near the top of the component, after you know the post title/slug or fallback values:
+const seoTitle = post?.title
+  ? `${post.title} | Elevate360Official`
+  : "Blog Post | Elevate360Official";
+
+const seoDescription =
+  post?.excerpt ||
+  post?.summary ||
+  "Read this article from Elevate360Official.";
+
+const seoPath = post?.slug ? `/blog/${post.slug}` : "/blog";
+Then place this at the top of the JSX return:
+<SEO
+  title={seoTitle}
+  description={seoDescription}
+  path={seoPath}
+  type="article"
+/>
+
+<Helmet>
+  <script type="application/ld+json">
+    {JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "Article",
+      headline: post?.title || "Elevate360Official Blog Post",
+      description: seoDescription,
+      author: {
+        "@type": "Organization",
+        name: "Elevate360Official",
+      },
+      publisher: {
+        "@type": "Organization",
+        name: "Elevate360Official",
+        logo: {
+          "@type": "ImageObject",
+          url: "https://www.elevate360official.com/images/elevate360-logo.png",
+        },
+      },
+      mainEntityOfPage: `https://www.elevate360official.com${seoPath}`,
+    })}
+  </script>
+</Helmet>
+8) Patch client/src/pages/Links.tsx
+Add this import:
+import SEO from "@/components/SEO";
+Add at top of JSX return:
+<SEO
+  title="Links | Elevate360Official"
+  description="Explore all official Elevate360Official links, platforms, and destinations."
+  path="/links"
+/>
+9) Patch client/src/pages/PressKit.tsx
+Add these imports:
+import SEO from "@/components/SEO";
+import { Helmet } from "react-helmet-async";
+Add at top of JSX return:
+<SEO
+  title="Press Kit | Elevate360Official"
+  description="Official press kit for Elevate360Official, including founder information, brand positioning, and media assets."
+  path="/press-kit"
+/>
+
+<Helmet>
+  <script type="application/ld+json">
+    {JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      name: "Elevate360Official",
+      url: "https://www.elevate360official.com/press-kit",
+    })}
+  </script>
+</Helmet>
+10) Patch client/src/pages/CheckoutSuccess.tsx
+Add this import:
+import SEO from "@/components/SEO";
+Add at top of JSX return:
+<SEO
+  title="Thank You | Elevate360Official"
+  description="Thank you for connecting with Elevate360Official."
+  path="/thank-you"
+/>
+11) Patch client/src/pages/not-found.tsx
+Add this import:
+import SEO from "@/components/SEO";
+Add at top of JSX return:
+<SEO
+  title="Page Not Found | Elevate360Official"
+  description="The page you are looking for could not be found."
+  path="/404"
+/>
+12) Patch client/index.html
+Replace the <head> section with this version:
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="author" content="Elevate360Official" />
+  <meta name="googlebot" content="index,follow,max-image-preview:large" />
+  <meta name="theme-color" content="#06142f" />
+
+  <link rel="icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/site.webmanifest" />
+
+  <title>Elevate360Official</title>
+</head>
+And make sure the <body> contains this right before the root div:
+<noscript>
+  Elevate360Official is a premium digital ecosystem of apps, books, music, art,
+  and creative experiences. Please enable JavaScript to view the full site.
+</noscript>
+13) Create client/public/robots.txt
+New file:
+User-agent: *
+Allow: /
+
+Sitemap: https://www.elevate360official.com/sitemap.xml
+14) Create client/public/sitemap.xml
+New file:
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="https://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://www.elevate360official.com/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://www.elevate360official.com/blog</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://www.elevate360official.com/links</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.elevate360official.com/press-kit</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.elevate360official.com/checkout/success</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.2</priority>
+  </url>
+  <url>
+    <loc>https://www.elevate360official.com/thank-you</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.2</priority>
+  </url>
+</urlset>
+15) Create client/public/site.webmanifest
+New file:
+{
+  "name": "Elevate360Official",
+  "short_name": "Elevate360",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#06142f",
+  "theme_color": "#06142f",
+  "icons": [
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}
+16) Add required public assets
+
+Place these files in client/public/:
+
+client/public/favicon.ico
+client/public/apple-touch-icon.png
+client/public/images/elevate360-logo.png
+client/public/social-preview/elevate360-social-share.png
+Best sizes
+apple-touch-icon.png → 180x180
+elevate360-social-share.png → 1200x630
+Best social share image design
+
+Use:
+
+dark navy background
+official gold rocket logo
+Elevate360Official
+“Empowering Lives Through Technology & Words”
+
+That will improve previews on:
+
+Facebook
+LinkedIn
+WhatsApp
+X
+many chat apps
+17) Patch major images in Home.tsx for alt text and lazy loading
+
+You have these assets:
+
+app-bondedlove.png
+app-healthwise.png
+app-videocrafter.png
+book-mockup.png
+book-onecleanmeal.png
+book-together.png
+featured-book.png
+hero-bg.png
+
+Wherever they are rendered, use these alt texts.
+
+Bondedlove
+alt="Bondedlove relationship app interface by Elevate360Official"
+loading="lazy"
+Healthwise
+alt="Healthwisesupport wellness app interface by Elevate360Official"
+loading="lazy"
+Video Crafter
+alt="Video Crafter creative video production interface by Elevate360Official"
+loading="lazy"
+Together book
+alt="Together Let There Be Love book cover by Oladele Oyeniyi"
+loading="lazy"
+One Clean Meal
+alt="One Clean Meal A 7-Day Reset book cover by Oladele Oyeniyi"
+loading="lazy"
+Featured book / general book mockup
+alt="Featured Elevate360Official publication by Oladele Oyeniyi"
+loading="lazy"
+Hero image
+alt="Elevate360Official premium digital ecosystem hero background"
+
+For the hero image, you can omit lazy loading if it is above the fold.
+
+18) Optional but recommended Home.tsx internal anchor links
+
+Your homepage already has sections. Make sure nav items use stable IDs like:
+
+#apps
+#books
+#music
+#art
+#consultation
+#contact
+
+This helps crawlability and UX, though it is secondary to the main SEO patch.
+
+19) Summary of exact files changed
+New files
+client/src/components/SEO.tsx
+client/public/robots.txt
+client/public/sitemap.xml
+client/public/site.webmanifest
+Changed files
+client/src/main.tsx
+client/src/App.tsx
+client/src/pages/Home.tsx
+client/src/pages/Blog.tsx
+client/src/pages/BlogPost.tsx
+client/src/pages/Links.tsx
+client/src/pages/PressKit.tsx
+client/src/pages/CheckoutSuccess.tsx
+client/src/pages/not-found.tsx
+client/index.html
+20) What this patch will improve
+
+This gives you:
+
+better Google indexing signals
+stronger title/description control
+cleaner canonical URLs
+better Facebook/LinkedIn/WhatsApp/X previews
+organization and article structured data
+robots and sitemap support
+better image semantics
+
+It will not by itself make you rank worldwide overnight, but it gives your site the technical base it needs.
+
+If you paste your actual Blog.tsx, BlogPost.tsx, Links.tsx, PressKit.tsx, CheckoutSuccess.tsx, and not-found.tsx, I’ll convert the route-level snippets above into exact full-file replacements.
+
+Pasted text.txt
+Document
+Thought for 7s
+
+Perfect — with the actual page files, here are the exact patches for those pages. The file contents you provided confirm the current structure and imports, so these replacements are grounded in your actual codebase.
+
+1) client/src/pages/Blog.tsx
+
+Replace it with this:
+
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
+import type { BlogPost } from "@shared/schema";
+import { ArrowRight, BookOpen, Calendar } from "lucide-react";
+import brandLogo from "@assets/Elevate360_Brand_Logo_1772418122164.png";
+import SEO from "@/components/SEO";
+
+const CATEGORY_COLORS: Record<string, { bg: string; color: string }> = {
+  general: { bg: "rgba(244,166,42,0.12)", color: "#F4A62A" },
+  apps: { bg: "rgba(56,189,248,0.12)", color: "#38bdf8" },
+  books: { bg: "rgba(251,146,60,0.12)", color: "#fb923c" },
+  music: { bg: "rgba(167,139,250,0.12)", color: "#a78bfa" },
+  art: { bg: "rgba(34,197,94,0.12)", color: "#22c55e" },
+  entrepreneurship: { bg: "rgba(244,166,42,0.10)", color: "#F4A62A" },
+};
+
+function formatDate(d: string | Date) {
+  return new Date(d).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+export default function Blog() {
+  const { data: posts = [], isLoading } = useQuery<BlogPost[]>({
+    queryKey: ["/api/blog"],
+    queryFn: async () => {
+      const res = await fetch("/api/blog");
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
+  return (
+    <>
+      <SEO
+        title="Blog | Elevate360Official"
+        description="Read insights, inspiration, and updates from Elevate360Official on entrepreneurship, app development, creativity, wellness, relationships, and building a brand that makes an impact."
+        path="/blog"
+        type="article"
+      />
+
+      <div className="min-h-screen" style={{ background: "hsl(220 50% 8%)" }}>
+        <header
+          className="border-b border-white/8 sticky top-0 z-50 backdrop-blur-xl"
+          style={{ background: "rgba(7,11,19,0.92)" }}
+        >
+          <div className="container mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
+            <Link href="/">
+              <img src={brandLogo} alt="Elevate360Official logo" className="h-8 w-auto" />
+            </Link>
+            <div className="flex items-center gap-4">
+              <Link href="/" className="text-white/50 hover:text-white text-sm transition">
+                Home
+              </Link>
+              <Link href="/links" className="text-white/50 hover:text-white text-sm transition">
+                Links
+              </Link>
+            </div>
+          </div>
+        </header>
+
+        <section className="py-16 md:py-24">
+          <div className="container mx-auto px-4 md:px-6 max-w-4xl">
+            <div className="mb-12 text-center">
+              <span
+                className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold tracking-widest uppercase mb-4"
+                style={{
+                  background: "rgba(244,166,42,0.12)",
+                  color: "#F4A62A",
+                  border: "1px solid rgba(244,166,42,0.25)",
+                }}
+              >
+                <BookOpen className="h-3 w-3" /> Creator Journal
+              </span>
+
+              <h1 className="text-4xl md:text-5xl font-heading font-bold text-white mb-4">
+                Insights from{" "}
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-amber-300">
+                  Elevate360
+                </span>
+              </h1>
+
+              <p className="text-white/55 text-lg max-w-xl mx-auto">
+                Thoughts on entrepreneurship, app development, creativity, and building a brand
+                that makes an impact.
+              </p>
+            </div>
+
+            {isLoading ? (
+              <div className="grid gap-6">
+                {[1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className="animate-pulse rounded-2xl border border-white/8 bg-white/3 p-6 h-40"
+                  />
+                ))}
+              </div>
+            ) : posts.length === 0 ? (
+              <div className="text-center py-24">
+                <BookOpen className="h-12 w-12 text-white/15 mx-auto mb-4" />
+                <p className="text-white/40 text-lg font-medium">No posts yet</p>
+                <p className="text-white/25 text-sm mt-2">
+                  Check back soon — the creator journal is coming.
+                </p>
+              </div>
+            ) : (
+              <div className="grid gap-6">
+                {posts.map((post) => {
+                  const cat = CATEGORY_COLORS[post.category] ?? CATEGORY_COLORS.general;
+
+                  return (
+                    <Link key={post.id} href={`/blog/${post.slug}`} data-testid={`card-blog-${post.id}`}>
+                      <div className="group rounded-2xl border border-white/8 bg-white/3 hover:bg-white/5 hover:border-primary/25 p-6 transition-all duration-300 cursor-pointer">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-3 flex-wrap">
+                              <span
+                                className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                                style={{ background: cat.bg, color: cat.color }}
+                              >
+                                {post.category}
+                              </span>
+
+                              <span className="flex items-center gap-1 text-xs text-white/35">
+                                <Calendar className="h-3 w-3" />
+                                {formatDate(post.createdAt)}
+                              </span>
+                            </div>
+
+                            <h2 className="text-xl font-bold text-white font-heading group-hover:text-primary transition-colors mb-2 line-clamp-2">
+                              {post.title}
+                            </h2>
+
+                            <p className="text-white/55 text-sm leading-relaxed line-clamp-2">
+                              {post.excerpt}
+                            </p>
+                          </div>
+
+                          <ArrowRight className="h-5 w-5 text-white/25 group-hover:text-primary group-hover:translate-x-1 transition-all flex-shrink-0 mt-1" />
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </section>
+
+        <footer className="border-t border-white/8 py-8 text-center">
+          <p className="text-white/30 text-sm">
+            © {new Date().getFullYear()} Elevate360Official ·{" "}
+            <Link href="/" className="hover:text-primary transition-colors">
+              Back to site
+            </Link>
+          </p>
+        </footer>
+      </div>
+    </>
+  );
+}
+2) client/src/pages/BlogPost.tsx
+
+Replace it with this:
+
+import { useQuery } from "@tanstack/react-query";
+import { Link, useParams } from "wouter";
+import { Helmet } from "react-helmet-async";
+import type { BlogPost } from "@shared/schema";
+import { ArrowLeft, Calendar } from "lucide-react";
+import brandLogo from "@assets/Elevate360_Brand_Logo_1772418122164.png";
+import SEO from "@/components/SEO";
+
+function formatDate(d: string | Date) {
+  return new Date(d).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+function renderBody(body: string) {
+  return body.split("\n\n").map((para, i) => {
+    if (para.startsWith("## ")) {
+      return (
+        <h2 key={i} className="text-2xl font-bold font-heading text-white mt-10 mb-4">
+          {para.slice(3)}
+        </h2>
+      );
+    }
+
+    if (para.startsWith("# ")) {
+      return (
+        <h1 key={i} className="text-3xl font-bold font-heading text-white mt-10 mb-4">
+          {para.slice(2)}
+        </h1>
+      );
+    }
+
+    if (para.startsWith("- ")) {
+      const items = para
+        .split("\n")
+        .filter((l) => l.startsWith("- "))
+        .map((l) => l.slice(2));
+
+      return (
+        <ul key={i} className="list-disc list-inside space-y-1 text-white/70 text-base leading-relaxed my-4">
+          {items.map((it, j) => (
+            <li key={j}>{it}</li>
+          ))}
+        </ul>
+      );
+    }
+
+    if (para.startsWith("> ")) {
+      return (
+        <blockquote
+          key={i}
+          className="border-l-4 pl-4 my-6 italic text-white/60 text-base"
+          style={{ borderColor: "#F4A62A" }}
+        >
+          {para.slice(2)}
+        </blockquote>
+      );
+    }
+
+    return (
+      <p key={i} className="text-white/70 text-base leading-relaxed my-4">
+        {para}
+      </p>
+    );
+  });
+}
+
+export default function BlogPostPage() {
+  const params = useParams<{ slug: string }>();
+  const slug = params.slug;
+
+  const { data: post, isLoading, isError } = useQuery<BlogPost>({
+    queryKey: ["/api/blog", slug],
+    queryFn: async () => {
+      const res = await fetch(`/api/blog/${slug}`);
+      if (!res.ok) throw new Error("Not found");
+      return res.json();
+    },
+    enabled: !!slug,
+  });
+
+  const seoTitle = post?.title ? `${post.title} | Elevate360Official` : "Blog Post | Elevate360Official";
+  const seoDescription =
+    post?.excerpt || "Read this article from Elevate360Official.";
+  const seoPath = slug ? `/blog/${slug}` : "/blog";
+
+  return (
+    <>
+      <SEO
+        title={seoTitle}
+        description={seoDescription}
+        path={seoPath}
+        type="article"
+      />
+
+      {post && (
+        <Helmet>
+          <script type="application/ld+json">
+            {JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "Article",
+              headline: post.title,
+              description: post.excerpt,
+              author: {
+                "@type": "Organization",
+                name: "Elevate360Official",
+              },
+              publisher: {
+                "@type": "Organization",
+                name: "Elevate360Official",
+                logo: {
+                  "@type": "ImageObject",
+                  url: "https://www.elevate360official.com/images/elevate360-logo.png",
+                },
+              },
+              mainEntityOfPage: `https://www.elevate360official.com${seoPath}`,
+              datePublished: post.createdAt,
+            })}
+          </script>
+        </Helmet>
+      )}
+
+      <div className="min-h-screen" style={{ background: "hsl(220 50% 8%)" }}>
+        <header
+          className="border-b border-white/8 sticky top-0 z-50 backdrop-blur-xl"
+          style={{ background: "rgba(7,11,19,0.92)" }}
+        >
+          <div className="container mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
+            <Link href="/">
+              <img src={brandLogo} alt="Elevate360Official logo" className="h-8 w-auto" />
+            </Link>
+
+            <Link
+              href="/blog"
+              className="flex items-center gap-2 text-white/50 hover:text-white text-sm transition"
+              data-testid="link-back-to-blog"
+            >
+              <ArrowLeft className="h-4 w-4" /> Blog
+            </Link>
+          </div>
+        </header>
+
+        <main className="py-12 md:py-20">
+          <div className="container mx-auto px-4 md:px-6 max-w-2xl">
+            {isLoading ? (
+              <div className="space-y-4 animate-pulse">
+                <div className="h-8 bg-white/8 rounded-xl w-3/4" />
+                <div className="h-4 bg-white/5 rounded-xl w-1/3" />
+                <div className="h-64 bg-white/5 rounded-2xl mt-8" />
+              </div>
+            ) : isError || !post ? (
+              <div className="text-center py-24">
+                <p className="text-white/40 text-xl font-bold mb-2">Post not found</p>
+                <Link href="/blog" className="text-primary text-sm hover:underline">
+                  ← Back to blog
+                </Link>
+              </div>
+            ) : (
+              <>
+                <div className="mb-8">
+                  <div className="flex items-center gap-3 mb-4 flex-wrap">
+                    <span
+                      className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                      style={{
+                        background: "rgba(244,166,42,0.12)",
+                        color: "#F4A62A",
+                        border: "1px solid rgba(244,166,42,0.25)",
+                      }}
+                    >
+                      {post.category}
+                    </span>
+
+                    <span className="flex items-center gap-1 text-xs text-white/35">
+                      <Calendar className="h-3 w-3" />
+                      {formatDate(post.createdAt)}
+                    </span>
+                  </div>
+
+                  <h1 className="text-3xl md:text-4xl font-bold font-heading text-white mb-4 leading-tight">
+                    {post.title}
+                  </h1>
+
+                  <p
+                    className="text-white/55 text-lg leading-relaxed border-l-4 pl-4"
+                    style={{ borderColor: "#F4A62A" }}
+                  >
+                    {post.excerpt}
+                  </p>
+                </div>
+
+                <div className="border-t border-white/8 pt-8">{renderBody(post.body)}</div>
+
+                <div className="mt-12 pt-8 border-t border-white/8 flex items-center justify-between">
+                  <Link href="/blog" className="flex items-center gap-2 text-white/40 hover:text-primary text-sm transition">
+                    <ArrowLeft className="h-4 w-4" /> All posts
+                  </Link>
+
+                  <p className="text-white/25 text-xs">Elevate360Official</p>
+                </div>
+              </>
+            )}
+          </div>
+        </main>
+      </div>
+    </>
+  );
+}
+3) client/src/pages/Links.tsx
+
+Replace it with this:
+
+import { useState } from "react";
+import { ExternalLink, Instagram, Youtube, Palette, Music, Heart } from "lucide-react";
+import brandLogo from "@assets/Elevate360_Brand_Logo_1772418122164.png";
+import { NewsletterForm } from "@/components/NewsletterForm";
+import { ContactDialog } from "@/components/ContactDialog";
+import SEO from "@/components/SEO";
+
+interface LinkCardProps {
+  href: string;
+  emoji: string;
+  label: string;
+  sublabel?: string;
+  highlight?: boolean;
+  delay?: string;
+}
+
+function LinkCard({ href, emoji, label, sublabel, highlight, delay = "0ms" }: LinkCardProps) {
+  const [pressed, setPressed] = useState(false);
+
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      data-testid={`link-bio-${label.toLowerCase().replace(/\s+/g, "-")}`}
+      onMouseDown={() => setPressed(true)}
+      onMouseUp={() => setPressed(false)}
+      onMouseLeave={() => setPressed(false)}
+      onTouchStart={() => setPressed(true)}
+      onTouchEnd={() => setPressed(false)}
+      style={{ transitionDelay: delay }}
+      className={`group flex items-center gap-4 w-full px-5 py-4 rounded-2xl border transition-all duration-200
+        ${
+          highlight
+            ? "bg-[#F4A62A] border-[#F4A62A] text-[#0d1a2e] hover:bg-[#ffb84d] hover:border-[#ffb84d]"
+            : "bg-white/5 border-white/10 text-foreground hover:bg-white/10 hover:border-white/20"
+        }
+        ${pressed ? "scale-[0.97]" : "scale-100"}`}
+    >
+      <span className="text-2xl flex-shrink-0 w-8 text-center">{emoji}</span>
+      <div className="flex-1 min-w-0">
+        <p className={`font-semibold text-sm leading-tight ${highlight ? "text-[#0d1a2e]" : "text-foreground"}`}>
+          {label}
+        </p>
+        {sublabel && (
+          <p className={`text-xs mt-0.5 truncate ${highlight ? "text-[#0d1a2e]/70" : "text-muted-foreground"}`}>
+            {sublabel}
+          </p>
+        )}
+      </div>
+      <ExternalLink
+        className={`h-4 w-4 flex-shrink-0 opacity-50 group-hover:opacity-100 transition-opacity ${
+          highlight ? "text-[#0d1a2e]" : ""
+        }`}
+      />
+    </a>
+  );
+}
+
+function SectionLabel({ children }: { children: string }) {
+  return (
+    <p className="text-[10px] font-bold tracking-[0.15em] text-muted-foreground uppercase px-1 pt-2 pb-0.5">
+      {children}
+    </p>
+  );
+}
+
+export default function Links() {
+  return (
+    <>
+      <SEO
+        title="Links | Elevate360Official"
+        description="Explore all official Elevate360Official destinations including apps, books, music, art, website links, and creator platforms."
+        path="/links"
+      />
+
+      <div className="min-h-screen bg-[#0d1a2e] text-foreground font-sans flex flex-col items-center justify-start px-4 py-10 pb-16">
+        <div className="w-full max-w-[440px] flex flex-col items-center gap-6">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <img src={brandLogo} alt="Elevate360Official logo" className="h-20 w-auto object-contain" />
+            <div>
+              <h1 className="text-lg font-bold font-heading text-foreground">Oladele Oyeniyi</h1>
+              <p className="text-sm text-muted-foreground mt-1 max-w-[280px] leading-relaxed">
+                Apps · Books · Music · Art · Elevating lives through technology &amp; creativity.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-4 pt-1">
+              {[
+                { href: "https://www.instagram.com/officialelevate360/", Icon: Instagram, label: "Instagram" },
+                { href: "https://www.youtube.com/@Elevate360Official", Icon: Youtube, label: "YouTube" },
+                { href: "https://audiomack.com/elevate360music", Icon: Music, label: "Audiomack" },
+                { href: "https://www.etsy.com/shop/Elevate360Official", Icon: Palette, label: "Etsy" },
+              ].map(({ href, Icon, label }) => (
+                <a
+                  key={label}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={label}
+                  data-testid={`link-bio-social-${label.toLowerCase()}`}
+                  className="w-10 h-10 rounded-full border border-white/15 flex items-center justify-center text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors"
+                >
+                  <Icon className="h-4 w-4" />
+                </a>
+              ))}
+            </div>
+          </div>
+
+          <div className="w-full border-t border-white/8" />
+
+          <div className="w-full flex flex-col gap-2">
+            <LinkCard
+              href="https://www.elevate360official.com"
+              emoji="🌐"
+              label="Visit Our Full Website"
+              sublabel="elevate360official.com"
+              highlight
+            />
+
+            <SectionLabel>Mobile Apps</SectionLabel>
+            <LinkCard href="https://bondedlove.elevate360official.com" emoji="❤️" label="Bondedlove" sublabel="Dating app built for real connections" />
+            <LinkCard href="https://health.elevate360official.com" emoji="💚" label="Healthwisesupport" sublabel="Your wellness companion app" />
+            <LinkCard href="https://crafter.elevate360official.com" emoji="🎬" label="Video Crafter" sublabel="Professional video editing suite" />
+
+            <SectionLabel>Books on Amazon</SectionLabel>
+            <LinkCard href="https://www.amazon.com/dp/B0GMBNPZC9" emoji="📗" label="Healthwise: Stay Healthy" sublabel="Understand your body & protect your health" />
+            <LinkCard href="https://www.amazon.com/dp/B0G5DWG61V" emoji="❤️" label="Together: Let There Be Love" sublabel="A relationship handbook for couples" />
+            <LinkCard href="https://www.amazon.com/dp/B0FSDTPVJC" emoji="🥗" label="One Clean Meal: A 7-Day Reset" sublabel="Simple habits for better health & energy" />
+            <LinkCard href="https://www.amazon.com/stores/Oladele-Oyeniyi/author/B0GCMSCWPV" emoji="📚" label="All Books — Amazon Author Page" sublabel="Browse the full Elevate360 collection" />
+
+            <SectionLabel>Music</SectionLabel>
+            <LinkCard href="https://audiomack.com/elevate360music" emoji="🎵" label="Elevate360 Music on Audiomack" sublabel="Afrobeat · Amapiano · R&B · Hip-Hop" />
+
+            <SectionLabel>Art</SectionLabel>
+            <LinkCard href="https://www.etsy.com/shop/Elevate360Official" emoji="🎨" label="Art Studio on Etsy" sublabel="Original digital art & creative prints" />
+
+            <SectionLabel>Connect</SectionLabel>
+            <div className="w-full bg-white/5 border border-white/10 rounded-2xl p-5">
+              <p className="text-sm font-semibold text-foreground mb-1">Stay in the Loop</p>
+              <p className="text-xs text-muted-foreground mb-4">New apps, book drops, music &amp; exclusive content.</p>
+              <NewsletterForm compact />
+            </div>
+
+            <ContactDialog>
+              <button
+                data-testid="button-bio-contact"
+                className="flex items-center justify-center gap-3 w-full px-5 py-4 rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 transition-all duration-200 text-sm font-semibold"
+              >
+                <Heart className="h-4 w-4 text-primary" /> Get in Touch
+              </button>
+            </ContactDialog>
+          </div>
+
+          <div className="text-center pt-4">
+            <p className="text-xs text-muted-foreground/50">
+              © {new Date().getFullYear()} Elevate360Official ·{" "}
+              <a href="https://www.elevate360official.com" className="hover:text-primary transition-colors">
+                elevate360official.com
+              </a>
+            </p>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+4) client/src/pages/PressKit.tsx
+
+Add these imports near the top:
+
+import { Helmet } from "react-helmet-async";
+import SEO from "@/components/SEO";
+
+Then wrap the returned JSX like this at the top:
+
+<>
+  <SEO
+    title="Press Kit | Elevate360Official"
+    description="Official press kit for Elevate360Official, including founder information, products, brand colours, typography, key statistics, and media contact details."
+    path="/press-kit"
+  />
+
+  <Helmet>
+    <script type="application/ld+json">
+      {JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        name: "Elevate360Official",
+        url: "https://www.elevate360official.com/press-kit",
+      })}
+    </script>
+  </Helmet>
+
+  {/* existing PressKit JSX */}
+</>
+
+Do not change the visible layout.
+
+5) client/src/pages/CheckoutSuccess.tsx
+
+Add this import:
+
+import SEO from "@/components/SEO";
+
+Then place this right before <main ...> in the return:
+
+<>
+  <SEO
+    title="Thank You | Elevate360Official"
+    description="Thank you for connecting with Elevate360Official."
+    path="/thank-you"
+  />
+
+  <main className="min-h-screen bg-slate-950 text-white">
+    {/* existing JSX */}
+  </main>
+</>
+6) client/src/pages/not-found.tsx
+
+Add this import:
+
+import SEO from "@/components/SEO";
+
+Then wrap the page return like this:
+
+<>
+  <SEO
+    title="Page Not Found | Elevate360Official"
+    description="The page you are looking for could not be found on Elevate360Official."
+    path="/404"
+  />
+
+  <div className="min-h-screen bg-[#0d1a2e] text-foreground font-sans flex flex-col">
+    {/* existing JSX */}
+  </div>
+</>
+7) One small fix in Blog.tsx and BlogPost.tsx
+
+You imported Tag in the originals but do not use it. Remove it to keep builds clean.
+
+8) Public files to add
+
+Create these files if not already present:
+
+client/public/robots.txt
+
+User-agent: *
+Allow: /
+
+Sitemap: https://www.elevate360official.com/sitemap.xml
+
+client/public/sitemap.xml
+
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="https://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://www.elevate360official.com/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://www.elevate360official.com/blog</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://www.elevate360official.com/links</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.elevate360official.com/press-kit</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+</urlset>
+
+client/public/site.webmanifest
+
+{
+  "name": "Elevate360Official",
+  "short_name": "Elevate360",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#06142f",
+  "theme_color": "#06142f",
+  "icons": [
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}

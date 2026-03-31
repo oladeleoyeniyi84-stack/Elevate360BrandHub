@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ExternalLink, Instagram, Youtube, Palette, Music, Heart, Smartphone } from "lucide-react";
+import SEO from "@/components/SEO";
 import brandLogo from "@assets/Elevate360_Brand_Logo_1772418122164.png";
 import { NewsletterForm } from "@/components/NewsletterForm";
 import { ContactDialog } from "@/components/ContactDialog";
@@ -63,6 +64,11 @@ function SectionLabel({ children }: { children: string }) {
 export default function Links() {
   return (
     <div className="min-h-screen bg-[#0d1a2e] text-foreground font-sans flex flex-col items-center justify-start px-4 py-10 pb-16">
+      <SEO
+        title="Links | Elevate360Official"
+        description="Explore all official Elevate360Official links — apps, books, music, art, and brand channels by Oladele Oyeniyi."
+        path="/links"
+      />
       <div className="w-full max-w-[440px] flex flex-col items-center gap-6">
 
         {/* Brand header */}

@@ -1,6 +1,7 @@
 import { useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
+import SEO from "@/components/SEO";
 import {
   CheckCircle2,
   Home,
@@ -116,6 +117,11 @@ export default function CheckoutSuccess() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white">
+      <SEO
+        title="Thank You | Elevate360Official"
+        description="Thank you for connecting with Elevate360Official."
+        path="/thank-you"
+      />
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(244,166,42,0.18),transparent_45%)]" />
         <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(15,23,42,0.18),rgba(2,6,23,0.96))]" />

@@ -1,5 +1,6 @@
 import { Link } from "wouter";
 import { Home, ArrowRight, Smartphone, BookOpen, Music, Palette } from "lucide-react";
+import SEO from "@/components/SEO";
 import brandLogo from "@assets/Elevate360_Brand_Logo_1772418122164.png";
 
 const quickLinks = [
@@ -12,7 +13,11 @@ const quickLinks = [
 export default function NotFound() {
   return (
     <div className="min-h-screen bg-[#0d1a2e] text-foreground font-sans flex flex-col">
-
+      <SEO
+        title="Page Not Found | Elevate360Official"
+        description="The page you are looking for could not be found. Explore Elevate360Official — apps, books, music, and art."
+        path="/404"
+      />
       {/* Ambient glow */}
       <div aria-hidden="true" className="fixed inset-0 pointer-events-none overflow-hidden">
         <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] bg-primary/8 rounded-full blur-[120px]" />

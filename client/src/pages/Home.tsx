@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { Helmet } from "react-helmet-async";
 import type { Testimonial } from "@shared/schema";
+import SEO from "@/components/SEO";
 import { useScrollReveal } from "@/hooks/useScrollReveal";
 import { useCountUp } from "@/hooks/useCountUp";
 import { useTrackClick } from "@/hooks/useTrackClick";
@@ -319,6 +321,38 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background text-foreground font-sans safe-bottom luxury-bg">
+      <SEO
+        title="Elevate360Official | Empowering Lives Through Technology & Words"
+        description="Explore Elevate360Official — a premium digital ecosystem of apps, books, music, art, and creative experiences by Oladele Oyeniyi designed to connect, heal, inspire, and elevate everyday life."
+        path="/"
+      />
+      <Helmet>
+        <script type="application/ld+json">
+          {JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Person",
+            name: "Oladele Oyeniyi",
+            jobTitle: "Founder, Entrepreneur, Author, App Developer, Visual Artist, Music Producer",
+            worksFor: { "@type": "Organization", name: "Elevate360Official" },
+            url: "https://www.elevate360official.com/",
+          })}
+        </script>
+        <script type="application/ld+json">
+          {JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "ItemList",
+            name: "Elevate360Official Digital Ecosystem",
+            itemListElement: [
+              { "@type": "SoftwareApplication", position: 1, name: "Bondedlove", applicationCategory: "LifestyleApplication" },
+              { "@type": "SoftwareApplication", position: 2, name: "Healthwisesupport", applicationCategory: "HealthApplication" },
+              { "@type": "SoftwareApplication", position: 3, name: "Video Crafter", applicationCategory: "MultimediaApplication" },
+              { "@type": "Book", position: 4, name: "Healthwise: Stay Healthy" },
+              { "@type": "Book", position: 5, name: "Together: Let There Be Love" },
+              { "@type": "Book", position: 6, name: "One Clean Meal: A 7-Day Reset" },
+            ],
+          })}
+        </script>
+      </Helmet>
       {/* Navigation */}
       <nav
         className={`fixed top-0 w-full z-50 transition-all duration-300 border-b ${
@@ -472,7 +506,7 @@ export default function Home() {
         <div className="absolute inset-0 z-0">
           <img
             src={heroBg}
-            alt="Abstract Background"
+            alt="Elevate360Official premium digital ecosystem hero background"
             className="w-full h-full object-cover opacity-10"
           />
           <div className="absolute inset-0 bg-gradient-to-b from-background/50 via-background to-background"></div>
@@ -808,7 +842,8 @@ export default function Home() {
               <div className="aspect-[4/3] w-full overflow-hidden lux-panel flex items-center justify-center p-8">
                 <img
                   src={appBondedlove}
-                  alt="Bondedlove App"
+                  alt="Bondedlove relationship app interface by Elevate360Official"
+                  loading="lazy"
                   className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-[1.015]"
                 />
               </div>
@@ -847,7 +882,8 @@ export default function Home() {
               <div className="aspect-[4/3] w-full overflow-hidden lux-panel flex items-center justify-center p-8">
                 <img
                   src={appHealthwise}
-                  alt="Healthwisesupport App"
+                  alt="Healthwisesupport wellness app interface by Elevate360Official"
+                  loading="lazy"
                   className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-[1.015]"
                 />
               </div>
@@ -886,7 +922,8 @@ export default function Home() {
               <div className="aspect-[4/3] w-full overflow-hidden lux-panel flex items-center justify-center p-8">
                 <img
                   src={appVideoCrafter}
-                  alt="Video Crafter App"
+                  alt="Video Crafter creative video production interface by Elevate360Official"
+                  loading="lazy"
                   className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-[1.015]"
                 />
               </div>
@@ -1171,20 +1208,20 @@ export default function Home() {
               <div className="grid grid-cols-2 gap-4 relative z-10">
                 <img
                   src={featuredBook}
-                  alt="Healthwise: Stay Healthy"
+                  alt="Healthwise Stay Healthy book cover by Oladele Oyeniyi"
                   className="w-full h-auto rounded-xl shadow-xl transform translate-y-8 hover:-translate-y-2 transition-transform duration-500"
                   loading="lazy"
                 />
                 <div className="space-y-4">
                   <img
                     src={bookTogether}
-                    alt="Together: Let There Be Love"
+                    alt="Together Let There Be Love book cover by Oladele Oyeniyi"
                     className="w-full h-auto rounded-xl shadow-xl hover:-translate-y-2 transition-transform duration-500"
                     loading="lazy"
                   />
                   <img
                     src={bookOneCleanMeal}
-                    alt="One Clean Meal"
+                    alt="One Clean Meal A 7-Day Reset book cover by Oladele Oyeniyi"
                     className="w-full h-auto rounded-xl shadow-xl hover:-translate-y-2 transition-transform duration-500"
                     loading="lazy"
                   />
@@ -1209,7 +1246,7 @@ export default function Home() {
                   <div className="absolute -inset-4 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-2xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
                   <img
                     src={featuredBook}
-                    alt="Featured Book Cover"
+                    alt="Featured Elevate360Official publication by Oladele Oyeniyi"
                     className="relative w-64 md:w-72 h-auto rounded-md shadow-2xl transition-transform duration-700 group-hover:scale-[1.02] group-hover:-rotate-2"
                     loading="lazy"
                   />
@@ -1292,7 +1329,7 @@ export default function Home() {
                   <div className="absolute -inset-4 bg-gradient-to-l from-rose-500/20 to-orange-500/20 rounded-2xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
                   <img
                     src={bookTogether}
-                    alt="Together: Let There Be Love Cover"
+                    alt="Together Let There Be Love book cover by Oladele Oyeniyi"
                     className="relative w-64 md:w-72 h-auto rounded-md shadow-2xl transition-transform duration-700 group-hover:scale-[1.02] group-hover:rotate-2"
                     loading="lazy"
                   />
@@ -1368,7 +1405,7 @@ export default function Home() {
                   <div className="absolute -inset-4 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 rounded-2xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
                   <img
                     src={bookOneCleanMeal}
-                    alt="One Clean Meal Cover"
+                    alt="One Clean Meal A 7-Day Reset book cover by Oladele Oyeniyi"
                     className="relative w-64 md:w-72 h-auto rounded-md shadow-2xl transition-transform duration-700 group-hover:scale-[1.02] group-hover:-rotate-2"
                     loading="lazy"
                   />

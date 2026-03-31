@@ -1,0 +1,674 @@
+Based on your actual structure, here is the exact file-by-file SEO patch for your current Replit project.
+
+This patch is designed to:
+
+improve indexing
+improve social previews
+improve route metadata
+add structured data
+keep your current UI unchanged
+1) Install dependency
+
+Run this in Replit Shell:
+
+npm install react-helmet-async
+2) Patch client/src/main.tsx
+Replace the file with this:
+import { createRoot } from "react-dom/client";
+import { HelmetProvider } from "react-helmet-async";
+import App from "./App";
+import "./index.css";
+
+// Register service worker for PWA support
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker
+      .register("/sw.js")
+      .catch((err) => console.warn("SW registration failed:", err));
+  });
+}
+
+createRoot(document.getElementById("root")!).render(
+  <HelmetProvider>
+    <App />
+  </HelmetProvider>
+);
+3) Create client/src/components/SEO.tsx
+New file:
+import { Helmet } from "react-helmet-async";
+
+type SEOProps = {
+  title: string;
+  description: string;
+  path?: string;
+  image?: string;
+  type?: "website" | "article";
+  keywords?: string;
+};
+
+const SITE_NAME = "Elevate360Official";
+const SITE_URL = "https://www.elevate360official.com";
+const DEFAULT_IMAGE = `${SITE_URL}/social-preview/elevate360-social-share.png`;
+
+export function SEO({
+  title,
+  description,
+  path = "/",
+  image = DEFAULT_IMAGE,
+  type = "website",
+  keywords = [
+    "Elevate360Official",
+    "Elevate360",
+    "Oladele Oyeniyi",
+    "apps",
+    "books",
+    "music",
+    "art",
+    "video crafter",
+    "Bondedlove",
+    "Healthwisesupport",
+    "digital ecosystem",
+    "brand hub",
+    "technology and words",
+    "creative tools",
+    "AI content consultation",
+    "brand strategy",
+    "digital experiences",
+  ].join(", "),
+}: SEOProps) {
+  const canonical = `${SITE_URL}${path}`;
+
+  return (
+    <Helmet>
+      <html lang="en" />
+      <title>{title}</title>
+
+      <meta name="description" content={description} />
+      <meta name="keywords" content={keywords} />
+      <meta
+        name="robots"
+        content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1"
+      />
+      <link rel="canonical" href={canonical} />
+
+      <meta property="og:locale" content="en_US" />
+      <meta property="og:site_name" content={SITE_NAME} />
+      <meta property="og:type" content={type} />
+      <meta property="og:title" content={title} />
+      <meta property="og:description" content={description} />
+      <meta property="og:url" content={canonical} />
+      <meta property="og:image" content={image} />
+      <meta property="og:image:secure_url" content={image} />
+      <meta property="og:image:width" content="1200" />
+      <meta property="og:image:height" content="630" />
+      <meta property="og:image:alt" content="Elevate360Official brand preview" />
+
+      <meta name="twitter:card" content="summary_large_image" />
+      <meta name="twitter:title" content={title} />
+      <meta name="twitter:description" content={description} />
+      <meta name="twitter:image" content={image} />
+
+      <meta name="theme-color" content="#06142f" />
+
+      <script type="application/ld+json">
+        {JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "Organization",
+          name: "Elevate360Official",
+          url: SITE_URL,
+          logo: `${SITE_URL}/images/elevate360-logo.png`,
+          founder: {
+            "@type": "Person",
+            name: "Oladele Oyeniyi",
+          },
+          sameAs: [
+            "https://www.youtube.com/@Elevate360Official",
+          ],
+        })}
+      </script>
+
+      <script type="application/ld+json">
+        {JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "WebSite",
+          name: "Elevate360Official",
+          url: SITE_URL,
+        })}
+      </script>
+    </Helmet>
+  );
+}
+
+export default SEO;
+4) Patch client/src/App.tsx
+
+This adds route-level SEO for the routes that already exist in your app.
+
+Replace the file with this:
+import { useEffect } from "react";
+import { Switch, Route, useLocation } from "wouter";
+import { queryClient } from "./lib/queryClient";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { Toaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import NotFound from "@/pages/not-found";
+import Home from "@/pages/Home";
+import Dashboard from "@/pages/Dashboard";
+import Links from "@/pages/Links";
+import Blog from "@/pages/Blog";
+import BlogPost from "@/pages/BlogPost";
+import PressKit from "@/pages/PressKit";
+import CheckoutSuccess from "@/pages/CheckoutSuccess";
+import { CookieBanner } from "@/components/CookieBanner";
+import { ScrollUtilities } from "@/components/ScrollUtilities";
+import { NewsletterPopup } from "@/components/NewsletterPopup";
+import { WhatsAppButton } from "@/components/WhatsAppButton";
+import { MobileBottomNav } from "@/components/MobileBottomNav";
+import { AnnouncementBanner } from "@/components/AnnouncementBanner";
+import { LanguageProvider } from "@/contexts/LanguageContext";
+import SEO from "@/components/SEO";
+
+function RouteTracker() {
+  const [location] = useLocation();
+
+  useEffect(() => {
+    fetch("/api/track/visit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ page: location }),
+    }).catch(() => {});
+  }, [location]);
+
+  return null;
+}
+
+function Router() {
+  return (
+    <Switch>
+      <Route path="/" component={Home} />
+      <Route path="/links">
+        <>
+          <SEO
+            title="Links | Elevate360Official"
+            description="Explore official Elevate360Official links, destinations, brand channels, and digital experiences."
+            path="/links"
+          />
+          <Links />
+        </>
+      </Route>
+
+      <Route path="/dashboard">
+        <>
+          <SEO
+            title="Dashboard | Elevate360Official"
+            description="Internal dashboard and system overview for Elevate360Official."
+            path="/dashboard"
+          />
+          <Dashboard />
+        </>
+      </Route>
+
+      <Route path="/blog">
+        <>
+          <SEO
+            title="Blog | Elevate360Official"
+            description="Read insights, inspiration, and updates from Elevate360Official on wellness, creativity, technology, relationships, and growth."
+            path="/blog"
+            type="article"
+          />
+          <Blog />
+        </>
+      </Route>
+
+      <Route path="/blog/:slug" component={BlogPost} />
+
+      <Route path="/press-kit">
+        <>
+          <SEO
+            title="Press Kit | Elevate360Official"
+            description="Access the official Elevate360Official press kit, brand information, founder details, and media assets."
+            path="/press-kit"
+          />
+          <PressKit />
+        </>
+      </Route>
+
+      <Route path="/checkout/success">
+        <>
+          <SEO
+            title="Thank You | Elevate360Official"
+            description="Thank you for engaging with Elevate360Official."
+            path="/checkout/success"
+          />
+          <CheckoutSuccess />
+        </>
+      </Route>
+
+      <Route path="/thank-you">
+        <>
+          <SEO
+            title="Thank You | Elevate360Official"
+            description="Thank you for engaging with Elevate360Official."
+            path="/thank-you"
+          />
+          <CheckoutSuccess />
+        </>
+      </Route>
+
+      <Route>
+        <>
+          <SEO
+            title="Page Not Found | Elevate360Official"
+            description="The page you are looking for could not be found."
+            path="/404"
+          />
+          <NotFound />
+        </>
+      </Route>
+    </Switch>
+  );
+}
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <LanguageProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Router />
+          <RouteTracker />
+          <ScrollUtilities />
+          <NewsletterPopup />
+          <AnnouncementBanner />
+          <WhatsAppButton />
+          <MobileBottomNav />
+          <CookieBanner />
+        </TooltipProvider>
+      </LanguageProvider>
+    </QueryClientProvider>
+  );
+}
+
+export default App;
+5) Patch client/src/pages/Home.tsx
+
+Since you gave the structure summary rather than the full file, here is the exact change to make.
+
+Add this import near the top with the other imports:
+import SEO from "@/components/SEO";
+import { Helmet } from "react-helmet-async";
+Then inside the Home component’s returned JSX, place this as the first element inside the top-level fragment or wrapper, before <nav>:
+<SEO
+  title="Elevate360Official | Empowering Lives Through Technology & Words"
+  description="Explore Elevate360Official — a premium digital ecosystem of apps, books, music, art, consultations, and creative experiences designed to connect, heal, inspire creativity, and elevate everyday life."
+  path="/"
+/>
+
+<Helmet>
+  <script type="application/ld+json">
+    {JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "Person",
+      name: "Oladele Oyeniyi",
+      jobTitle:
+        "Founder, Entrepreneur, Author, App Developer, Visual Artist, Music Producer",
+      worksFor: {
+        "@type": "Organization",
+        name: "Elevate360Official",
+      },
+      url: "https://www.elevate360official.com/",
+    })}
+  </script>
+
+  <script type="application/ld+json">
+    {JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "ItemList",
+      name: "Elevate360Official Digital Ecosystem",
+      itemListElement: [
+        {
+          "@type": "SoftwareApplication",
+          position: 1,
+          name: "Bondedlove",
+          applicationCategory: "LifestyleApplication",
+        },
+        {
+          "@type": "SoftwareApplication",
+          position: 2,
+          name: "Healthwisesupport",
+          applicationCategory: "HealthApplication",
+        },
+        {
+          "@type": "SoftwareApplication",
+          position: 3,
+          name: "Video Crafter",
+          applicationCategory: "MultimediaApplication",
+        },
+        {
+          "@type": "Book",
+          position: 4,
+          name: "Healthwise: Stay Healthy",
+        },
+        {
+          "@type": "Book",
+          position: 5,
+          name: "Together: Let There Be Love",
+        },
+        {
+          "@type": "Book",
+          position: 6,
+          name: "One Clean Meal: A 7-Day Reset",
+        },
+      ],
+    })}
+  </script>
+</Helmet>
+Important placement
+
+If your Home.tsx currently returns:
+
+return (
+  <div>...</div>
+);
+
+keep it inside that wrapper, like:
+
+return (
+  <>
+    <SEO ... />
+    <Helmet>...</Helmet>
+    <nav>...</nav>
+    ...
+  </>
+);
+
+or if you already return a single outer <div>, put the SEO components before <nav> but still inside the outer <div>.
+
+6) Patch client/src/pages/Blog.tsx
+Add this import:
+import SEO from "@/components/SEO";
+Add this at the top of the returned JSX:
+<SEO
+  title="Blog | Elevate360Official"
+  description="Read insights, inspiration, and updates from Elevate360Official on technology, creativity, wellness, relationships, and intentional growth."
+  path="/blog"
+  type="article"
+/>
+7) Patch client/src/pages/BlogPost.tsx
+Add these imports:
+import SEO from "@/components/SEO";
+import { Helmet } from "react-helmet-async";
+Add this near the top of the component, after you know the post title/slug or fallback values:
+const seoTitle = post?.title
+  ? `${post.title} | Elevate360Official`
+  : "Blog Post | Elevate360Official";
+
+const seoDescription =
+  post?.excerpt ||
+  post?.summary ||
+  "Read this article from Elevate360Official.";
+
+const seoPath = post?.slug ? `/blog/${post.slug}` : "/blog";
+Then place this at the top of the JSX return:
+<SEO
+  title={seoTitle}
+  description={seoDescription}
+  path={seoPath}
+  type="article"
+/>
+
+<Helmet>
+  <script type="application/ld+json">
+    {JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "Article",
+      headline: post?.title || "Elevate360Official Blog Post",
+      description: seoDescription,
+      author: {
+        "@type": "Organization",
+        name: "Elevate360Official",
+      },
+      publisher: {
+        "@type": "Organization",
+        name: "Elevate360Official",
+        logo: {
+          "@type": "ImageObject",
+          url: "https://www.elevate360official.com/images/elevate360-logo.png",
+        },
+      },
+      mainEntityOfPage: `https://www.elevate360official.com${seoPath}`,
+    })}
+  </script>
+</Helmet>
+8) Patch client/src/pages/Links.tsx
+Add this import:
+import SEO from "@/components/SEO";
+Add at top of JSX return:
+<SEO
+  title="Links | Elevate360Official"
+  description="Explore all official Elevate360Official links, platforms, and destinations."
+  path="/links"
+/>
+9) Patch client/src/pages/PressKit.tsx
+Add these imports:
+import SEO from "@/components/SEO";
+import { Helmet } from "react-helmet-async";
+Add at top of JSX return:
+<SEO
+  title="Press Kit | Elevate360Official"
+  description="Official press kit for Elevate360Official, including founder information, brand positioning, and media assets."
+  path="/press-kit"
+/>
+
+<Helmet>
+  <script type="application/ld+json">
+    {JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      name: "Elevate360Official",
+      url: "https://www.elevate360official.com/press-kit",
+    })}
+  </script>
+</Helmet>
+10) Patch client/src/pages/CheckoutSuccess.tsx
+Add this import:
+import SEO from "@/components/SEO";
+Add at top of JSX return:
+<SEO
+  title="Thank You | Elevate360Official"
+  description="Thank you for connecting with Elevate360Official."
+  path="/thank-you"
+/>
+11) Patch client/src/pages/not-found.tsx
+Add this import:
+import SEO from "@/components/SEO";
+Add at top of JSX return:
+<SEO
+  title="Page Not Found | Elevate360Official"
+  description="The page you are looking for could not be found."
+  path="/404"
+/>
+12) Patch client/index.html
+Replace the <head> section with this version:
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="author" content="Elevate360Official" />
+  <meta name="googlebot" content="index,follow,max-image-preview:large" />
+  <meta name="theme-color" content="#06142f" />
+
+  <link rel="icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/site.webmanifest" />
+
+  <title>Elevate360Official</title>
+</head>
+And make sure the <body> contains this right before the root div:
+<noscript>
+  Elevate360Official is a premium digital ecosystem of apps, books, music, art,
+  and creative experiences. Please enable JavaScript to view the full site.
+</noscript>
+13) Create client/public/robots.txt
+New file:
+User-agent: *
+Allow: /
+
+Sitemap: https://www.elevate360official.com/sitemap.xml
+14) Create client/public/sitemap.xml
+New file:
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="https://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://www.elevate360official.com/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://www.elevate360official.com/blog</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://www.elevate360official.com/links</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.elevate360official.com/press-kit</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.elevate360official.com/checkout/success</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.2</priority>
+  </url>
+  <url>
+    <loc>https://www.elevate360official.com/thank-you</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.2</priority>
+  </url>
+</urlset>
+15) Create client/public/site.webmanifest
+New file:
+{
+  "name": "Elevate360Official",
+  "short_name": "Elevate360",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#06142f",
+  "theme_color": "#06142f",
+  "icons": [
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}
+16) Add required public assets
+
+Place these files in client/public/:
+
+client/public/favicon.ico
+client/public/apple-touch-icon.png
+client/public/images/elevate360-logo.png
+client/public/social-preview/elevate360-social-share.png
+Best sizes
+apple-touch-icon.png → 180x180
+elevate360-social-share.png → 1200x630
+Best social share image design
+
+Use:
+
+dark navy background
+official gold rocket logo
+Elevate360Official
+“Empowering Lives Through Technology & Words”
+
+That will improve previews on:
+
+Facebook
+LinkedIn
+WhatsApp
+X
+many chat apps
+17) Patch major images in Home.tsx for alt text and lazy loading
+
+You have these assets:
+
+app-bondedlove.png
+app-healthwise.png
+app-videocrafter.png
+book-mockup.png
+book-onecleanmeal.png
+book-together.png
+featured-book.png
+hero-bg.png
+
+Wherever they are rendered, use these alt texts.
+
+Bondedlove
+alt="Bondedlove relationship app interface by Elevate360Official"
+loading="lazy"
+Healthwise
+alt="Healthwisesupport wellness app interface by Elevate360Official"
+loading="lazy"
+Video Crafter
+alt="Video Crafter creative video production interface by Elevate360Official"
+loading="lazy"
+Together book
+alt="Together Let There Be Love book cover by Oladele Oyeniyi"
+loading="lazy"
+One Clean Meal
+alt="One Clean Meal A 7-Day Reset book cover by Oladele Oyeniyi"
+loading="lazy"
+Featured book / general book mockup
+alt="Featured Elevate360Official publication by Oladele Oyeniyi"
+loading="lazy"
+Hero image
+alt="Elevate360Official premium digital ecosystem hero background"
+
+For the hero image, you can omit lazy loading if it is above the fold.
+
+18) Optional but recommended Home.tsx internal anchor links
+
+Your homepage already has sections. Make sure nav items use stable IDs like:
+
+#apps
+#books
+#music
+#art
+#consultation
+#contact
+
+This helps crawlability and UX, though it is secondary to the main SEO patch.
+
+19) Summary of exact files changed
+New files
+client/src/components/SEO.tsx
+client/public/robots.txt
+client/public/sitemap.xml
+client/public/site.webmanifest
+Changed files
+client/src/main.tsx
+client/src/App.tsx
+client/src/pages/Home.tsx
+client/src/pages/Blog.tsx
+client/src/pages/BlogPost.tsx
+client/src/pages/Links.tsx
+client/src/pages/PressKit.tsx
+client/src/pages/CheckoutSuccess.tsx
+client/src/pages/not-found.tsx
+client/index.html
+20) What this patch will improve
+
+This gives you:
+
+better Google indexing signals
+stronger title/description control
+cleaner canonical URLs
+better Facebook/LinkedIn/WhatsApp/X previews
+organization and article structured data
+robots and sitemap support
+better image semantics

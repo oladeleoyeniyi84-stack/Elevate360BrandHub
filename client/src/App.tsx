@@ -19,6 +19,7 @@ import { WhatsAppButton } from "@/components/WhatsAppButton";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
 import { AnnouncementBanner } from "@/components/AnnouncementBanner";
 import { LanguageProvider } from "@/contexts/LanguageContext";
+import SEO from "@/components/SEO";
 
 function RouteTracker() {
   const [location] = useLocation();
@@ -38,14 +39,86 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
-      <Route path="/links" component={Links} />
-      <Route path="/dashboard" component={Dashboard} />
-      <Route path="/blog" component={Blog} />
+
+      <Route path="/links">
+        <>
+          <SEO
+            title="Links | Elevate360Official"
+            description="Explore all official Elevate360Official links — apps, books, music, art, and brand channels by Oladele Oyeniyi."
+            path="/links"
+          />
+          <Links />
+        </>
+      </Route>
+
+      <Route path="/dashboard">
+        <>
+          <SEO
+            title="Dashboard | Elevate360Official"
+            description="Internal dashboard and system overview for Elevate360Official."
+            path="/dashboard"
+          />
+          <Dashboard />
+        </>
+      </Route>
+
+      <Route path="/blog">
+        <>
+          <SEO
+            title="Blog | Elevate360Official"
+            description="Read insights, inspiration, and updates from Elevate360Official on wellness, creativity, technology, relationships, and growth."
+            path="/blog"
+            type="article"
+          />
+          <Blog />
+        </>
+      </Route>
+
       <Route path="/blog/:slug" component={BlogPost} />
-      <Route path="/press-kit" component={PressKit} />
-      <Route path="/checkout/success" component={CheckoutSuccess} />
-      <Route path="/thank-you" component={CheckoutSuccess} />
-      <Route component={NotFound} />
+
+      <Route path="/press-kit">
+        <>
+          <SEO
+            title="Press Kit | Elevate360Official"
+            description="Access the official Elevate360Official press kit — brand overview, founder profile, product portfolio, and media assets."
+            path="/press-kit"
+          />
+          <PressKit />
+        </>
+      </Route>
+
+      <Route path="/checkout/success">
+        <>
+          <SEO
+            title="Thank You | Elevate360Official"
+            description="Thank you for engaging with Elevate360Official."
+            path="/checkout/success"
+          />
+          <CheckoutSuccess />
+        </>
+      </Route>
+
+      <Route path="/thank-you">
+        <>
+          <SEO
+            title="Thank You | Elevate360Official"
+            description="Thank you for engaging with Elevate360Official."
+            path="/thank-you"
+          />
+          <CheckoutSuccess />
+        </>
+      </Route>
+
+      <Route>
+        <>
+          <SEO
+            title="Page Not Found | Elevate360Official"
+            description="The page you are looking for could not be found. Explore Elevate360Official — apps, books, music, and art."
+            path="/404"
+          />
+          <NotFound />
+        </>
+      </Route>
     </Switch>
   );
 }

@@ -1,5 +1,7 @@
 import { Link } from "wouter";
+import { Helmet } from "react-helmet-async";
 import { Printer, ArrowLeft, Mail, Globe, Palette, Type, Package } from "lucide-react";
+import SEO from "@/components/SEO";
 import brandLogo from "@assets/Elevate360_Brand_Logo_1772418122164.png";
 
 const BRAND_COLORS = [
@@ -21,6 +23,11 @@ const PRODUCTS = [
 export default function PressKit() {
   return (
     <div className="min-h-screen bg-white text-gray-900 press-kit-page">
+      <SEO
+        title="Press Kit | Elevate360Official"
+        description="Official press kit for Elevate360Official — founder profile, brand overview, product portfolio, and media assets."
+        path="/press-kit"
+      />
       <style>{`
         @media print {
           .no-print { display: none !important; }

@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import type { BlogPost } from "@shared/schema";
+import SEO from "@/components/SEO";
 import { ArrowRight, BookOpen, Calendar, Tag } from "lucide-react";
 import brandLogo from "@assets/Elevate360_Brand_Logo_1772418122164.png";
 
@@ -29,6 +30,12 @@ export default function Blog() {
 
   return (
     <div className="min-h-screen" style={{ background: "hsl(220 50% 8%)" }}>
+      <SEO
+        title="Blog | Elevate360Official"
+        description="Read insights, inspiration, and updates from Elevate360Official on technology, creativity, wellness, relationships, and intentional growth."
+        path="/blog"
+        type="article"
+      />
       <header className="border-b border-white/8 sticky top-0 z-50 backdrop-blur-xl" style={{ background: "rgba(7,11,19,0.92)" }}>
         <div className="container mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
           <Link href="/">
