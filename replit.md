@@ -26,7 +26,7 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 - Social links: Instagram, YouTube, Etsy
 - YouTube channel embed section with playlist iframe
 - Product Comparison Table (6 products, 6 dimensions)
-- Language toggle (English / Yoruba) using LanguageContext
+- Multilingual support (8 languages) using LanguageContext: English, French, Spanish, Portuguese, Chinese, Japanese, Russian, Yoruba — globe icon dropdown on desktop, 8-button grid on mobile; persisted to localStorage
 - Blog system: `/blog`, `/blog/:slug` pages + Dashboard Blog tab CRUD
 - Press Kit page at `/press-kit`
 - AI Concierge Intent Router (Phase 33): OpenAI-based intent classification into 12 categories, route target mapping, email/name extraction, saved to `chat_conversations`

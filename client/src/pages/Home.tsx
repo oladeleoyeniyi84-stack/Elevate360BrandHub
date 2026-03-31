@@ -36,7 +36,7 @@ import { ShareButton } from "@/components/ShareButton";
 import { FAQSection } from "@/components/FAQSection";
 import { CommissionDialog } from "@/components/CommissionDialog";
 import { ScreenshotsButton, type LightboxImage } from "@/components/Lightbox";
-import { useLanguage } from "@/contexts/LanguageContext";
+import { useLanguage, LANGUAGES } from "@/contexts/LanguageContext";
 import heroBg from "@/assets/images/hero-bg.png";
 import appBondedlove from "@/assets/images/app-bondedlove.png";
 import appHealthwise from "@/assets/images/app-healthwise.png";
@@ -184,6 +184,9 @@ export default function Home() {
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [bookingError, setBookingError] = useState("");
 
+  const [langOpen, setLangOpen] = useState(false);
+  const langRef = useRef<HTMLDivElement>(null);
+
   const trackClick = useTrackClick();
   useTrackPageView("home");
 
@@ -304,6 +307,16 @@ export default function Home() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (langRef.current && !langRef.current.contains(e.target as Node)) {
+        setLangOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
   return (
     <div className="min-h-screen bg-background text-foreground font-sans safe-bottom luxury-bg">
       {/* Navigation */}
@@ -342,11 +355,38 @@ export default function Home() {
               style={{ background: "rgba(244,166,42,0.12)", color: "#F4A62A", border: "1px solid rgba(244,166,42,0.3)" }}>
               Book a Session
             </a>
-            <div className="flex items-center rounded-full border border-white/15 overflow-hidden text-xs font-bold">
-              <button onClick={() => setLang("en")} data-testid="button-lang-en"
-                className={`px-3 py-1.5 transition-colors ${lang === "en" ? "bg-primary text-black" : "text-white/50 hover:text-white"}`}>EN</button>
-              <button onClick={() => setLang("yo")} data-testid="button-lang-yo"
-                className={`px-3 py-1.5 transition-colors ${lang === "yo" ? "bg-primary text-black" : "text-white/50 hover:text-white"}`}>YO</button>
+            {/* Language switcher */}
+            <div ref={langRef} className="relative" data-testid="lang-switcher">
+              <button
+                onClick={() => setLangOpen((o) => !o)}
+                data-testid="button-lang-toggle"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-white/15 text-xs font-bold text-white/70 hover:text-white hover:border-white/30 transition-colors"
+                aria-label="Select language"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                </svg>
+                {LANGUAGES.find((l) => l.code === lang)?.native ?? "EN"}
+                <svg xmlns="http://www.w3.org/2000/svg" className={`h-3 w-3 transition-transform ${langOpen ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </button>
+              {langOpen && (
+                <div className="absolute right-0 top-full mt-2 w-44 rounded-xl border border-white/10 bg-background/95 backdrop-blur-2xl shadow-2xl overflow-hidden z-50">
+                  {LANGUAGES.map((l) => (
+                    <button
+                      key={l.code}
+                      onClick={() => { setLang(l.code); setLangOpen(false); }}
+                      data-testid={`button-lang-${l.code}`}
+                      className={`w-full flex items-center justify-between px-4 py-2.5 text-sm transition-colors hover:bg-white/8 ${lang === l.code ? "text-primary font-semibold" : "text-white/70"}`}
+                    >
+                      <span>{l.label}</span>
+                      <span className="text-xs font-bold opacity-50">{l.native}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <ContactDialog>
               <Button data-testid="button-get-in-touch" className="rounded-full px-6">
@@ -373,7 +413,7 @@ export default function Home() {
         {/* Mobile drawer */}
         <div
           className={`md:hidden overflow-hidden transition-all duration-300 ease-in-out ${
-            mobileMenuOpen ? "max-h-96 border-t border-white/10" : "max-h-0"
+            mobileMenuOpen ? "max-h-[520px] border-t border-white/10" : "max-h-0"
           }`}
         >
           <div className="container mx-auto px-4 py-4 flex flex-col gap-1 bg-background/95 backdrop-blur-2xl">
@@ -396,6 +436,22 @@ export default function Home() {
                 {label}
               </a>
             ))}
+            {/* Mobile language picker */}
+            <div className="pt-2 border-t border-white/10">
+              <p className="px-4 pb-2 text-[10px] uppercase tracking-widest text-white/30 font-semibold">Language</p>
+              <div className="grid grid-cols-4 gap-1">
+                {LANGUAGES.map((l) => (
+                  <button
+                    key={l.code}
+                    onClick={() => { setLang(l.code); setMobileMenuOpen(false); }}
+                    data-testid={`button-mobile-lang-${l.code}`}
+                    className={`py-2 rounded-lg text-xs font-bold transition-colors ${lang === l.code ? "bg-primary text-black" : "bg-white/5 text-white/60 hover:bg-white/10"}`}
+                  >
+                    {l.native}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="pt-2 pb-1">
               <ContactDialog>
                 <Button
