@@ -30,34 +30,33 @@ ${urlEntries}
 </urlset>`;
 }
 
-export function generateSitemap(): string {
-  const urls: SitemapUrl[] = [
-    {
-      loc: `${BASE_URL}/`,
-      changefreq: "weekly",
-      priority: "1.0",
-    },
-    {
-      loc: `${BASE_URL}/#apps`,
-      changefreq: "monthly",
-      priority: "0.9",
-    },
-    {
-      loc: `${BASE_URL}/#books`,
-      changefreq: "monthly",
-      priority: "0.9",
-    },
-    {
-      loc: `${BASE_URL}/#art-studio`,
-      changefreq: "monthly",
-      priority: "0.8",
-    },
-    {
-      loc: `${BASE_URL}/#music`,
-      changefreq: "monthly",
-      priority: "0.8",
-    },
+interface BlogPostEntry {
+  slug: string;
+  updatedAt: Date | string;
+}
+
+export function generateSitemap(blogPosts: BlogPostEntry[] = []): string {
+  const today = new Date().toISOString().split("T")[0];
+
+  const staticUrls: SitemapUrl[] = [
+    { loc: `${BASE_URL}/`, changefreq: "weekly", priority: "1.0" },
+    { loc: `${BASE_URL}/blog`, changefreq: "daily", priority: "0.9" },
+    { loc: `${BASE_URL}/links`, changefreq: "monthly", priority: "0.8" },
+    { loc: `${BASE_URL}/press-kit`, changefreq: "monthly", priority: "0.7" },
+    { loc: `${BASE_URL}/#apps`, changefreq: "monthly", priority: "0.9" },
+    { loc: `${BASE_URL}/#books`, changefreq: "monthly", priority: "0.9" },
+    { loc: `${BASE_URL}/#art-studio`, changefreq: "monthly", priority: "0.8" },
+    { loc: `${BASE_URL}/#music`, changefreq: "monthly", priority: "0.8" },
   ];
 
-  return buildSitemap(urls);
+  const blogUrls: SitemapUrl[] = blogPosts.map((post) => ({
+    loc: `${BASE_URL}/blog/${post.slug}`,
+    changefreq: "monthly",
+    priority: "0.7",
+    lastmod: post.updatedAt
+      ? new Date(post.updatedAt).toISOString().split("T")[0]
+      : today,
+  }));
+
+  return buildSitemap([...staticUrls, ...blogUrls]);
 }

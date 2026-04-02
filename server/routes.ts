@@ -112,10 +112,16 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  app.get("/sitemap.xml", (_req, res) => {
-    res.header("Content-Type", "application/xml");
-    res.header("Cache-Control", "public, max-age=86400");
-    res.send(generateSitemap());
+  app.get("/sitemap.xml", async (_req, res) => {
+    try {
+      const posts = await storage.getBlogPosts(true);
+      res.header("Content-Type", "application/xml");
+      res.header("Cache-Control", "public, max-age=3600");
+      res.send(generateSitemap(posts.map(p => ({ slug: p.slug, updatedAt: p.updatedAt }))));
+    } catch {
+      res.header("Content-Type", "application/xml");
+      res.send(generateSitemap());
+    }
   });
 
   app.post("/api/contact", rateLimit(5, 60), botGuard, async (req, res) => {

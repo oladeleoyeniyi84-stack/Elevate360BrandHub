@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "wouter";
 import { Helmet } from "react-helmet-async";
@@ -10,20 +11,31 @@ function formatDate(d: string | Date) {
   return new Date(d).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 }
 
+function renderInline(text: string): ReactNode[] {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={i} className="text-white font-semibold">{part.slice(2, -2)}</strong>;
+    }
+    return part;
+  });
+}
+
 function renderBody(body: string) {
   return body.split("\n\n").map((para, i) => {
-    if (para.startsWith("## ")) return <h2 key={i} className="text-2xl font-bold font-heading text-white mt-10 mb-4">{para.slice(3)}</h2>;
-    if (para.startsWith("# ")) return <h1 key={i} className="text-3xl font-bold font-heading text-white mt-10 mb-4">{para.slice(2)}</h1>;
-    if (para.startsWith("- ")) {
+    if (para.startsWith("### ")) return <h3 key={i} className="text-lg font-bold font-heading text-white mt-8 mb-3">{renderInline(para.slice(4))}</h3>;
+    if (para.startsWith("## ")) return <h2 key={i} className="text-2xl font-bold font-heading text-white mt-10 mb-4">{renderInline(para.slice(3))}</h2>;
+    if (para.startsWith("# ")) return <h1 key={i} className="text-3xl font-bold font-heading text-white mt-10 mb-4">{renderInline(para.slice(2))}</h1>;
+    if (para.startsWith("- ") || para.includes("\n- ")) {
       const items = para.split("\n").filter(l => l.startsWith("- ")).map(l => l.slice(2));
-      return <ul key={i} className="list-disc list-inside space-y-1 text-white/70 text-base leading-relaxed my-4">{items.map((it, j) => <li key={j}>{it}</li>)}</ul>;
+      return <ul key={i} className="list-disc list-inside space-y-2 text-white/70 text-base leading-relaxed my-4">{items.map((it, j) => <li key={j}>{renderInline(it)}</li>)}</ul>;
     }
     if (para.startsWith("> ")) return (
       <blockquote key={i} className="border-l-4 pl-4 my-6 italic text-white/60 text-base" style={{ borderColor: "#F4A62A" }}>
-        {para.slice(2)}
+        {renderInline(para.slice(2))}
       </blockquote>
     );
-    return <p key={i} className="text-white/70 text-base leading-relaxed my-4">{para}</p>;
+    return <p key={i} className="text-white/70 text-base leading-relaxed my-4">{renderInline(para)}</p>;
   });
 }
 
