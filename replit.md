@@ -389,10 +389,23 @@ A full-stack brand portfolio website for **Elevate360Official** featuring mobile
 - **Controls**: Safe Mode (all policies → suggest_only), Kill Switch (all auto-apply disabled), manual Health Check, Generate Quarterly Strategy Report
 - **Maturity scoring**: Job Health + Revenue Truth + Audit Health + Execution Safety + Growth Health → Overall Maturity (0–100, graded A–F)
 
+## Session Fixes & Improvements (April 2026)
+- **Removed duplicate `site.webmanifest`**: `client/public/` now has only `manifest.json` (referenced in `index.html`); `site.webmanifest` was redundant
+- **AI Concierge knowledge base seeded**: 10 knowledge documents added covering brand overview, Bondedlove app, Healthwisesupport app, books catalog, services/consultations, music (Audiomack), Etsy art studio, contact info, founder bio, and FAQ. Script: `scripts/seed-knowledge.ts`
+- **Fixed session key mismatch (bug)**: `Home.tsx` and `CheckoutSuccess.tsx` were reading `localStorage["e360_session_id"]` (never set) instead of `sessionStorage["e360_chat_session"]` (set by AIConcierge). Post-purchase offer attribution now works correctly
+- **Blog seeded**: 5 published posts (Bondedlove, Healthwisesupport, One Clean Meal, Audiomack, Brand Ecosystem)
+- **Sitemap dynamic**: `server/sitemap.ts` auto-includes published blog posts; yields 13+ URLs
+
+## Key Session Storage Keys
+- `e360_chat_session` (sessionStorage) — AI Concierge chat session ID (set by AIConcierge.tsx)
+- `e360_last_offer` (sessionStorage) — Last offer slug for post-purchase attribution (set by Home.tsx handleBuyNow)
+- `announcement_dismissed_{hash}` (sessionStorage) — Per-announcement dismissal state
+
 ## External Links
 - Amazon Books: B0GMBNPZC9, B0G5DWG61V, B0FSDTPVJC
 - Instagram: https://www.instagram.com/officialelevate360/
 - YouTube: https://www.youtube.com/channel/UCDGnUhgvM__6Mw8q26H-urQ
 - Etsy: https://www.etsy.com/shop/Elevate360Official
-- Brand logo: @assets/Elevate360_Brand_Logo_1772418122164.png
-- Art Studio image: @assets/Elevate360Art_Studio_Presentation_1772460961759.png
+- Brand logo: @assets/Elevate360_Brand_Logo_1772418122164.png (2.1MB, lives in attached_assets/)
+- Art Studio image: @assets/Elevate360Art_Studio_Presentation_1772460961759.png (2.2MB, lives in attached_assets/)
+- @assets Vite alias → attached_assets/ (NOT client/src/assets/)

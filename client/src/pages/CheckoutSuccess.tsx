@@ -103,7 +103,7 @@ export default function CheckoutSuccess() {
   // Phase 41 — mark offer accepted in AI Concierge pipeline
   useEffect(() => {
     window.scrollTo(0, 0);
-    const chatSessionId = localStorage.getItem("e360_session_id");
+    const chatSessionId = sessionStorage.getItem("e360_chat_session");
     const lastOffer = sessionStorage.getItem("e360_last_offer");
     if (chatSessionId && lastOffer) {
       fetch("/api/checkout/offer-accepted", {

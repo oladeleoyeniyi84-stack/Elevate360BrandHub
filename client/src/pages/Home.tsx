@@ -234,7 +234,7 @@ export default function Home() {
   const handleBuyNow = async (priceId: string, productName: string, amount?: number) => {
     setBuyingOffer(priceId);
     try {
-      const chatSessionId = localStorage.getItem("e360_session_id");
+      const chatSessionId = sessionStorage.getItem("e360_chat_session");
       // Phase 41 — store offer for acceptance attribution on success page
       sessionStorage.setItem("e360_last_offer", productName);
       const res = await fetch("/api/checkout/session", {
