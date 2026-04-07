@@ -1,0 +1,2809 @@
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
+import { useMutation } from "@tanstack/react-query";
+import { Mail } from "lucide-react";
+
+interface NewsletterFormProps {
+  compact?: boolean;
+}
+
+export function NewsletterForm({ compact }: NewsletterFormProps = {}) {
+  const [email, setEmail] = useState("");
+  const [website, setWebsite] = useState(""); // honeypot — must stay empty
+  const { toast } = useToast();
+
+  const mutation = useMutation({
+    mutationFn: async (data: { email: string; website: string }) => {
+      const res = await fetch("/api/newsletter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Something went wrong");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Subscribed!", description: "You'll receive updates from Elevate360." });
+      setEmail("");
+    },
+    onError: (error: Error) => {
+      toast({ title: "Heads up", description: error.message });
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (email) mutation.mutate({ email, website });
+  };
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className={compact
+        ? "flex flex-col gap-2 w-full"
+        : "flex flex-col sm:flex-row gap-3 w-full max-w-md mx-auto"
+      }
+    >
+      {/* Honeypot — hidden from real users, bots fill it automatically */}
+      <input
+        type="text"
+        name="website"
+        value={website}
+        onChange={(e) => setWebsite(e.target.value)}
+        tabIndex={-1}
+        autoComplete="off"
+        aria-hidden="true"
+        style={{ position: "absolute", left: "-9999px", width: "1px", height: "1px", opacity: 0 }}
+      />
+      <div className="relative flex-1">
+        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+        <Input
+          type="email"
+          data-testid="input-newsletter-email"
+          placeholder="Enter your email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className={compact
+            ? "pl-10 h-11 rounded-xl bg-white/5 border-white/10 text-foreground text-sm"
+            : "pl-10 h-14 rounded-full bg-background/50 border-border text-foreground"
+          }
+          required
+        />
+      </div>
+      <Button
+        type="submit"
+        data-testid="button-subscribe-newsletter"
+        className={compact
+          ? "rounded-xl h-11 px-6 text-sm font-semibold"
+          : "rounded-full h-14 px-8 text-base font-semibold"
+        }
+        disabled={mutation.isPending}
+      >
+        {mutation.isPending ? "Subscribing..." : "Subscribe"}
+      </Button>
+    </form>
+  );
+}
+import { useState, useEffect, useCallback } from "react";
+import { X, Mail, Sparkles } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
+import { useLocation } from "wouter";
+
+const STORAGE_KEY = "e360_popup_dismissed";
+const SCROLL_THRESHOLD = 0.6;
+const DELAY_AFTER_SCROLL_MS = 800;
+
+export function NewsletterPopup() {
+  const [location] = useLocation();
+  const [visible, setVisible] = useState(false);
+  const [email, setEmail] = useState("");
+  const [website, setWebsite] = useState(""); // honeypot — must stay empty
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState("");
+
+  const isDismissed = useCallback(() => {
+    try {
+      return !!sessionStorage.getItem(STORAGE_KEY);
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const dismiss = useCallback(() => {
+    try {
+      sessionStorage.setItem(STORAGE_KEY, "1");
+    } catch {/* ignore */}
+    setVisible(false);
+  }, []);
+
+  useEffect(() => {
+    if (location !== "/" || isDismissed()) return;
+
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let fired = false;
+
+    const onScroll = () => {
+      if (fired) return;
+      const scrolled = window.scrollY / (document.documentElement.scrollHeight - window.innerHeight);
+      if (scrolled >= SCROLL_THRESHOLD) {
+        fired = true;
+        timer = setTimeout(() => setVisible(true), DELAY_AFTER_SCROLL_MS);
+        window.removeEventListener("scroll", onScroll);
+      }
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (timer) clearTimeout(timer);
+    };
+  }, [location, isDismissed]);
+
+  useEffect(() => {
+    if (!visible) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") dismiss(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [visible, dismiss]);
+
+  const mutation = useMutation({
+    mutationFn: async (data: { email: string; website: string }) => {
+      const res = await fetch("/api/newsletter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || "Something went wrong");
+      return json;
+    },
+    onSuccess: () => {
+      setSuccess(true);
+      setTimeout(() => dismiss(), 2200);
+    },
+    onError: (err: Error) => {
+      setError(err.message);
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    if (email) mutation.mutate({ email, website });
+  };
+
+  if (!visible) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Newsletter signup"
+    >
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300"
+        onClick={dismiss}
+        data-testid="popup-backdrop"
+      />
+
+      {/* Panel */}
+      <div className="relative z-10 w-full max-w-md rounded-3xl lux-card p-8 shadow-2xl animate-in slide-in-from-bottom-8 fade-in duration-300">
+        {/* Close */}
+        <button
+          onClick={dismiss}
+          data-testid="button-close-popup"
+          className="absolute top-4 right-4 w-8 h-8 rounded-full border border-white/10 flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-white/30 transition-colors"
+          aria-label="Close"
+        >
+          <X className="w-4 h-4" />
+        </button>
+
+        {!success ? (
+          <>
+            {/* Icon */}
+            <div className="w-12 h-12 rounded-2xl bg-primary/15 border border-primary/30 flex items-center justify-center mb-5">
+              <Sparkles className="w-6 h-6 text-primary" />
+            </div>
+
+            {/* Copy */}
+            <h2 className="text-2xl font-heading font-bold tracking-tight mb-2">
+              Stay in the Elevate360 Loop
+            </h2>
+            <p className="text-muted-foreground text-sm leading-relaxed mb-6">
+              Get first access to new app features, book drops, music releases, and exclusive content — straight to your inbox.
+            </p>
+
+            {/* Form */}
+            <form onSubmit={handleSubmit} className="space-y-3">
+              {/* Honeypot — hidden from real users, bots fill it automatically */}
+              <input
+                type="text"
+                name="website"
+                value={website}
+                onChange={(e) => setWebsite(e.target.value)}
+                tabIndex={-1}
+                autoComplete="off"
+                aria-hidden="true"
+                style={{ position: "absolute", left: "-9999px", width: "1px", height: "1px", opacity: 0 }}
+              />
+              <div className="relative">
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="your@email.com"
+                  data-testid="input-popup-email"
+                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-white/5 border border-white/10 text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-colors"
+                />
+              </div>
+
+              {error && (
+                <p className="text-red-400 text-xs" data-testid="popup-error">{error}</p>
+              )}
+
+              <button
+                type="submit"
+                data-testid="button-popup-subscribe"
+                disabled={mutation.isPending}
+                className="btn-primary w-full justify-center py-3 text-sm"
+              >
+                {mutation.isPending ? "Subscribing…" : "Subscribe — It's Free"}
+              </button>
+            </form>
+
+            <p className="text-center text-xs text-muted-foreground mt-4">
+              No spam, ever. Unsubscribe any time.
+            </p>
+          </>
+        ) : (
+          <div className="text-center py-6 space-y-4">
+            <div className="w-14 h-14 rounded-full bg-green-500/15 border border-green-500/30 flex items-center justify-center mx-auto">
+              <span className="text-2xl">✓</span>
+            </div>
+            <h2 className="text-xl font-heading font-bold">You're in!</h2>
+            <p className="text-muted-foreground text-sm">
+              Welcome to the Elevate360 community. Watch your inbox — great things are coming.
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+import { useState, useEffect } from "react";
+import { ArrowUp } from "lucide-react";
+
+export function ScrollUtilities() {
+  const [scrollPct, setScrollPct] = useState(0);
+  const [showTop, setShowTop] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => {
+      const scrolled = window.scrollY;
+      const total = document.documentElement.scrollHeight - window.innerHeight;
+      setScrollPct(total > 0 ? (scrolled / total) * 100 : 0);
+      setShowTop(scrolled > 420);
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  function scrollToTop() {
+    const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({ top: 0, behavior: prefersReduced ? "auto" : "smooth" });
+  }
+
+  return (
+    <>
+      {/* Reading progress bar — thin gold line at very top of viewport */}
+      <div
+        aria-hidden="true"
+        className="fixed top-0 left-0 z-[60] h-[3px] bg-gradient-to-r from-primary via-[#ffe3a6] to-primary transition-all duration-75 ease-linear"
+        style={{ width: `${scrollPct}%` }}
+      />
+
+      {/* Back-to-top button */}
+      <button
+        onClick={scrollToTop}
+        aria-label="Back to top"
+        data-testid="button-back-to-top"
+        className={`
+          fixed bottom-20 md:bottom-6 right-4 md:right-6 z-50
+          w-11 h-11 rounded-full
+          bg-primary text-[#0d1a2e]
+          flex items-center justify-center
+          shadow-lg shadow-primary/30
+          transition-all duration-300 ease-out
+          hover:scale-110 hover:bg-[#ffb84d] hover:shadow-primary/50
+          active:scale-95
+          ${showTop ? "opacity-100 translate-y-0 pointer-events-auto" : "opacity-0 translate-y-4 pointer-events-none"}
+        `}
+      >
+        <ArrowUp className="h-4 w-4" strokeWidth={2.5} />
+      </button>
+    </>
+  );
+}
+
+import { Helmet } from "react-helmet-async";
+
+type SEOProps = {
+  title: string;
+  description: string;
+  path?: string;
+  image?: string;
+  type?: "website" | "article";
+  keywords?: string;
+};
+
+const SITE_NAME = "Elevate360Official";
+const SITE_URL = "https://www.elevate360official.com";
+const DEFAULT_IMAGE = `${SITE_URL}/social-preview/elevate360-logo-share.png`;
+
+export function SEO({
+  title,
+  description,
+  path = "/",
+  image = DEFAULT_IMAGE,
+  type = "website",
+  keywords = [
+    "Elevate360Official",
+    "Elevate360",
+    "Oladele Oyeniyi",
+    "apps",
+    "books",
+    "music",
+    "art",
+    "Video Crafter",
+    "Bondedlove",
+    "Healthwisesupport",
+    "digital ecosystem",
+    "brand hub",
+    "AI content consultation",
+    "brand strategy",
+    "digital experiences",
+    "creative tools",
+  ].join(", "),
+}: SEOProps) {
+  const canonical = `${SITE_URL}${path}`;
+
+  return (
+    <Helmet>
+      <html lang="en" />
+      <title>{title}</title>
+      <meta name="description" content={description} />
+      <meta name="keywords" content={keywords} />
+      <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" />
+      <meta name="googlebot" content="index,follow,max-image-preview:large" />
+      <link rel="canonical" href={canonical} />
+
+      <meta property="og:locale" content="en_US" />
+      <meta property="og:site_name" content={SITE_NAME} />
+      <meta property="og:type" content={type} />
+      <meta property="og:title" content={title} />
+      <meta property="og:description" content={description} />
+      <meta property="og:url" content={canonical} />
+      <meta property="og:image" content={image} />
+      <meta property="og:image:secure_url" content={image} />
+      <meta property="og:image:width" content="1200" />
+      <meta property="og:image:height" content="630" />
+      <meta property="og:image:alt" content="Elevate360Official brand preview" />
+
+      <meta name="twitter:card" content="summary_large_image" />
+      <meta name="twitter:title" content={title} />
+      <meta name="twitter:description" content={description} />
+      <meta name="twitter:image" content={image} />
+
+      <meta name="theme-color" content="#06142f" />
+      <meta property="fb:app_id" content="122150153540988040" />
+    </Helmet>
+  );
+}
+
+export default SEO;
+
+import { useState, useEffect, useRef } from "react";
+import { Share2, Link2, Check } from "lucide-react";
+
+interface ShareButtonProps {
+  url: string;
+  title: string;
+  text?: string;
+  className?: string;
+}
+
+export function ShareButton({ url, title, text, className = "" }: ShareButtonProps) {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const shareText = text || `Check out ${title} by Elevate360Official`;
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  async function handleClick(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Native share on mobile / Chromium
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({ title, text: shareText, url });
+      } catch {
+        // user dismissed — no-op
+      }
+      return;
+    }
+
+    // Desktop fallback — toggle dropdown
+    setOpen((v) => !v);
+  }
+
+  function stop(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
+  function doWhatsApp(e: React.MouseEvent) {
+    stop(e);
+    window.open(
+      `https://wa.me/?text=${encodeURIComponent(`${shareText} ${url}`)}`,
+      "_blank"
+    );
+    setOpen(false);
+  }
+
+  function doTwitter(e: React.MouseEvent) {
+    stop(e);
+    window.open(
+      `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(url)}`,
+      "_blank"
+    );
+    setOpen(false);
+  }
+
+  function doCopy(e: React.MouseEvent) {
+    stop(e);
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => {
+        setCopied(false);
+        setOpen(false);
+      }, 1800);
+    });
+  }
+
+  return (
+    <div
+      ref={ref}
+      className={`relative ${className}`}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {/* Trigger button */}
+      <button
+        onClick={handleClick}
+        aria-label="Share"
+        data-testid={`button-share-${title.toLowerCase().replace(/\s+/g, "-")}`}
+        className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-full border border-white/15 text-muted-foreground hover:text-foreground hover:border-white/30 hover:bg-white/5 transition-all duration-150"
+      >
+        <Share2 className="h-3.5 w-3.5" />
+        <span className="hidden sm:inline">Share</span>
+      </button>
+
+      {/* Desktop dropdown */}
+      {open && (
+        <div className="absolute bottom-full mb-2 right-0 z-50 w-44 bg-[#0d1a2e] border border-white/12 rounded-2xl shadow-2xl shadow-black/60 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-150">
+          <button
+            onClick={doWhatsApp}
+            data-testid={`button-share-whatsapp-${title.toLowerCase().replace(/\s+/g, "-")}`}
+            className="flex items-center gap-3 w-full px-4 py-3 text-sm text-white/70 hover:text-white hover:bg-white/6 transition-colors"
+          >
+            <span className="text-base">💬</span> WhatsApp
+          </button>
+          <button
+            onClick={doTwitter}
+            data-testid={`button-share-twitter-${title.toLowerCase().replace(/\s+/g, "-")}`}
+            className="flex items-center gap-3 w-full px-4 py-3 text-sm text-white/70 hover:text-white hover:bg-white/6 transition-colors border-t border-white/6"
+          >
+            <span className="text-base">𝕏</span> X / Twitter
+          </button>
+          <button
+            onClick={doCopy}
+            data-testid={`button-share-copy-${title.toLowerCase().replace(/\s+/g, "-")}`}
+            className="flex items-center gap-3 w-full px-4 py-3 text-sm text-white/70 hover:text-white hover:bg-white/6 transition-colors border-t border-white/6"
+          >
+            {copied ? (
+              <><Check className="h-4 w-4 text-green-400" /><span className="text-green-400">Copied!</span></>
+            ) : (
+              <><Link2 className="h-4 w-4" /> Copy Link</>
+            )}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+import { useEffect, useState } from "react";
+import { useLocation } from "wouter";
+
+const PRE_FILLED_TEXT = encodeURIComponent(
+  "Hi Elevate360! I visited your website and would love to connect. 👋"
+);
+
+export function WhatsAppButton() {
+  const [number, setNumber] = useState<string | null>(null);
+  const [visible, setVisible] = useState(false);
+  const [tooltip, setTooltip] = useState(false);
+  const [location] = useLocation();
+
+  useEffect(() => {
+    fetch("/api/config/public")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.whatsappNumber) setNumber(d.whatsappNumber);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!number) return;
+    const timer = setTimeout(() => setVisible(true), 1200);
+    return () => clearTimeout(timer);
+  }, [number]);
+
+  if (!number || location === "/dashboard") return null;
+
+  const href = `https://wa.me/${number.replace(/\D/g, "")}?text=${PRE_FILLED_TEXT}`;
+
+  return (
+    <div
+      className={`fixed bottom-36 md:bottom-24 left-4 z-[150] flex items-center gap-3 transition-all duration-500 ${
+        visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"
+      }`}
+    >
+      {/* Tooltip bubble */}
+      {tooltip && (
+        <div className="relative bg-[#075E54] text-white text-xs font-medium px-3 py-2 rounded-xl shadow-lg whitespace-nowrap animate-in fade-in slide-in-from-left-2 duration-200">
+          Chat with us on WhatsApp
+          <div className="absolute right-[-6px] top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-l-[6px] border-t-transparent border-b-transparent border-l-[#075E54]" />
+        </div>
+      )}
+
+      {/* Button */}
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        data-testid="button-whatsapp"
+        aria-label="Chat with us on WhatsApp"
+        onMouseEnter={() => setTooltip(true)}
+        onMouseLeave={() => setTooltip(false)}
+        onFocus={() => setTooltip(true)}
+        onBlur={() => setTooltip(false)}
+        className="w-14 h-14 rounded-full shadow-[0_4px_24px_rgba(37,211,102,0.4)] flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95"
+        style={{ background: "linear-gradient(135deg, #25D366 0%, #128C7E 100%)" }}
+      >
+        {/* WhatsApp SVG icon */}
+        <svg
+          viewBox="0 0 32 32"
+          className="w-7 h-7 fill-white"
+          aria-hidden="true"
+        >
+          <path d="M16.004 2.667C8.64 2.667 2.667 8.64 2.667 16c0 2.347.619 4.589 1.707 6.547L2.667 29.333l6.987-1.653A13.28 13.28 0 0 0 16.004 29.333C23.36 29.333 29.333 23.36 29.333 16S23.36 2.667 16.004 2.667zm0 24a10.627 10.627 0 0 1-5.44-1.493l-.389-.232-4.147.98 1.008-3.987-.254-.408A10.61 10.61 0 0 1 5.333 16c0-5.88 4.787-10.667 10.667-10.667S26.667 10.12 26.667 16 21.88 26.667 16.004 26.667zm5.853-7.987c-.32-.16-1.893-.933-2.187-1.04-.293-.107-.507-.16-.72.16-.213.32-.827 1.04-.987 1.253-.16.213-.32.24-.627.08-.32-.16-1.333-.493-2.56-1.573-.947-.84-1.587-1.88-1.773-2.2-.187-.32-.02-.493.14-.653.147-.147.32-.387.48-.573.16-.187.213-.32.32-.533.107-.213.053-.4-.027-.56-.08-.16-.72-1.733-.987-2.373-.253-.613-.52-.533-.72-.547h-.613c-.213 0-.56.08-.853.4-.293.32-1.12 1.093-1.12 2.667s1.147 3.093 1.307 3.307c.16.213 2.267 3.467 5.493 4.853.773.333 1.373.533 1.84.68.773.24 1.48.213 2.04.133.627-.093 1.893-.773 2.16-1.52.267-.747.267-1.387.187-1.52-.08-.133-.28-.213-.6-.373z" />
+        </svg>
+      </a>
+    </div>
+  );
+}
+
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { X, Send, Loader2 } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
+import { conciergeModes, type ConciergeModeKey } from "@/config/conciergeModes";
+import { ConciergePresenceHeader } from "@/components/concierge/ConciergePresenceHeader";
+import { CreatorAvatar } from "@/components/concierge/CreatorAvatar";
+
+interface Message {
+  role: "user" | "assistant";
+  content: string;
+}
+
+function generateSessionId(): string {
+  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
+function getOrCreateSessionId(): string {
+  const key = "e360_chat_session";
+  let id = sessionStorage.getItem(key);
+  if (!id) {
+    id = generateSessionId();
+    sessionStorage.setItem(key, id);
+  }
+  return id;
+}
+
+const SESSION_CHIPS: { label: string; mode: ConciergeModeKey }[] = [
+  { label: "Brand Strategy", mode: "brandStrategy" },
+  { label: "AI Content", mode: "aiContent" },
+  { label: "Creative Direction", mode: "creativeDirection" },
+  { label: "App / Product", mode: "appProduct" },
+  { label: "Collaboration", mode: "collaboration" },
+];
+
+const QUICK_PROMPTS = [
+  "Tell me about your apps",
+  "Show me your books",
+  "What is Elevate360?",
+  "How can I contact you?",
+];
+
+export function AIConcierge() {
+  const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<ConciergeModeKey>("default");
+  const [speaking, setSpeaking] = useState(false);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState("");
+  const [sessionId] = useState(getOrCreateSessionId);
+  const [leadCaptured, setLeadCaptured] = useState(false);
+  const [leadName, setLeadName] = useState("");
+  const [leadEmail, setLeadEmail] = useState("");
+  const [showLeadForm, setShowLeadForm] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const modeConfig = useMemo(() => conciergeModes[mode], [mode]);
+
+  const welcomeMessage = useMemo<Message>(
+    () => ({ role: "assistant", content: modeConfig.intro }),
+    [modeConfig]
+  );
+
+  // Reset messages when mode changes
+  useEffect(() => {
+    setMessages([welcomeMessage]);
+  }, [welcomeMessage]);
+
+  useEffect(() => {
+    if (open) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+      setTimeout(() => inputRef.current?.focus(), 100);
+    }
+  }, [open, messages]);
+
+  // Listen for external mode changes from session card clicks
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const custom = event as CustomEvent<{ mode: ConciergeModeKey }>;
+      if (custom.detail?.mode) {
+        setMode(custom.detail.mode);
+        setOpen(true);
+      }
+    };
+    window.addEventListener("e360:set-concierge-mode", handler as EventListener);
+    return () => window.removeEventListener("e360:set-concierge-mode", handler as EventListener);
+  }, []);
+
+  const chatMutation = useMutation({
+    mutationFn: async ({ message, name, email }: { message: string; name?: string; email?: string }) => {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId,
+          message,
+          sessionMode: mode,
+          ...(name && { leadName: name }),
+          ...(email && { leadEmail: email }),
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || "Something went wrong");
+      }
+      return res.json() as Promise<{ reply: string }>;
+    },
+    onMutate: ({ message }) => {
+      setMessages((prev) => [...prev, { role: "user", content: message }]);
+      setSpeaking(true);
+    },
+    onSuccess: ({ reply }) => {
+      setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
+      if (!leadCaptured && messages.length >= 4) {
+        setShowLeadForm(true);
+      }
+    },
+    onError: () => {
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: "Sorry, I'm having a moment. Please try again!" },
+      ]);
+    },
+    onSettled: () => {
+      setTimeout(() => setSpeaking(false), 900);
+    },
+  });
+
+  const sendMessage = useCallback(
+    (text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed || chatMutation.isPending) return;
+      setInput("");
+      chatMutation.mutate({ message: trimmed });
+    },
+    [chatMutation]
+  );
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    sendMessage(input);
+  };
+
+  const handleLeadSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setShowLeadForm(false);
+    setLeadCaptured(true);
+    chatMutation.mutate({
+      message: `My name is ${leadName} and my email is ${leadEmail}. Please keep me updated.`,
+      name: leadName,
+      email: leadEmail,
+    });
+  };
+
+  const handleModeChange = (newMode: ConciergeModeKey) => {
+    setMode(newMode);
+    setShowLeadForm(false);
+  };
+
+  const isLive = mode !== "default";
+
+  return (
+    <>
+      {/* Floating launcher — creator avatar */}
+      <button
+        data-testid="button-ai-concierge-launcher"
+        onClick={() => setOpen((v) => !v)}
+        aria-label="Open Elevate360 AI Concierge"
+        className="fixed bottom-6 right-6 z-50 transition-all duration-300 hover:scale-105 active:scale-95"
+        style={{ filter: "drop-shadow(0 8px 24px rgba(244,166,42,0.45))" }}
+      >
+        {open ? (
+          <div className="w-14 h-14 rounded-full bg-[#F4A62A] flex items-center justify-center text-black shadow-lg">
+            <X className="h-6 w-6" />
+          </div>
+        ) : (
+          <CreatorAvatar size="lg" live />
+        )}
+      </button>
+
+      {/* Chat panel */}
+      <div
+        className={`fixed bottom-24 right-6 z-50 w-[90vw] max-w-sm transition-all duration-300 ${
+          open ? "opacity-100 translate-y-0 pointer-events-auto" : "opacity-0 translate-y-4 pointer-events-none"
+        }`}
+      >
+        <div
+          className="rounded-3xl overflow-hidden shadow-[0_32px_80px_rgba(0,0,0,0.55)] border border-white/10 flex flex-col"
+          style={{ maxHeight: "72vh", background: "hsl(220 50% 10%)" }}
+        >
+          {/* Founder-presence header */}
+          <ConciergePresenceHeader mode={mode} live={isLive} speaking={speaking} />
+
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 scrollbar-thin">
+            {messages.map((msg, i) => (
+              <div
+                key={i}
+                className={`flex gap-2 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+              >
+                {msg.role === "assistant" && (
+                  <CreatorAvatar size="sm" live={isLive} className="mt-0.5 flex-shrink-0" />
+                )}
+                <div
+                  data-testid={`chat-message-${msg.role}-${i}`}
+                  className={`max-w-[76%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                    msg.role === "user"
+                      ? "bg-[#F4A62A] text-black font-medium rounded-br-sm"
+                      : "bg-white/8 text-white/90 rounded-bl-sm border border-white/8"
+                  }`}
+                >
+                  {msg.content}
+                </div>
+              </div>
+            ))}
+
+            {chatMutation.isPending && (
+              <div className="flex gap-2 justify-start">
+                <CreatorAvatar size="sm" speaking className="mt-0.5 flex-shrink-0" />
+                <div className="bg-white/8 border border-white/8 rounded-2xl rounded-bl-sm px-4 py-3 flex items-center gap-2">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-[#F4A62A]" />
+                  <span className="text-xs text-white/50">Thinking…</span>
+                </div>
+              </div>
+            )}
+
+            {/* Lead capture form */}
+            {showLeadForm && !leadCaptured && (
+              <div className="bg-white/6 border border-[#F4A62A]/20 rounded-2xl p-4 space-y-3">
+                <p className="text-xs text-white/70 leading-relaxed">
+                  I'd love to keep you updated on Elevate360 news and releases. Drop your name and email below!
+                </p>
+                <form onSubmit={handleLeadSubmit} className="space-y-2">
+                  <input
+                    data-testid="input-lead-name"
+                    type="text"
+                    placeholder="Your name"
+                    value={leadName}
+                    onChange={(e) => setLeadName(e.target.value)}
+                    required
+                    className="w-full rounded-xl px-3 py-2 text-sm bg-white/8 border border-white/10 text-white placeholder-white/30 focus:outline-none focus:border-[#F4A62A]/50"
+                  />
+                  <input
+                    data-testid="input-lead-email"
+                    type="email"
+                    placeholder="your@email.com"
+                    value={leadEmail}
+                    onChange={(e) => setLeadEmail(e.target.value)}
+                    required
+                    className="w-full rounded-xl px-3 py-2 text-sm bg-white/8 border border-white/10 text-white placeholder-white/30 focus:outline-none focus:border-[#F4A62A]/50"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="submit"
+                      data-testid="button-lead-submit"
+                      className="flex-1 bg-[#F4A62A] text-black text-xs font-semibold rounded-xl py-2 hover:bg-[#ffb84d] transition"
+                    >
+                      Stay Connected
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setShowLeadForm(false); setLeadCaptured(true); }}
+                      className="px-3 text-xs text-white/40 hover:text-white/60 transition"
+                    >
+                      Skip
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            <div ref={bottomRef} />
+          </div>
+
+          {/* Session mode chips — always visible */}
+          <div className="px-4 pb-2 pt-1 flex flex-wrap gap-1.5 border-t border-white/5">
+            {SESSION_CHIPS.map((chip) => (
+              <button
+                key={chip.mode}
+                data-testid={`button-mode-${chip.mode}`}
+                onClick={() => handleModeChange(chip.mode)}
+                className={`e360-chip text-xs ${mode === chip.mode ? "e360-chip-active" : ""}`}
+              >
+                {chip.label}
+              </button>
+            ))}
+            {mode !== "default" && (
+              <button
+                data-testid="button-mode-default"
+                onClick={() => handleModeChange("default")}
+                className="e360-chip text-xs opacity-50"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+
+          {/* Quick prompts (only on first message in default mode) */}
+          {messages.length === 1 && mode === "default" && (
+            <div className="px-4 pb-2 flex flex-wrap gap-1.5">
+              {QUICK_PROMPTS.map((prompt) => (
+                <button
+                  key={prompt}
+                  data-testid={`button-quick-prompt-${prompt.replace(/\s+/g, "-").toLowerCase()}`}
+                  onClick={() => sendMessage(prompt)}
+                  className="text-xs px-3 py-1.5 rounded-full border border-[#F4A62A]/30 text-[#F4A62A] hover:bg-[#F4A62A]/10 transition"
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Input */}
+          <form onSubmit={handleSubmit} className="flex items-center gap-2 px-4 py-3 border-t border-white/10">
+            <input
+              ref={inputRef}
+              data-testid="input-chat-message"
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder={modeConfig.placeholder}
+              disabled={chatMutation.isPending}
+              className="flex-1 bg-white/6 border border-white/10 rounded-full px-4 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#F4A62A]/40 disabled:opacity-50"
+            />
+            <button
+              type="submit"
+              data-testid="button-chat-send"
+              disabled={!input.trim() || chatMutation.isPending}
+              className="w-9 h-9 rounded-full bg-[#F4A62A] flex items-center justify-center text-black disabled:opacity-40 hover:bg-[#ffb84d] transition flex-shrink-0"
+            >
+              <Send className="h-4 w-4" />
+            </button>
+          </form>
+        </div>
+      </div>
+    </>
+  );
+}
+
+import { useEffect, useState } from "react";
+import { useLocation } from "wouter";
+import { X, Megaphone } from "lucide-react";
+
+interface PublicConfig {
+  announcementText: string | null;
+  announcementUrl: string | null;
+}
+
+export function AnnouncementBanner() {
+  const [location] = useLocation();
+  const [config, setConfig] = useState<PublicConfig>({ announcementText: null, announcementUrl: null });
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/config/public")
+      .then((r) => r.json())
+      .then((data: PublicConfig) => {
+        setConfig(data);
+        // Restore dismissed state keyed by announcement text
+        if (data.announcementText) {
+          const key = `announcement_dismissed_${btoa(data.announcementText).slice(0, 16)}`;
+          setDismissed(sessionStorage.getItem(key) === "1");
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleDismiss = () => {
+    if (config.announcementText) {
+      const key = `announcement_dismissed_${btoa(config.announcementText).slice(0, 16)}`;
+      sessionStorage.setItem(key, "1");
+    }
+    setDismissed(true);
+  };
+
+  // Only show on home page, when there's text, and when not dismissed
+  if (location !== "/" || !config.announcementText || dismissed) return null;
+
+  const Inner = (
+    <span className="flex items-center gap-2 text-sm font-semibold text-[#0d1a2e] leading-snug">
+      <Megaphone className="h-4 w-4 shrink-0" aria-hidden="true" />
+      <span>{config.announcementText}</span>
+      {config.announcementUrl && (
+        <span className="underline underline-offset-2 opacity-80 font-bold whitespace-nowrap">
+          Learn more →
+        </span>
+      )}
+    </span>
+  );
+
+  return (
+    <div
+      role="banner"
+      aria-live="polite"
+      data-testid="announcement-banner"
+      className="fixed top-16 left-0 right-0 z-[49] flex items-center justify-between gap-3 px-4 py-2.5 shadow-md"
+      style={{
+        background: "linear-gradient(90deg, #F4A62A 0%, #ffcc6e 50%, #F4A62A 100%)",
+      }}
+    >
+      <div className="flex-1 flex justify-center">
+        {config.announcementUrl ? (
+          <a
+            href={config.announcementUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="announcement-link"
+            className="hover:opacity-80 transition-opacity"
+          >
+            {Inner}
+          </a>
+        ) : (
+          <div>{Inner}</div>
+        )}
+      </div>
+
+      <button
+        onClick={handleDismiss}
+        aria-label="Dismiss announcement"
+        data-testid="announcement-dismiss"
+        className="shrink-0 text-[#0d1a2e] opacity-60 hover:opacity-100 transition-opacity rounded-full hover:bg-black/10 p-1"
+      >
+        <X className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  ShieldCheck, AlertTriangle, AlertCircle, CheckCircle2, XCircle,
+  RefreshCw, Download, ChevronDown, ChevronUp, Edit2, Clock,
+  ClipboardList, Info,
+} from "lucide-react";
+import { AutonomousAlertsPanel } from "@/components/dashboard/AutonomousAlertsPanel";
+import type { AutonomousAlert } from "@/types/automation";
+
+async function authedJsonAudit<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, {
+    credentials: "include",
+    headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
+    ...init,
+  });
+  if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+  return res.json();
+}
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface AuditRun {
+  id: number;
+  auditType: string;
+  status: string;
+  overallVerdict: string | null;
+  criticalCount: number;
+  highCount: number;
+  mediumCount: number;
+  lowCount: number;
+  checksPassed: number;
+  checksFailed: number;
+  summary: string | null;
+  createdAt: string;
+}
+
+interface AuditCheck {
+  id: number;
+  checkKey: string;
+  checkGroup: string;
+  title: string;
+  severity: string;
+  status: string;
+  expectedValue: string | null;
+  actualValue: string | null;
+  detailsJson: Record<string, unknown> | null;
+}
+
+interface AuditIssue {
+  id: number;
+  issueCode: string;
+  area: string;
+  severity: string;
+  expected: string;
+  actual: string;
+  suspectedCause: string | null;
+  owner: string | null;
+  status: string;
+  notes: string | null;
+  createdAt: string;
+  resolvedAt: string | null;
+}
+
+interface AuditSummary {
+  latestRun: AuditRun | null;
+  openIssueCount: number;
+  criticalOpen: number;
+  highOpen: number;
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+const SEVERITY_ORDER: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+
+function SeverityBadge({ severity }: { severity: string }) {
+  const classes: Record<string, string> = {
+    critical: "bg-red-500/20 text-red-300 border border-red-500/30",
+    high: "bg-orange-500/20 text-orange-300 border border-orange-500/30",
+    medium: "bg-yellow-500/20 text-yellow-300 border border-yellow-500/30",
+    low: "bg-slate-500/20 text-slate-300 border border-slate-500/30",
+  };
+  return (
+    <span className={`px-2 py-0.5 rounded text-xs font-medium uppercase tracking-wide ${classes[severity] ?? classes.low}`}>
+      {severity}
+    </span>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  if (status === "pass")
+    return <span className="flex items-center gap-1 text-green-400 text-xs font-medium"><CheckCircle2 className="h-3.5 w-3.5" />pass</span>;
+  if (status === "warning")
+    return <span className="flex items-center gap-1 text-yellow-400 text-xs font-medium"><AlertTriangle className="h-3.5 w-3.5" />warning</span>;
+  return <span className="flex items-center gap-1 text-red-400 text-xs font-medium"><XCircle className="h-3.5 w-3.5" />fail</span>;
+}
+
+function IssueStatusBadge({ status }: { status: string }) {
+  const map: Record<string, string> = {
+    open: "text-red-300",
+    investigating: "text-yellow-300",
+    fixed: "text-green-300",
+    ignored: "text-slate-400",
+  };
+  return <span className={`text-xs font-medium capitalize ${map[status] ?? "text-white/50"}`}>{status}</span>;
+}
+
+function VerdictCard({ verdict }: { verdict: string | null }) {
+  if (!verdict) return <span className="text-white/30 text-sm">—</span>;
+  if (verdict === "trusted") return <span className="flex items-center gap-1.5 text-green-400 font-bold text-sm"><ShieldCheck className="h-4 w-4" />Trusted</span>;
+  if (verdict === "trusted_with_exceptions") return <span className="flex items-center gap-1.5 text-yellow-400 font-bold text-sm"><AlertTriangle className="h-4 w-4" />Trusted with Exceptions</span>;
+  return <span className="flex items-center gap-1.5 text-red-400 font-bold text-sm"><AlertCircle className="h-4 w-4" />Not Yet Trusted</span>;
+}
+
+// ─── Controlled Test Matrix (local state, 10 cases) ──────────────────────────
+
+type TestResult = "pending" | "pass" | "fail";
+type TestCase = { id: string; path: string; expected: string; actual: string; result: TestResult; notes: string };
+
+const DEFAULT_TEST_CASES: TestCase[] = [
+  { id: "T01", path: "Chat → click recommended offer → Stripe checkout", expected: "Order linked to session, attribution = ai_originated", actual: "", result: "pending", notes: "" },
+  { id: "T02", path: "Direct checkout with no prior chat", expected: "Order has sessionId=null, shown as direct in Revenue tab", actual: "", result: "pending", notes: "" },
+  { id: "T03", path: "Chat → WhatsApp → purchase confirmed manually", expected: "Admin marks offer accepted with source=whatsapp", actual: "", result: "pending", notes: "" },
+  { id: "T04", path: "Book a consultation via booking form", expected: "Booking row created, status=pending, urgency bar increments", actual: "", result: "pending", notes: "" },
+  { id: "T05", path: "Cancel a booking in dashboard", expected: "Booking status=cancelled, funnel Booked count decrements", actual: "", result: "pending", notes: "" },
+  { id: "T06", path: "Send follow-up to a hot lead via reminder queue", expected: "followupCount+1, lastFollowupSentAt set, audit log entry created", actual: "", result: "pending", notes: "" },
+  { id: "T07", path: "Trigger 16 rapid /api/chat requests from same IP", expected: "429 response on hit #16", actual: "", result: "pending", notes: "" },
+  { id: "T08", path: "Log in to dashboard with correct PIN", expected: "audit_logs: dashboard_login event with IP in meta", actual: "", result: "pending", notes: "" },
+  { id: "T09", path: "Log in with wrong PIN", expected: "401 returned, audit_logs: dashboard_login_failed event", actual: "", result: "pending", notes: "" },
+  { id: "T10", path: "GET /api/health with all services running", expected: "200 with status=healthy and all checks ok=true", actual: "", result: "pending", notes: "" },
+];
+
+const MATRIX_STORAGE_KEY = "e360_audit_test_matrix_v1";
+
+function loadStoredCases() {
+  try {
+    const raw = localStorage.getItem(MATRIX_STORAGE_KEY);
+    if (!raw) return DEFAULT_TEST_CASES;
+    const stored = JSON.parse(raw) as Partial<typeof DEFAULT_TEST_CASES[0]>[];
+    return DEFAULT_TEST_CASES.map((def) => {
+      const saved = stored.find((s) => s.id === def.id);
+      return saved ? { ...def, ...saved } : def;
+    });
+  } catch {
+    return DEFAULT_TEST_CASES;
+  }
+}
+
+function TestMatrix() {
+  const [cases, setCases] = useState(loadStoredCases);
+
+  // Persist to localStorage whenever results change
+  useEffect(() => {
+    try {
+      localStorage.setItem(MATRIX_STORAGE_KEY, JSON.stringify(cases));
+    } catch {/* ignore quota errors */}
+  }, [cases]);
+
+  const setResult = (id: string, result: TestResult) => {
+    setCases((prev) => prev.map((c) => c.id === id ? { ...c, result } : c));
+  };
+  const setActual = (id: string, actual: string) => {
+    setCases((prev) => prev.map((c) => c.id === id ? { ...c, actual } : c));
+  };
+  const setNotes = (id: string, notes: string) => {
+    setCases((prev) => prev.map((c) => c.id === id ? { ...c, notes } : c));
+  };
+  const handleReset = () => {
+    setCases(DEFAULT_TEST_CASES);
+    try { localStorage.removeItem(MATRIX_STORAGE_KEY); } catch {/* ignore */}
+  };
+
+  const passed = cases.filter((c) => c.result === "pass").length;
+  const failed = cases.filter((c) => c.result === "fail").length;
+  const pending = cases.filter((c) => c.result === "pending").length;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3 text-xs">
+          <span className="text-green-400">{passed} pass</span>
+          <span className="text-red-400">{failed} fail</span>
+          <span className="text-white/30">{pending} pending</span>
+        </div>
+        <button
+          data-testid="button-test-matrix-reset"
+          onClick={handleReset}
+          className="text-xs text-white/30 hover:text-white/60 transition border border-white/10 px-2.5 py-1 rounded-lg"
+        >
+          Reset All
+        </button>
+      </div>
+      {cases.map((c) => (
+        <div key={c.id} className="rounded-xl border border-white/8 bg-white/3 p-4 space-y-2">
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-0.5 flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-[#F4A62A] font-mono font-bold">{c.id}</span>
+                <span className="text-sm text-white/80 font-medium">{c.path}</span>
+              </div>
+              <p className="text-xs text-white/40 leading-relaxed">{c.expected}</p>
+            </div>
+            <div className="flex gap-1 flex-shrink-0">
+              {(["pass", "fail", "pending"] as TestResult[]).map((r) => (
+                <button
+                  key={r}
+                  data-testid={`button-test-result-${c.id}-${r}`}
+                  onClick={() => setResult(c.id, r)}
+                  className={`px-2 py-1 rounded text-xs font-medium transition ${
+                    c.result === r
+                      ? r === "pass" ? "bg-green-500/30 text-green-300 border border-green-500/40"
+                        : r === "fail" ? "bg-red-500/30 text-red-300 border border-red-500/40"
+                        : "bg-white/10 text-white/60 border border-white/15"
+                      : "bg-white/5 text-white/30 border border-white/8 hover:bg-white/8"
+                  }`}
+                >
+                  {r === "pass" ? "✓ Pass" : r === "fail" ? "✗ Fail" : "—"}
+                </button>
+              ))}
+            </div>
+          </div>
+          {c.result !== "pending" && (
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                data-testid={`input-test-actual-${c.id}`}
+                value={c.actual}
+                onChange={(e) => setActual(c.id, e.target.value)}
+                placeholder="Actual result observed..."
+                className="text-xs rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-white/70 placeholder-white/25 focus:outline-none focus:border-[#F4A62A]/40"
+              />
+              <input
+                data-testid={`input-test-notes-${c.id}`}
+                value={c.notes}
+                onChange={(e) => setNotes(c.id, e.target.value)}
+                placeholder="Notes..."
+                className="text-xs rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-white/70 placeholder-white/25 focus:outline-none focus:border-[#F4A62A]/40"
+              />
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+
+export function AuditTab() {
+  const qc = useQueryClient();
+  const [selectedRunId, setSelectedRunId] = useState<number | null>(null);
+  const [expandedCheck, setExpandedCheck] = useState<string | null>(null);
+  const [editingIssueId, setEditingIssueId] = useState<number | null>(null);
+  const [editOwner, setEditOwner] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+  const [activeSection, setActiveSection] = useState<"checks" | "issues" | "matrix" | "verdict">("checks");
+  const [isRunning, setIsRunning] = useState(false);
+  const [issueFilter, setIssueFilter] = useState<string>("open");
+
+  // Queries
+  const summaryQuery = useQuery<AuditSummary>({
+    queryKey: ["/api/dashboard/audit/summary"],
+    refetchInterval: 60_000,
+  });
+
+  const runsQuery = useQuery<AuditRun[]>({
+    queryKey: ["/api/dashboard/audit/runs"],
+  });
+
+  const activeRunId = selectedRunId ?? summaryQuery.data?.latestRun?.id ?? null;
+
+  const checksQuery = useQuery<AuditCheck[]>({
+    queryKey: ["/api/dashboard/audit/runs", activeRunId, "checks"],
+    queryFn: async () => {
+      if (!activeRunId) return [];
+      const res = await fetch(`/api/dashboard/audit/runs/${activeRunId}/checks`, { credentials: "include" });
+      return res.json();
+    },
+    enabled: !!activeRunId,
+  });
+
+  const issuesQuery = useQuery<AuditIssue[]>({
+    queryKey: ["/api/dashboard/audit/issues"],
+  });
+
+  // Run audit mutation
+  const runAuditMutation = useMutation({
+    mutationFn: async (auditType: string) => {
+      setIsRunning(true);
+      const res = await fetch("/api/dashboard/audit/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ auditType }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setIsRunning(false);
+      setSelectedRunId(data.run.id);
+      qc.invalidateQueries({ queryKey: ["/api/dashboard/audit/summary"] });
+      qc.invalidateQueries({ queryKey: ["/api/dashboard/audit/runs"] });
+      qc.invalidateQueries({ queryKey: ["/api/dashboard/audit/issues"] });
+    },
+    onError: () => setIsRunning(false),
+  });
+
+  // Update issue mutation
+  const updateIssueMutation = useMutation({
+    mutationFn: async ({ id, updates }: { id: number; updates: Record<string, string> }) => {
+      const res = await fetch(`/api/dashboard/audit/issues/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(updates),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      setEditingIssueId(null);
+      qc.invalidateQueries({ queryKey: ["/api/dashboard/audit/issues"] });
+      qc.invalidateQueries({ queryKey: ["/api/dashboard/audit/summary"] });
+    },
+  });
+
+  const autonomousAlertsQ = useQuery<AutonomousAlert[]>({
+    queryKey: ["autonomous-alerts"],
+    queryFn: () => authedJsonAudit("/api/audit/autonomous-alerts"),
+    refetchInterval: 120_000,
+  });
+
+  const runAutonomousChecks = useMutation({
+    mutationFn: () => authedJsonAudit("/api/audit/run-autonomous-checks", { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["autonomous-alerts"] }),
+  });
+
+  const patchAlert = useMutation({
+    mutationFn: ({ id, status }: { id: number; status: AutonomousAlert["status"] }) =>
+      authedJsonAudit(`/api/audit/autonomous-alerts/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["autonomous-alerts"] }),
+  });
+
+  const handleExport = () => {
+    const url = activeRunId
+      ? `/api/dashboard/audit/export?runId=${activeRunId}`
+      : "/api/dashboard/audit/export";
+    window.open(url, "_blank");
+  };
+
+  const latestRun = summaryQuery.data?.latestRun;
+  const checks = checksQuery.data ?? [];
+  const issues = issuesQuery.data ?? [];
+  const filteredIssues = issueFilter === "all" ? issues : issues.filter((i) => i.status === issueFilter);
+
+  // Verdict per group from checks
+  const verdictByGroup = (() => {
+    const groups = ["continuity", "funnel", "revenue", "attribution", "followup", "reliability", "security"];
+    const result: Record<string, { pass: number; fail: number; warn: number; verdict: string }> = {};
+    for (const g of groups) {
+      const gc = checks.filter((c) => c.checkGroup === g);
+      const fail = gc.filter((c) => c.status === "fail").length;
+      const warn = gc.filter((c) => c.status === "warning").length;
+      const pass = gc.filter((c) => c.status === "pass").length;
+      let verdict = "—";
+      if (gc.length > 0) {
+        if (fail > 0 && gc.some((c) => c.status === "fail" && (c.severity === "critical" || c.severity === "high")))
+          verdict = "not_yet_trusted";
+        else if (fail > 0 || warn > 0)
+          verdict = "trusted_with_exceptions";
+        else
+          verdict = "trusted";
+      }
+      result[g] = { pass, fail, warn, verdict };
+    }
+    return result;
+  })();
+
+  return (
+    <div className="space-y-6">
+
+      {/* ── Summary Cards ── */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="rounded-2xl border border-white/8 bg-white/3 px-4 py-3" data-testid="audit-card-verdict">
+          <p className="text-xs text-white/40 mb-1">Overall Trust</p>
+          <VerdictCard verdict={latestRun?.overallVerdict ?? null} />
+        </div>
+        <div className="rounded-2xl border border-red-500/20 bg-red-500/5 px-4 py-3" data-testid="audit-card-critical">
+          <p className="text-xs text-white/40 mb-1">Critical Issues</p>
+          <p className={`text-xl font-bold ${(summaryQuery.data?.criticalOpen ?? 0) > 0 ? "text-red-400" : "text-white/30"}`}>
+            {summaryQuery.data?.criticalOpen ?? 0}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-orange-500/20 bg-orange-500/5 px-4 py-3" data-testid="audit-card-high">
+          <p className="text-xs text-white/40 mb-1">High Issues</p>
+          <p className={`text-xl font-bold ${(summaryQuery.data?.highOpen ?? 0) > 0 ? "text-orange-400" : "text-white/30"}`}>
+            {summaryQuery.data?.highOpen ?? 0}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-green-500/20 bg-green-500/5 px-4 py-3" data-testid="audit-card-passed">
+          <p className="text-xs text-white/40 mb-1">Checks Passed</p>
+          <p className="text-xl font-bold text-green-400">{latestRun?.checksPassed ?? 0}</p>
+        </div>
+        <div className="rounded-2xl border border-red-500/20 bg-red-500/5 px-4 py-3" data-testid="audit-card-failed">
+          <p className="text-xs text-white/40 mb-1">Checks Failed</p>
+          <p className={`text-xl font-bold ${(latestRun?.checksFailed ?? 0) > 0 ? "text-red-400" : "text-white/30"}`}>
+            {latestRun?.checksFailed ?? 0}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-white/8 bg-white/3 px-4 py-3" data-testid="audit-card-last-run">
+          <p className="text-xs text-white/40 mb-1">Last Run</p>
+          <p className="text-xs font-medium text-white/60 leading-tight">
+            {latestRun ? new Date(latestRun.createdAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "Never"}
+          </p>
+        </div>
+      </div>
+
+      {/* ── Staleness Warning ── */}
+      {latestRun && (() => {
+        const hoursSince = (Date.now() - new Date(latestRun.createdAt).getTime()) / 3_600_000;
+        return hoursSince > 24 ? (
+          <div className="flex items-start gap-2 rounded-xl border border-yellow-500/25 bg-yellow-500/8 px-4 py-3" data-testid="audit-staleness-warning">
+            <AlertTriangle className="h-4 w-4 text-yellow-400 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-yellow-300/80 leading-relaxed">
+              Last audit was <strong>{Math.floor(hoursSince)}h ago</strong>. Run a fresh audit to ensure the verdict reflects current data.
+            </p>
+          </div>
+        ) : null;
+      })()}
+
+      {/* ── Quick Actions ── */}
+      <div className="rounded-2xl border border-white/8 bg-white/3 p-4">
+        <h3 className="text-sm font-semibold text-white/70 mb-3">Quick Actions</h3>
+        <div className="flex flex-wrap gap-2">
+          {[
+            { label: isRunning ? "Running…" : "Run Full Audit", type: "full", gold: true },
+            { label: "Revenue", type: "revenue" },
+            { label: "Attribution", type: "attribution" },
+            { label: "Funnel", type: "funnel" },
+            { label: "Follow-Up", type: "followup" },
+            { label: "Continuity", type: "continuity" },
+            { label: "Reliability", type: "reliability" },
+            { label: "Security", type: "security" },
+          ].map(({ label, type, gold }) => (
+            <button
+              key={type}
+              data-testid={`button-audit-run-${type}`}
+              disabled={isRunning}
+              onClick={() => { runAuditMutation.mutate(type); setActiveSection("checks"); }}
+              className={`flex items-center gap-1.5 text-sm px-4 py-2 rounded-xl font-medium transition disabled:opacity-50 disabled:cursor-not-allowed ${
+                gold
+                  ? "bg-[#F4A62A] text-black hover:bg-[#F4A62A]/90"
+                  : "border border-white/12 text-white/70 hover:bg-white/6 hover:text-white"
+              }`}
+            >
+              {isRunning && type === "full" ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+              {label}
+            </button>
+          ))}
+          <button
+            data-testid="button-audit-export"
+            onClick={handleExport}
+            disabled={!activeRunId}
+            className="flex items-center gap-1.5 text-sm px-4 py-2 rounded-xl border border-[#F4A62A]/30 text-[#F4A62A] hover:bg-[#F4A62A]/10 transition disabled:opacity-30 disabled:cursor-not-allowed font-medium"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Export Report
+          </button>
+        </div>
+        {latestRun?.summary && (
+          <p className="mt-3 text-xs text-white/40 leading-relaxed">{latestRun.summary}</p>
+        )}
+      </div>
+
+      {/* ── Run History Selector ── */}
+      {(runsQuery.data?.length ?? 0) > 0 && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-white/40">Viewing run:</span>
+          <select
+            data-testid="select-audit-run"
+            value={activeRunId ?? ""}
+            onChange={(e) => setSelectedRunId(Number(e.target.value))}
+            className="text-xs rounded-lg border border-white/12 bg-white/5 px-2.5 py-1.5 text-white/70 focus:outline-none"
+          >
+            {runsQuery.data?.map((r) => (
+              <option key={r.id} value={r.id}>
+                #{r.id} — {r.auditType} — {r.overallVerdict ?? r.status} — {new Date(r.createdAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* ── Section Tabs ── */}
+      {!latestRun && !isRunning && (
+        <div className="rounded-2xl border border-white/10 bg-white/3 p-10 text-center">
+          <ShieldCheck className="h-10 w-10 text-[#F4A62A]/30 mx-auto mb-3" />
+          <p className="text-white/50 text-sm mb-4">No audit has been run yet.</p>
+          <button
+            data-testid="button-audit-run-first"
+            onClick={() => runAuditMutation.mutate("full")}
+            className="bg-[#F4A62A] text-black text-sm font-semibold px-6 py-2.5 rounded-xl hover:bg-[#F4A62A]/90 transition"
+          >
+            Run Full Audit
+          </button>
+        </div>
+      )}
+
+      {(latestRun || isRunning) && (
+        <>
+          <div className="flex gap-1 bg-white/4 rounded-xl p-1 overflow-x-auto">
+            {[
+              { key: "checks", label: "Automated Checks", icon: ClipboardList },
+              { key: "issues", label: `Issues (${issues.filter(i => i.status === "open").length} open)`, icon: AlertCircle },
+              { key: "matrix", label: "Test Matrix", icon: CheckCircle2 },
+              { key: "verdict", label: "Final Verdict", icon: ShieldCheck },
+            ].map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                data-testid={`button-audit-section-${key}`}
+                onClick={() => setActiveSection(key as any)}
+                className={`flex items-center gap-1.5 flex-shrink-0 py-2 px-3 rounded-lg text-xs font-medium transition ${
+                  activeSection === key ? "bg-[#F4A62A] text-black" : "text-white/50 hover:text-white/80"
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* ── Automated Checks Table ── */}
+          {activeSection === "checks" && (
+            <div className="rounded-2xl border border-white/8 bg-white/3 overflow-hidden">
+              {checksQuery.isLoading ? (
+                <div className="p-8 text-center text-white/40 text-sm">Loading checks…</div>
+              ) : checks.length === 0 ? (
+                <div className="p-8 text-center text-white/40 text-sm">No checks found for this run.</div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-white/8 text-white/40 text-xs">
+                      <th className="text-left px-4 py-3 font-medium">Check</th>
+                      <th className="text-left px-4 py-3 font-medium hidden sm:table-cell">Group</th>
+                      <th className="text-left px-4 py-3 font-medium">Severity</th>
+                      <th className="text-left px-4 py-3 font-medium">Status</th>
+                      <th className="text-left px-4 py-3 font-medium hidden md:table-cell">Expected</th>
+                      <th className="text-left px-4 py-3 font-medium hidden md:table-cell">Actual</th>
+                      <th className="text-left px-4 py-3 font-medium">Details</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...checks]
+                      .sort((a, b) => {
+                        const statusOrder = { fail: 0, warning: 1, pass: 2 };
+                        const sA = (statusOrder as any)[a.status] ?? 3;
+                        const sB = (statusOrder as any)[b.status] ?? 3;
+                        if (sA !== sB) return sA - sB;
+                        return (SEVERITY_ORDER[a.severity] ?? 4) - (SEVERITY_ORDER[b.severity] ?? 4);
+                      })
+                      .map((c) => (
+                        <>
+                          <tr
+                            key={c.id}
+                            data-testid={`row-audit-check-${c.checkKey}`}
+                            className={`border-b border-white/5 hover:bg-white/4 transition ${
+                              c.status === "fail" ? "bg-red-500/5" : c.status === "warning" ? "bg-yellow-500/5" : ""
+                            }`}
+                          >
+                            <td className="px-4 py-3">
+                              <p className="text-white/80 text-xs font-medium leading-tight">{c.title}</p>
+                              <p className="text-white/30 text-xs font-mono mt-0.5">{c.checkKey}</p>
+                            </td>
+                            <td className="px-4 py-3 hidden sm:table-cell">
+                              <span className="text-xs capitalize text-white/40 bg-white/6 px-2 py-0.5 rounded">{c.checkGroup}</span>
+                            </td>
+                            <td className="px-4 py-3"><SeverityBadge severity={c.severity} /></td>
+                            <td className="px-4 py-3"><StatusBadge status={c.status} /></td>
+                            <td className="px-4 py-3 hidden md:table-cell text-xs text-white/40 max-w-[120px] truncate">{c.expectedValue}</td>
+                            <td className="px-4 py-3 hidden md:table-cell text-xs text-white/70 max-w-[120px] truncate">{c.actualValue}</td>
+                            <td className="px-4 py-3">
+                              {c.detailsJson && (
+                                <button
+                                  data-testid={`button-audit-check-expand-${c.checkKey}`}
+                                  onClick={() => setExpandedCheck(expandedCheck === c.checkKey ? null : c.checkKey)}
+                                  className="text-white/30 hover:text-white/60 transition"
+                                >
+                                  {expandedCheck === c.checkKey ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                          {expandedCheck === c.checkKey && c.detailsJson && (
+                            <tr key={`${c.id}-detail`} className="border-b border-white/5 bg-white/2">
+                              <td colSpan={7} className="px-6 py-3">
+                                <div className="space-y-1.5">
+                                  {Object.entries(c.detailsJson).map(([k, v]) => (
+                                    <div key={k} className="flex gap-2 text-xs">
+                                      <span className="text-white/30 font-mono min-w-[140px] flex-shrink-0">{k}:</span>
+                                      <span className="text-white/60 break-all">
+                                        {Array.isArray(v) ? (v.length === 0 ? "[]" : v.join(", ")) : String(v ?? "—")}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </>
+                      ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+
+          {/* ── Issues Register ── */}
+          {activeSection === "issues" && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-white/40">Filter:</span>
+                {["open", "investigating", "fixed", "ignored", "all"].map((f) => (
+                  <button
+                    key={f}
+                    data-testid={`button-issue-filter-${f}`}
+                    onClick={() => setIssueFilter(f)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition capitalize ${
+                      issueFilter === f ? "bg-[#F4A62A]/20 text-[#F4A62A] border border-[#F4A62A]/30" : "text-white/40 hover:text-white/60 border border-white/10"
+                    }`}
+                  >
+                    {f}
+                  </button>
+                ))}
+              </div>
+
+              {filteredIssues.length === 0 ? (
+                <div className="rounded-2xl border border-green-500/20 bg-green-500/5 p-8 text-center">
+                  <CheckCircle2 className="h-8 w-8 text-green-400 mx-auto mb-2" />
+                  <p className="text-green-300 text-sm font-medium">No {issueFilter !== "all" ? issueFilter : ""} issues found</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {filteredIssues.map((issue) => (
+                    <div
+                      key={issue.id}
+                      data-testid={`card-audit-issue-${issue.id}`}
+                      className="rounded-2xl border border-white/8 bg-white/3 p-4 space-y-3"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="space-y-1 flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-mono text-xs text-[#F4A62A]">{issue.issueCode}</span>
+                            <SeverityBadge severity={issue.severity} />
+                            <IssueStatusBadge status={issue.status} />
+                            <span className="text-xs text-white/30 capitalize bg-white/6 px-2 py-0.5 rounded">{issue.area}</span>
+                          </div>
+                          <div className="text-xs text-white/60 leading-relaxed">
+                            <span className="text-white/30">Expected: </span>{issue.expected}
+                          </div>
+                          <div className="text-xs text-white/60 leading-relaxed">
+                            <span className="text-white/30">Actual: </span>{issue.actual}
+                          </div>
+                          {issue.suspectedCause && (
+                            <div className="text-xs text-white/40 leading-relaxed">
+                              <span className="text-white/20">Cause: </span>{issue.suspectedCause}
+                            </div>
+                          )}
+                          {issue.owner && (
+                            <div className="text-xs text-white/40"><span className="text-white/20">Owner: </span>{issue.owner}</div>
+                          )}
+                          {issue.notes && (
+                            <div className="text-xs text-white/40 italic">{issue.notes}</div>
+                          )}
+                        </div>
+                        <button
+                          data-testid={`button-issue-edit-${issue.id}`}
+                          onClick={() => { setEditingIssueId(issue.id); setEditOwner(issue.owner ?? ""); setEditNotes(issue.notes ?? ""); }}
+                          className="text-white/30 hover:text-white/60 transition flex-shrink-0"
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </button>
+                      </div>
+
+                      {editingIssueId === issue.id && (
+                        <div className="space-y-2 pt-2 border-t border-white/8">
+                          <input
+                            data-testid={`input-issue-owner-${issue.id}`}
+                            value={editOwner}
+                            onChange={(e) => setEditOwner(e.target.value)}
+                            placeholder="Assign owner..."
+                            className="w-full text-xs rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-white/70 placeholder-white/25 focus:outline-none focus:border-[#F4A62A]/40"
+                          />
+                          <input
+                            data-testid={`input-issue-notes-${issue.id}`}
+                            value={editNotes}
+                            onChange={(e) => setEditNotes(e.target.value)}
+                            placeholder="Add notes..."
+                            className="w-full text-xs rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-white/70 placeholder-white/25 focus:outline-none focus:border-[#F4A62A]/40"
+                          />
+                          <div className="flex gap-2 flex-wrap">
+                            {["open", "investigating", "fixed", "ignored"].map((s) => (
+                              <button
+                                key={s}
+                                data-testid={`button-issue-status-${issue.id}-${s}`}
+                                onClick={() => updateIssueMutation.mutate({ id: issue.id, updates: { owner: editOwner, notes: editNotes, status: s } })}
+                                className="px-3 py-1 rounded-lg text-xs font-medium border border-white/12 text-white/60 hover:bg-white/8 transition capitalize"
+                              >
+                                Mark {s}
+                              </button>
+                            ))}
+                            <button
+                              data-testid={`button-issue-cancel-${issue.id}`}
+                              onClick={() => setEditingIssueId(null)}
+                              className="px-3 py-1 rounded-lg text-xs text-white/30 hover:text-white/60 transition"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Controlled Test Matrix ── */}
+          {activeSection === "matrix" && (
+            <div className="space-y-4">
+              <div className="flex items-start gap-2 rounded-xl border border-[#F4A62A]/20 bg-[#F4A62A]/5 p-3">
+                <Info className="h-4 w-4 text-[#F4A62A] flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-[#F4A62A]/80 leading-relaxed">
+                  These tests must be run manually in the live environment. Mark each pass or fail after completing the test. Results are saved locally in this session.
+                </p>
+              </div>
+              <TestMatrix />
+            </div>
+          )}
+
+          {/* ── Final Verdict Panel ── */}
+          {activeSection === "verdict" && (
+            <div className="space-y-4">
+              {/* Per-group trust cards */}
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {[
+                  { key: "revenue", label: "Revenue Trust" },
+                  { key: "attribution", label: "Attribution Trust" },
+                  { key: "funnel", label: "Funnel Trust" },
+                  { key: "followup", label: "Follow-Up Trust" },
+                  { key: "reliability", label: "Reliability Trust" },
+                  { key: "continuity", label: "Continuity Trust" },
+                  { key: "security", label: "Security Trust" },
+                ].map(({ key, label }) => {
+                  const g = verdictByGroup[key];
+                  return (
+                    <div key={key} data-testid={`card-verdict-${key}`} className="rounded-2xl border border-white/8 bg-white/3 p-4">
+                      <p className="text-xs text-white/40 mb-2">{label}</p>
+                      <VerdictCard verdict={g?.verdict === "—" ? null : g?.verdict ?? null} />
+                      {g && g.pass + g.fail + g.warn > 0 && (
+                        <p className="text-xs text-white/30 mt-1">{g.pass} pass · {g.fail} fail · {g.warn} warn</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Overall verdict */}
+              <div className="rounded-2xl border border-white/10 bg-white/3 p-6 text-center space-y-3">
+                <h3 className="text-sm font-semibold text-white/60 uppercase tracking-widest">Overall Verdict</h3>
+                <div className="text-2xl font-bold">
+                  <VerdictCard verdict={latestRun?.overallVerdict ?? null} />
+                </div>
+                {latestRun?.summary && (
+                  <p className="text-xs text-white/40 leading-relaxed max-w-md mx-auto">{latestRun.summary}</p>
+                )}
+                <div className="flex justify-center gap-6 pt-2">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-green-400">{latestRun?.checksPassed ?? 0}</p>
+                    <p className="text-xs text-white/30">Passed</p>
+                  </div>
+                  <div className="text-center">
+                    <p className={`text-2xl font-bold ${(latestRun?.checksFailed ?? 0) > 0 ? "text-red-400" : "text-white/20"}`}>{latestRun?.checksFailed ?? 0}</p>
+                    <p className="text-xs text-white/30">Failed</p>
+                  </div>
+                  <div className="text-center">
+                    <p className={`text-2xl font-bold ${(summaryQuery.data?.criticalOpen ?? 0) > 0 ? "text-red-400" : "text-white/20"}`}>{summaryQuery.data?.criticalOpen ?? 0}</p>
+                    <p className="text-xs text-white/30">Critical Open</p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-center gap-2 pt-2 text-xs text-white/30">
+                  <Clock className="h-3.5 w-3.5" />
+                  {latestRun ? `Last run: ${new Date(latestRun.createdAt).toLocaleString()}` : "No audit run yet"}
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── Phase 49: Autonomous Alerts ── */}
+      <div className="mt-6">
+        <div className="mb-4 flex justify-end">
+          <button
+            className="rounded-xl border border-white/15 bg-white/5 px-3 py-1.5 text-sm text-white/70 hover:bg-white/10 disabled:opacity-40 transition"
+            onClick={() => runAutonomousChecks.mutate()}
+            disabled={runAutonomousChecks.isPending}
+            data-testid="button-run-autonomous-checks-audit"
+          >
+            {runAutonomousChecks.isPending ? "Running…" : "Run Autonomous Checks"}
+          </button>
+        </div>
+        <AutonomousAlertsPanel
+          rows={autonomousAlertsQ.data || []}
+          onUpdate={(id, status) => patchAlert.mutate({ id, status })}
+        />
+      </div>
+    </div>
+  );
+}
+
+import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { X, Palette, ChevronRight, ChevronLeft, CheckCircle2 } from "lucide-react";
+
+interface CommissionFormData {
+  name: string;
+  email: string;
+  projectType: string;
+  style: string;
+  budget: string;
+  description: string;
+}
+
+const PROJECT_TYPES = [
+  "Digital Portrait",
+  "Logo & Brand Identity",
+  "Wall Art / Print",
+  "Social Media Graphics",
+  "Book Cover Design",
+  "Custom Illustration",
+  "Other",
+];
+
+const STYLES = [
+  "Realistic",
+  "Abstract",
+  "Minimalist",
+  "Illustrative / Cartoon",
+  "Surrealist",
+  "Typography-based",
+  "Mixed / Not sure yet",
+];
+
+const BUDGETS = [
+  "Under $50",
+  "$50 – $150",
+  "$150 – $300",
+  "$300 – $500",
+  "$500+",
+  "Let's discuss",
+];
+
+const EMPTY: CommissionFormData = {
+  name: "", email: "", projectType: "", style: "", budget: "", description: "",
+};
+
+interface CommissionDialogProps {
+  open: boolean;
+  onClose: () => void;
+}
+
+export function CommissionDialog({ open, onClose }: CommissionDialogProps) {
+  const [step, setStep] = useState(0);
+  const [form, setForm] = useState<CommissionFormData>(EMPTY);
+  const [success, setSuccess] = useState(false);
+  const [website, setWebsite] = useState(""); // honeypot — must stay empty
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const message = [
+        `[ART COMMISSION REQUEST]`,
+        ``,
+        `Project Type: ${form.projectType}`,
+        `Style: ${form.style}`,
+        `Budget: ${form.budget}`,
+        ``,
+        `Description:`,
+        form.description,
+      ].join("\n");
+
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: form.name, email: form.email, message, website }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Something went wrong");
+      }
+      return res.json();
+    },
+    onSuccess: () => setSuccess(true),
+  });
+
+  const set = (key: keyof CommissionFormData, val: string) =>
+    setForm((f) => ({ ...f, [key]: val }));
+
+  const step0Valid = form.name.trim().length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email);
+  const step1Valid = form.projectType !== "" && form.style !== "" && form.budget !== "";
+  const step2Valid = form.description.trim().length >= 10;
+
+  const handleClose = () => {
+    onClose();
+    setTimeout(() => { setStep(0); setForm(EMPTY); setSuccess(false); mutation.reset(); }, 300);
+  };
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center p-4">
+      <div
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200"
+        onClick={handleClose}
+      />
+      <div className="relative z-10 w-full max-w-lg rounded-3xl lux-card shadow-2xl animate-in slide-in-from-bottom-6 fade-in duration-300 overflow-hidden">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-7 pt-7 pb-5 border-b border-white/8">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-primary/15 border border-primary/30 flex items-center justify-center">
+              <Palette className="w-4 h-4 text-primary" />
+            </div>
+            <div>
+              <h2 className="font-heading font-bold text-lg leading-tight">Commission Custom Art</h2>
+              <p className="text-xs text-muted-foreground">Elevate360 Art Studio</p>
+            </div>
+          </div>
+          <button
+            onClick={handleClose}
+            data-testid="button-close-commission"
+            className="w-8 h-8 rounded-full border border-white/10 flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-white/30 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="px-7 py-6">
+          {/* Honeypot — hidden from real users, bots fill it automatically */}
+          <input
+            type="text"
+            name="website"
+            value={website}
+            onChange={(e) => setWebsite(e.target.value)}
+            tabIndex={-1}
+            autoComplete="off"
+            aria-hidden="true"
+            style={{ position: "absolute", left: "-9999px", width: "1px", height: "1px", opacity: 0 }}
+          />
+          {success ? (
+            <div className="text-center py-6 space-y-4">
+              <div className="w-14 h-14 rounded-full bg-green-500/15 border border-green-500/30 flex items-center justify-center mx-auto">
+                <CheckCircle2 className="w-7 h-7 text-green-400" />
+              </div>
+              <div>
+                <h3 className="text-xl font-heading font-bold mb-2">Request Received!</h3>
+                <p className="text-muted-foreground text-sm leading-relaxed">
+                  Thanks, <span className="text-foreground font-medium">{form.name}</span>! We'll review your commission request and get back to you at <span className="text-primary">{form.email}</span> within 2–3 business days.
+                </p>
+              </div>
+              <button
+                onClick={handleClose}
+                data-testid="button-commission-done"
+                className="btn-primary mt-4"
+              >
+                Done
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* Step indicator */}
+              <div className="flex items-center gap-2 mb-6">
+                {["Your Details", "Project Info", "Description"].map((label, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <div className={`flex items-center gap-1.5 text-xs font-medium ${i <= step ? "text-primary" : "text-muted-foreground"}`}>
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold border transition-colors ${
+                        i < step ? "bg-primary border-primary text-black" :
+                        i === step ? "border-primary text-primary" :
+                        "border-white/20 text-muted-foreground"
+                      }`}>
+                        {i < step ? "✓" : i + 1}
+                      </div>
+                      <span className="hidden sm:inline">{label}</span>
+                    </div>
+                    {i < 2 && <div className={`h-px flex-1 w-6 ${i < step ? "bg-primary/50" : "bg-white/10"}`} />}
+                  </div>
+                ))}
+              </div>
+
+              {/* Step 0 — Contact details */}
+              {step === 0 && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground mb-1.5">Full Name</label>
+                    <input
+                      type="text"
+                      data-testid="input-commission-name"
+                      value={form.name}
+                      onChange={(e) => set("name", e.target.value)}
+                      placeholder="Your name"
+                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground mb-1.5">Email Address</label>
+                    <input
+                      type="email"
+                      data-testid="input-commission-email"
+                      value={form.email}
+                      onChange={(e) => set("email", e.target.value)}
+                      placeholder="your@email.com"
+                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Step 1 — Project type, style, budget */}
+              {step === 1 && (
+                <div className="space-y-5">
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground mb-2">Project Type</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {PROJECT_TYPES.map((t) => (
+                        <button
+                          key={t}
+                          type="button"
+                          data-testid={`option-project-${t.toLowerCase().replace(/\s+/g, "-")}`}
+                          onClick={() => set("projectType", t)}
+                          className={`text-left px-3 py-2.5 rounded-xl border text-xs font-medium transition-all ${
+                            form.projectType === t
+                              ? "border-primary bg-primary/15 text-primary"
+                              : "border-white/10 text-muted-foreground hover:border-white/20 hover:text-foreground"
+                          }`}
+                        >
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground mb-2">Art Style</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {STYLES.map((s) => (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => set("style", s)}
+                          className={`text-left px-3 py-2.5 rounded-xl border text-xs font-medium transition-all ${
+                            form.style === s
+                              ? "border-primary bg-primary/15 text-primary"
+                              : "border-white/10 text-muted-foreground hover:border-white/20 hover:text-foreground"
+                          }`}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground mb-2">Budget Range</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {BUDGETS.map((b) => (
+                        <button
+                          key={b}
+                          type="button"
+                          onClick={() => set("budget", b)}
+                          className={`text-center px-2 py-2.5 rounded-xl border text-xs font-medium transition-all ${
+                            form.budget === b
+                              ? "border-primary bg-primary/15 text-primary"
+                              : "border-white/10 text-muted-foreground hover:border-white/20 hover:text-foreground"
+                          }`}
+                        >
+                          {b}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 2 — Description */}
+              {step === 2 && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground mb-1.5">
+                      Describe your vision
+                    </label>
+                    <textarea
+                      data-testid="input-commission-description"
+                      value={form.description}
+                      onChange={(e) => set("description", e.target.value)}
+                      placeholder="Tell us what you have in mind — colors, mood, references, intended use, or anything that helps us understand your vision..."
+                      rows={5}
+                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition resize-none"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">{form.description.length} characters (minimum 10)</p>
+                  </div>
+                  <div className="lux-card rounded-2xl p-4 text-xs text-muted-foreground space-y-1">
+                    <p className="font-semibold text-foreground/80 mb-2">Your request summary</p>
+                    <p><span className="text-foreground/60">Type:</span> {form.projectType}</p>
+                    <p><span className="text-foreground/60">Style:</span> {form.style}</p>
+                    <p><span className="text-foreground/60">Budget:</span> {form.budget}</p>
+                  </div>
+                  {mutation.isError && (
+                    <p className="text-red-400 text-xs">{(mutation.error as Error).message}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Navigation buttons */}
+              <div className="flex items-center justify-between mt-7 pt-5 border-t border-white/8">
+                {step > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => setStep(step - 1)}
+                    className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition"
+                  >
+                    <ChevronLeft className="w-4 h-4" /> Back
+                  </button>
+                ) : (
+                  <span />
+                )}
+
+                {step < 2 ? (
+                  <button
+                    type="button"
+                    data-testid={`button-commission-next-${step}`}
+                    disabled={step === 0 ? !step0Valid : !step1Valid}
+                    onClick={() => setStep(step + 1)}
+                    className="btn-primary disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Continue <ChevronRight className="w-4 h-4" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    data-testid="button-commission-submit"
+                    disabled={!step2Valid || mutation.isPending}
+                    onClick={() => mutation.mutate()}
+                    className="btn-primary disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {mutation.isPending ? "Sending…" : "Submit Request"}
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+import { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { useMutation } from "@tanstack/react-query";
+
+export function ContactDialog({ children }: { children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [message, setMessage] = useState("");
+  const [website, setWebsite] = useState(""); // honeypot — must stay empty
+  const { toast } = useToast();
+
+  const mutation = useMutation({
+    mutationFn: async (data: { name: string; email: string; message: string; website: string }) => {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Something went wrong");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Message sent!", description: "We'll get back to you soon." });
+      setName("");
+      setEmail("");
+      setMessage("");
+      setOpen(false);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    mutation.mutate({ name, email, message, website });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>{children}</DialogTrigger>
+      <DialogContent className="sm:max-w-md bg-card border-border">
+        <DialogHeader>
+          <DialogTitle className="text-2xl font-heading font-bold">Get in Touch</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+          {/* Honeypot — hidden from real users, bots fill it automatically */}
+          <input
+            type="text"
+            name="website"
+            value={website}
+            onChange={(e) => setWebsite(e.target.value)}
+            tabIndex={-1}
+            autoComplete="off"
+            aria-hidden="true"
+            style={{ position: "absolute", left: "-9999px", width: "1px", height: "1px", opacity: 0 }}
+          />
+          <div className="space-y-2">
+            <Label htmlFor="contact-name">Name</Label>
+            <Input
+              id="contact-name"
+              data-testid="input-contact-name"
+              placeholder="Your name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="contact-email">Email</Label>
+            <Input
+              id="contact-email"
+              data-testid="input-contact-email"
+              type="email"
+              placeholder="your@email.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="contact-message">Message</Label>
+            <Textarea
+              id="contact-message"
+              data-testid="input-contact-message"
+              placeholder="How can we help you?"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              rows={4}
+              required
+            />
+          </div>
+          <Button
+            type="submit"
+            data-testid="button-submit-contact"
+            className="w-full rounded-full h-12 text-base font-semibold"
+            disabled={mutation.isPending}
+          >
+            {mutation.isPending ? "Sending..." : "Send Message"}
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+import { useState, useEffect } from "react";
+import { Cookie, X } from "lucide-react";
+
+const STORAGE_KEY = "elevate360_cookie_consent";
+const GA_ID = "G-5N80T0FN54";
+
+function setGAOptOut(disabled: boolean) {
+  // GA4 opt-out flag — must be set before any GA calls
+  (window as any)[`ga-disable-${GA_ID}`] = disabled;
+}
+
+export function CookieBanner() {
+  const [visible, setVisible] = useState(false);
+  const [hiding, setHiding] = useState(false);
+
+  useEffect(() => {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!stored) {
+      // Small delay so it doesn't flash immediately on load
+      const t = setTimeout(() => setVisible(true), 1800);
+      return () => clearTimeout(t);
+    }
+    if (stored === "declined") {
+      setGAOptOut(true);
+    }
+  }, []);
+
+  function dismiss(withAnimation = true) {
+    if (withAnimation) {
+      setHiding(true);
+      setTimeout(() => setVisible(false), 300);
+    } else {
+      setVisible(false);
+    }
+  }
+
+  function accept() {
+    localStorage.setItem(STORAGE_KEY, "accepted");
+    setGAOptOut(false);
+    dismiss();
+  }
+
+  function decline() {
+    localStorage.setItem(STORAGE_KEY, "declined");
+    setGAOptOut(true);
+    dismiss();
+  }
+
+  if (!visible) return null;
+
+  return (
+    <div
+      role="dialog"
+      aria-label="Cookie consent"
+      data-testid="cookie-banner"
+      className={`
+        fixed z-50 transition-all duration-300 ease-out
+        bottom-0 left-0 right-0 md:bottom-6 md:left-auto md:right-6 md:max-w-sm
+        ${hiding ? "opacity-0 translate-y-4" : "opacity-100 translate-y-0"}
+      `}
+    >
+      <div className="bg-[#0d1a2e] border border-white/12 md:rounded-2xl shadow-2xl shadow-black/50 px-5 py-4 flex flex-col gap-3">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Cookie className="h-4 w-4 text-[#F4A62A] flex-shrink-0 mt-0.5" />
+            <p className="text-sm font-semibold text-foreground">We use cookies</p>
+          </div>
+          <button
+            onClick={() => decline()}
+            aria-label="Close cookie banner"
+            data-testid="button-cookie-close"
+            className="text-muted-foreground hover:text-foreground transition-colors flex-shrink-0 -mt-0.5"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          We use cookies to analyse traffic and improve your experience on Elevate360Official.
+          You can decline to opt out of analytics at any time.
+        </p>
+
+        {/* Actions */}
+        <div className="flex gap-2">
+          <button
+            onClick={accept}
+            data-testid="button-cookie-accept"
+            className="flex-1 py-2 px-4 rounded-full bg-[#F4A62A] text-[#0d1a2e] text-xs font-bold hover:bg-[#ffb84d] transition-colors"
+          >
+            Accept All
+          </button>
+          <button
+            onClick={decline}
+            data-testid="button-cookie-decline"
+            className="flex-1 py-2 px-4 rounded-full border border-white/20 text-xs font-semibold text-muted-foreground hover:text-foreground hover:border-white/40 transition-colors"
+          >
+            Decline
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+import { useState, useRef } from "react";
+import { ChevronDown } from "lucide-react";
+
+interface FAQ {
+  q: string;
+  a: string;
+}
+
+interface FAQItemProps {
+  faq: FAQ;
+  index: number;
+  isOpen: boolean;
+  onToggle: () => void;
+}
+
+function FAQItem({ faq, index, isOpen, onToggle }: FAQItemProps) {
+  const bodyRef = useRef<HTMLDivElement>(null);
+
+  return (
+    <div className="border border-white/10 rounded-2xl overflow-hidden transition-colors hover:border-primary/30">
+      <button
+        onClick={onToggle}
+        data-testid={`faq-toggle-${index}`}
+        aria-expanded={isOpen}
+        className="w-full flex items-center justify-between gap-4 px-6 py-5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+      >
+        <span className="font-semibold text-base md:text-lg text-foreground leading-snug pr-2">{faq.q}</span>
+        <ChevronDown
+          className={`w-5 h-5 flex-none text-primary transition-transform duration-300 ${isOpen ? "rotate-180" : "rotate-0"}`}
+        />
+      </button>
+
+      <div
+        ref={bodyRef}
+        style={{
+          maxHeight: isOpen ? `${bodyRef.current?.scrollHeight ?? 400}px` : "0px",
+          opacity: isOpen ? 1 : 0,
+        }}
+        className="overflow-hidden transition-all duration-300 ease-in-out"
+      >
+        <p className="px-6 pb-6 text-muted-foreground leading-relaxed text-sm md:text-base">{faq.a}</p>
+      </div>
+    </div>
+  );
+}
+
+export function FAQSection({ faqs }: { faqs: FAQ[] }) {
+  const [openIndex, setOpenIndex] = useState<number | null>(0);
+
+  const half = Math.ceil(faqs.length / 2);
+  const leftCol = faqs.slice(0, half);
+  const rightCol = faqs.slice(half);
+
+  return (
+    <section className="py-24 border-t border-white/10" id="faq">
+      <div className="container mx-auto px-4 md:px-6">
+        <div className="text-center max-w-2xl mx-auto mb-14 space-y-3">
+          <p className="text-xs font-bold tracking-widest text-primary uppercase">Got Questions?</p>
+          <h2 className="text-3xl md:text-5xl font-heading font-bold tracking-tight">Frequently Asked</h2>
+          <p className="text-muted-foreground text-lg">Everything you need to know about Elevate360 and our products.</p>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-4 max-w-5xl mx-auto">
+          <div className="flex flex-col gap-4">
+            {leftCol.map((faq, i) => (
+              <FAQItem
+                key={i}
+                faq={faq}
+                index={i}
+                isOpen={openIndex === i}
+                onToggle={() => setOpenIndex(openIndex === i ? null : i)}
+              />
+            ))}
+          </div>
+          <div className="flex flex-col gap-4">
+            {rightCol.map((faq, i) => {
+              const globalIdx = i + half;
+              return (
+                <FAQItem
+                  key={globalIdx}
+                  faq={faq}
+                  index={globalIdx}
+                  isOpen={openIndex === globalIdx}
+                  onToggle={() => setOpenIndex(openIndex === globalIdx ? null : globalIdx)}
+                />
+              );
+            })}
+          </div>
+        </div>
+
+        <p className="text-center text-muted-foreground text-sm mt-10">
+          Still have questions?{" "}
+          <button
+            onClick={() => document.getElementById("contact-trigger")?.click()}
+            className="text-primary font-semibold hover:underline focus:outline-none"
+            data-testid="faq-contact-link"
+          >
+            Send us a message →
+          </button>
+        </p>
+      </div>
+    </section>
+  );
+}
+
+import { useState, useEffect, useCallback } from "react";
+import { X, ChevronLeft, ChevronRight, Images } from "lucide-react";
+
+export interface LightboxImage {
+  src: string;
+  alt: string;
+  caption?: string;
+}
+
+interface LightboxProps {
+  images: LightboxImage[];
+  isOpen: boolean;
+  initialIndex?: number;
+  onClose: () => void;
+}
+
+export function Lightbox({ images, isOpen, initialIndex = 0, onClose }: LightboxProps) {
+  const [idx, setIdx] = useState(initialIndex);
+
+  useEffect(() => { setIdx(initialIndex); }, [initialIndex, isOpen]);
+
+  const prev = useCallback(() => setIdx(i => (i - 1 + images.length) % images.length), [images.length]);
+  const next = useCallback(() => setIdx(i => (i + 1) % images.length), [images.length]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowLeft") prev();
+      if (e.key === "ArrowRight") next();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [isOpen, onClose, prev, next]);
+
+  useEffect(() => {
+    document.body.style.overflow = isOpen ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [isOpen]);
+
+  if (!isOpen || images.length === 0) return null;
+
+  const img = images[idx];
+
+  return (
+    <div
+      className="fixed inset-0 z-[300] flex items-center justify-center"
+      style={{ background: "rgba(0,0,0,0.92)" }}
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+    >
+      {/* Close */}
+      <button
+        className="absolute top-4 right-4 text-white/70 hover:text-white transition p-2 rounded-full bg-white/10 hover:bg-white/20"
+        onClick={onClose}
+        data-testid="button-lightbox-close"
+        aria-label="Close"
+      >
+        <X className="h-5 w-5" />
+      </button>
+
+      {/* Counter */}
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 text-white/50 text-sm">
+        {idx + 1} / {images.length}
+      </div>
+
+      {/* Prev */}
+      {images.length > 1 && (
+        <button
+          className="absolute left-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white transition p-3 rounded-full bg-white/10 hover:bg-white/20"
+          onClick={e => { e.stopPropagation(); prev(); }}
+          data-testid="button-lightbox-prev"
+          aria-label="Previous"
+        >
+          <ChevronLeft className="h-6 w-6" />
+        </button>
+      )}
+
+      {/* Image */}
+      <div
+        className="max-w-[90vw] max-h-[85vh] flex flex-col items-center gap-3"
+        onClick={e => e.stopPropagation()}
+      >
+        <img
+          src={img.src}
+          alt={img.alt}
+          className="max-h-[75vh] max-w-[85vw] object-contain rounded-2xl shadow-2xl"
+          data-testid={`image-lightbox-${idx}`}
+        />
+        {img.caption && (
+          <p className="text-white/60 text-sm text-center px-4">{img.caption}</p>
+        )}
+      </div>
+
+      {/* Next */}
+      {images.length > 1 && (
+        <button
+          className="absolute right-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white transition p-3 rounded-full bg-white/10 hover:bg-white/20"
+          onClick={e => { e.stopPropagation(); next(); }}
+          data-testid="button-lightbox-next"
+          aria-label="Next"
+        >
+          <ChevronRight className="h-6 w-6" />
+        </button>
+      )}
+
+      {/* Dot indicators */}
+      {images.length > 1 && (
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2">
+          {images.map((_, i) => (
+            <button
+              key={i}
+              onClick={e => { e.stopPropagation(); setIdx(i); }}
+              className={`w-2 h-2 rounded-full transition-all ${i === idx ? "bg-primary w-5" : "bg-white/30"}`}
+              aria-label={`Go to image ${i + 1}`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface ScreenshotButtonProps {
+  appName: string;
+  images: LightboxImage[];
+}
+
+export function ScreenshotsButton({ appName, images }: ScreenshotButtonProps) {
+  const [open, setOpen] = useState(false);
+  const [startIdx, setStartIdx] = useState(0);
+
+  const handleOpen = (i = 0) => { setStartIdx(i); setOpen(true); };
+
+  return (
+    <>
+      <button
+        data-testid={`button-screenshots-${appName.toLowerCase().replace(/\s+/g, "-")}`}
+        onClick={() => handleOpen(0)}
+        className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all"
+        style={{ borderColor: "rgba(244,166,42,0.3)", color: "#F4A62A", background: "rgba(244,166,42,0.08)" }}
+      >
+        <Images className="h-3.5 w-3.5" />
+        Screenshots
+      </button>
+      <Lightbox images={images} isOpen={open} initialIndex={startIdx} onClose={() => setOpen(false)} />
+    </>
+  );
+}
+
+import { useEffect, useState } from "react";
+import { useLocation } from "wouter";
+import { Home, Smartphone, BookOpen, Music, Palette } from "lucide-react";
+
+const TABS = [
+  { id: "top",       label: "Home",  Icon: Home,       href: "#top",        scrollTop: true },
+  { id: "apps",      label: "Apps",  Icon: Smartphone, href: "#apps",       scrollTop: false },
+  { id: "books",     label: "Books", Icon: BookOpen,   href: "#books",      scrollTop: false },
+  { id: "music",     label: "Music", Icon: Music,      href: "#music",      scrollTop: false },
+  { id: "art-studio",label: "Art",   Icon: Palette,    href: "#art-studio", scrollTop: false },
+] as const;
+
+const SECTION_IDS = ["apps", "books", "music", "art-studio"] as const;
+
+export function MobileBottomNav() {
+  const [location] = useLocation();
+  const [activeId, setActiveId] = useState<string>("top");
+
+  // Track active section via IntersectionObserver
+  useEffect(() => {
+    if (location !== "/") return;
+
+    const observers: IntersectionObserver[] = [];
+
+    SECTION_IDS.forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+
+      const observer = new IntersectionObserver(
+        ([entry]) => {
+          if (entry.isIntersecting) setActiveId(id);
+        },
+        { rootMargin: "-40% 0px -55% 0px", threshold: 0 }
+      );
+
+      observer.observe(el);
+      observers.push(observer);
+    });
+
+    // Reset to "top" when near the top
+    const onScroll = () => {
+      if (window.scrollY < 200) setActiveId("top");
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+
+    return () => {
+      observers.forEach((o) => o.disconnect());
+      window.removeEventListener("scroll", onScroll);
+    };
+  }, [location]);
+
+  // Only show on the home page
+  if (location !== "/") return null;
+
+  const handleTap = (tab: typeof TABS[number]) => {
+    if (tab.scrollTop) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    const el = document.getElementById(tab.id);
+    if (el) {
+      const offset = 72; // nav height
+      const top = el.getBoundingClientRect().top + window.scrollY - offset;
+      window.scrollTo({ top, behavior: "smooth" });
+    }
+  };
+
+  return (
+    <nav
+      className="fixed bottom-0 left-0 right-0 z-[100] md:hidden safe-bottom"
+      aria-label="Mobile section navigation"
+    >
+      {/* Frosted glass bar */}
+      <div
+        className="flex items-stretch border-t border-white/10"
+        style={{
+          background: "rgba(7, 11, 19, 0.88)",
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+        }}
+      >
+        {TABS.map((tab) => {
+          const isActive = activeId === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => handleTap(tab)}
+              data-testid={`bottom-nav-${tab.id}`}
+              aria-label={tab.label}
+              aria-current={isActive ? "page" : undefined}
+              className="relative flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-all duration-200 active:scale-90"
+            >
+              <div
+                className={`transition-all duration-200 ${isActive ? "scale-110" : "scale-100"}`}
+              >
+                <tab.Icon
+                  className="w-5 h-5 transition-colors duration-200"
+                  style={{ color: isActive ? "#F4A62A" : "rgba(255,255,255,0.35)" }}
+                  strokeWidth={isActive ? 2.5 : 1.8}
+                />
+              </div>
+              <span
+                className="text-[10px] font-semibold tracking-wide transition-colors duration-200"
+                style={{ color: isActive ? "#F4A62A" : "rgba(255,255,255,0.35)" }}
+              >
+                {tab.label}
+              </span>
+              {/* Active dot */}
+              {isActive && (
+                <div className="absolute bottom-1 w-1 h-1 rounded-full bg-primary" />
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
