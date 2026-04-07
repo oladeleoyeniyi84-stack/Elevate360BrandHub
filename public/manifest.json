@@ -1,0 +1,64 @@
+{
+  "name": "Elevate360Official",
+  "short_name": "Elevate360",
+  "description": "Empowering Lives Through Technology & Words — apps, books, music, and art by Oladele Oyeniyi.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0d1a2e",
+  "theme_color": "#F4A62A",
+  "lang": "en",
+  "categories": ["business", "lifestyle", "entertainment"],
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "64x64",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/social-preview/elevate360-logo-share.png",
+      "sizes": "1200x630",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/social-preview/elevate360-logo-share.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/social-preview/elevate360-logo-share.png",
+      "sizes": "1200x630",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Elevate360Official Homepage"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Apps",
+      "short_name": "Apps",
+      "description": "Explore Elevate360 mobile apps",
+      "url": "/#apps",
+      "icons": [{ "src": "/favicon.png", "sizes": "64x64" }]
+    },
+    {
+      "name": "Books",
+      "short_name": "Books",
+      "description": "Browse Elevate360 books on Amazon",
+      "url": "/#books",
+      "icons": [{ "src": "/favicon.png", "sizes": "64x64" }]
+    },
+    {
+      "name": "Music",
+      "short_name": "Music",
+      "description": "Listen to Elevate360 music on Audiomack",
+      "url": "/#music",
+      "icons": [{ "src": "/favicon.png", "sizes": "64x64" }]
+    }
+  ]
+}
