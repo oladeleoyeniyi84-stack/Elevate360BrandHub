@@ -10,7 +10,15 @@ type JobConfig = {
 
 const timers = new Map<string, NodeJS.Timeout>();
 
+// Node.js setTimeout uses a 32-bit signed integer for the delay, so values
+// above ~24.8 days (2,147,483,647 ms) wrap to 1ms and fire immediately.
+// We cap each tick to 60 minutes and use in-memory nextRunAt tracking for
+// long-cadence jobs to avoid the infinite-loop overflow.
+const MAX_SAFE_DELAY_MS = 60 * 60 * 1000; // 1 hour
+
 export async function registerRecurringJob(config: JobConfig, bootDelayMs = 60_000) {
+  const cadenceMs = config.cadenceMinutes * 60_000;
+
   await storage.upsertAutomationJob(config.jobKey, {
     jobGroup: config.jobGroup,
     cadenceMinutes: config.cadenceMinutes,
@@ -18,6 +26,9 @@ export async function registerRecurringJob(config: JobConfig, bootDelayMs = 60_0
     isEnabled: true,
     nextRunAt: new Date(Date.now() + bootDelayMs),
   });
+
+  // Track next scheduled run time in memory so we don't need an extra DB query
+  let nextRunAt = Date.now() + bootDelayMs;
 
   const invoke = async () => {
     const startedAt = new Date();
@@ -30,11 +41,12 @@ export async function registerRecurringJob(config: JobConfig, bootDelayMs = 60_0
       const result = await config.run();
 
       const now = new Date();
-      const job = await storage.upsertAutomationJob(config.jobKey, {
+      nextRunAt = Date.now() + cadenceMs;
+      await storage.upsertAutomationJob(config.jobKey, {
         status: "succeeded",
         lastFinishedAt: now,
         lastSucceededAt: now,
-        nextRunAt: new Date(Date.now() + config.cadenceMinutes * 60_000),
+        nextRunAt: new Date(nextRunAt),
       });
 
       await storage.createAutomationJobLog({
@@ -48,12 +60,13 @@ export async function registerRecurringJob(config: JobConfig, bootDelayMs = 60_0
       console.log(`[jobRunner] ${config.jobKey} succeeded — ${result?.summary ?? "ok"}`);
     } catch (error: any) {
       const now = new Date();
+      nextRunAt = Date.now() + cadenceMs;
       await storage.upsertAutomationJob(config.jobKey, {
         status: "failed",
         lastFinishedAt: now,
         lastFailedAt: now,
         lastError: error?.message ?? "unknown error",
-        nextRunAt: new Date(Date.now() + config.cadenceMinutes * 60_000),
+        nextRunAt: new Date(nextRunAt),
       });
 
       await storage.createAutomationJobLog({
@@ -68,16 +81,39 @@ export async function registerRecurringJob(config: JobConfig, bootDelayMs = 60_0
     }
   };
 
-  const start = () => {
-    const timeout = setTimeout(async function tick() {
-      await invoke();
-      timers.set(config.jobKey, setTimeout(tick, config.cadenceMinutes * 60_000));
-    }, bootDelayMs);
-    timers.set(config.jobKey, timeout);
-  };
+  if (cadenceMs > MAX_SAFE_DELAY_MS) {
+    // Long-cadence job: poll every hour, run only when actually due.
+    // This avoids the 32-bit integer overflow that causes immediate infinite firing.
+    const poll = async () => {
+      const delay = Math.min(nextRunAt - Date.now(), MAX_SAFE_DELAY_MS);
 
-  start();
-  console.log(`[jobRunner] registered ${config.jobKey} (every ${config.cadenceMinutes}m, first run in ${Math.round(bootDelayMs / 1000)}s)`);
+      const timer = setTimeout(async () => {
+        if (Date.now() >= nextRunAt) {
+          await invoke();
+        }
+        // Always re-schedule the next poll regardless
+        poll();
+      }, Math.max(delay, 1000));
+
+      timers.set(config.jobKey, timer);
+    };
+
+    // Delay the first poll by the boot delay (capped safely)
+    nextRunAt = Date.now() + bootDelayMs;
+    const initialDelay = Math.min(bootDelayMs, MAX_SAFE_DELAY_MS);
+    const initTimer = setTimeout(() => poll(), initialDelay);
+    timers.set(config.jobKey, initTimer);
+  } else {
+    // Short-cadence job: standard setTimeout tick chain (safe, no overflow risk)
+    const safeBootDelay = Math.min(bootDelayMs, MAX_SAFE_DELAY_MS);
+    const timer = setTimeout(async function tick() {
+      await invoke();
+      timers.set(config.jobKey, setTimeout(tick, cadenceMs));
+    }, safeBootDelay);
+    timers.set(config.jobKey, timer);
+  }
+
+  console.log(`[jobRunner] registered ${config.jobKey} (every ${config.cadenceMinutes}m, first run in ${Math.round(Math.min(bootDelayMs, MAX_SAFE_DELAY_MS) / 1000)}s)`);
 }
 
 export function stopAllAutomationJobs() {

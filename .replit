@@ -51,3 +51,7 @@ CANONICAL_HOST = "www.elevate360official.com"
 APP_URL = "https://www.elevate360official.com"
 CREATOR_EMAIL = "weareelevate360@gmail.com"
 WHATSAPP_NUMBER = "+17742230266"
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 60000
