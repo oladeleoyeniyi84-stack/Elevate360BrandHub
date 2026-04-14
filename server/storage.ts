@@ -159,7 +159,7 @@ export interface IStorage {
     contentOpportunities: string | null; conversionByIntent: any;
   }): Promise<DigestReport>;
   getLatestDigest(): Promise<DigestReport | null>;
-  getAllDigests(): Promise<DigestReport[]>;
+  getAllDigests(limit?: number): Promise<DigestReport[]>;
   getDashboardIntelligence(): Promise<{
     qualifiedCount: number;
     bookedThisWeek: number;
@@ -1205,8 +1205,8 @@ export class DatabaseStorage implements IStorage {
     return row ?? null;
   }
 
-  async getAllDigests(): Promise<DigestReport[]> {
-    return db.select().from(digestReports).orderBy(desc(digestReports.generatedAt));
+  async getAllDigests(limit = 100): Promise<DigestReport[]> {
+    return db.select().from(digestReports).orderBy(desc(digestReports.generatedAt)).limit(limit);
   }
 
   // Phase 39 — Dashboard Intelligence KPIs

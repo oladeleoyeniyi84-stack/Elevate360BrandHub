@@ -1,6 +1,6 @@
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const CREATOR_EMAIL = process.env.CREATOR_EMAIL;
-const FROM_ADDRESS = "Elevate360 <onboarding@resend.dev>";
+const FROM_ADDRESS = process.env.EMAIL_FROM || "Elevate360 <onboarding@resend.dev>";
 const BRAND_GOLD = "#F4A62A";
 const BRAND_NAVY = "#0d1a2e";
 

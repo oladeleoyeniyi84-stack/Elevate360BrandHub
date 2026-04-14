@@ -1,7 +1,54 @@
 import { storage } from "../storage";
 import { computeMaturityScore } from "../services/maturityScoring";
+import { db } from "../db";
+import { sql } from "drizzle-orm";
 
 const STALE_THRESHOLD_HOURS = 48;
+
+// Prune bloat-prone tables to keep the DB healthy.
+// Runs inside the reliability watchdog (every 6h).
+async function pruneOldRecords(): Promise<void> {
+  try {
+    // Keep latest 200 digest_reports
+    await db.execute(sql`
+      DELETE FROM digest_reports
+      WHERE id NOT IN (
+        SELECT id FROM digest_reports ORDER BY generated_at DESC NULLS LAST LIMIT 200
+      )
+    `);
+    // Keep latest 50 quarterly_strategy_reports
+    await db.execute(sql`
+      DELETE FROM quarterly_strategy_reports
+      WHERE id NOT IN (
+        SELECT id FROM quarterly_strategy_reports ORDER BY created_at DESC NULLS LAST LIMIT 50
+      )
+    `);
+    // Keep latest 1000 automation_job_logs
+    await db.execute(sql`
+      DELETE FROM automation_job_logs
+      WHERE id NOT IN (
+        SELECT id FROM automation_job_logs ORDER BY id DESC LIMIT 1000
+      )
+    `);
+    // Keep latest 500 page_views
+    await db.execute(sql`
+      DELETE FROM page_views
+      WHERE id NOT IN (
+        SELECT id FROM page_views ORDER BY id DESC LIMIT 500
+      )
+    `);
+    // Keep latest 200 click_events
+    await db.execute(sql`
+      DELETE FROM click_events
+      WHERE id NOT IN (
+        SELECT id FROM click_events ORDER BY id DESC LIMIT 200
+      )
+    `);
+    console.log("[reliabilityWatchdog] pruneOldRecords complete");
+  } catch (err: any) {
+    console.warn("[reliabilityWatchdog] pruneOldRecords error:", err?.message);
+  }
+}
 
 export async function runReliabilityWatchdog(): Promise<{
   healthSnapshot: any;
@@ -42,7 +89,10 @@ export async function runReliabilityWatchdog(): Promise<{
     warnings.push(`High rollback rate detected: ${rollbacks.length} rollbacks vs ${recent.length} recent changes`);
   }
 
-  // 4. Compute maturity score and save snapshot
+  // 4. Prune old records to prevent DB bloat
+  await pruneOldRecords();
+
+  // 5. Compute maturity score and save snapshot
   const scores = await computeMaturityScore();
   const healthSnapshot = await storage.createSystemHealthSnapshot({
     jobHealthScore: scores.jobHealthScore,
