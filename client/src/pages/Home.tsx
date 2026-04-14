@@ -44,7 +44,7 @@ import appBondedlove from "@/assets/images/app-bondedlove.png";
 import appHealthwise from "@/assets/images/app-healthwise.png";
 import appVideoCrafter from "@/assets/images/app-videocrafter.png";
 import brandLogo from "@assets/Elevate360_Brand_Logo_1772418122164.png";
-import artStudioImg from "@assets/Elevate360Art_Studio_Presentation_1772460961759.png";
+
 
 const featuredBook =
   "https://m.media-amazon.com/images/I/41Ih48BpUEL._SY445_SX342_FMwebp_.jpg";
