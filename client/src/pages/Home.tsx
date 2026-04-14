@@ -1014,7 +1014,7 @@ export default function Home() {
 
               <div className="w-full md:w-1/2 reveal-right">
                 <img
-                  src={artStudioImg}
+                  src="/Elevate360Art_Studio_Presentation_1772460961759.png"
                   alt="Elevate360 Art Studio - Art speaks where words fall short"
                   className="w-full h-auto rounded-2xl shadow-2xl"
                   data-testid="img-art-studio"
