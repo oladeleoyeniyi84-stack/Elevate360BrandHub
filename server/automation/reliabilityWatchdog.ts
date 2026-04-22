@@ -72,13 +72,29 @@ export async function runReliabilityWatchdog(): Promise<{
     }
   }
 
-  // 2. Check for unapplied execution queue items (older than 24h)
-  const queueItems = await storage.getExecutionQueue(50);
-  const oldPending = queueItems.filter(
-    (q) => q.status === "pending" && Date.now() - new Date(q.createdAt).getTime() > 24 * 60 * 60 * 1000
+  // 2. Check for auto-apply execution queue items stuck for over 24h
+  // Items with requires_approval=true are expected to wait for founder action — don't flag those.
+  const queueItems = await storage.getExecutionQueue(100);
+  const stuckAutoItems = queueItems.filter(
+    (q) =>
+      q.status === "pending" &&
+      !q.requiresApproval &&
+      Date.now() - new Date(q.createdAt).getTime() > 24 * 60 * 60 * 1000
   );
-  if (oldPending.length > 0) {
-    warnings.push(`${oldPending.length} execution queue items have been pending for over 24h`);
+  if (stuckAutoItems.length > 0) {
+    warnings.push(`${stuckAutoItems.length} auto-apply execution queue items have been stuck for over 24h`);
+  }
+
+  // Expire very old approval-required items (older than 30 days) to prevent queue bloat
+  try {
+    await db.execute(sql`
+      DELETE FROM execution_queue
+      WHERE status = 'pending'
+        AND requires_approval = true
+        AND created_at < now() - interval '30 days'
+    `);
+  } catch (err: any) {
+    console.warn("[reliabilityWatchdog] execution_queue prune error:", err?.message);
   }
 
   // 3. Check rollback rate

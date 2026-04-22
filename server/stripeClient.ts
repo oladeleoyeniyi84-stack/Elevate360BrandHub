@@ -14,6 +14,7 @@ async function fetchConnection(hostname: string, xReplitToken: string, environme
       'Accept': 'application/json',
       'X-Replit-Token': xReplitToken,
     },
+    signal: AbortSignal.timeout(8000),
   });
 
   const data = await response.json();

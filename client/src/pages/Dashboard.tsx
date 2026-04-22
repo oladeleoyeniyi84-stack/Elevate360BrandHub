@@ -1049,6 +1049,7 @@ function PinLogin({ onLogin }: { onLogin: () => void }) {
               value={pin}
               onChange={(e) => setPin(e.target.value)}
               placeholder="Enter your PIN"
+              autoComplete="current-password"
               autoFocus
               required
               className="w-full bg-white/6 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-[#F4A62A]/50 pr-12"
