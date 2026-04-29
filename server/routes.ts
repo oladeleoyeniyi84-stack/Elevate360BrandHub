@@ -1038,6 +1038,21 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/dashboard/stripe/sync", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    try {
+      const { runMigrations } = await import("stripe-replit-sync");
+      await runMigrations({ databaseUrl: process.env.DATABASE_URL!, schema: "stripe" } as any);
+      const { getStripeSync } = await import("./stripeClient");
+      const sync = await getStripeSync();
+      await sync.syncBackfill();
+      res.json({ ok: true, message: "Stripe sync complete" });
+    } catch (e: any) {
+      console.error("[stripe/sync] error:", e.message);
+      res.status(500).json({ message: "Stripe sync failed: " + e.message });
+    }
+  });
+
   app.post("/api/dashboard/automation/run-now", async (req, res) => {
     if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
     try {

@@ -134,7 +134,12 @@ app.use((req, res, next) => {
     } else {
       console.log("[stripe] webhook registration skipped in dev (non-canonical domain)");
     }
-    stripeSync.syncBackfill().catch((e: Error) => console.error("[stripe] syncBackfill:", e.message));
+    try {
+      await stripeSync.syncBackfill();
+      console.log("[stripe] syncBackfill complete");
+    } catch (e: any) {
+      console.error("[stripe] syncBackfill failed:", e.message);
+    }
     console.log("[stripe] initialized");
   } catch (e: any) {
     console.error("[stripe] init error:", e.message);

@@ -19,16 +19,24 @@ const MAX_SAFE_DELAY_MS = 60 * 60 * 1000; // 1 hour
 export async function registerRecurringJob(config: JobConfig, bootDelayMs = 60_000) {
   const cadenceMs = config.cadenceMinutes * 60_000;
 
+  // Read existing job record to preserve nextRunAt if it's still in the future.
+  // This prevents all jobs from re-running on every server restart (autoscale lifecycle).
+  const existing = await storage.getAutomationJob(config.jobKey).catch(() => null);
+  const storedNextRun = existing?.nextRunAt ? new Date(existing.nextRunAt).getTime() : 0;
+  const bootNextRun = Date.now() + bootDelayMs;
+  // Use the stored nextRunAt if it's still in the future; otherwise schedule via boot delay
+  const resolvedNextRun = storedNextRun > Date.now() ? storedNextRun : bootNextRun;
+
   await storage.upsertAutomationJob(config.jobKey, {
     jobGroup: config.jobGroup,
     cadenceMinutes: config.cadenceMinutes,
-    status: "idle",
+    status: existing?.status === "running" ? "idle" : (existing?.status ?? "idle"),
     isEnabled: true,
-    nextRunAt: new Date(Date.now() + bootDelayMs),
+    nextRunAt: new Date(resolvedNextRun),
   });
 
   // Track next scheduled run time in memory so we don't need an extra DB query
-  let nextRunAt = Date.now() + bootDelayMs;
+  let nextRunAt = resolvedNextRun;
 
   const invoke = async () => {
     const startedAt = new Date();

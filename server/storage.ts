@@ -182,6 +182,7 @@ export interface IStorage {
   setAutomationSetting(key: string, value: string): Promise<void>;
 
   // Phase 49 — Automation Jobs
+  getAutomationJob(jobKey: string): Promise<AutomationJob | null>;
   getAutomationJobs(): Promise<AutomationJob[]>;
   upsertAutomationJob(jobKey: string, patch: Partial<InsertAutomationJob>): Promise<AutomationJob>;
   createAutomationJobLog(input: InsertAutomationJobLog): Promise<void>;
@@ -1365,6 +1366,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   // ── Phase 49 — Automation Jobs ──────────────────────────────────────────────
+
+  async getAutomationJob(jobKey: string): Promise<AutomationJob | null> {
+    const rows = await db.select().from(automationJobs).where(eq(automationJobs.jobKey, jobKey)).limit(1);
+    return rows[0] ?? null;
+  }
 
   async getAutomationJobs(): Promise<AutomationJob[]> {
     return db.select().from(automationJobs).orderBy(asc(automationJobs.jobGroup), asc(automationJobs.jobKey));
