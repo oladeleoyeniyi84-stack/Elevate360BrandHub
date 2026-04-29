@@ -702,6 +702,7 @@ export async function registerRoutes(
 
   // Phase 37 — Public Offers (fetched from Stripe synced data)
   app.get("/api/offers", async (_req, res) => {
+    // Try the stripe-replit-sync schema first (fastest path after syncBackfill)
     try {
       const result = await db.execute(sql`
         SELECT
@@ -717,18 +718,52 @@ export async function registerRoutes(
         WHERE p.active = true
         ORDER BY (p.metadata->>'displayOrder')::int ASC NULLS LAST, p.name ASC
       `);
-      const offers = result.rows.map((row: any) => ({
-        productId: row.product_id,
-        priceId: row.price_id,
-        name: row.product_name,
-        description: row.product_description,
-        amount: row.unit_amount,
-        currency: row.currency ?? "usd",
-        metadata: row.product_metadata ?? {},
-      }));
-      res.json(offers);
+      if (result.rows.length > 0) {
+        const offers = result.rows.map((row: any) => ({
+          productId: row.product_id,
+          priceId: row.price_id,
+          name: row.product_name,
+          description: row.product_description,
+          amount: row.unit_amount,
+          currency: row.currency ?? "usd",
+          metadata: row.product_metadata ?? {},
+        }));
+        return res.json(offers);
+      }
     } catch {
-      res.json([]); // stripe schema may not exist yet
+      // stripe schema not yet populated — fall through to direct API
+    }
+
+    // Fallback: query Stripe API directly (handles cold-start before syncBackfill completes)
+    try {
+      const stripe = await getUncachableStripeClient();
+      const products = await stripe.products.list({ active: true, limit: 20 });
+      const offers = await Promise.all(
+        products.data.map(async (product) => {
+          const prices = await stripe.prices.list({ product: product.id, active: true, limit: 1 });
+          const price = prices.data[0];
+          if (!price) return null;
+          return {
+            productId: product.id,
+            priceId: price.id,
+            name: product.name,
+            description: product.description ?? "",
+            amount: price.unit_amount ?? 0,
+            currency: price.currency ?? "usd",
+            metadata: product.metadata ?? {},
+          };
+        })
+      );
+      const validOffers = offers.filter(Boolean);
+      validOffers.sort((a: any, b: any) => {
+        const ao = parseInt(a.metadata?.displayOrder ?? "999");
+        const bo = parseInt(b.metadata?.displayOrder ?? "999");
+        return ao - bo || a.name.localeCompare(b.name);
+      });
+      res.json(validOffers);
+    } catch (err) {
+      console.error("[offers] fallback Stripe fetch failed:", err);
+      res.json([]);
     }
   });
 
