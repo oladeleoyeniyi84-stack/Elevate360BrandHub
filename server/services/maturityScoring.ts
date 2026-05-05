@@ -33,11 +33,15 @@ export async function computeMaturityScore(): Promise<MaturityScores> {
   const auditHealthScore = Math.min(100, 40 + recentAudit.length * 3);
   details.auditHealth = `${recentAudit.length} audit events in last 7 days`;
 
-  // Execution safety — based on applied changes and rollbacks
+  // Execution safety — based on applied changes and rollbacks.
+  // Start at 70 baseline (system is operational); subtract up to 40pts for high rollback rate.
+  // Rollbacks are part of normal AI operation and shouldn't tank the score catastrophically.
   const changes = await storage.getAppliedChanges(50);
   const rollbacks = await storage.getRollbackEvents(20);
   const rollbackRate = changes.length > 0 ? (rollbacks.length / changes.length) : 0;
-  const executionSafetyScore = Math.max(0, Math.round(100 - rollbackRate * 200));
+  const executionSafetyScore = changes.length === 0
+    ? 70 // no data yet — neutral score
+    : Math.max(30, Math.round(70 + (1 - Math.min(rollbackRate, 1)) * 30));
   details.executionSafety = `${changes.length} changes, ${rollbacks.length} rollbacks (${Math.round(rollbackRate * 100)}% rollback rate)`;
 
   // Growth health — based on experiments and source performance

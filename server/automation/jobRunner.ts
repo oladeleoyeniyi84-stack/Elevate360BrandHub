@@ -15,6 +15,7 @@ const timers = new Map<string, NodeJS.Timeout>();
 // We cap each tick to 60 minutes and use in-memory nextRunAt tracking for
 // long-cadence jobs to avoid the infinite-loop overflow.
 const MAX_SAFE_DELAY_MS = 60 * 60 * 1000; // 1 hour
+const MIN_DELAY_MS = 1_000; // never sleep less than 1s
 
 export async function registerRecurringJob(config: JobConfig, bootDelayMs = 60_000) {
   const cadenceMs = config.cadenceMinutes * 60_000;
@@ -35,7 +36,7 @@ export async function registerRecurringJob(config: JobConfig, bootDelayMs = 60_0
     nextRunAt: new Date(resolvedNextRun),
   });
 
-  // Track next scheduled run time in memory so we don't need an extra DB query
+  // Track next scheduled run time in memory
   let nextRunAt = resolvedNextRun;
 
   const invoke = async () => {
@@ -89,11 +90,17 @@ export async function registerRecurringJob(config: JobConfig, bootDelayMs = 60_0
     }
   };
 
+  // Calculate actual initial delay from resolvedNextRun (respects stored schedule)
+  const initialDelayMs = Math.max(resolvedNextRun - Date.now(), MIN_DELAY_MS);
+  const firstRunLabel = storedNextRun > Date.now()
+    ? `${Math.round((storedNextRun - Date.now()) / 60_000)}m (stored schedule)`
+    : `${Math.round(bootDelayMs / 1000)}s (boot delay)`;
+
   if (cadenceMs > MAX_SAFE_DELAY_MS) {
     // Long-cadence job: poll every hour, run only when actually due.
     // This avoids the 32-bit integer overflow that causes immediate infinite firing.
     const poll = async () => {
-      const delay = Math.min(nextRunAt - Date.now(), MAX_SAFE_DELAY_MS);
+      const delay = Math.min(Math.max(nextRunAt - Date.now(), MIN_DELAY_MS), MAX_SAFE_DELAY_MS);
 
       const timer = setTimeout(async () => {
         if (Date.now() >= nextRunAt) {
@@ -101,27 +108,27 @@ export async function registerRecurringJob(config: JobConfig, bootDelayMs = 60_0
         }
         // Always re-schedule the next poll regardless
         poll();
-      }, Math.max(delay, 1000));
+      }, delay);
 
       timers.set(config.jobKey, timer);
     };
 
-    // Delay the first poll by the boot delay (capped safely)
-    nextRunAt = Date.now() + bootDelayMs;
-    const initialDelay = Math.min(bootDelayMs, MAX_SAFE_DELAY_MS);
-    const initTimer = setTimeout(() => poll(), initialDelay);
+    // First poll uses resolvedNextRun (NOT boot delay override)
+    const firstPollDelay = Math.min(initialDelayMs, MAX_SAFE_DELAY_MS);
+    const initTimer = setTimeout(() => poll(), firstPollDelay);
     timers.set(config.jobKey, initTimer);
   } else {
-    // Short-cadence job: standard setTimeout tick chain (safe, no overflow risk)
-    const safeBootDelay = Math.min(bootDelayMs, MAX_SAFE_DELAY_MS);
+    // Short-cadence job: standard setTimeout tick chain (safe, no overflow risk).
+    // Use resolvedNextRun for first delay so stored schedule is respected on restart.
+    const firstDelay = Math.min(initialDelayMs, MAX_SAFE_DELAY_MS);
     const timer = setTimeout(async function tick() {
       await invoke();
       timers.set(config.jobKey, setTimeout(tick, cadenceMs));
-    }, safeBootDelay);
+    }, firstDelay);
     timers.set(config.jobKey, timer);
   }
 
-  console.log(`[jobRunner] registered ${config.jobKey} (every ${config.cadenceMinutes}m, first run in ${Math.round(Math.min(bootDelayMs, MAX_SAFE_DELAY_MS) / 1000)}s)`);
+  console.log(`[jobRunner] registered ${config.jobKey} (every ${config.cadenceMinutes}m, first run in ${firstRunLabel})`);
 }
 
 export function stopAllAutomationJobs() {

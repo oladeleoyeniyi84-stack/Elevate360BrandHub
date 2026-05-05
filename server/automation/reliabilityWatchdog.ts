@@ -85,13 +85,14 @@ export async function runReliabilityWatchdog(): Promise<{
     warnings.push(`${stuckAutoItems.length} auto-apply execution queue items have been stuck for over 24h`);
   }
 
-  // Expire very old approval-required items (older than 30 days) to prevent queue bloat
+  // Expire stale approval-required items (older than 7 days) to prevent queue bloat.
+  // Items older than 7 days are unlikely to be actioned and just inflate the queue.
   try {
     await db.execute(sql`
       DELETE FROM execution_queue
       WHERE status = 'pending'
         AND requires_approval = true
-        AND created_at < now() - interval '30 days'
+        AND created_at < now() - interval '7 days'
     `);
   } catch (err: any) {
     console.warn("[reliabilityWatchdog] execution_queue prune error:", err?.message);

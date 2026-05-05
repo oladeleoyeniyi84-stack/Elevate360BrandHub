@@ -2,6 +2,10 @@
 import Stripe from 'stripe';
 
 let connectionSettings: any;
+// Cache credentials for 30 min to avoid hitting the connectors API on every request.
+// Stripe keys don't rotate mid-session, so this is safe.
+let credentialsCache: { publishableKey: string; secretKey: string; expiresAt: number } | null = null;
+const CREDENTIALS_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
 async function fetchConnection(hostname: string, xReplitToken: string, environment: string) {
   const url = new URL(`https://${hostname}/api/v2/connection`);
@@ -24,6 +28,11 @@ async function fetchConnection(hostname: string, xReplitToken: string, environme
 }
 
 async function getCredentials() {
+  // Return cached credentials if still valid
+  if (credentialsCache && credentialsCache.expiresAt > Date.now()) {
+    return { publishableKey: credentialsCache.publishableKey, secretKey: credentialsCache.secretKey };
+  }
+
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
   const xReplitToken = process.env.REPL_IDENTITY
     ? 'repl ' + process.env.REPL_IDENTITY
@@ -42,12 +51,17 @@ async function getCredentials() {
     const prod = await fetchConnection(hostname!, xReplitToken, 'production');
     if (prod) {
       connectionSettings = prod;
-      return {
+      const creds = {
         publishableKey: connectionSettings.settings.publishable as string,
         secretKey: connectionSettings.settings.secret as string,
       };
+      credentialsCache = { ...creds, expiresAt: Date.now() + CREDENTIALS_TTL_MS };
+      return creds;
     }
-    console.warn('[stripe] production connection not found — falling back to development connection');
+    // Log once per cache cycle, not on every request
+    if (!credentialsCache) {
+      console.warn('[stripe] production connection not found — falling back to development connection');
+    }
   }
 
   // development (or fallback)
@@ -55,13 +69,16 @@ async function getCredentials() {
   if (!dev) throw new Error('Stripe connection not found (tried production + development)');
   connectionSettings = dev;
 
-  return {
+  const creds = {
     publishableKey: connectionSettings.settings.publishable as string,
     secretKey: connectionSettings.settings.secret as string,
   };
+  credentialsCache = { ...creds, expiresAt: Date.now() + CREDENTIALS_TTL_MS };
+  return creds;
 }
 
-// WARNING: Never cache this client. Call fresh on every request.
+// WARNING: Never cache the Stripe *client* itself. Call fresh on every request.
+// (Credentials are cached separately above; the client is always re-instantiated.)
 export async function getUncachableStripeClient() {
   const { secretKey } = await getCredentials();
   return new Stripe(secretKey, { apiVersion: '2025-08-27.basil' as any });
