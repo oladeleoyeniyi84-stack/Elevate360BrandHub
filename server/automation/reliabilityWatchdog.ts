@@ -59,13 +59,17 @@ export async function runReliabilityWatchdog(): Promise<{
   const staleJobs: string[] = [];
 
   // 1. Check stale jobs
+  // Use per-job threshold: max(48h, 2× cadence) so long-cadence jobs
+  // (monthly/quarterly strategy at 30-day intervals) are never false-positive stale.
   const jobs = await storage.getAutomationJobs();
-  const staleThreshold = Date.now() - STALE_THRESHOLD_HOURS * 60 * 60 * 1000;
+  const baseStaleMs = STALE_THRESHOLD_HOURS * 60 * 60 * 1000;
 
   for (const job of jobs) {
-    if (job.lastStartedAt && new Date(job.lastStartedAt).getTime() < staleThreshold) {
+    const cadenceMs = (job.cadenceMinutes ?? 60) * 60 * 1000;
+    const jobStaleMs = Math.max(baseStaleMs, cadenceMs * 2);
+    if (job.lastStartedAt && Date.now() - new Date(job.lastStartedAt).getTime() > jobStaleMs) {
       staleJobs.push(job.jobKey);
-      warnings.push(`Job ${job.jobKey} has not run in over ${STALE_THRESHOLD_HOURS}h`);
+      warnings.push(`Job ${job.jobKey} has not run in over ${Math.round(jobStaleMs / 3600000)}h`);
     }
     if (job.status === "failed") {
       warnings.push(`Job ${job.jobKey} is in FAILED state`);

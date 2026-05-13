@@ -13,12 +13,17 @@ export type MaturityScores = {
 export async function computeMaturityScore(): Promise<MaturityScores> {
   const details: Record<string, string> = {};
 
-  // Job health — based on automation jobs and their last run time
+  // Job health — based on automation jobs and their last run time.
+  // Use per-job stale threshold: max(48h, 2× cadence) so long-cadence jobs
+  // (30-day monthly/quarterly strategy) are not incorrectly flagged stale.
   const jobs = await storage.getAutomationJobs();
-  const staleThresholdMs = 48 * 60 * 60 * 1000;
-  const staleJobs = jobs.filter(
-    (j) => j.lastStartedAt && Date.now() - new Date(j.lastStartedAt).getTime() > staleThresholdMs
-  );
+  const baseStaleMs = 48 * 60 * 60 * 1000;
+  const staleJobs = jobs.filter((j) => {
+    if (!j.lastStartedAt) return false;
+    const cadenceMs = (j.cadenceMinutes ?? 60) * 60 * 1000;
+    const jobStaleMs = Math.max(baseStaleMs, cadenceMs * 2);
+    return Date.now() - new Date(j.lastStartedAt).getTime() > jobStaleMs;
+  });
   const jobHealthScore = jobs.length === 0 ? 50 : Math.max(0, 100 - Math.round((staleJobs.length / jobs.length) * 100));
   details.jobHealth = `${jobs.length} jobs, ${staleJobs.length} stale`;
 

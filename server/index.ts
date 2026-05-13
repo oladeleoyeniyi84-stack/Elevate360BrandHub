@@ -1,3 +1,10 @@
+// Suppress pg library's SSL mode deprecation warning — informational only,
+// does not affect security or functionality with Replit's managed DATABASE_URL.
+process.on("warning", (w) => {
+  if (w.message?.includes("SSL modes") || w.message?.includes("sslmode")) return;
+  console.warn(w.name, w.message);
+});
+
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import ConnectPgSimple from "connect-pg-simple";
