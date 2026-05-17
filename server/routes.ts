@@ -822,6 +822,10 @@ export async function registerRoutes(
       res.json({ url: session.url });
     } catch (e: any) {
       console.error("[stripe] checkout error:", e.message);
+      // Stripe validation errors (invalid price ID, bad params) are client errors → 400
+      if (e?.type === "StripeInvalidRequestError" || e?.statusCode === 400 || e?.statusCode === 404) {
+        return res.status(400).json({ message: e.message ?? "Invalid checkout parameters." });
+      }
       res.status(500).json({ message: "Could not create checkout session." });
     }
   });
