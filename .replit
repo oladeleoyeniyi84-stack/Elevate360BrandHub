@@ -51,6 +51,10 @@ CANONICAL_HOST = "www.elevate360official.com"
 APP_URL = "https://www.elevate360official.com"
 CREATOR_EMAIL = "weareelevate360@gmail.com"
 WHATSAPP_NUMBER = "+17742230266"
+DEEPSEEK_BASE_URL = "https://api.deepseek.com"
+DEEPSEEK_MODEL = "deepseek-chat"
+AI_PREMIUM_PROVIDER = "openai"
+AI_AUTOMATION_PROVIDER = "deepseek"
 
 [postMerge]
 path = "scripts/post-merge.sh"
