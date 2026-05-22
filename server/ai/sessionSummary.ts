@@ -1,6 +1,6 @@
-import { openai } from "./providers";
 import { SESSION_SUMMARY_PROMPT } from "./prompts";
 import { getAgent } from "./agents";
+import { runTask } from "./modelRouter";
 
 const SUMMARY_AGENT = getAgent("session_summarizer");
 
@@ -39,18 +39,17 @@ export async function generateSessionSummary(
     .join("\n");
 
   try {
-    const response = await openai.chat.completions.create({
-      model: SUMMARY_AGENT.model,
+    const response = await runTask("session_summary", {
       messages: [
         { role: "system", content: SESSION_SUMMARY_PROMPT },
         { role: "user", content: `Lead score: ${currentScore}\nDetected intent so far: ${currentIntent ?? "unknown"}\n\nTranscript:\n${transcript}` },
       ],
-      response_format: { type: "json_object" },
-      max_tokens: SUMMARY_AGENT.maxTokens,
+      jsonMode: true,
+      maxTokens: SUMMARY_AGENT.maxTokens,
       temperature: SUMMARY_AGENT.temperature,
     });
 
-    const raw = response.choices[0]?.message?.content ?? "{}";
+    const raw = response.content || "{}";
     const parsed = JSON.parse(raw);
 
     return {
@@ -63,7 +62,7 @@ export async function generateSessionSummary(
       conversionOutcome: String(parsed.conversionOutcome ?? "no_action").slice(0, 80),
     };
   } catch (err) {
-    console.error("[sessionSummary] OpenAI error:", err);
+    console.error("[sessionSummary] generation error:", err);
     return null;
   }
 }

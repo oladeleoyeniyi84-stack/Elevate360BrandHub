@@ -1,7 +1,7 @@
 import { storage } from "../storage";
 import type { DigestReport } from "@shared/schema";
-import { openai } from "./providers";
 import { getAgent } from "./agents";
+import { runTask } from "./modelRouter";
 
 const DIGEST_AGENT = getAgent("digest");
 
@@ -161,14 +161,13 @@ ${data.recentLeadSnippets.length > 0 ? `\n## Hot Lead Summaries\n${data.recentLe
 
 Keep it tight. Every sentence must be actionable.`;
 
-  const res = await openai.chat.completions.create({
-    model: DIGEST_AGENT.model,
+  const res = await runTask("digest", {
     messages: [{ role: "user", content: prompt }],
     temperature: DIGEST_AGENT.temperature,
-    max_tokens: DIGEST_AGENT.maxTokens,
+    maxTokens: DIGEST_AGENT.maxTokens,
   });
 
-  return res.choices[0]?.message?.content ?? "Digest generation failed. Please try again.";
+  return res.content || "Digest generation failed. Please try again.";
 }
 
 export async function generateAndSaveDigest(): Promise<DigestReport> {

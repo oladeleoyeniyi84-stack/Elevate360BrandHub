@@ -3,6 +3,7 @@ import type { ChatMessage } from "@shared/schema";
 import { openai } from "./ai/providers";
 import { VOICE_PROMPT, buildConciergePromptText } from "./ai/prompts";
 import { getAgent } from "./ai/agents";
+import { runTask } from "./ai/modelRouter";
 
 const CONCIERGE_AGENT = getAgent("concierge");
 const VOICE_AGENT = getAgent("voice");
@@ -19,6 +20,9 @@ export type ContentType =
   | "press_release"
   | "email_subject_lines"
   | "blog_intro";
+
+// Content types that stay on premium (OpenAI) — high-stakes creator-facing copy
+const PREMIUM_CONTENT_TYPES = new Set<ContentType>(["newsletter"]);
 
 const CONTENT_TYPE_INSTRUCTIONS: Record<ContentType, string> = {
   instagram_caption: "Write an engaging Instagram caption with 3–5 relevant hashtags. Include a clear CTA. Max 200 words.",
@@ -38,22 +42,25 @@ export async function generateBrandCopy(
   brief: string
 ): Promise<string> {
   const instruction = CONTENT_TYPE_INSTRUCTIONS[contentType];
-  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-    { role: "system", content: VOICE_PROMPT },
+  const messages = [
+    { role: "system" as const, content: VOICE_PROMPT },
     {
-      role: "user",
+      role: "user" as const,
       content: `Content type: ${contentType.replace(/_/g, " ").toUpperCase()}\n\nInstructions: ${instruction}\n\nBrief from the creator:\n${brief}`,
     },
   ];
 
-  const response = await openai.chat.completions.create({
-    model: VOICE_AGENT.model,
+  // Premium content types (e.g. newsletter) stay on OpenAI by calling concierge task;
+  // bulk content types route to DeepSeek via "content_generation".
+  const task = PREMIUM_CONTENT_TYPES.has(contentType) ? "concierge" : "content_generation";
+
+  const response = await runTask(task, {
     messages,
-    max_tokens: VOICE_AGENT.maxTokens,
+    maxTokens: VOICE_AGENT.maxTokens,
     temperature: VOICE_AGENT.temperature,
   });
 
-  return response.choices[0]?.message?.content ?? "Unable to generate content. Please try again.";
+  return response.content || "Unable to generate content. Please try again.";
 }
 
 // Re-export from prompts.ts for backward compatibility with existing callers
@@ -83,16 +90,15 @@ Write a short, warm, personal follow-up email. Rules:
 - Tone: warm, confident, not salesy. Sign off as "Oladele, Elevate360Official"
 - Return ONLY a JSON object: { "subject": "...", "body": "..." }`;
 
-  const response = await openai.chat.completions.create({
-    model: FOLLOWUP_AGENT.model,
+  const response = await runTask("followup", {
     messages: [{ role: "user", content: prompt }],
-    max_tokens: FOLLOWUP_AGENT.maxTokens,
+    maxTokens: FOLLOWUP_AGENT.maxTokens,
     temperature: FOLLOWUP_AGENT.temperature,
-    response_format: { type: "json_object" },
+    jsonMode: true,
   });
 
   try {
-    const raw = response.choices[0]?.message?.content ?? "{}";
+    const raw = response.content || "{}";
     const parsed = JSON.parse(raw);
     return {
       subject: parsed.subject ?? "Following up — Elevate360Official",

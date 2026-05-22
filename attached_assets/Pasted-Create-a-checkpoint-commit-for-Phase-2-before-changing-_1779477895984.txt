@@ -1,0 +1,77 @@
+Create a checkpoint/commit for Phase 2 before changing anything.
+
+Commit summary:
+Add DeepSeek provider and multi-model AI routing foundation
+
+Commit description:
+Integrated DeepSeek as the automation AI layer alongside the existing OpenAI premium layer. Added task-based routing, fallback-to-OpenAI behavior, safe provider logging, model latency tracking, environment variable documentation, and health status reporting. Verified DeepSeek end-to-end with digest task routing, OpenAI premium routing, clean fallback behavior, and no exposed secrets.
+
+After that checkpoint, begin Phase 3.
+
+Phase 3 goal:
+Migrate existing automation workflows to use the new runTask() multi-model router so automation workloads use DeepSeek by default while premium concierge routes stay on OpenAI.
+
+Tasks:
+
+1. Update server/ai/digestGenerator.ts
+- Replace direct OpenAI calls with runTask("digest", ...)
+- Keep existing digest behavior and output format unchanged
+- Ensure DeepSeek is default provider
+- Preserve fallback to OpenAI through modelRouter
+
+2. Update server/services/leadService.ts
+- Move session summary generation to runTask("session_summary", ...)
+- Do not change lead scoring logic
+- Do not change database schema
+- Keep all existing exports backward compatible
+
+3. Update server/followupEngine.ts
+- Move follow-up email draft generation to runTask("followup", ...)
+- Preserve current email tone, structure, and personalization
+- Do not auto-send emails
+- Keep draft-only behavior
+
+4. Update brand voice bulk content routes
+- For instagram_caption, tweet, youtube_description, product_description, blog_intro, book_promo, music_release, press_release, email_subject_lines:
+  use runTask("content_generation", ...)
+- Keep executive_copy and premium consultation copy on OpenAI
+- Preserve existing Brand Voice Engine API contract
+
+5. Do not change /api/chat concierge routing
+- Concierge remains OpenAI premium layer
+- Founder/premium reasoning stays OpenAI
+
+6. Add safe routing logs for each migrated module:
+- task
+- provider
+- model
+- latency
+- fallback
+
+Never log prompts, user private content, emails, API keys, or full model outputs.
+
+7. Update /api/health if needed to show:
+- router active
+- OpenAI configured
+- DeepSeek configured
+- automation model active
+- memory healthy
+
+8. Run verification:
+npm run check
+npm run build
+
+Also test:
+- /api/health
+- /api/chat
+- one digest generation call
+- one session summary call
+- one follow-up draft generation call
+- one brand voice bulk content generation call
+
+9. Final report:
+- files modified
+- which workflows now use DeepSeek
+- which workflows remain OpenAI
+- verification results
+- any warnings before Render deployment
