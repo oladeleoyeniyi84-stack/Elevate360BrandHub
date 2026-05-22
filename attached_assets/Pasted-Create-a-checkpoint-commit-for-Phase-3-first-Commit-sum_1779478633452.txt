@@ -1,0 +1,75 @@
+Create a checkpoint/commit for Phase 3 first.
+
+Commit summary:
+Migrate automation workflows to DeepSeek multi-model router
+
+Commit description:
+Migrated digest generation, session summaries, follow-up draft generation, and bulk brand voice content generation to the runTask multi-model router. Automation workloads now use DeepSeek by default with automatic OpenAI fallback, while premium concierge and high-trust chat routes remain on OpenAI. Verified health, chat, digest, session summary, follow-up, and content generation paths with zero TypeScript errors and successful production build.
+
+Then implement Phase 3.1: hard-lock premium brand copy routes to OpenAI.
+
+Goal:
+Prevent newsletter, executive_copy, premium_consultation, brand_strategy, and any high-trust premium copy workflow from silently moving to DeepSeek if AI_PREMIUM_PROVIDER is ever misconfigured in Render.
+
+Tasks:
+
+1. Add explicit provider override support to runTask if not already available.
+Support:
+runTask(task, payload, {
+  providerOverride: "openai"
+})
+
+2. Update premium brand copy routing in server/openai.ts:
+- newsletter → force OpenAI
+- executive_copy → force OpenAI
+- premium_consultation → force OpenAI
+- brand_strategy → force OpenAI
+- concierge-related premium copy → force OpenAI
+
+3. Keep these bulk content types on DeepSeek:
+- instagram_caption
+- tweet
+- youtube_description
+- product_description
+- blog_intro
+- book_promo
+- music_release
+- press_release
+- email_subject_lines
+
+4. Add a small protected-type constant, for example:
+PREMIUM_OPENAI_CONTENT_TYPES = [...]
+
+Use that list so future premium content types are easy to audit.
+
+5. Add safe log metadata only:
+- task
+- provider
+- model
+- latency
+- fallback
+- providerOverrideUsed true/false
+
+Never log prompts, customer data, emails, API keys, or model outputs.
+
+6. Update .env.example comment:
+AI_PREMIUM_PROVIDER=openai is still required, but premium copy types are also hard-locked to OpenAI in code.
+
+7. Run:
+npm run check
+npm run build
+
+8. Test:
+- newsletter routes to OpenAI even if automation is DeepSeek
+- executive_copy routes to OpenAI
+- instagram_caption routes to DeepSeek
+- followup routes to DeepSeek
+- /api/chat still routes to OpenAI
+- /api/health still healthy
+
+9. Final report:
+- files modified
+- premium types hard-locked to OpenAI
+- automation types still on DeepSeek
+- check/build results
+- final Render deployment checklist

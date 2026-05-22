@@ -43,32 +43,45 @@ export function pickProvider(task: TaskType): ProviderName {
   return "openai";
 }
 
+export interface RunTaskOptions {
+  /**
+   * Hard-lock the provider, bypassing task-based routing AND env overrides.
+   * Use for premium copy that must never drift to a cheaper model.
+   */
+  providerOverride?: ProviderName;
+}
+
 export async function runTask(
   task: TaskType,
-  options: ProviderCallOptions
+  options: ProviderCallOptions,
+  runOptions: RunTaskOptions = {}
 ): Promise<ProviderResult> {
-  const primaryName = pickProvider(task);
+  const overrideUsed = !!runOptions.providerOverride;
+  const primaryName: ProviderName = runOptions.providerOverride ?? pickProvider(task);
   const primary = getProvider(primaryName);
 
   try {
     const result = await primary.call(options);
     console.log(
-      `[modelRouter] task=${task} provider=${result.provider} model=${result.model} latency=${result.latencyMs}ms fallback=false`
+      `[modelRouter] task=${task} provider=${result.provider} model=${result.model} latency=${result.latencyMs}ms fallback=false providerOverrideUsed=${overrideUsed}`
     );
     return result;
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : "unknown error";
-    if (primaryName === "deepseek" && openaiProvider.isConfigured()) {
+    // Fallback only allowed when NOT using a hard override, and only deepseek→openai
+    if (!overrideUsed && primaryName === "deepseek" && openaiProvider.isConfigured()) {
       console.warn(
         `[modelRouter] task=${task} provider=deepseek failed (${errMsg}); falling back to openai`
       );
       const fallback = await openaiProvider.call(options);
       console.log(
-        `[modelRouter] task=${task} provider=${fallback.provider} model=${fallback.model} latency=${fallback.latencyMs}ms fallback=true`
+        `[modelRouter] task=${task} provider=${fallback.provider} model=${fallback.model} latency=${fallback.latencyMs}ms fallback=true providerOverrideUsed=false`
       );
       return { ...fallback, fallback: true };
     }
-    console.error(`[modelRouter] task=${task} provider=${primaryName} failed: ${errMsg}`);
+    console.error(
+      `[modelRouter] task=${task} provider=${primaryName} failed: ${errMsg} providerOverrideUsed=${overrideUsed}`
+    );
     throw err;
   }
 }

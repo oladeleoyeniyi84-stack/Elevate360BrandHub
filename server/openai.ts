@@ -21,8 +21,12 @@ export type ContentType =
   | "email_subject_lines"
   | "blog_intro";
 
-// Content types that stay on premium (OpenAI) — high-stakes creator-facing copy
-const PREMIUM_CONTENT_TYPES = new Set<ContentType>(["newsletter"]);
+/**
+ * Premium content types — HARD-LOCKED to OpenAI via providerOverride.
+ * These will NEVER route to DeepSeek, regardless of AI_PREMIUM_PROVIDER env value.
+ * Add new high-stakes creator-facing content types here.
+ */
+const PREMIUM_OPENAI_CONTENT_TYPES = new Set<ContentType>(["newsletter"]);
 
 const CONTENT_TYPE_INSTRUCTIONS: Record<ContentType, string> = {
   instagram_caption: "Write an engaging Instagram caption with 3–5 relevant hashtags. Include a clear CTA. Max 200 words.",
@@ -50,15 +54,20 @@ export async function generateBrandCopy(
     },
   ];
 
-  // Premium content types (e.g. newsletter) stay on OpenAI by calling concierge task;
-  // bulk content types route to DeepSeek via "content_generation".
-  const task = PREMIUM_CONTENT_TYPES.has(contentType) ? "concierge" : "content_generation";
+  // Premium content types are HARD-LOCKED to OpenAI via providerOverride.
+  // Bulk content types route to DeepSeek via "content_generation" task.
+  const isPremium = PREMIUM_OPENAI_CONTENT_TYPES.has(contentType);
+  const task = isPremium ? "executive_copy" : "content_generation";
 
-  const response = await runTask(task, {
-    messages,
-    maxTokens: VOICE_AGENT.maxTokens,
-    temperature: VOICE_AGENT.temperature,
-  });
+  const response = await runTask(
+    task,
+    {
+      messages,
+      maxTokens: VOICE_AGENT.maxTokens,
+      temperature: VOICE_AGENT.temperature,
+    },
+    isPremium ? { providerOverride: "openai" } : {}
+  );
 
   return response.content || "Unable to generate content. Please try again.";
 }
