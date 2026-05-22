@@ -1,0 +1,128 @@
+Before making any new changes, create a checkpoint/commit of the current working AI foundation.
+
+Commit summary:
+Add modular AI agent foundation with shared providers, prompts, router, and memory cache
+
+Commit description:
+Implemented server/ai modular architecture with shared provider client, centralized prompts, typed agent configs, in-process session memory, and orchestrator routing. Rewired OpenAI, intent routing, session summaries, digest generation, chat handling, and health checks to use the new AI foundation. Verified zero TypeScript errors, clean server boot, active automation registration, healthy memory reporting, and working /api/chat response flow.
+
+After the checkpoint, implement Phase 2: DeepSeek + multi-model routing foundation.
+
+Goal:
+Keep the existing OpenAI/GPT layer working as the premium default layer, then add DeepSeek as the automation and scale layer without breaking current routes.
+
+Tasks:
+
+1. Create these files if they do not already exist:
+
+server/ai/modelRouter.ts
+server/ai/providers/openaiProvider.ts
+server/ai/providers/deepseekProvider.ts
+server/ai/types.ts
+
+2. Move or wrap the existing OpenAI call logic into openaiProvider.ts without breaking the current provider singleton.
+
+3. Create deepseekProvider.ts using an OpenAI-compatible API client pattern.
+
+It should use these environment variables:
+
+DEEPSEEK_API_KEY
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_MODEL=deepseek-chat
+
+Do not hardcode secrets.
+
+4. In modelRouter.ts, implement task-based routing:
+
+- concierge
+- brand_strategy
+- premium_consultation
+- emotional_support
+- executive_copy
+
+Route these to OpenAI.
+
+- seo
+- social
+- content_generation
+- automation
+- coding
+- digest
+- followup
+- session_summary
+
+Route these to DeepSeek when DEEPSEEK_API_KEY is available.
+
+If DeepSeek is not configured or fails, automatically fall back to OpenAI.
+
+5. Keep backward compatibility.
+
+Existing functions such as:
+runConcierge()
+runBrandVoice()
+runFollowup()
+intentRouter
+sessionSummary
+digestGenerator
+server/openai.ts exports
+
+must continue to work.
+
+Do not rename public functions unless absolutely necessary.
+
+6. Update /api/health to include AI configuration status:
+
+Return something like:
+
+{
+  status: "healthy",
+  ai: {
+    openai: "configured" or "missing",
+    deepseek: "configured" or "missing",
+    router: "active",
+    defaultPremiumModel: "openai",
+    defaultAutomationModel: "deepseek"
+  },
+  memory: existing memory stats
+}
+
+Do not expose API keys.
+
+7. Add safe logging only.
+
+Log:
+- selected provider
+- task type
+- fallback used true/false
+- latency
+
+Never log user private content or API keys.
+
+8. Add environment variable documentation to README or .env.example:
+
+OPENAI_API_KEY=
+DEEPSEEK_API_KEY=
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_MODEL=deepseek-chat
+AI_PREMIUM_PROVIDER=openai
+AI_AUTOMATION_PROVIDER=deepseek
+
+9. Run verification:
+
+npm run check
+npm run build
+
+Also verify:
+- server boots clean
+- /api/health returns healthy
+- /api/chat still works
+- existing automation jobs still register
+- no TypeScript errors
+
+10. Give me a final summary showing:
+- files created
+- files modified
+- routes verified
+- environment variables needed
+- TypeScript/build result
+- what to do next before moving to Render

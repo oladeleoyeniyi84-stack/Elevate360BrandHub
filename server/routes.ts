@@ -15,6 +15,7 @@ import { fromZodError } from "zod-validation-error";
 import { getConciergeReply, generateBrandCopy, type ContentType } from "./openai";
 import { runConcierge } from "./ai/router";
 import { getMemoryStats } from "./ai/memory";
+import { getAIStatus } from "./ai/modelRouter";
 import { processConversationIntelligence, applyStageAutomation } from "./services/leadService";
 import { generateAndSaveDigest } from "./ai/digestGenerator";
 import { notifyNewContact, notifyNewLead, notifyNewSubscriber, sendContactReply, sendDigestEmail, notifyNewBooking } from "./email";
@@ -930,13 +931,23 @@ export async function registerRoutes(
       checks.database = { ok: false, detail: e.message };
     }
 
-    // OpenAI env var
+    // AI router + memory cache
     const memStats = getMemoryStats();
+    const aiStatus = getAIStatus();
     checks.openai = {
-      ok: !!process.env.OPENAI_API_KEY,
-      detail: `${process.env.OPENAI_API_KEY ? "key present" : "OPENAI_API_KEY missing"} · memory: ${memStats.activeSessions} active sessions`,
+      ok: aiStatus.openai === "configured",
+      detail: aiStatus.openai,
     };
-    checks.memory = { ok: true, detail: `${memStats.activeSessions} sessions, oldest ${memStats.oldestEntryAgeMs ?? 0}ms` };
+    checks.ai = {
+      ok: aiStatus.openai === "configured" || aiStatus.deepseek === "configured",
+      detail: `router=${aiStatus.router} premium=${aiStatus.defaultPremiumModel} automation=${aiStatus.defaultAutomationModel}`,
+      ...aiStatus,
+    };
+    checks.memory = {
+      ok: true,
+      detail: `${memStats.activeSessions} sessions, oldest ${memStats.oldestEntryAgeMs ?? 0}ms`,
+      ...memStats,
+    };
 
     // Resend env var
     checks.resend = { ok: !!process.env.RESEND_API_KEY, detail: process.env.RESEND_API_KEY ? "key present" : "RESEND_API_KEY missing" };
