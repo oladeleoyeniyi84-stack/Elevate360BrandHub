@@ -1,0 +1,265 @@
+FINAL ELEVATE360 AI + RENDER DEPLOYMENT CHECKLIST
+
+====================================================
+STEP 1 — COMMIT FINAL PHASE 3.1
+====================================================
+
+Commit Summary:
+Add hard-locked OpenAI routing for premium brand copy
+
+Commit Description:
+Implemented provider override support in the model router and hard-locked premium brand copy workflows to OpenAI regardless of environment configuration. Newsletter and future premium content types now bypass task routing and DeepSeek fallback entirely. Added protected premium content type constant, extended safe routing logs with providerOverrideUsed metadata, updated environment documentation, and verified all premium vs automation routing behavior with zero TypeScript errors and successful production build.
+
+====================================================
+STEP 2 — PUSH EVERYTHING TO GITHUB
+====================================================
+
+Inside Replit or GitHub Desktop:
+
+git add .
+git commit -m "Add hard-locked OpenAI routing for premium brand copy"
+git push origin main
+
+Verify latest commit appears on GitHub:
+https://github.com/oladeleoyeniyi84-stack/Elevate360BrandHub
+
+====================================================
+STEP 3 — CREATE RENDER PRODUCTION SERVICE
+====================================================
+
+Go to:
+https://render.com
+
+Create:
+New Web Service
+
+Connect:
+GitHub Repository:
+Elevate360BrandHub
+
+Branch:
+main
+
+====================================================
+STEP 4 — RENDER BUILD SETTINGS
+====================================================
+
+Build Command:
+npm install && npm run build
+
+Start Command:
+npm start
+
+Health Check Path:
+/api/health
+
+====================================================
+STEP 5 — ADD ALL ENVIRONMENT VARIABLES IN RENDER
+====================================================
+
+REQUIRED VARIABLES:
+
+OPENAI_API_KEY=sk-xxxxxxxx
+
+DEEPSEEK_API_KEY=sk-xxxxxxxx
+
+DATABASE_URL=postgresql://xxxxxxxx
+
+SESSION_SECRET=your-super-random-32-character-secret
+
+RESEND_API_KEY=re_xxxxxxxx
+
+STRIPE_SECRET_KEY=sk_live_xxxxxxxx
+
+STRIPE_WEBHOOK_SECRET=whsec_xxxxxxxx
+
+DASHBOARD_PIN=xxxx
+
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+
+DEEPSEEK_MODEL=deepseek-chat
+
+AI_PREMIUM_PROVIDER=openai
+
+AI_AUTOMATION_PROVIDER=deepseek
+
+OPTIONAL VARIABLES:
+
+ANNOUNCEMENT_TEXT=
+
+ANNOUNCEMENT_URL=
+
+WHATSAPP_NUMBER=
+
+CREATOR_EMAIL=
+
+====================================================
+STEP 6 — DEPLOY
+====================================================
+
+Click:
+Create Web Service
+
+Wait for Render build to complete.
+
+====================================================
+STEP 7 — VERIFY HEALTH
+====================================================
+
+Open:
+
+https://YOUR-RENDER-DOMAIN/api/health
+
+Expected result:
+
+{
+  "status":"healthy",
+  "ai":{
+    "openai":"configured",
+    "deepseek":"configured",
+    "router":"active"
+  }
+}
+
+====================================================
+STEP 8 — VERIFY AI ROUTING
+====================================================
+
+TEST PREMIUM CHAT:
+
+POST:
+https://YOUR-RENDER-DOMAIN/api/chat
+
+Expected:
+OpenAI provider
+
+====================================================
+
+TEST AUTOMATION TASKS:
+
+Digest generation
+Session summaries
+Follow-up drafts
+Instagram captions
+
+Expected:
+DeepSeek provider
+
+====================================================
+
+TEST PREMIUM OVERRIDE:
+
+Newsletter generation
+
+Expected:
+OpenAI ONLY
+providerOverrideUsed=true
+
+====================================================
+STEP 9 — VERIFY RENDER LOGS
+====================================================
+
+Expected logs:
+
+[modelRouter] task=digest provider=deepseek
+
+[modelRouter] task=followup provider=deepseek
+
+[modelRouter] task=content_generation provider=deepseek
+
+[modelRouter] task=executive_copy provider=openai providerOverrideUsed=true
+
+====================================================
+STEP 10 — CONNECT CUSTOM DOMAIN
+====================================================
+
+Inside Render:
+
+Settings → Custom Domains
+
+Add:
+
+www.elevate360official.com
+
+Then update DNS records.
+
+====================================================
+STEP 11 — POST-DEPLOY SMOKE TEST
+====================================================
+
+Test these manually:
+
+1. Homepage loads
+2. AI concierge responds
+3. Dashboard loads
+4. Stripe checkout works
+5. Digest generation works
+6. Instagram caption generation works
+7. Newsletter generation works
+8. Follow-up draft generation works
+9. Database writes work
+10. Health endpoint stays healthy
+
+====================================================
+STEP 12 — AFTER DEPLOYMENT
+====================================================
+
+Replit becomes:
+DEVELOPMENT ENVIRONMENT
+
+Render becomes:
+PRODUCTION INFRASTRUCTURE
+
+====================================================
+CURRENT ELEVATE360 AI ARCHITECTURE
+====================================================
+
+PREMIUM AI LAYER:
+OpenAI GPT-4o
+
+AUTOMATION AI LAYER:
+DeepSeek-V4-Pro
+
+FAST AUTOMATION:
+DeepSeek-chat
+
+AI ORCHESTRATOR:
+modelRouter.ts
+
+PREMIUM LOCK:
+providerOverride=openai
+
+FALLBACK:
+DeepSeek → OpenAI automatic failover
+
+STATUS:
+Production-ready
+
+====================================================
+NEXT PHASE AFTER RENDER
+====================================================
+
+PHASE 4:
+Persistent AI Memory + pgvector
+
+PHASE 5:
+AI Agents
+
+PHASE 6:
+Founder Intelligence System
+
+PHASE 7:
+Voice + Video AI Integration
+
+PHASE 8:
+Autonomous AI Workflow Engine
+
+====================================================
+MISSION STATUS
+====================================================
+
+Elevate360 is no longer:
+"a standard website"
+
+It is now:
+"a multi-model AI operating ecosystem"
