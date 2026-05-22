@@ -1,7 +1,7 @@
-import OpenAI from "openai";
 import type { ChatMessage } from "@shared/schema";
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+import { openai } from "./providers";
+import { INTENT_PROMPT } from "./prompts";
+import { getAgent } from "./agents";
 
 export type Intent =
   | "sales_service"
@@ -43,35 +43,8 @@ const ROUTE_TARGETS: Record<Intent, string> = {
   unknown: "general",
 };
 
-const INTENT_SYSTEM_PROMPT = `You are an intent classification engine for the Elevate360Official brand.
-
-Classify the user's conversation intent into exactly one of:
-- sales_service: wants to hire/purchase a digital service
-- sales_consultation: wants a strategy call or consultation
-- support: has a problem or complaint with an existing product
-- collaboration: wants to partner or collaborate with the brand
-- art_commission: wants custom artwork or a commission
-- app_interest: curious about or wanting to download one of the apps
-- book_interest: curious about or wanting to purchase a book
-- music_interest: interested in streaming or downloading music
-- media_press: journalist, blogger, or press inquiry
-- newsletter: wants to join the newsletter or mailing list
-- general_brand: general curiosity about the brand
-- unknown: intent is unclear
-
-Also:
-1. Assign a confidence score 0–100
-2. Determine if a human follow-up is needed (requiresFollowup: true if high-value intent or urgency detected)
-3. Extract capturedEmail and capturedName if present in the conversation
-
-Return ONLY valid JSON matching this exact shape:
-{
-  "intent": "<one of the intent values above>",
-  "confidence": <0-100>,
-  "requiresFollowup": <true|false>,
-  "capturedEmail": "<email or null>",
-  "capturedName": "<name or null>"
-}`;
+const INTENT_SYSTEM_PROMPT = INTENT_PROMPT;
+const INTENT_AGENT = getAgent("intent_classifier");
 
 export async function classifyIntent(
   history: ChatMessage[],
@@ -84,13 +57,13 @@ export async function classifyIntent(
     ].join("\n");
 
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: INTENT_AGENT.model,
       messages: [
         { role: "system", content: INTENT_SYSTEM_PROMPT },
         { role: "user", content: conversationText },
       ],
-      max_tokens: 200,
-      temperature: 0.1,
+      max_tokens: INTENT_AGENT.maxTokens,
+      temperature: INTENT_AGENT.temperature,
       response_format: { type: "json_object" },
     });
 

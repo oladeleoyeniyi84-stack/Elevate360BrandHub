@@ -13,6 +13,8 @@ import {
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { getConciergeReply, generateBrandCopy, type ContentType } from "./openai";
+import { runConcierge } from "./ai/router";
+import { getMemoryStats } from "./ai/memory";
 import { processConversationIntelligence, applyStageAutomation } from "./services/leadService";
 import { generateAndSaveDigest } from "./ai/digestGenerator";
 import { notifyNewContact, notifyNewLead, notifyNewSubscriber, sendContactReply, sendDigestEmail, notifyNewBooking } from "./email";
@@ -161,14 +163,22 @@ export async function registerRoutes(
       const { sessionId, message, leadName, leadEmail } = chatRequestSchema.parse(req.body);
 
       const conversation = await storage.getOrCreateChatSession(sessionId);
-      const history = (conversation.messages as ChatMessage[]) ?? [];
 
       const [knowledgeDocs, activeConsultations] = await Promise.all([
         storage.getPublishedKnowledgeByIntent(null).catch(() => []),
         storage.getConsultations(true).catch(() => []),
       ]);
-      // Phase 39 — inject recommended offer for this session into concierge
-      const reply = await getConciergeReply(history, message, knowledgeDocs, activeConsultations, conversation.recommendedOffer);
+
+      // Phase 39 — inject recommended offer for this session into concierge.
+      // runConcierge reads history from in-process memory (DB fallback on miss)
+      // and updates the cache after generating the reply.
+      const { reply, history } = await runConcierge({
+        sessionId,
+        userMessage: message,
+        knowledgeDocs,
+        consultationTypes: activeConsultations,
+        recommendedOffer: conversation.recommendedOffer,
+      });
 
       await storage.appendChatMessage(sessionId, { role: "user", content: message });
       await storage.appendChatMessage(sessionId, { role: "assistant", content: reply });
@@ -921,7 +931,12 @@ export async function registerRoutes(
     }
 
     // OpenAI env var
-    checks.openai = { ok: !!process.env.OPENAI_API_KEY, detail: process.env.OPENAI_API_KEY ? "key present" : "OPENAI_API_KEY missing" };
+    const memStats = getMemoryStats();
+    checks.openai = {
+      ok: !!process.env.OPENAI_API_KEY,
+      detail: `${process.env.OPENAI_API_KEY ? "key present" : "OPENAI_API_KEY missing"} · memory: ${memStats.activeSessions} active sessions`,
+    };
+    checks.memory = { ok: true, detail: `${memStats.activeSessions} sessions, oldest ${memStats.oldestEntryAgeMs ?? 0}ms` };
 
     // Resend env var
     checks.resend = { ok: !!process.env.RESEND_API_KEY, detail: process.env.RESEND_API_KEY ? "key present" : "RESEND_API_KEY missing" };

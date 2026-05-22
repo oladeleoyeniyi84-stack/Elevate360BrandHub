@@ -1,6 +1,8 @@
-import OpenAI from "openai";
+import { openai } from "./providers";
+import { SESSION_SUMMARY_PROMPT } from "./prompts";
+import { getAgent } from "./agents";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const SUMMARY_AGENT = getAgent("session_summarizer");
 
 export interface SessionSummaryResult {
   sessionSummary: string;
@@ -36,46 +38,16 @@ export async function generateSessionSummary(
     .map((m) => `${m.role === "user" ? "Visitor" : "Concierge"}: ${m.content}`)
     .join("\n");
 
-  const systemPrompt = `You are a CRM analyst for Elevate360Official — a brand that sells mobile apps (Bondedlove, Healthwisesupport, Video Crafter), Amazon KDP books, Etsy art, and music.
-
-Analyze the conversation transcript and return a JSON object with these exact keys:
-{
-  "sessionSummary": "One-line plain-English summary of the conversation (max 160 chars)",
-  "leadQuality": one of: "cold" | "warm" | "hot" | "priority" | "unqualified",
-  "detectedIntent": "primary reason the user reached out (max 80 chars)",
-  "userNeeds": "what the user actually needs or is trying to accomplish (max 200 chars)",
-  "recommendedFollowup": "specific next step the brand owner should take to convert or help this lead (max 200 chars)",
-  "ctaShown": "which call-to-action the concierge highlighted, or 'none' if none (max 120 chars)",
-  "conversionOutcome": one of: "converted" | "warm_lead" | "cold_lead" | "support_resolved" | "no_action" | "browsing"
-}
-
-Lead quality guide:
-- priority: Very high intent, ready to buy/commission/book
-- hot: Clear interest, specific ask, likely to convert
-- warm: Engaged but exploring, needs more nurturing
-- cold: Low engagement, vague questions
-- unqualified: Wrong audience or spam
-
-Conversion outcome guide:
-- converted: User expressed clear purchase/commission intent or clicked a CTA link
-- warm_lead: Interested but didn't commit
-- cold_lead: Minimal engagement
-- support_resolved: Support issue answered
-- no_action: Conversation ended without clear outcome
-- browsing: Just looking around
-
-Return only valid JSON.`;
-
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: SUMMARY_AGENT.model,
       messages: [
-        { role: "system", content: systemPrompt },
+        { role: "system", content: SESSION_SUMMARY_PROMPT },
         { role: "user", content: `Lead score: ${currentScore}\nDetected intent so far: ${currentIntent ?? "unknown"}\n\nTranscript:\n${transcript}` },
       ],
       response_format: { type: "json_object" },
-      max_tokens: 400,
-      temperature: 0.2,
+      max_tokens: SUMMARY_AGENT.maxTokens,
+      temperature: SUMMARY_AGENT.temperature,
     });
 
     const raw = response.choices[0]?.message?.content ?? "{}";

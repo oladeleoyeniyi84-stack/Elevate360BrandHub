@@ -1,8 +1,9 @@
-import OpenAI from "openai";
 import { storage } from "../storage";
 import type { DigestReport } from "@shared/schema";
+import { openai } from "./providers";
+import { getAgent } from "./agents";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const DIGEST_AGENT = getAgent("digest");
 
 export interface DigestData {
   weekStart: Date;
@@ -161,10 +162,10 @@ ${data.recentLeadSnippets.length > 0 ? `\n## Hot Lead Summaries\n${data.recentLe
 Keep it tight. Every sentence must be actionable.`;
 
   const res = await openai.chat.completions.create({
-    model: "gpt-4o",
+    model: DIGEST_AGENT.model,
     messages: [{ role: "user", content: prompt }],
-    temperature: 0.7,
-    max_tokens: 500,
+    temperature: DIGEST_AGENT.temperature,
+    max_tokens: DIGEST_AGENT.maxTokens,
   });
 
   return res.choices[0]?.message?.content ?? "Digest generation failed. Please try again.";
