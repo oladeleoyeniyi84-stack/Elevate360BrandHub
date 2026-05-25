@@ -22,7 +22,7 @@ import { notifyNewContact, notifyNewLead, notifyNewSubscriber, sendContactReply,
 import { generateSitemap } from "./sitemap";
 import { z } from "zod";
 import { WebhookHandlers } from "./webhookHandlers";
-import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
+import { getUncachableStripeClient, getStripePublishableKey, isStripeConfigured } from "./stripeClient";
 import { db } from "./db";
 import { sql, eq, desc } from "drizzle-orm";
 import { auditRuns, auditChecks, auditIssues, insertAuditIssueSchema, updateAuditIssueSchema, updateRevenueRecoveryActionSchema, updateContentOpportunitySchema, updateAutonomousAlertSchema } from "@shared/schema";
@@ -657,47 +657,48 @@ export async function registerRoutes(
     res.json({ ok: true });
   });
 
-  // Phase 37 — Stripe Webhook (uses req.rawBody captured by express.json verify callback)
+  // Phase 37 — Stripe Webhook (native signature verification; uses req.rawBody from express.json verify)
   app.post("/api/stripe/webhook", async (req: any, res) => {
     const sig = req.headers["stripe-signature"];
     if (!sig) return res.status(400).json({ error: "Missing stripe-signature" });
+    let event;
     try {
       const rawBody = req.rawBody as Buffer;
-      await WebhookHandlers.processWebhook(rawBody, Array.isArray(sig) ? sig[0] : sig);
+      event = WebhookHandlers.verifyAndParse(rawBody, Array.isArray(sig) ? sig[0] : sig);
+    } catch (e: any) {
+      console.error("[stripe] webhook signature verification failed:", e.message);
+      return res.status(400).json({ error: "Invalid signature" });
+    }
 
-      // Custom fulfillment: parse event and update our orders table
-      try {
-        const event = JSON.parse(rawBody.toString());
-        if (event.type === "checkout.session.completed") {
-          const session = event.data?.object;
-          if (session?.id) {
-            await storage.updateOrderStatus(session.id, "paid", {
-              stripePaymentIntentId: session.payment_intent ?? undefined,
-              amountPaid: session.amount_total ?? undefined,
-              customerName: session.customer_details?.name ?? undefined,
-            });
-            // M02 fix — auto-advance pipeline to "won" + mark offer accepted
-            // NOTE: do NOT pass wonValue here; revenue is already tracked via the orders table (M01 fix)
-            const sessionChatId = session.metadata?.sessionId;
-            if (sessionChatId) {
-              const amtLabel = session.amount_total ? `$${(session.amount_total / 100).toFixed(2)}` : "unknown amount";
-              storage.updateLeadPipelineStage(
-                sessionChatId,
-                "won",
-                `Paid via Stripe — ${amtLabel}`
-                // wonValue intentionally omitted — Stripe order row is the source of truth
-              ).catch(() => {});
-              const productName = session.metadata?.productName ?? session.line_items?.data?.[0]?.description ?? "stripe-checkout";
-              storage.markOfferAccepted(sessionChatId, productName, "stripe").catch(() => {});
-            }
+    try {
+      if (event.type === "checkout.session.completed") {
+        const session: any = event.data?.object;
+        if (session?.id) {
+          await storage.updateOrderStatus(session.id, "paid", {
+            stripePaymentIntentId: session.payment_intent ?? undefined,
+            amountPaid: session.amount_total ?? undefined,
+            customerName: session.customer_details?.name ?? undefined,
+          });
+          // M02 fix — auto-advance pipeline to "won" + mark offer accepted
+          // NOTE: do NOT pass wonValue here; revenue is already tracked via the orders table (M01 fix)
+          const sessionChatId = session.metadata?.sessionId;
+          if (sessionChatId) {
+            const amtLabel = session.amount_total ? `$${(session.amount_total / 100).toFixed(2)}` : "unknown amount";
+            storage.updateLeadPipelineStage(
+              sessionChatId,
+              "won",
+              `Paid via Stripe — ${amtLabel}`
+              // wonValue intentionally omitted — Stripe order row is the source of truth
+            ).catch(() => {});
+            const productName = session.metadata?.productName ?? session.line_items?.data?.[0]?.description ?? "stripe-checkout";
+            storage.markOfferAccepted(sessionChatId, productName, "stripe").catch(() => {});
           }
         }
-      } catch {}
-
+      }
       res.json({ received: true });
     } catch (e: any) {
-      console.error("[stripe] webhook error:", e.message);
-      res.status(400).json({ error: "Webhook processing error" });
+      console.error("[stripe] webhook fulfillment error:", e.message);
+      res.status(500).json({ error: "Webhook fulfillment error" });
     }
   });
 
@@ -711,41 +712,8 @@ export async function registerRoutes(
     }
   });
 
-  // Phase 37 — Public Offers (fetched from Stripe synced data)
+  // Phase 37 — Public Offers (fetched directly from Stripe API; native SDK)
   app.get("/api/offers", async (_req, res) => {
-    // Try the stripe-replit-sync schema first (fastest path after syncBackfill)
-    try {
-      const result = await db.execute(sql`
-        SELECT
-          p.id AS product_id,
-          p.name AS product_name,
-          p.description AS product_description,
-          p.metadata AS product_metadata,
-          pr.id AS price_id,
-          pr.unit_amount,
-          pr.currency
-        FROM stripe.products p
-        JOIN stripe.prices pr ON pr.product = p.id AND pr.active = true
-        WHERE p.active = true
-        ORDER BY (p.metadata->>'displayOrder')::int ASC NULLS LAST, p.name ASC
-      `);
-      if (result.rows.length > 0) {
-        const offers = result.rows.map((row: any) => ({
-          productId: row.product_id,
-          priceId: row.price_id,
-          name: row.product_name,
-          description: row.product_description,
-          amount: row.unit_amount,
-          currency: row.currency ?? "usd",
-          metadata: row.product_metadata ?? {},
-        }));
-        return res.json(offers);
-      }
-    } catch {
-      // stripe schema not yet populated — fall through to direct API
-    }
-
-    // Fallback: query Stripe API directly (handles cold-start before syncBackfill completes)
     try {
       const stripe = await getUncachableStripeClient();
       const products = await stripe.products.list({ active: true, limit: 20 });
@@ -783,7 +751,16 @@ export async function registerRoutes(
     const { priceId, customerEmail, sessionId: chatSessionId, productName, amount } = req.body;
     if (!priceId) return res.status(400).json({ message: "priceId required" });
 
-    const origin = `https://${(process.env.REPLIT_DOMAINS ?? "localhost:5000").split(",")[0]}`;
+    // Render-safe origin resolution: prefer explicit canonical config, then Render/Replit
+    // platform vars, then localhost as last resort. Strips protocol/trailing slash defensively.
+    const rawHost =
+      process.env.PUBLIC_BASE_URL ??
+      process.env.CANONICAL_HOST ??
+      process.env.RENDER_EXTERNAL_HOSTNAME ??
+      (process.env.REPLIT_DOMAINS ?? "").split(",")[0] ??
+      "localhost:5000";
+    const cleanHost = rawHost.replace(/^https?:\/\//, "").replace(/\/$/, "") || "localhost:5000";
+    const origin = cleanHost.startsWith("localhost") ? `http://${cleanHost}` : `https://${cleanHost}`;
 
     try {
       const stripe = await getUncachableStripeClient();
@@ -952,13 +929,12 @@ export async function registerRoutes(
     // Resend env var
     checks.resend = { ok: !!process.env.RESEND_API_KEY, detail: process.env.RESEND_API_KEY ? "key present" : "RESEND_API_KEY missing" };
 
-    // Stripe connectivity (via integration connector)
-    try {
-      const stripeClient = await getUncachableStripeClient();
-      checks.stripe = { ok: !!stripeClient, detail: stripeClient ? "connected" : "no key" };
-    } catch {
-      checks.stripe = { ok: false, detail: "connector unavailable" };
-    }
+    // Stripe connectivity (native SDK — checks STRIPE_SECRET_KEY env var only)
+    const stripeOk = isStripeConfigured();
+    checks.stripe = {
+      ok: stripeOk,
+      detail: stripeOk ? "configured" : "STRIPE_SECRET_KEY missing",
+    };
 
     const allOk = Object.values(checks).every((c) => c.ok);
     res.status(allOk ? 200 : 503).json({ status: allOk ? "healthy" : "degraded", checks, timestamp: new Date().toISOString() });
@@ -1105,17 +1081,12 @@ export async function registerRoutes(
 
   app.post("/api/dashboard/stripe/sync", async (req, res) => {
     if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
-    try {
-      const { runMigrations } = await import("stripe-replit-sync");
-      await runMigrations({ databaseUrl: process.env.DATABASE_URL!, schema: "stripe" } as any);
-      const { getStripeSync } = await import("./stripeClient");
-      const sync = await getStripeSync();
-      await sync.syncBackfill();
-      res.json({ ok: true, message: "Stripe sync complete" });
-    } catch (e: any) {
-      console.error("[stripe/sync] error:", e.message);
-      res.status(500).json({ message: "Stripe sync failed: " + e.message });
+    // Native Stripe SDK queries the Stripe API directly — no local sync table required.
+    // This endpoint is a no-op retained for dashboard UI compatibility.
+    if (!isStripeConfigured()) {
+      return res.status(503).json({ ok: false, message: "STRIPE_SECRET_KEY not configured" });
     }
+    res.json({ ok: true, message: "Native Stripe SDK in use — sync not required" });
   });
 
   app.post("/api/dashboard/automation/run-now", async (req, res) => {

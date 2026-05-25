@@ -86,23 +86,13 @@ export function log(message: string, source = "express") {
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
 
   res.on("finish", () => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      log(logLine);
+      // PII-safe: log method/path/status/latency only — never the response body.
+      // Response bodies can contain customer emails, names, order metadata, lead info, etc.
+      log(`${req.method} ${path} ${res.statusCode} in ${duration}ms`);
     }
   });
 
@@ -124,30 +114,16 @@ app.use((req, res, next) => {
   const { startAutomationJobs } = await import("./automation");
   startAutomationJobs().catch((e: Error) => console.error("[automationJobs] start error:", e.message));
 
-  // Phase 37 — Stripe init (migrations → sync → webhook)
+  // Phase 37 — Stripe init (native SDK only; no Replit connector / managed sync)
+  // Webhook URL must be registered manually in the Stripe Dashboard pointing at
+  // https://<your-domain>/api/stripe/webhook with STRIPE_WEBHOOK_SECRET in env.
   try {
-    const { runMigrations } = await import("stripe-replit-sync");
-    const { getStripeSync } = await import("./stripeClient");
-    await runMigrations({ databaseUrl: process.env.DATABASE_URL!, schema: "stripe" } as any);
-    const stripeSync = await getStripeSync();
-    const primaryDomain = (process.env.REPLIT_DOMAINS ?? "").split(",")[0];
-    const CANONICAL = "www.elevate360official.com";
-    const isProduction = primaryDomain === CANONICAL || process.env.NODE_ENV === "production";
-    if (isProduction) {
-      const webhookBase = `https://${primaryDomain}`;
-      await stripeSync.findOrCreateManagedWebhook(`${webhookBase}/api/stripe/webhook`).catch((e: Error) =>
-        console.error("[stripe] webhook setup:", e.message)
-      );
+    const { isStripeConfigured } = await import("./stripeClient");
+    if (isStripeConfigured()) {
+      console.log("[stripe] initialized (native SDK)");
     } else {
-      console.log("[stripe] webhook registration skipped in dev (non-canonical domain)");
+      console.warn("[stripe] STRIPE_SECRET_KEY not set — Stripe features disabled");
     }
-    try {
-      await stripeSync.syncBackfill();
-      console.log("[stripe] syncBackfill complete");
-    } catch (e: any) {
-      console.error("[stripe] syncBackfill failed:", e.message);
-    }
-    console.log("[stripe] initialized");
   } catch (e: any) {
     console.error("[stripe] init error:", e.message);
   }
