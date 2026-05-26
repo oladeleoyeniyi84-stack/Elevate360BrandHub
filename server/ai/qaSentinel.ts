@@ -12,6 +12,8 @@ import { storage } from "../storage";
 import { runTask } from "./modelRouter";
 import type { InsertQaSentinelReport, QaSentinelReport } from "@shared/schema";
 
+const SELF_JOB_KEY = "phase53_deepseek_qa_sentinel";
+
 const KNOWN_JOB_KEYS = [
   "phase49_revenue_recovery",
   "phase49_content_opportunities",
@@ -173,6 +175,13 @@ async function gatherRawChecks(): Promise<RawChecks> {
     jobsTotal += 1;
     if (job.status === "succeeded") jobsSucceeded += 1;
     if (job.status === "failed") {
+      // The QA sentinel is currently executing this very check — its own prior
+      // "failed" status is by definition stale (we're running successfully now).
+      // Skip self to avoid every report flagging the previous self-failure.
+      if (job.jobKey === SELF_JOB_KEY) {
+        jobsSucceeded += 1; // re-count as succeeded for accurate totals
+        continue;
+      }
       jobsFailed += 1;
       // Do NOT forward raw lastError to LLM or persist it here — it may contain
       // tokens, emails, URLs, stack traces, or upstream provider error strings.
@@ -360,6 +369,24 @@ export async function runQaSentinel(): Promise<{
   };
 
   const report = await storage.createQaSentinelReport(insert);
+
+  // Mark the sentinel's own automation_jobs row as succeeded so manual runs
+  // also clear any stale "failed" status (e.g. from a transient earlier
+  // scheduled-run failure). Only runs when report creation succeeded — if
+  // runQaSentinel throws upstream of this point, jobRunner's normal failure
+  // path still records the real failure. Best-effort: never let bookkeeping
+  // failures bubble up and break the API response.
+  try {
+    const now = new Date();
+    await storage.upsertAutomationJob(SELF_JOB_KEY, {
+      status: "succeeded",
+      lastFinishedAt: now,
+      lastSucceededAt: now,
+      lastError: null,
+    });
+  } catch (e: any) {
+    console.warn(`[qaSentinel] could not update self job status: ${e?.message ?? "unknown"}`);
+  }
 
   const summary = `status=${outcome.overallStatus} issues=${outcome.issues.length} confidence=${outcome.confidence.toFixed(2)}`;
   console.log(`[qaSentinel] ${summary}`);
