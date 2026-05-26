@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import { timingSafeEqual } from "crypto";
 import { storage } from "./storage";
 import {
   insertContactMessageSchema,
@@ -34,8 +35,43 @@ import { runAnomalyEngine } from "./automation/anomalyEngine";
 
 const DASHBOARD_PIN = process.env.DASHBOARD_PIN;
 
+// Timing-safe PIN comparison. Never logs PIN values or echoes them in errors.
+function pinMatches(provided: unknown): boolean {
+  if (!DASHBOARD_PIN || typeof provided !== "string" || provided.length === 0) return false;
+  // crypto.timingSafeEqual requires equal-length buffers; pad to longest so a
+  // length mismatch still runs through the comparison rather than short-circuiting.
+  const a = Buffer.from(provided);
+  const b = Buffer.from(DASHBOARD_PIN);
+  const len = Math.max(a.length, b.length);
+  const ap = Buffer.alloc(len);
+  const bp = Buffer.alloc(len);
+  a.copy(ap);
+  b.copy(bp);
+  return timingSafeEqual(ap, bp) && a.length === b.length;
+}
+
+// Accepts the dashboard PIN from any of:
+//   - x-dashboard-pin header
+//   - Authorization: Bearer <pin>
+//   - body.dashboardPin (POST/PUT JSON only)
+// Returns the candidate string (or null), never logged.
+function extractDashboardPin(req: any): string | null {
+  const hdrPin = req.headers?.["x-dashboard-pin"];
+  if (typeof hdrPin === "string" && hdrPin) return hdrPin;
+  const auth = req.headers?.authorization;
+  if (typeof auth === "string" && auth.toLowerCase().startsWith("bearer ")) {
+    const token = auth.slice(7).trim();
+    if (token) return token;
+  }
+  const bodyPin = req.body?.dashboardPin;
+  if (typeof bodyPin === "string" && bodyPin) return bodyPin;
+  return null;
+}
+
 function isDashboardAuthed(req: any): boolean {
-  return req.session?.dashboardAuthed === true;
+  if (req.session?.dashboardAuthed === true) return true;
+  const candidate = extractDashboardPin(req);
+  return candidate !== null && pinMatches(candidate);
 }
 
 function requireDashboardAuth(req: any, res: any, next: any) {
