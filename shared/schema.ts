@@ -445,6 +445,25 @@ export const automationJobs = pgTable("automation_jobs", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// Phase 53 — DeepSeek QA Sentinel reports
+export const qaSentinelReports = pgTable("qa_sentinel_reports", {
+  id: serial("id").primaryKey(),
+  status: varchar("status", { length: 20 }).notNull(),
+  issues: jsonb("issues").notNull().default([]),
+  recommendedFixes: jsonb("recommended_fixes").notNull().default([]),
+  nextActions: jsonb("next_actions").notNull().default([]),
+  confidence: integer("confidence").notNull().default(0),
+  rawChecks: jsonb("raw_checks").notNull().default({}),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertQaSentinelReportSchema = createInsertSchema(qaSentinelReports).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertQaSentinelReport = z.infer<typeof insertQaSentinelReportSchema>;
+export type QaSentinelReport = typeof qaSentinelReports.$inferSelect;
+
 export const automationJobLogs = pgTable("automation_job_logs", {
   id: serial("id").primaryKey(),
   jobKey: varchar("job_key", { length: 80 }).notNull(),

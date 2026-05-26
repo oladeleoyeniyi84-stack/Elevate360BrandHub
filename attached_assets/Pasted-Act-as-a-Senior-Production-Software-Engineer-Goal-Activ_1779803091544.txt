@@ -1,0 +1,107 @@
+Act as a Senior Production Software Engineer.
+
+Goal:
+Activate DeepSeek as the backend QA, testing, monitoring, and issue-detection layer for Elevate360BrandHub.
+
+Context:
+Production is live at https://www.elevate360official.com.
+OpenAI remains the premium concierge layer.
+DeepSeek should now run backend automation, QA checks, summaries, diagnostics, and issue detection.
+
+Build Phase 4.2 — DeepSeek Backend QA Sentinel.
+
+Requirements:
+
+1. Create a backend QA service:
+server/ai/qaSentinel.ts
+
+It should run checks against:
+- /api/health
+- /api/chat
+- /api/offers
+- /api/dashboard health endpoints if available
+- Stripe config presence
+- database connectivity
+- AI router status
+- Resend status
+- automation job status
+
+2. Use existing runTask() router and route QA analysis through:
+runTask("diagnostics", ...)
+or if diagnostics does not exist, add it to modelRouter with:
+provider: DeepSeek
+fallback: OpenAI
+
+3. DeepSeek should analyze raw check results and return structured JSON:
+
+{
+  "overallStatus": "healthy" | "warning" | "critical",
+  "issues": [],
+  "recommendedFixes": [],
+  "nextActions": [],
+  "confidence": 0-1
+}
+
+4. Add route:
+GET /api/admin/qa-sentinel
+
+Protected by DASHBOARD_PIN or existing admin auth.
+
+5. Add manual trigger route:
+POST /api/admin/qa-sentinel/run
+
+6. Add scheduled automation job:
+phase53_deepseek_qa_sentinel
+
+Cadence:
+every 6 hours
+
+Purpose:
+Run production diagnostics, ask DeepSeek to analyze the result, store report in PostgreSQL.
+
+7. Create database table if missing:
+
+qa_sentinel_reports
+- id
+- status
+- issues jsonb
+- recommended_fixes jsonb
+- next_actions jsonb
+- confidence
+- raw_checks jsonb
+- created_at
+
+8. Add dashboard visibility if dashboard exists:
+Show latest QA Sentinel result:
+- status
+- issues
+- recommendations
+- last run time
+
+9. Add safe logging:
+Only log:
+[qaSentinel] status=healthy issues=0 confidence=0.92
+
+Never log:
+API keys
+customer data
+payment info
+full prompts
+full model outputs
+
+10. Add tests or verification script:
+npm run check
+npm run build
+
+11. After implementation, provide:
+- files changed
+- routes added
+- database table added
+- test results
+- commit summary
+
+Important:
+Do not move /api/chat concierge to DeepSeek.
+Do not expose QA route publicly.
+DeepSeek should operate as backend automation and diagnostics only.
+OpenAI remains premium user-facing intelligence.

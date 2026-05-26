@@ -116,4 +116,22 @@ export async function startAutomationJobs() {
   );
 
   console.log("[automation] Phase 52 jobs registered (2 jobs)");
+
+  // ── Phase 53 — DeepSeek QA Sentinel ─────────────────────────────────────────
+  const { runQaSentinel } = await import("../ai/qaSentinel");
+
+  await registerRecurringJob(
+    {
+      jobKey: "phase53_deepseek_qa_sentinel",
+      jobGroup: "diagnostics",
+      cadenceMinutes: 360, // every 6 hours
+      run: async () => {
+        const { summary } = await runQaSentinel();
+        return { summary };
+      },
+    },
+    390_000
+  );
+
+  console.log("[automation] Phase 53 jobs registered (1 job)");
 }

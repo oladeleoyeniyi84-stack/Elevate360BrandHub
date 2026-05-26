@@ -25,6 +25,7 @@ const AUTOMATION_TASKS = new Set<TaskType>([
   "digest",
   "followup",
   "session_summary",
+  "diagnostics",
 ]);
 
 function getProvider(name: ProviderName): AIProvider {

@@ -11,7 +11,8 @@ export type TaskType =
   | "coding"
   | "digest"
   | "followup"
-  | "session_summary";
+  | "session_summary"
+  | "diagnostics";
 
 export type ProviderName = "openai" | "deepseek";
 

@@ -30,11 +30,13 @@ import {
   type AiExplanation, type InsertAiExplanation,
   type SystemHealthSnapshot, type InsertSystemHealthSnapshot,
   type QuarterlyStrategyReport, type InsertQuarterlyStrategyReport,
+  type QaSentinelReport, type InsertQaSentinelReport,
   users, contactMessages, newsletterSubscribers, chatConversations, clickEvents, pageViews, testimonials, blogPosts, knowledgeDocuments, consultations, bookings, orders, digestReports, offerMappingOverrides, auditLogs, automationSettings,
   automationJobs, automationJobLogs, revenueRecoveryActions, contentOpportunities, autonomousAlerts,
   growthExperiments, sourcePerformanceSnapshots, funnelLeakReports, offerPerformanceSnapshots,
   executionPolicies, appliedChanges, executionQueue, rollbackEvents,
   userRoles, approvalRequests, aiExplanations, systemHealthSnapshots, quarterlyStrategyReports,
+  qaSentinelReports,
 } from "@shared/schema";
 import { db } from "./db";
 import { and, asc, count, desc, eq, gte, isNull, lte, ne, or, sql } from "drizzle-orm";
@@ -187,6 +189,11 @@ export interface IStorage {
   upsertAutomationJob(jobKey: string, patch: Partial<InsertAutomationJob>): Promise<AutomationJob>;
   createAutomationJobLog(input: InsertAutomationJobLog): Promise<void>;
   getAutomationJobLogs(jobKey: string, limit?: number): Promise<AutomationJobLog[]>;
+
+  // Phase 53 — QA Sentinel reports
+  createQaSentinelReport(input: InsertQaSentinelReport): Promise<QaSentinelReport>;
+  getLatestQaSentinelReport(): Promise<QaSentinelReport | null>;
+  getQaSentinelReports(limit?: number): Promise<QaSentinelReport[]>;
 
   // Phase 49 — Revenue Recovery
   getRevenueRecoveryActions(limit?: number): Promise<RevenueRecoveryAction[]>;
@@ -1406,6 +1413,26 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(automationJobLogs)
       .where(eq(automationJobLogs.jobKey, jobKey))
       .orderBy(desc(automationJobLogs.startedAt))
+      .limit(limit);
+  }
+
+  // ── Phase 53 — QA Sentinel reports ──────────────────────────────────────────
+
+  async createQaSentinelReport(input: InsertQaSentinelReport): Promise<QaSentinelReport> {
+    const [created] = await db.insert(qaSentinelReports).values(input).returning();
+    return created;
+  }
+
+  async getLatestQaSentinelReport(): Promise<QaSentinelReport | null> {
+    const [row] = await db.select().from(qaSentinelReports)
+      .orderBy(desc(qaSentinelReports.createdAt))
+      .limit(1);
+    return row ?? null;
+  }
+
+  async getQaSentinelReports(limit = 50): Promise<QaSentinelReport[]> {
+    return db.select().from(qaSentinelReports)
+      .orderBy(desc(qaSentinelReports.createdAt))
       .limit(limit);
   }
 

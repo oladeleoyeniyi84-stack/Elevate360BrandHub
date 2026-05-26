@@ -896,6 +896,29 @@ export async function registerRoutes(
   });
 
   // Phase 45 — Health check (public, no auth)
+  // ─── Phase 53 — DeepSeek QA Sentinel (admin-only) ──────────────────────────
+  app.get("/api/admin/qa-sentinel", requireDashboardAuth, async (_req, res) => {
+    try {
+      const latest = await storage.getLatestQaSentinelReport();
+      const history = await storage.getQaSentinelReports(20);
+      res.json({ latest, history });
+    } catch (e: any) {
+      console.error("[qa-sentinel] fetch failed:", e?.message);
+      res.status(500).json({ message: "Could not load QA sentinel reports." });
+    }
+  });
+
+  app.post("/api/admin/qa-sentinel/run", requireDashboardAuth, async (_req, res) => {
+    try {
+      const { runQaSentinel } = await import("./ai/qaSentinel");
+      const { report, summary } = await runQaSentinel();
+      res.json({ ok: true, summary, report });
+    } catch (e: any) {
+      console.error("[qa-sentinel] run failed:", e?.message);
+      res.status(500).json({ ok: false, message: "QA sentinel run failed." });
+    }
+  });
+
   app.get("/api/health", async (_req, res) => {
     const checks: Record<string, { ok: boolean; latencyMs?: number; detail?: string }> = {};
 
