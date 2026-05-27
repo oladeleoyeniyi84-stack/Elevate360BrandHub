@@ -483,6 +483,50 @@ export const insertRecoveryReportSchema = createInsertSchema(recoveryReports).om
 export type InsertRecoveryReport = z.infer<typeof insertRecoveryReportSchema>;
 export type RecoveryReport = typeof recoveryReports.$inferSelect;
 
+// Phase 56 — Autonomous AI Growth Engine
+export const growthIntelligenceReports = pgTable("growth_intelligence_reports", {
+  id: serial("id").primaryKey(),
+  status: varchar("status", { length: 20 }).notNull(),
+  funnel: jsonb("funnel").notNull().default({}),
+  trends: jsonb("trends").notNull().default({}),
+  forecast: jsonb("forecast").notNull().default({}),
+  diagnosticsSummary: text("diagnostics_summary").notNull().default(""),
+  executiveSummary: text("executive_summary").notNull().default(""),
+  diagnosticsProvider: varchar("diagnostics_provider", { length: 20 }),
+  executiveProvider: varchar("executive_provider", { length: 20 }),
+  confidence: integer("confidence").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const insertGrowthIntelligenceReportSchema = createInsertSchema(growthIntelligenceReports).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertGrowthIntelligenceReport = z.infer<typeof insertGrowthIntelligenceReportSchema>;
+export type GrowthIntelligenceReport = typeof growthIntelligenceReports.$inferSelect;
+
+export const growthRecommendations = pgTable("growth_recommendations", {
+  id: serial("id").primaryKey(),
+  reportId: integer("report_id").references(() => growthIntelligenceReports.id, { onDelete: "set null" }),
+  category: varchar("category", { length: 40 }).notNull(),
+  severity: varchar("severity", { length: 20 }).notNull().default("info"),
+  title: varchar("title", { length: 200 }).notNull(),
+  rationale: text("rationale").notNull().default(""),
+  proposedExperiment: text("proposed_experiment"),
+  expectedImpact: varchar("expected_impact", { length: 120 }),
+  status: varchar("status", { length: 20 }).notNull().default("pending"),
+  decidedBy: varchar("decided_by", { length: 80 }),
+  decidedAt: timestamp("decided_at"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const insertGrowthRecommendationSchema = createInsertSchema(growthRecommendations).omit({
+  id: true,
+  createdAt: true,
+  decidedAt: true,
+});
+export type InsertGrowthRecommendation = z.infer<typeof insertGrowthRecommendationSchema>;
+export type GrowthRecommendation = typeof growthRecommendations.$inferSelect;
+
 export const automationJobLogs = pgTable("automation_job_logs", {
   id: serial("id").primaryKey(),
   jobKey: varchar("job_key", { length: 80 }).notNull(),

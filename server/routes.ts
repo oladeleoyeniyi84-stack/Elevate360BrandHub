@@ -1002,6 +1002,73 @@ export async function registerRoutes(
     }
   });
 
+  // ─── Phase 56 — Autonomous AI Growth Engine (admin-only) ───────────────────
+  app.get("/api/admin/growth/overview", requireDashboardAuth, async (_req, res) => {
+    try {
+      const [latest, history] = await Promise.all([
+        storage.getLatestGrowthReport(),
+        storage.getGrowthReports(10),
+      ]);
+      res.json({ latest, history });
+    } catch (e: any) {
+      console.error("[growth] overview failed:", e?.message);
+      res.status(500).json({ message: "Could not load growth reports." });
+    }
+  });
+
+  app.post("/api/admin/growth/run", requireDashboardAuth, async (req, res) => {
+    try {
+      const windowDays = Math.min(Math.max(parseInt(String(req.body?.windowDays ?? "14"), 10) || 14, 3), 90);
+      const forecastDays = Math.min(Math.max(parseInt(String(req.body?.forecastDays ?? "14"), 10) || 14, 3), 60);
+      const { runGrowthEngine } = await import("./growth/growthEngine");
+      const { report, recommendations, summary } = await runGrowthEngine({ windowDays, forecastDays });
+      res.json({ ok: true, summary, report, recommendations });
+    } catch (e: any) {
+      console.error("[growth] run failed:", e?.message);
+      res.status(500).json({ ok: false, message: "Growth engine run failed." });
+    }
+  });
+
+  app.get("/api/admin/growth/recommendations", requireDashboardAuth, async (req, res) => {
+    try {
+      const status = typeof req.query.status === "string" ? req.query.status.slice(0, 20) : undefined;
+      const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? "50"), 10) || 50, 1), 200);
+      const rows = await storage.listGrowthRecommendations(status, limit);
+      res.json(rows);
+    } catch (e: any) {
+      console.error("[growth] list recs failed:", e?.message);
+      res.status(500).json({ message: "Could not list recommendations." });
+    }
+  });
+
+  app.post("/api/admin/growth/recommendations/:id/decide", requireDashboardAuth, async (req, res) => {
+    try {
+      const id = parseInt(String(req.params.id), 10);
+      if (!Number.isFinite(id) || id <= 0) {
+        return res.status(400).json({ message: "Invalid recommendation id." });
+      }
+      const decision = String(req.body?.decision ?? "").toLowerCase();
+      if (!["approved", "rejected"].includes(decision)) {
+        return res.status(400).json({ message: "Invalid decision. Must be approved|rejected." });
+      }
+      const existing = await storage.getGrowthRecommendation(id);
+      if (!existing) return res.status(404).json({ message: "Not found." });
+      const decidedBy = "founder"; // single-founder system; future: req.user
+      const notes = typeof req.body?.notes === "string" ? req.body.notes.slice(0, 1000) : undefined;
+      const updated = await storage.updateGrowthRecommendationStatus(
+        id,
+        decision as any,
+        decidedBy,
+        notes
+      );
+      console.log(`[growthDecision] id=${id} status=${decision} by=${decidedBy}`);
+      res.json({ ok: true, recommendation: updated });
+    } catch (e: any) {
+      console.error("[growth] decide failed:", e?.message);
+      res.status(500).json({ ok: false, message: "Could not record decision." });
+    }
+  });
+
   app.post("/api/admin/ops/briefing", requireDashboardAuth, async (_req, res) => {
     try {
       const { buildOpsOverview, generateFounderBriefing } = await import(

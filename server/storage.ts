@@ -32,12 +32,14 @@ import {
   type QuarterlyStrategyReport, type InsertQuarterlyStrategyReport,
   type QaSentinelReport, type InsertQaSentinelReport,
   type RecoveryReport, type InsertRecoveryReport,
+  type GrowthIntelligenceReport, type InsertGrowthIntelligenceReport,
+  type GrowthRecommendation, type InsertGrowthRecommendation,
   users, contactMessages, newsletterSubscribers, chatConversations, clickEvents, pageViews, testimonials, blogPosts, knowledgeDocuments, consultations, bookings, orders, digestReports, offerMappingOverrides, auditLogs, automationSettings,
   automationJobs, automationJobLogs, revenueRecoveryActions, contentOpportunities, autonomousAlerts,
   growthExperiments, sourcePerformanceSnapshots, funnelLeakReports, offerPerformanceSnapshots,
   executionPolicies, appliedChanges, executionQueue, rollbackEvents,
   userRoles, approvalRequests, aiExplanations, systemHealthSnapshots, quarterlyStrategyReports,
-  qaSentinelReports, recoveryReports,
+  qaSentinelReports, recoveryReports, growthIntelligenceReports, growthRecommendations,
 } from "@shared/schema";
 import { db } from "./db";
 import { and, asc, count, desc, eq, gte, isNull, lte, ne, or, sql } from "drizzle-orm";
@@ -67,7 +69,7 @@ export interface IStorage {
   }): Promise<void>;
   markLeadConverted(sessionId: string): Promise<void>;
   recordPageView(page: string): Promise<void>;
-  getPageViews(): Promise<{ createdAt: Date }[]>;
+  getPageViews(): Promise<{ createdAt: Date; page: string }[]>;
   recordClick(product: string, label: string): Promise<void>;
   getClickStats(): Promise<{ product: string; label: string; count: number }[]>;
   getTestimonials(all?: boolean): Promise<Testimonial[]>;
@@ -200,6 +202,20 @@ export interface IStorage {
   createRecoveryReport(input: InsertRecoveryReport): Promise<RecoveryReport>;
   getLatestRecoveryReport(): Promise<RecoveryReport | null>;
   getRecoveryReports(limit?: number): Promise<RecoveryReport[]>;
+
+  // Phase 56 — Growth Intelligence
+  createGrowthReport(input: InsertGrowthIntelligenceReport): Promise<GrowthIntelligenceReport>;
+  getLatestGrowthReport(): Promise<GrowthIntelligenceReport | null>;
+  getGrowthReports(limit?: number): Promise<GrowthIntelligenceReport[]>;
+  createGrowthRecommendation(input: InsertGrowthRecommendation): Promise<GrowthRecommendation>;
+  listGrowthRecommendations(status?: string, limit?: number): Promise<GrowthRecommendation[]>;
+  getGrowthRecommendation(id: number): Promise<GrowthRecommendation | null>;
+  updateGrowthRecommendationStatus(
+    id: number,
+    status: "approved" | "rejected" | "applied" | "pending",
+    decidedBy: string,
+    notes?: string
+  ): Promise<GrowthRecommendation>;
 
   // Phase 49 — Revenue Recovery
   getRevenueRecoveryActions(limit?: number): Promise<RevenueRecoveryAction[]>;
@@ -418,8 +434,9 @@ export class DatabaseStorage implements IStorage {
     await db.insert(pageViews).values({ page });
   }
 
-  async getPageViews(): Promise<{ createdAt: Date }[]> {
-    return db.select({ createdAt: pageViews.createdAt }).from(pageViews).orderBy(pageViews.createdAt);
+  async getPageViews(): Promise<{ createdAt: Date; page: string }[]> {
+    return db.select({ createdAt: pageViews.createdAt, page: pageViews.page })
+      .from(pageViews).orderBy(pageViews.createdAt);
   }
 
   async recordClick(product: string, label: string): Promise<void> {
@@ -1460,6 +1477,58 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(recoveryReports)
       .orderBy(desc(recoveryReports.createdAt))
       .limit(limit);
+  }
+
+  // ── Phase 56 — Growth Intelligence ──────────────────────────────────────────
+
+  async createGrowthReport(input: InsertGrowthIntelligenceReport): Promise<GrowthIntelligenceReport> {
+    const [row] = await db.insert(growthIntelligenceReports).values(input).returning();
+    return row;
+  }
+
+  async getLatestGrowthReport(): Promise<GrowthIntelligenceReport | null> {
+    const [row] = await db.select().from(growthIntelligenceReports)
+      .orderBy(desc(growthIntelligenceReports.createdAt))
+      .limit(1);
+    return row ?? null;
+  }
+
+  async getGrowthReports(limit = 20): Promise<GrowthIntelligenceReport[]> {
+    return db.select().from(growthIntelligenceReports)
+      .orderBy(desc(growthIntelligenceReports.createdAt))
+      .limit(limit);
+  }
+
+  async createGrowthRecommendation(input: InsertGrowthRecommendation): Promise<GrowthRecommendation> {
+    const [row] = await db.insert(growthRecommendations).values(input).returning();
+    return row;
+  }
+
+  async listGrowthRecommendations(status?: string, limit = 50): Promise<GrowthRecommendation[]> {
+    const q = db.select().from(growthRecommendations)
+      .orderBy(desc(growthRecommendations.createdAt))
+      .limit(limit);
+    if (status) return q.where(eq(growthRecommendations.status, status));
+    return q;
+  }
+
+  async getGrowthRecommendation(id: number): Promise<GrowthRecommendation | null> {
+    const [row] = await db.select().from(growthRecommendations)
+      .where(eq(growthRecommendations.id, id));
+    return row ?? null;
+  }
+
+  async updateGrowthRecommendationStatus(
+    id: number,
+    status: "approved" | "rejected" | "applied" | "pending",
+    decidedBy: string,
+    notes?: string
+  ): Promise<GrowthRecommendation> {
+    const [row] = await db.update(growthRecommendations)
+      .set({ status, decidedBy, decidedAt: new Date(), notes: notes ?? null })
+      .where(eq(growthRecommendations.id, id))
+      .returning();
+    return row;
   }
 
   // ── Phase 49 — Revenue Recovery ─────────────────────────────────────────────

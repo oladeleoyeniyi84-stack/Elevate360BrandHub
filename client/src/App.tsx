@@ -9,6 +9,7 @@ import NotFound from "@/pages/not-found";
 import Home from "@/pages/Home";
 import Dashboard from "@/pages/Dashboard";
 import OpsCenter from "@/pages/OpsCenter";
+import GrowthEngine from "@/pages/GrowthEngine";
 import Links from "@/pages/Links";
 import Blog from "@/pages/Blog";
 import BlogPost from "@/pages/BlogPost";
@@ -72,6 +73,17 @@ function Router() {
             path="/ops"
           />
           <OpsCenter />
+        </>
+      </Route>
+
+      <Route path="/growth">
+        <>
+          <SEO
+            title="Growth Engine | Elevate360Official"
+            description="Autonomous AI Growth Engine for Elevate360Official."
+            path="/growth"
+          />
+          <GrowthEngine />
         </>
       </Route>
 
