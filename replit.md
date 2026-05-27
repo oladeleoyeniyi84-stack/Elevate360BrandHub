@@ -107,6 +107,17 @@ Full-stack brand portfolio for **Elevate360Official** — mobile apps (Bondedlov
 - Art Studio image: `@assets/Elevate360Art_Studio_Presentation_1772460961759.png`
 - `@assets` Vite alias → `attached_assets/` (NOT `client/src/assets/`)
 
+## Phase 60 — AI Orchestrator Core (current)
+- Coordination layer over Phase 53-59 engines: agent registry, shared memory, workflow queue, governance chokepoint, founder approval gate
+- 7 agents: revenue/growth/experiment/personalization/reliability/content/founder
+- 4 workflows: `daily_operational_scan`, `traffic_drop_detected`, `pricing_opportunity_review` (approval-gated), `content_cadence_scan`
+- Governance: 30 hard-block tokens (stripe/refund/payment/email/deploy/db.drop/network/secret/env) + 7 approval gates + per-agent capability allowlist
+- Concurrency: in-process Map lock + **atomic DB claim** (`UPDATE … WHERE status IN ('queued','approved','retrying')` returns null on contention); lock-miss returns row unchanged (no clobber)
+- Provider hard-locks: DeepSeek for diagnostics, OpenAI for executive synthesis — `providerOverride` disables fallback in `modelRouter`
+- Routes (PIN-gated): `GET/POST /api/admin/orchestrator/{status,workflows,workflows/:id,memory,run,workflows/:id/{approve,reject}}`
+- Job: `phase60_orchestrator_core` every 15min (boot offset 8min); self-feeds `daily_operational_scan` on each tick
+- Dashboard: `/orchestrator` — tabs Workflows / Agents / Memory / Governance
+
 ## Roadmap (next phases)
 - **Phase 4** — Persistent AI Memory + pgvector
 - **Phase 5** — AI Agents

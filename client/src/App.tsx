@@ -13,6 +13,7 @@ import GrowthEngine from "@/pages/GrowthEngine";
 import ExperimentLab from "@/pages/ExperimentLab";
 import PersonalizationConsole from "@/pages/PersonalizationConsole";
 import RevenueCommandCenter from "@/pages/RevenueCommandCenter";
+import OrchestratorCenter from "@/pages/OrchestratorCenter";
 import Links from "@/pages/Links";
 import Blog from "@/pages/Blog";
 import BlogPost from "@/pages/BlogPost";
@@ -109,6 +110,17 @@ function Router() {
             path="/personalization"
           />
           <PersonalizationConsole />
+        </>
+      </Route>
+
+      <Route path="/orchestrator">
+        <>
+          <SEO
+            title="Orchestrator Center | Elevate360Official"
+            description="AI Orchestrator Core for Elevate360Official."
+            path="/orchestrator"
+          />
+          <OrchestratorCenter />
         </>
       </Route>
 

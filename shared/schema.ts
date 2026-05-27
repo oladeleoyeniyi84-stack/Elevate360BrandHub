@@ -693,6 +693,70 @@ export const insertRevenueAlertSchema = createInsertSchema(revenueAlerts).omit({
 export type InsertRevenueAlert = z.infer<typeof insertRevenueAlertSchema>;
 export type RevenueAlert = typeof revenueAlerts.$inferSelect;
 
+// Phase 60 — AI Orchestrator Core
+export const orchestratorMemory = pgTable("orchestrator_memory", {
+  id: serial("id").primaryKey(),
+  memoryType: varchar("memory_type", { length: 40 }).notNull(),
+  scope: varchar("scope", { length: 80 }).notNull().default("global"),
+  key: varchar("key", { length: 120 }).notNull(),
+  value: jsonb("value").notNull().default({}),
+  confidence: integer("confidence").notNull().default(50),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (t) => ({
+  scopeKeyIdx: uniqueIndex("orchestrator_memory_scope_key_idx").on(t.scope, t.key),
+  typeIdx: index("orchestrator_memory_type_idx").on(t.memoryType, t.updatedAt),
+}));
+export const insertOrchestratorMemorySchema = createInsertSchema(orchestratorMemory).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertOrchestratorMemory = z.infer<typeof insertOrchestratorMemorySchema>;
+export type OrchestratorMemory = typeof orchestratorMemory.$inferSelect;
+
+export const orchestratorWorkflows = pgTable("orchestrator_workflows", {
+  id: serial("id").primaryKey(),
+  workflowKey: varchar("workflow_key", { length: 80 }).notNull(),
+  status: varchar("status", { length: 40 }).notNull().default("queued"),
+  priority: integer("priority").notNull().default(50),
+  triggeredBy: varchar("triggered_by", { length: 80 }).notNull().default("system"),
+  context: jsonb("context").notNull().default({}),
+  result: jsonb("result").notNull().default({}),
+  governanceDecision: jsonb("governance_decision").notNull().default({}),
+  agentTrace: jsonb("agent_trace").notNull().default([]),
+  executiveSummary: text("executive_summary").notNull().default(""),
+  founderDecision: varchar("founder_decision", { length: 20 }),
+  founderDecidedBy: varchar("founder_decided_by", { length: 80 }),
+  founderDecidedAt: timestamp("founder_decided_at"),
+  attemptCount: integer("attempt_count").notNull().default(0),
+  nextEligibleAt: timestamp("next_eligible_at"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  statusIdx: index("orchestrator_workflows_status_idx").on(t.status, t.priority, t.createdAt),
+  keyIdx: index("orchestrator_workflows_key_idx").on(t.workflowKey, t.createdAt),
+}));
+export const insertOrchestratorWorkflowSchema = createInsertSchema(orchestratorWorkflows).omit({ id: true, createdAt: true });
+export type InsertOrchestratorWorkflow = z.infer<typeof insertOrchestratorWorkflowSchema>;
+export type OrchestratorWorkflow = typeof orchestratorWorkflows.$inferSelect;
+
+export const orchestratorAgentRuns = pgTable("orchestrator_agent_runs", {
+  id: serial("id").primaryKey(),
+  agentKey: varchar("agent_key", { length: 60 }).notNull(),
+  workflowId: integer("workflow_id").references(() => orchestratorWorkflows.id, { onDelete: "cascade" }),
+  status: varchar("status", { length: 20 }).notNull().default("pending"),
+  input: jsonb("input").notNull().default({}),
+  output: jsonb("output").notNull().default({}),
+  confidence: integer("confidence").notNull().default(0),
+  durationMs: integer("duration_ms").notNull().default(0),
+  errorMessage: text("error_message").notNull().default(""),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  workflowIdx: index("orchestrator_agent_runs_workflow_idx").on(t.workflowId, t.createdAt),
+  agentIdx: index("orchestrator_agent_runs_agent_idx").on(t.agentKey, t.createdAt),
+}));
+export const insertOrchestratorAgentRunSchema = createInsertSchema(orchestratorAgentRuns).omit({ id: true, createdAt: true });
+export type InsertOrchestratorAgentRun = z.infer<typeof insertOrchestratorAgentRunSchema>;
+export type OrchestratorAgentRun = typeof orchestratorAgentRuns.$inferSelect;
+
 export type ExperimentVariant = {
   key: string;
   name: string;

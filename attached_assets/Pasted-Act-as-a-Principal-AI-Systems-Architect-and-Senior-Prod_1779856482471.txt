@@ -1,0 +1,353 @@
+Act as a Principal AI Systems Architect and Senior Production Software Engineer.
+
+Build Phase 60 — Elevate360 AI Orchestrator Core.
+
+Goal:
+Transform the current multi-system AI platform into a coordinated AI Operating System with:
+- autonomous agent orchestration,
+- shared operational memory,
+- workflow coordination,
+- governance enforcement,
+- founder-supervised autonomy.
+
+Current live systems:
+- Phase 53 QA Sentinel
+- Phase 54 Autonomous Recovery Engine
+- Phase 55 Founder Ops Center
+- Phase 56 AI Growth Engine
+- Phase 57 Experiment Orchestrator
+- Phase 58 Personalization Engine
+- Phase 59 Revenue Command Center
+
+==================================================
+CORE OBJECTIVE
+==================================================
+
+Create a centralized orchestration layer that coordinates all AI agents and operational systems safely.
+
+This is NOT a chatbot.
+
+This is:
+- an AI orchestration runtime,
+- shared memory system,
+- agent coordination engine,
+- autonomous workflow manager,
+- governance layer.
+
+==================================================
+1. ORCHESTRATOR CORE
+==================================================
+
+Create:
+server/orchestrator/core.ts
+
+Responsibilities:
+- register agents
+- schedule workflows
+- route tasks
+- maintain shared operational state
+- enforce governance
+- prioritize jobs
+- coordinate agent execution
+- maintain execution history
+
+Implement:
+- agent registry
+- workflow queue
+- workflow execution state
+- workflow result persistence
+- priority levels
+- retry policies
+- cooldown policies
+- execution locking
+
+==================================================
+2. SHARED OPERATIONAL MEMORY
+==================================================
+
+Create tables:
+
+orchestrator_memory
+- id
+- memory_type
+- scope
+- key
+- value jsonb
+- confidence
+- created_at
+- updated_at
+
+orchestrator_workflows
+- id
+- workflow_key
+- status
+- priority
+- triggered_by
+- context jsonb
+- result jsonb
+- started_at
+- completed_at
+- created_at
+
+orchestrator_agent_runs
+- id
+- agent_key
+- workflow_id
+- status
+- input jsonb
+- output jsonb
+- confidence
+- duration_ms
+- created_at
+
+Purpose:
+Allow all agents to reason over shared operational state.
+
+==================================================
+3. AGENT REGISTRY
+==================================================
+
+Register initial agents:
+
+growth_agent
+revenue_agent
+reliability_agent
+experiment_agent
+personalization_agent
+content_agent
+founder_agent
+
+Each agent must include:
+- description
+- allowed capabilities
+- restricted capabilities
+- provider preference
+- cooldown policy
+- execution timeout
+- retry limits
+
+==================================================
+4. GOVERNANCE ENGINE
+==================================================
+
+Create:
+server/orchestrator/governance.ts
+
+Enforce:
+- no autonomous Stripe mutations
+- no autonomous refunds
+- no autonomous pricing changes
+- no autonomous deployments
+- no autonomous email campaigns
+- no autonomous DB destructive actions
+- no external network execution
+- no secret access exposure
+
+Implement:
+evaluateActionSafety()
+
+Return:
+- allowed
+- blocked
+- requires_founder_approval
+
+All workflows must pass through governance.
+
+==================================================
+5. WORKFLOW ENGINE
+==================================================
+
+Create:
+server/orchestrator/workflows.ts
+
+Support:
+- workflow chaining
+- multi-agent coordination
+- execution history
+- retry handling
+- failure escalation
+- cooldown enforcement
+- dependency ordering
+
+Example workflow:
+traffic_drop_detected
+↓
+growth_agent analyzes
+↓
+experiment_agent proposes CTA variant
+↓
+personalization_agent adapts hero
+↓
+revenue_agent forecasts impact
+↓
+founder_agent generates executive summary
+
+==================================================
+6. AI ROUTING
+==================================================
+
+DeepSeek hard-locked:
+- diagnostics
+- workflow reasoning
+- anomaly analysis
+- orchestration decisions
+
+OpenAI hard-locked:
+- founder summaries
+- executive synthesis
+- strategic recommendations
+
+NO silent fallback when providerOverride is set.
+
+==================================================
+7. ORCHESTRATOR API
+==================================================
+
+Protected routes:
+
+GET /api/admin/orchestrator/status
+GET /api/admin/orchestrator/workflows
+GET /api/admin/orchestrator/memory
+POST /api/admin/orchestrator/run
+POST /api/admin/orchestrator/workflows/:id/approve
+POST /api/admin/orchestrator/workflows/:id/reject
+
+All requireDashboardAuth.
+
+==================================================
+8. FOUNDER APPROVAL SYSTEM
+==================================================
+
+High-risk workflows must enter:
+pending_founder_approval
+
+Examples:
+- pricing recommendations
+- outbound campaigns
+- monetization changes
+- infrastructure-affecting workflows
+
+Approval actions:
+- approve
+- reject
+- defer
+
+==================================================
+9. FRONTEND COMMAND CENTER
+==================================================
+
+Create:
+client/src/pages/OrchestratorCenter.tsx
+
+Route:
+ /orchestrator
+
+Requirements:
+- PIN-gated
+- mobile responsive
+- premium Elevate360 UI
+- live workflow feed
+- agent activity timeline
+- workflow graph visualization
+- governance decision panels
+- memory explorer
+- founder approval queue
+- AI executive summary
+- orchestration telemetry
+- execution metrics
+- workflow success/failure charts
+
+Use:
+- React
+- Tailwind
+- shadcn/ui
+- recharts
+
+==================================================
+10. SECURITY
+==================================================
+
+- scrub secrets/PII before ALL LLM calls
+- constant-time auth checks
+- no raw prompts in logs
+- summary-only logging
+- execution locking
+- race-safe workflow state updates
+- DB transaction safety
+- safe empty states
+
+==================================================
+11. AUTOMATION
+==================================================
+
+Add scheduled orchestration loop:
+
+phase60_orchestrator_core
+
+Cadence:
+every 15 minutes
+
+Responsibilities:
+- evaluate operational signals
+- queue workflows
+- coordinate agents
+- escalate anomalies
+- generate founder summaries
+
+==================================================
+12. SMOKE TESTS
+==================================================
+
+Verify:
+- unauthenticated routes → 401
+- authenticated routes → 200
+- workflow queue works
+- governance blocks unsafe actions
+- approval queue works
+- DeepSeek hard-lock verified
+- OpenAI hard-lock verified
+- shared memory persists
+- multi-agent workflow executes
+- retry/cooldown logic works
+- npm run check passes
+- npm run build passes
+
+==================================================
+13. FINAL REPORT
+==================================================
+
+Provide:
+- files changed
+- DB tables added
+- routes added
+- registered agents
+- governance rules
+- workflow examples
+- provider routing map
+- smoke-test results
+- Render verification commands
+- commit message
+
+IMPORTANT
+==================================================
+
+This phase must establish:
+- safe autonomous coordination,
+- shared AI operational memory,
+- governed workflows,
+- founder-supervised execution.
+
+The system may:
+- analyze,
+- recommend,
+- coordinate,
+- orchestrate,
+- optimize.
+
+The system must NOT:
+- autonomously control money,
+- autonomously deploy infrastructure,
+- autonomously manipulate users,
+- autonomously send mass outbound communication,
+- autonomously change pricing,
+- autonomously expose secrets.

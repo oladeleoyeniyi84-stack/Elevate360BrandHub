@@ -49,6 +49,10 @@ import {
   revenueCommandReports, revenueAlerts,
   type RevenueCommandReport, type InsertRevenueCommandReport,
   type RevenueAlert, type InsertRevenueAlert,
+  orchestratorMemory, orchestratorWorkflows, orchestratorAgentRuns,
+  type OrchestratorMemory, type InsertOrchestratorMemory,
+  type OrchestratorWorkflow, type InsertOrchestratorWorkflow,
+  type OrchestratorAgentRun, type InsertOrchestratorAgentRun,
 } from "@shared/schema";
 import { db } from "./db";
 import { and, asc, count, desc, eq, gte, isNull, lte, ne, or, sql } from "drizzle-orm";
@@ -259,6 +263,20 @@ export interface IStorage {
   listRevenueAlerts(status?: string, limit?: number): Promise<RevenueAlert[]>;
   createRevenueAlert(input: InsertRevenueAlert): Promise<RevenueAlert | null>;
   acknowledgeRevenueAlert(id: number, ackedBy: string): Promise<RevenueAlert>;
+
+  // Phase 60 — Orchestrator
+  upsertOrchestratorMemory(input: InsertOrchestratorMemory): Promise<OrchestratorMemory>;
+  listOrchestratorMemory(scope?: string, limit?: number): Promise<OrchestratorMemory[]>;
+  createOrchestratorWorkflow(input: InsertOrchestratorWorkflow): Promise<OrchestratorWorkflow>;
+  getOrchestratorWorkflow(id: number): Promise<OrchestratorWorkflow | null>;
+  updateOrchestratorWorkflow(id: number, patch: Partial<OrchestratorWorkflow>): Promise<OrchestratorWorkflow>;
+  claimOrchestratorWorkflow(id: number, attemptCount: number): Promise<OrchestratorWorkflow | null>;
+  listOrchestratorWorkflows(status?: string, limit?: number): Promise<OrchestratorWorkflow[]>;
+  listQueuedOrchestratorWorkflows(limit?: number): Promise<OrchestratorWorkflow[]>;
+  findRecentCompletedWorkflow(workflowKey: string, withinMinutes: number): Promise<OrchestratorWorkflow | null>;
+  createOrchestratorAgentRun(input: InsertOrchestratorAgentRun): Promise<OrchestratorAgentRun>;
+  listOrchestratorAgentRuns(workflowId: number): Promise<OrchestratorAgentRun[]>;
+  getOrchestratorStats(): Promise<{ queued: number; running: number; pendingApproval: number; succeeded24h: number; failed24h: number; blocked24h: number }>;
 
   // Phase 49 — Revenue Recovery
   getRevenueRecoveryActions(limit?: number): Promise<RevenueRecoveryAction[]>;
@@ -1828,6 +1846,121 @@ export class DatabaseStorage implements IStorage {
     }).where(eq(revenueAlerts.id, id)).returning();
     if (!row) throw new Error("Alert not found");
     return row;
+  }
+
+  // ── Phase 60 — Orchestrator ─────────────────────────────────────────────────
+
+  async upsertOrchestratorMemory(input: InsertOrchestratorMemory): Promise<OrchestratorMemory> {
+    const [row] = await db.insert(orchestratorMemory)
+      .values(input as any)
+      .onConflictDoUpdate({
+        target: [orchestratorMemory.scope, orchestratorMemory.key],
+        set: { value: input.value as any, confidence: input.confidence as any, memoryType: input.memoryType as any, updatedAt: new Date() },
+      })
+      .returning();
+    return row;
+  }
+
+  async listOrchestratorMemory(scope?: string, limit = 200): Promise<OrchestratorMemory[]> {
+    const q = db.select().from(orchestratorMemory).orderBy(desc(orchestratorMemory.updatedAt)).limit(limit);
+    if (scope) return q.where(eq(orchestratorMemory.scope, scope));
+    return q;
+  }
+
+  async createOrchestratorWorkflow(input: InsertOrchestratorWorkflow): Promise<OrchestratorWorkflow> {
+    const [row] = await db.insert(orchestratorWorkflows).values(input as any).returning();
+    return row;
+  }
+
+  async getOrchestratorWorkflow(id: number): Promise<OrchestratorWorkflow | null> {
+    const [row] = await db.select().from(orchestratorWorkflows).where(eq(orchestratorWorkflows.id, id)).limit(1);
+    return row ?? null;
+  }
+
+  async updateOrchestratorWorkflow(id: number, patch: Partial<OrchestratorWorkflow>): Promise<OrchestratorWorkflow> {
+    const [row] = await db.update(orchestratorWorkflows).set(patch as any).where(eq(orchestratorWorkflows.id, id)).returning();
+    if (!row) throw new Error("Workflow not found");
+    return row;
+  }
+
+  /**
+   * Atomic claim: transition `queued|approved|retrying` → `running` for exactly one caller.
+   * Returns the claimed row, or null if another worker already claimed it (or the row
+   * is in a terminal/pending state). Prevents the lost-update race the in-process lock
+   * alone cannot defend against under future multi-node deploys.
+   */
+  async claimOrchestratorWorkflow(id: number, attemptCount: number): Promise<OrchestratorWorkflow | null> {
+    const [row] = await db.update(orchestratorWorkflows)
+      .set({ status: "running", startedAt: new Date(), attemptCount } as any)
+      .where(and(
+        eq(orchestratorWorkflows.id, id),
+        or(
+          eq(orchestratorWorkflows.status, "queued"),
+          eq(orchestratorWorkflows.status, "approved"),
+          eq(orchestratorWorkflows.status, "retrying"),
+        ),
+      ))
+      .returning();
+    return row ?? null;
+  }
+
+  async listOrchestratorWorkflows(status?: string, limit = 50): Promise<OrchestratorWorkflow[]> {
+    const q = db.select().from(orchestratorWorkflows).orderBy(desc(orchestratorWorkflows.createdAt)).limit(limit);
+    if (status) return q.where(eq(orchestratorWorkflows.status, status));
+    return q;
+  }
+
+  async listQueuedOrchestratorWorkflows(limit = 10): Promise<OrchestratorWorkflow[]> {
+    return db.select().from(orchestratorWorkflows)
+      .where(eq(orchestratorWorkflows.status, "queued"))
+      .orderBy(desc(orchestratorWorkflows.priority), asc(orchestratorWorkflows.createdAt))
+      .limit(limit);
+  }
+
+  async findRecentCompletedWorkflow(workflowKey: string, withinMinutes: number): Promise<OrchestratorWorkflow | null> {
+    const since = new Date(Date.now() - withinMinutes * 60_000);
+    const [row] = await db.select().from(orchestratorWorkflows)
+      .where(and(
+        eq(orchestratorWorkflows.workflowKey, workflowKey),
+        gte(orchestratorWorkflows.completedAt, since),
+      ))
+      .orderBy(desc(orchestratorWorkflows.completedAt))
+      .limit(1);
+    return row ?? null;
+  }
+
+  async createOrchestratorAgentRun(input: InsertOrchestratorAgentRun): Promise<OrchestratorAgentRun> {
+    const [row] = await db.insert(orchestratorAgentRuns).values(input as any).returning();
+    return row;
+  }
+
+  async listOrchestratorAgentRuns(workflowId: number): Promise<OrchestratorAgentRun[]> {
+    return db.select().from(orchestratorAgentRuns)
+      .where(eq(orchestratorAgentRuns.workflowId, workflowId))
+      .orderBy(asc(orchestratorAgentRuns.createdAt));
+  }
+
+  async getOrchestratorStats(): Promise<{ queued: number; running: number; pendingApproval: number; succeeded24h: number; failed24h: number; blocked24h: number }> {
+    const since = new Date(Date.now() - 24 * 3600_000);
+    const rows = await db.execute(sql`
+      SELECT
+        COUNT(*) FILTER (WHERE status = 'queued')::int AS queued,
+        COUNT(*) FILTER (WHERE status = 'running')::int AS running,
+        COUNT(*) FILTER (WHERE status = 'pending_founder_approval')::int AS pending_approval,
+        COUNT(*) FILTER (WHERE status = 'succeeded' AND completed_at >= ${since})::int AS succeeded24h,
+        COUNT(*) FILTER (WHERE status = 'failed' AND completed_at >= ${since})::int AS failed24h,
+        COUNT(*) FILTER (WHERE status = 'blocked' AND completed_at >= ${since})::int AS blocked24h
+      FROM orchestrator_workflows
+    `);
+    const r: any = (rows as any).rows?.[0] ?? (rows as any)[0] ?? {};
+    return {
+      queued: Number(r.queued) || 0,
+      running: Number(r.running) || 0,
+      pendingApproval: Number(r.pending_approval) || 0,
+      succeeded24h: Number(r.succeeded24h) || 0,
+      failed24h: Number(r.failed24h) || 0,
+      blocked24h: Number(r.blocked24h) || 0,
+    };
   }
 
   async getExperimentVariantStats(experimentId: number): Promise<Array<{ variantKey: string; assignments: number; conversions: number; revenueCents: number }>> {

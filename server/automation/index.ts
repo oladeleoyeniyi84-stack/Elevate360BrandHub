@@ -171,4 +171,24 @@ export async function startAutomationJobs() {
     420_000 // 7-minute boot offset — well after recovery engine
   );
   console.log("[automation] Phase 59 jobs registered (1 job)");
+
+  // ── Phase 60 — AI Orchestrator Core ───────────────────────────────────────
+  const { registerOrchestratorRegistry } = await import("../orchestrator/workflows");
+  const { tickOrchestrator, queueWorkflow } = await import("../orchestrator/core");
+  registerOrchestratorRegistry();
+  await registerRecurringJob(
+    {
+      jobKey: "phase60_orchestrator_core",
+      jobGroup: "orchestrator",
+      cadenceMinutes: 15,
+      run: async () => {
+        // Self-feed: queue a daily scan if nothing recent.
+        try { await queueWorkflow("daily_operational_scan"); } catch { /* cooldown */ }
+        const { summary } = await tickOrchestrator();
+        return { summary };
+      },
+    },
+    480_000 // 8-minute boot offset
+  );
+  console.log("[automation] Phase 60 jobs registered (1 job)");
 }

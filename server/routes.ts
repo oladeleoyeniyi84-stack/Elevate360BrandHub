@@ -1124,6 +1124,112 @@ export async function registerRoutes(
     return verifyScopedToken("pers:v1", subjectKey, token);
   }
 
+  // ─── Phase 60 — AI Orchestrator Core ───────────────────────────────────────
+  app.get("/api/admin/orchestrator/status", requireDashboardAuth, async (_req, res) => {
+    try {
+      const { listAgents, listWorkflowDefinitions } = await import("./orchestrator/core");
+      const { listHardBlocks, listApprovalGates } = await import("./orchestrator/governance");
+      const [stats, recent, agents, definitions] = await Promise.all([
+        storage.getOrchestratorStats(),
+        storage.listOrchestratorWorkflows(undefined, 25),
+        Promise.resolve(listAgents()),
+        Promise.resolve(listWorkflowDefinitions()),
+      ]);
+      res.json({
+        stats,
+        recentWorkflows: recent,
+        agents: agents.map(a => ({
+          key: a.key, description: a.description,
+          allowedCapabilities: a.allowedCapabilities, restrictedCapabilities: a.restrictedCapabilities,
+          providerPreference: a.providerPreference, cooldownMinutes: a.cooldownMinutes,
+          executionTimeoutMs: a.executionTimeoutMs, retryLimit: a.retryLimit,
+        })),
+        workflowDefinitions: definitions.map(d => ({
+          workflowKey: d.workflowKey, description: d.description,
+          defaultPriority: d.defaultPriority, cooldownMinutes: d.cooldownMinutes,
+          steps: d.steps,
+        })),
+        governance: { hardBlocks: listHardBlocks(), approvalGates: listApprovalGates() },
+      });
+    } catch (e: any) {
+      console.error("[orchestrator] status failed:", e?.message);
+      res.status(500).json({ message: "Could not load orchestrator status." });
+    }
+  });
+
+  app.get("/api/admin/orchestrator/workflows", requireDashboardAuth, async (req, res) => {
+    try {
+      const status = typeof req.query.status === "string" ? req.query.status.slice(0, 40) : undefined;
+      const list = await storage.listOrchestratorWorkflows(status, 100);
+      res.json(list);
+    } catch (e: any) {
+      res.status(500).json({ message: e?.message || "Failed." });
+    }
+  });
+
+  app.get("/api/admin/orchestrator/workflows/:id", requireDashboardAuth, async (req, res) => {
+    try {
+      const id = parseInt(String(req.params.id), 10);
+      if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ message: "Invalid id." });
+      const [wf, runs] = await Promise.all([
+        storage.getOrchestratorWorkflow(id),
+        storage.listOrchestratorAgentRuns(id),
+      ]);
+      if (!wf) return res.status(404).json({ message: "Not found." });
+      res.json({ workflow: wf, agentRuns: runs });
+    } catch (e: any) {
+      res.status(500).json({ message: e?.message || "Failed." });
+    }
+  });
+
+  app.get("/api/admin/orchestrator/memory", requireDashboardAuth, async (req, res) => {
+    try {
+      const scope = typeof req.query.scope === "string" ? req.query.scope.slice(0, 80) : undefined;
+      const rows = await storage.listOrchestratorMemory(scope);
+      res.json(rows);
+    } catch (e: any) {
+      res.status(500).json({ message: e?.message || "Failed." });
+    }
+  });
+
+  app.post("/api/admin/orchestrator/run", requireDashboardAuth, async (req, res) => {
+    try {
+      const workflowKey = String(req.body?.workflowKey || "").slice(0, 80);
+      if (!workflowKey) return res.status(400).json({ message: "workflowKey required." });
+      const { queueWorkflow, executeWorkflow } = await import("./orchestrator/core");
+      const wf = await queueWorkflow(workflowKey, { triggeredBy: "founder", priority: 90 });
+      const executed = await executeWorkflow(wf.id);
+      res.json({ ok: true, workflow: executed });
+    } catch (e: any) {
+      console.error("[orchestrator] run failed:", e?.message);
+      res.status(400).json({ ok: false, message: e?.message || "Run failed." });
+    }
+  });
+
+  app.post("/api/admin/orchestrator/workflows/:id/approve", requireDashboardAuth, async (req, res) => {
+    try {
+      const id = parseInt(String(req.params.id), 10);
+      if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ message: "Invalid id." });
+      const { decideWorkflow } = await import("./orchestrator/core");
+      const wf = await decideWorkflow(id, "approve", "founder");
+      res.json({ ok: true, workflow: wf });
+    } catch (e: any) {
+      res.status(400).json({ ok: false, message: e?.message || "Approve failed." });
+    }
+  });
+
+  app.post("/api/admin/orchestrator/workflows/:id/reject", requireDashboardAuth, async (req, res) => {
+    try {
+      const id = parseInt(String(req.params.id), 10);
+      if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ message: "Invalid id." });
+      const { decideWorkflow } = await import("./orchestrator/core");
+      const wf = await decideWorkflow(id, "reject", "founder");
+      res.json({ ok: true, workflow: wf });
+    } catch (e: any) {
+      res.status(400).json({ ok: false, message: e?.message || "Reject failed." });
+    }
+  });
+
   // ─── Phase 59 — AI Revenue Command Center ──────────────────────────────────
   app.get("/api/admin/revenue/overview", requireDashboardAuth, async (_req, res) => {
     try {
