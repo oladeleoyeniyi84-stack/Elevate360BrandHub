@@ -62,6 +62,16 @@ import {
   type GlobalHealthScore, type InsertGlobalHealthScore,
   type InsightStreamEntry, type InsertInsightStreamEntry,
   type WorkflowDependency, type InsertWorkflowDependency,
+  meshAgents, meshMissions, meshTasks, meshCommunications,
+  meshQueue, meshTopologySnapshots, meshWorkerMemory, meshAuditLogs,
+  type MeshAgent, type InsertMeshAgent,
+  type MeshMission, type InsertMeshMission,
+  type MeshTask, type InsertMeshTask,
+  type MeshCommunication, type InsertMeshCommunication,
+  type MeshQueueItem, type InsertMeshQueueItem,
+  type MeshTopologySnapshot, type InsertMeshTopologySnapshot,
+  type MeshWorkerMemory, type InsertMeshWorkerMemory,
+  type MeshAuditLog, type InsertMeshAuditLog,
 } from "@shared/schema";
 import { db } from "./db";
 import { and, asc, count, desc, eq, gte, isNull, lte, ne, or, sql } from "drizzle-orm";
@@ -304,6 +314,34 @@ export interface IStorage {
   listInsightStreamEntries(limit?: number): Promise<InsightStreamEntry[]>;
   createWorkflowDependency(input: InsertWorkflowDependency): Promise<WorkflowDependency | null>;
   listWorkflowDependencies(): Promise<WorkflowDependency[]>;
+
+  // Phase 62 — Autonomous Execution Mesh
+  upsertMeshAgent(input: InsertMeshAgent): Promise<MeshAgent>;
+  listMeshAgents(status?: string): Promise<MeshAgent[]>;
+  getMeshAgentByKey(agentKey: string): Promise<MeshAgent | null>;
+  heartbeatMeshAgent(agentKey: string, status?: string): Promise<void>;
+  recordMeshAgentRun(agentKey: string, success: boolean, latencyMs: number): Promise<void>;
+  createMeshMission(input: InsertMeshMission): Promise<MeshMission>;
+  listMeshMissions(status?: string, limit?: number): Promise<MeshMission[]>;
+  getMeshMission(id: number): Promise<MeshMission | null>;
+  updateMeshMission(id: number, patch: Partial<MeshMission>): Promise<MeshMission>;
+  claimMeshMission(id: number): Promise<MeshMission | null>;
+  createMeshTask(input: InsertMeshTask): Promise<MeshTask>;
+  listMeshTasks(missionId?: number, limit?: number): Promise<MeshTask[]>;
+  updateMeshTask(id: number, patch: Partial<MeshTask>): Promise<MeshTask>;
+  createMeshCommunication(input: InsertMeshCommunication): Promise<MeshCommunication>;
+  listMeshCommunications(limit?: number): Promise<MeshCommunication[]>;
+  enqueueMeshMission(input: InsertMeshQueueItem): Promise<MeshQueueItem | null>;
+  lockMeshQueueItem(workerId: string, ttlMs: number): Promise<MeshQueueItem | null>;
+  releaseMeshQueueItem(id: number, status: string): Promise<void>;
+  listMeshQueue(status?: string, limit?: number): Promise<MeshQueueItem[]>;
+  createMeshTopologySnapshot(input: InsertMeshTopologySnapshot): Promise<MeshTopologySnapshot>;
+  getLatestMeshTopologySnapshot(): Promise<MeshTopologySnapshot | null>;
+  writeMeshWorkerMemory(input: InsertMeshWorkerMemory): Promise<MeshWorkerMemory>;
+  readMeshWorkerMemory(agentKey: string, memoryScope?: string): Promise<MeshWorkerMemory[]>;
+  createMeshAuditLog(input: InsertMeshAuditLog): Promise<MeshAuditLog>;
+  listMeshAuditLogs(missionId?: number, limit?: number): Promise<MeshAuditLog[]>;
+  getMeshStats(): Promise<{ idleAgents: number; busyAgents: number; queuedMissions: number; runningMissions: number; failedMissions24h: number; completedMissions24h: number }>;
 
   // Phase 49 — Revenue Recovery
   getRevenueRecoveryActions(limit?: number): Promise<RevenueRecoveryAction[]>;
@@ -2079,6 +2117,190 @@ export class DatabaseStorage implements IStorage {
   }
   async listWorkflowDependencies(): Promise<WorkflowDependency[]> {
     return db.select().from(workflowDependencies).orderBy(desc(workflowDependencies.createdAt));
+  }
+
+  // ── Phase 62 — Autonomous Execution Mesh ───────────────────────────────────
+
+  async upsertMeshAgent(input: InsertMeshAgent): Promise<MeshAgent> {
+    const [row] = await db.insert(meshAgents).values(input as any)
+      .onConflictDoUpdate({
+        target: meshAgents.agentKey,
+        set: {
+          displayName: input.displayName,
+          specialization: input.specialization,
+          provider: input.provider,
+          maxConcurrency: input.maxConcurrency,
+          cooldownSeconds: input.cooldownSeconds,
+          capabilities: input.capabilities as any,
+          metadata: (input.metadata ?? {}) as any,
+        },
+      }).returning();
+    return row;
+  }
+  async listMeshAgents(status?: string): Promise<MeshAgent[]> {
+    const q = db.select().from(meshAgents).orderBy(asc(meshAgents.agentKey));
+    return status ? q.where(eq(meshAgents.status, status)) : q;
+  }
+  async getMeshAgentByKey(agentKey: string): Promise<MeshAgent | null> {
+    const [row] = await db.select().from(meshAgents).where(eq(meshAgents.agentKey, agentKey)).limit(1);
+    return row ?? null;
+  }
+  async heartbeatMeshAgent(agentKey: string, status?: string): Promise<void> {
+    const patch: any = { lastHeartbeatAt: new Date() };
+    if (status) patch.status = status;
+    await db.update(meshAgents).set(patch).where(eq(meshAgents.agentKey, agentKey));
+  }
+  async recordMeshAgentRun(agentKey: string, success: boolean, latencyMs: number): Promise<void> {
+    const agent = await this.getMeshAgentByKey(agentKey);
+    if (!agent) return;
+    const total = agent.totalRuns + 1;
+    const succ = agent.successfulRuns + (success ? 1 : 0);
+    const fail = agent.failedRuns + (success ? 0 : 1);
+    const avg = Math.round(((agent.averageLatencyMs * agent.totalRuns) + latencyMs) / Math.max(1, total));
+    await db.update(meshAgents)
+      .set({ totalRuns: total, successfulRuns: succ, failedRuns: fail, averageLatencyMs: avg, lastBusyAt: new Date(), status: "idle" })
+      .where(eq(meshAgents.agentKey, agentKey));
+  }
+  async createMeshMission(input: InsertMeshMission): Promise<MeshMission> {
+    const [row] = await db.insert(meshMissions).values(input as any).returning();
+    return row;
+  }
+  async listMeshMissions(status?: string, limit = 50): Promise<MeshMission[]> {
+    const q = db.select().from(meshMissions).orderBy(desc(meshMissions.createdAt)).limit(limit);
+    return status ? q.where(eq(meshMissions.status, status)) : q;
+  }
+  async getMeshMission(id: number): Promise<MeshMission | null> {
+    const [row] = await db.select().from(meshMissions).where(eq(meshMissions.id, id)).limit(1);
+    return row ?? null;
+  }
+  async updateMeshMission(id: number, patch: Partial<MeshMission>): Promise<MeshMission> {
+    const [row] = await db.update(meshMissions).set(patch as any).where(eq(meshMissions.id, id)).returning();
+    if (!row) throw new Error("Mission not found");
+    return row;
+  }
+  /** Atomic claim: queued|assigned → running. Returns null if already claimed. */
+  async claimMeshMission(id: number): Promise<MeshMission | null> {
+    const [row] = await db.update(meshMissions)
+      .set({ status: "running", startedAt: new Date() } as any)
+      .where(and(eq(meshMissions.id, id), or(eq(meshMissions.status, "queued"), eq(meshMissions.status, "assigned"), eq(meshMissions.status, "retrying"))))
+      .returning();
+    return row ?? null;
+  }
+  async createMeshTask(input: InsertMeshTask): Promise<MeshTask> {
+    const [row] = await db.insert(meshTasks).values(input as any).returning();
+    return row;
+  }
+  async listMeshTasks(missionId?: number, limit = 200): Promise<MeshTask[]> {
+    const q = db.select().from(meshTasks).orderBy(asc(meshTasks.executionOrder)).limit(limit);
+    return missionId ? q.where(eq(meshTasks.missionId, missionId)) : q;
+  }
+  async updateMeshTask(id: number, patch: Partial<MeshTask>): Promise<MeshTask> {
+    const [row] = await db.update(meshTasks).set(patch as any).where(eq(meshTasks.id, id)).returning();
+    if (!row) throw new Error("Task not found");
+    return row;
+  }
+  async createMeshCommunication(input: InsertMeshCommunication): Promise<MeshCommunication> {
+    const [row] = await db.insert(meshCommunications).values(input as any).returning();
+    return row;
+  }
+  async listMeshCommunications(limit = 50): Promise<MeshCommunication[]> {
+    return db.select().from(meshCommunications).orderBy(desc(meshCommunications.createdAt)).limit(limit);
+  }
+  async enqueueMeshMission(input: InsertMeshQueueItem): Promise<MeshQueueItem | null> {
+    try {
+      const [row] = await db.insert(meshQueue).values(input as any).onConflictDoNothing().returning();
+      return row ?? null;
+    } catch (e: any) {
+      console.warn("[storage] enqueueMeshMission failed:", e?.message);
+      return null;
+    }
+  }
+  /**
+   * Atomic queue lock. Returns the next available queue entry (queued, or
+   * a locked entry whose lock has expired) and atomically marks it as
+   * locked by `workerId`. Concurrent workers cannot grab the same row.
+   */
+  async lockMeshQueueItem(workerId: string, ttlMs: number): Promise<MeshQueueItem | null> {
+    const expiresAt = new Date(Date.now() + ttlMs);
+    const result: any = await db.execute(sql`
+      UPDATE mesh_queue SET status = 'locked', locked_by = ${workerId}, lock_expires_at = ${expiresAt}
+      WHERE id = (
+        SELECT id FROM mesh_queue
+        WHERE (status = 'queued' AND scheduled_for <= NOW())
+           OR (status = 'locked' AND lock_expires_at < NOW())
+        ORDER BY priority DESC, scheduled_for ASC
+        LIMIT 1 FOR UPDATE SKIP LOCKED
+      )
+      RETURNING id, queue_name, mission_id, priority, scheduled_for, locked_by, lock_expires_at, status, created_at
+    `);
+    const rows = result?.rows ?? result ?? [];
+    const list: any[] = Array.isArray(rows) ? rows : [];
+    const r = list[0];
+    if (!r) return null;
+    return {
+      id: r.id, queueName: r.queue_name, missionId: r.mission_id, priority: r.priority,
+      scheduledFor: r.scheduled_for, lockedBy: r.locked_by, lockExpiresAt: r.lock_expires_at,
+      status: r.status, createdAt: r.created_at,
+    } as MeshQueueItem;
+  }
+  async releaseMeshQueueItem(id: number, status: string): Promise<void> {
+    await db.update(meshQueue).set({ status, lockedBy: null, lockExpiresAt: null } as any).where(eq(meshQueue.id, id));
+  }
+  async listMeshQueue(status?: string, limit = 50): Promise<MeshQueueItem[]> {
+    const q = db.select().from(meshQueue).orderBy(desc(meshQueue.priority), asc(meshQueue.scheduledFor)).limit(limit);
+    return status ? q.where(eq(meshQueue.status, status)) : q;
+  }
+  async createMeshTopologySnapshot(input: InsertMeshTopologySnapshot): Promise<MeshTopologySnapshot> {
+    const [row] = await db.insert(meshTopologySnapshots).values(input as any).returning();
+    return row;
+  }
+  async getLatestMeshTopologySnapshot(): Promise<MeshTopologySnapshot | null> {
+    const [row] = await db.select().from(meshTopologySnapshots).orderBy(desc(meshTopologySnapshots.createdAt)).limit(1);
+    return row ?? null;
+  }
+  async writeMeshWorkerMemory(input: InsertMeshWorkerMemory): Promise<MeshWorkerMemory> {
+    const [row] = await db.insert(meshWorkerMemory).values(input as any)
+      .onConflictDoUpdate({
+        target: [meshWorkerMemory.agentKey, meshWorkerMemory.memoryScope, meshWorkerMemory.memoryKey],
+        set: { memoryValue: input.memoryValue as any, confidence: input.confidence ?? 50, createdAt: new Date() },
+      }).returning();
+    return row;
+  }
+  async readMeshWorkerMemory(agentKey: string, memoryScope?: string): Promise<MeshWorkerMemory[]> {
+    const conds = [eq(meshWorkerMemory.agentKey, agentKey)];
+    if (memoryScope) conds.push(eq(meshWorkerMemory.memoryScope, memoryScope));
+    return db.select().from(meshWorkerMemory).where(and(...conds)).orderBy(desc(meshWorkerMemory.createdAt)).limit(100);
+  }
+  async createMeshAuditLog(input: InsertMeshAuditLog): Promise<MeshAuditLog> {
+    const [row] = await db.insert(meshAuditLogs).values(input as any).returning();
+    return row;
+  }
+  async listMeshAuditLogs(missionId?: number, limit = 100): Promise<MeshAuditLog[]> {
+    const q = db.select().from(meshAuditLogs).orderBy(desc(meshAuditLogs.createdAt)).limit(limit);
+    return missionId ? q.where(eq(meshAuditLogs.missionId, missionId)) : q;
+  }
+  async getMeshStats(): Promise<{ idleAgents: number; busyAgents: number; queuedMissions: number; runningMissions: number; failedMissions24h: number; completedMissions24h: number }> {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const result: any = await db.execute(sql`
+      SELECT
+        (SELECT COUNT(*) FROM mesh_agents WHERE status = 'idle') AS idle_agents,
+        (SELECT COUNT(*) FROM mesh_agents WHERE status = 'busy') AS busy_agents,
+        (SELECT COUNT(*) FROM mesh_missions WHERE status = 'queued') AS queued_missions,
+        (SELECT COUNT(*) FROM mesh_missions WHERE status = 'running') AS running_missions,
+        (SELECT COUNT(*) FROM mesh_missions WHERE status = 'failed' AND created_at >= ${since}) AS failed_24h,
+        (SELECT COUNT(*) FROM mesh_missions WHERE status = 'completed' AND created_at >= ${since}) AS completed_24h
+    `);
+    const rows = result?.rows ?? result ?? [];
+    const row = Array.isArray(rows) ? rows[0] : rows;
+    if (!row) return { idleAgents: 0, busyAgents: 0, queuedMissions: 0, runningMissions: 0, failedMissions24h: 0, completedMissions24h: 0 };
+    return {
+      idleAgents: Number(row.idle_agents) || 0,
+      busyAgents: Number(row.busy_agents) || 0,
+      queuedMissions: Number(row.queued_missions) || 0,
+      runningMissions: Number(row.running_missions) || 0,
+      failedMissions24h: Number(row.failed_24h) || 0,
+      completedMissions24h: Number(row.completed_24h) || 0,
+    };
   }
 
   async getExperimentVariantStats(experimentId: number): Promise<Array<{ variantKey: string; assignments: number; conversions: number; revenueCents: number }>> {

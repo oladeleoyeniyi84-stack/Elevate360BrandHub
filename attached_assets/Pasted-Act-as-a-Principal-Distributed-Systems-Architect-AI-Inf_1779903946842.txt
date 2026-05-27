@@ -1,0 +1,434 @@
+Act as a Principal Distributed Systems Architect, AI Infrastructure Engineer, and Autonomous Systems Engineer.
+
+Build Phase 62 — Elevate360 Autonomous Execution Mesh.
+
+Mission:
+Transform the Elevate360 AI Operating System from:
+“centralized orchestration”
+into:
+“distributed autonomous AI workforce infrastructure.”
+
+Current live systems:
+- Phase 53 QA Sentinel
+- Phase 54 Recovery Engine
+- Phase 55 Ops Center
+- Phase 56 Growth Engine
+- Phase 57 Experiment Orchestrator
+- Phase 58 Personalization Engine
+- Phase 59 Revenue Command Center
+- Phase 60 AI Orchestrator Core
+- Phase 61 Neural Command Grid
+
+Phase 62 introduces:
+- distributed AI worker mesh
+- persistent execution agents
+- autonomous mission routing
+- inter-agent communication
+- workload balancing
+- execution topology
+- mission queues
+- adaptive execution scheduling
+- AI department simulation
+- execution telemetry
+- autonomous worker memory
+- execution graph visualization
+
+This must remain:
+- founder-supervised
+- recommendation-safe
+- governance-aware
+- non-destructive
+- enterprise-grade
+
+==================================================
+1. DATABASE TABLES
+==================================================
+
+Add:
+
+execution_agents
+- id
+- agent_key UNIQUE
+- display_name
+- specialization
+- provider
+- status
+- max_concurrency
+- cooldown_seconds
+- total_runs
+- successful_runs
+- failed_runs
+- average_latency_ms
+- last_heartbeat_at
+- metadata jsonb
+- created_at
+
+execution_missions
+- id
+- mission_key UNIQUE
+- title
+- objective
+- priority
+- status
+- assigned_agent_id FK
+- parent_mission_id nullable FK
+- workflow_origin
+- execution_plan jsonb
+- mission_context jsonb
+- result_summary
+- confidence
+- started_at
+- completed_at
+- created_at
+
+execution_tasks
+- id
+- mission_id FK
+- task_key
+- capability
+- assigned_agent_id FK
+- execution_order
+- status
+- execution_input jsonb
+- execution_output jsonb
+- started_at
+- completed_at
+- created_at
+
+agent_communications
+- id
+- from_agent_id FK
+- to_agent_id FK nullable
+- communication_type
+- payload jsonb
+- status
+- created_at
+
+execution_queue
+- id
+- queue_name
+- mission_id FK
+- priority
+- scheduled_for
+- locked_by
+- lock_expires_at
+- status
+- created_at
+
+execution_topology_snapshots
+- id
+- active_agents
+- running_missions
+- queued_missions
+- failed_missions
+- mesh_health_score
+- topology jsonb
+- created_at
+
+worker_memory_entries
+- id
+- agent_key
+- memory_scope
+- memory_key
+- memory_value jsonb
+- confidence
+- created_at
+
+mission_audit_logs
+- id
+- mission_id FK
+- event_type
+- summary
+- metadata jsonb
+- created_at
+
+Indexes:
+- status indexes
+- priority indexes
+- created_at desc
+- queue scheduling indexes
+- UNIQUE queue locks where needed
+
+==================================================
+2. BACKEND MODULES
+==================================================
+
+Create:
+
+server/mesh/agentRegistry.ts
+- registerExecutionAgent()
+- heartbeatAgent()
+- listAgents()
+- selectBestAgent()
+- concurrency-aware balancing
+- cooldown enforcement
+
+server/mesh/missionPlanner.ts
+- createMission()
+- splitMissionIntoTasks()
+- assignMissionPriority()
+- buildExecutionPlan()
+- support parent/child missions
+
+server/mesh/taskRouter.ts
+- assignTasksToAgents()
+- capability matching
+- workload balancing
+- fallback routing
+- queue insertion
+
+server/mesh/workerRuntime.ts
+- executeTask()
+- executeMission()
+- enforce governance
+- enforce providerOverride
+- summary-only logs
+- task retries
+- failure isolation
+- cooldown handling
+
+server/mesh/communicationBus.ts
+- sendAgentMessage()
+- broadcastSignal()
+- persist communications
+- structured payload validation
+
+server/mesh/topologyEngine.ts
+- buildTopologySnapshot()
+- calculateMeshHealth()
+- execution graph generation
+- active worker map
+
+server/mesh/memoryEngine.ts
+- writeWorkerMemory()
+- readWorkerMemory()
+- scoped memory retrieval
+- recommendation-only memory
+
+server/mesh/missionEngine.ts
+- orchestrateMissionLifecycle()
+- queue → assigned → running → completed
+- retrying
+- failed
+- cancelled
+- dependency handling
+
+==================================================
+3. AGENTS
+==================================================
+
+Register distributed worker agents:
+
+growth_worker
+revenue_worker
+experiment_worker
+personalization_worker
+reliability_worker
+content_worker
+executive_worker
+strategy_worker
+automation_worker
+
+Each agent must include:
+- specialization
+- capabilities
+- provider routing
+- concurrency limits
+- cooldowns
+- telemetry
+
+==================================================
+4. GOVERNANCE
+==================================================
+
+ALL Phase 60 governance rules remain active.
+
+Hard-block forever:
+- Stripe mutations
+- refunds
+- payments
+- emails
+- infrastructure deploys
+- DB destructive operations
+- secrets
+- outbound network execution
+- autonomous pricing changes
+
+Execution Mesh may:
+- coordinate
+- analyze
+- recommend
+- schedule
+- queue
+- synthesize
+- prioritize
+- retry safe tasks
+
+Execution Mesh may NOT:
+- autonomously execute business-critical mutations
+
+Founder approval required for:
+- high-risk workflows
+- pricing
+- high-traffic experiments
+- outbound publication
+- infrastructure tuning
+
+==================================================
+5. AI PROVIDER ROUTING
+==================================================
+
+DeepSeek hard-locked:
+- diagnostics
+- execution analysis
+- task routing intelligence
+- mission planning
+- workload balancing
+- operational reasoning
+
+OpenAI hard-locked:
+- executive synthesis
+- founder summaries
+- strategic reporting
+
+No silent provider fallback when override is set.
+
+==================================================
+6. ADMIN ROUTES
+==================================================
+
+Add:
+
+GET /api/admin/mesh/overview
+GET /api/admin/mesh/agents
+GET /api/admin/mesh/missions
+GET /api/admin/mesh/missions/:id
+GET /api/admin/mesh/tasks
+GET /api/admin/mesh/topology
+GET /api/admin/mesh/communications
+POST /api/admin/mesh/missions
+POST /api/admin/mesh/missions/:id/cancel
+POST /api/admin/mesh/run
+
+All requireDashboardAuth.
+
+==================================================
+7. FRONTEND
+==================================================
+
+Create:
+
+client/src/pages/ExecutionMesh.tsx
+
+Route:
+ /mesh
+
+Requirements:
+- premium Elevate360 AI command aesthetic
+- dark/navy/gold
+- mobile responsive
+- real-time AI operations center
+
+Tabs:
+- Overview
+- Agents
+- Missions
+- Tasks
+- Communications
+- Topology
+- Memory
+
+Features:
+- live worker topology graph
+- active mission queue
+- workload distribution
+- agent status grid
+- execution telemetry
+- mesh health score
+- mission timeline
+- AI executive summary
+- communications feed
+- dependency graph
+
+Use:
+- recharts
+- framer-motion
+- shadcn/ui
+- lucide-react
+- Tailwind
+
+Register route in App.tsx.
+
+==================================================
+8. AUTOMATION
+==================================================
+
+Register:
+
+phase62_execution_mesh_tick
+Cadence:
+every 5 minutes
+
+Responsibilities:
+- process queue
+- heartbeat workers
+- rebalance tasks
+- retry safe failures
+- build topology snapshots
+- update telemetry
+
+==================================================
+9. SECURITY
+==================================================
+
+- scrub all secrets before LLM calls
+- no raw provider errors
+- no secrets in logs
+- no uncontrolled retries
+- queue lock expiration
+- race-safe mission claims
+- task isolation
+- constant-time auth
+- recommendation-only autonomy
+- safe empty states
+
+==================================================
+10. SMOKE TESTS
+==================================================
+
+Verify:
+- all routes 401 unauth
+- authed routes 200
+- mission creation works
+- tasks assigned correctly
+- concurrency balancing works
+- cooldown enforcement works
+- queue locking prevents double execution
+- retry flow works
+- topology snapshots persist
+- communications persist
+- provider hard-locks verified
+- governance hard-blocks verified
+- build passes
+- typecheck passes
+
+==================================================
+11. FINAL REPORT
+==================================================
+
+Provide:
+- files changed
+- tables added
+- agents registered
+- routes added
+- automation jobs
+- governance map
+- provider routing map
+- smoke-test results
+- Render verification commands
+- commit message
+
+Important:
+This phase creates the distributed AI workforce layer of Elevate360.
+Maintain founder governance and recommendation-only execution.
+No autonomous money, deployment, pricing, refund, or destructive actions.

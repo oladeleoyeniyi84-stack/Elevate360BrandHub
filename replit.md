@@ -107,7 +107,23 @@ Full-stack brand portfolio for **Elevate360Official** — mobile apps (Bondedlov
 - Art Studio image: `@assets/Elevate360Art_Studio_Presentation_1772460961759.png`
 - `@assets` Vite alias → `attached_assets/` (NOT `client/src/assets/`)
 
-## Phase 61 — Neural Command Grid (current)
+## Phase 62 — Autonomous Execution Mesh (current)
+- Distributed AI worker layer over Phase 60/61. 9 worker agents registered on boot, recommendation-only.
+- 8 tables (all `mesh_` prefixed to avoid collision with Phase 49 `execution_queue`): `mesh_agents` (unique agent_key), `mesh_missions` (unique mission_key), `mesh_tasks`, `mesh_communications`, `mesh_queue` (partial unique on mission_id WHERE status IN queued/locked), `mesh_topology_snapshots`, `mesh_worker_memory` (unique agent_key+scope+key), `mesh_audit_logs`.
+- 8 modules under `server/mesh/`: `agentRegistry.ts` (seedDefaultAgents + selectBestAgent w/ cooldown), `missionPlanner.ts` (createMission + decomposition), `taskRouter.ts` (capability-matched assignment), `workerRuntime.ts` (per-task governance + providerOverride LLM call + scrub + retry), `communicationBus.ts` (typed inter-agent messages), `topologyEngine.ts` (mesh health + graph snapshot), `memoryEngine.ts` (scoped upsert), `missionEngine.ts` (lifecycle orchestrator + `runMeshTick`).
+- 9 agents: growth_worker, revenue_worker, experiment_worker, personalization_worker, reliability_worker, content_worker, executive_worker (OpenAI), strategy_worker (OpenAI), automation_worker. Each with capabilities, max concurrency, cooldown.
+- 10 PIN-gated routes: `GET /api/admin/mesh/{overview,agents,missions,missions/:id,tasks,topology,communications}`, `POST /api/admin/mesh/{missions,missions/:id/cancel,run}`.
+- Job: `phase62_execution_mesh_tick` every 5 min (boot offset 10 min) — heartbeats agents, drains queue via atomic `FOR UPDATE SKIP LOCKED`, executes missions, snapshots topology.
+- Dashboard: `/mesh` — 7 tabs (Overview / Agents / Missions / Tasks / Communications / Topology / Memory).
+- **Race-safe**: `lockMeshQueueItem` (SQL `FOR UPDATE SKIP LOCKED`) + `claimMeshMission` (atomic queued|assigned|retrying→running) prevent double-dispatch. Locks auto-expire via `lock_expires_at`.
+- **Cancellation is authoritative**: `executeMission` re-checks mission status before each task and `setFinalMissionStatus` refuses to overwrite a `cancelled` mission.
+- **Retry lifecycle**: failed task with attempts remaining → task `queued`, mission `retrying`, queue re-enqueued with 1-min backoff (unique index dedups).
+- **Queue terminal status mirrors mission outcome**: `completed` / `failed` / `blocked` / `pending_approval` / `cancelled` / `retrying`.
+- **Recommendation-only**: every task passes Phase 60 `evaluateActionSafety` before any LLM call. Hard-blocks (Stripe, refunds, pricing, email, deploy, secrets) never reach a provider. No worker mutates money / infra / email / secrets.
+- Provider hard-locks: DeepSeek (diagnostics/planning/operational reasoning) and OpenAI (executive synthesis) — `providerOverride` disables fallback in `modelRouter`.
+- Scrub regex (keys/bearer/email/hex/phone) reused on LLM inbound + outbound + audit summaries.
+
+## Phase 61 — Neural Command Grid
 - Central nervous system unifying Phase 53-60 engines into a single real-time grid
 - 7 tables: `neural_signals` (partial-unique open dedup), `command_bus_events`, `cognitive_state_snapshots`, `executive_escalations` (partial-unique open dedup by title), `global_health_scores`, `insight_stream_entries`, `workflow_dependencies` (unique pair)
 - 6 modules under `server/neural/`: `commandBus.ts` (ingest + scrub + normalize + dedup + bus event), `healthEngine.ts` (7 category scores), `cognitiveState.ts` (weighted composite + persisted snapshot), `escalationEngine.ts` (high/critical → recommendation-only escalation), `insightEngine.ts` (DeepSeek diagnostic + OpenAI executive, both hard-locked), `commandGrid.ts` (aggregator + `runNeuralScan`)

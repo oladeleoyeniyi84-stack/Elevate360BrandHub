@@ -15,6 +15,7 @@ import PersonalizationConsole from "@/pages/PersonalizationConsole";
 import RevenueCommandCenter from "@/pages/RevenueCommandCenter";
 import OrchestratorCenter from "@/pages/OrchestratorCenter";
 import CommandGrid from "@/pages/CommandGrid";
+import ExecutionMesh from "@/pages/ExecutionMesh";
 import Links from "@/pages/Links";
 import Blog from "@/pages/Blog";
 import BlogPost from "@/pages/BlogPost";
@@ -111,6 +112,17 @@ function Router() {
             path="/personalization"
           />
           <PersonalizationConsole />
+        </>
+      </Route>
+
+      <Route path="/mesh">
+        <>
+          <SEO
+            title="Execution Mesh | Elevate360Official"
+            description="Distributed AI workforce for Elevate360Official."
+            path="/mesh"
+          />
+          <ExecutionMesh />
         </>
       </Route>
 

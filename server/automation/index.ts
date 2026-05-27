@@ -207,4 +207,22 @@ export async function startAutomationJobs() {
     540_000 // 9-minute boot offset (after orchestrator)
   );
   console.log("[automation] Phase 61 jobs registered (1 job)");
+
+  // ── Phase 62 — Autonomous Execution Mesh ──────────────────────────────────
+  const { runMeshTick } = await import("../mesh/missionEngine");
+  const { seedDefaultAgents } = await import("../mesh/agentRegistry");
+  await seedDefaultAgents().catch(e => console.warn("[mesh] initial seed failed:", e?.message));
+  await registerRecurringJob(
+    {
+      jobKey: "phase62_execution_mesh_tick",
+      jobGroup: "mesh",
+      cadenceMinutes: 5,
+      run: async () => {
+        const r = await runMeshTick();
+        return { summary: `processed=${r.processed} health=${r.topologyHealth} agents=${r.agents} pending=${r.pending}` };
+      },
+    },
+    600_000 // 10-minute boot offset (after neural grid)
+  );
+  console.log("[automation] Phase 62 jobs registered (1 job)");
 }

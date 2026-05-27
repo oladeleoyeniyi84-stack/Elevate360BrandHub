@@ -62,6 +62,18 @@ const AGENT_CAPABILITY_ALLOWLIST: Record<string, string[]> = {
   personalization_agent: ["analyze.segments", "propose.personalization", "evaluate.personalization"],
   content_agent:         ["analyze.content", "propose.content"],
   founder_agent:         ["synthesize.executive", "summarize.workflow"],
+  // ── Phase 62 — Execution Mesh workers ──────────────────────────────────────
+  // Distributed worker agents. All operate in recommendation-only mode; risky
+  // capabilities (pricing, outbound, infra) still hit the approval gate.
+  growth_worker:         ["analyze.growth", "analyze.funnel", "recommend.growth", "propose.experiment"],
+  revenue_worker:        ["analyze.revenue", "analyze.forecast", "recommend.revenue", "propose.pricing"],
+  experiment_worker:     ["propose.experiment", "evaluate.experiment", "rollback.experiment"],
+  personalization_worker:["analyze.segments", "propose.personalization", "evaluate.personalization"],
+  reliability_worker:    ["analyze.health", "analyze.errors", "recommend.recovery"],
+  content_worker:        ["analyze.content", "propose.content"],
+  executive_worker:      ["synthesize.executive", "summarize.workflow", "summarize.mission"],
+  strategy_worker:       ["analyze.strategy", "recommend.strategy", "summarize.workflow"],
+  automation_worker:     ["analyze.automation", "recommend.recovery", "summarize.workflow"],
 };
 
 function matchesToken(capability: string, tokens: string[]): string | null {

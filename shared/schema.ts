@@ -872,6 +872,154 @@ export const insertWorkflowDependencySchema = createInsertSchema(workflowDepende
 export type InsertWorkflowDependency = z.infer<typeof insertWorkflowDependencySchema>;
 export type WorkflowDependency = typeof workflowDependencies.$inferSelect;
 
+// ────────────────────────────────────────────────────────────────────────────
+// Phase 62 — Autonomous Execution Mesh
+// Distributed AI worker layer. Tables are prefixed `mesh_` to avoid collision
+// with Phase 49's `execution_queue`. Recommendation-only by contract — every
+// mission/task flows through Phase 60 governance before any side effect.
+// ────────────────────────────────────────────────────────────────────────────
+
+export const meshAgents = pgTable("mesh_agents", {
+  id: serial("id").primaryKey(),
+  agentKey: varchar("agent_key", { length: 60 }).notNull().unique(),
+  displayName: varchar("display_name", { length: 120 }).notNull(),
+  specialization: varchar("specialization", { length: 80 }).notNull(),
+  provider: varchar("provider", { length: 20 }).notNull().default("deepseek"),
+  status: varchar("status", { length: 20 }).notNull().default("idle"),
+  maxConcurrency: integer("max_concurrency").notNull().default(1),
+  cooldownSeconds: integer("cooldown_seconds").notNull().default(60),
+  capabilities: text("capabilities").array().notNull().default(sql`'{}'::text[]`),
+  totalRuns: integer("total_runs").notNull().default(0),
+  successfulRuns: integer("successful_runs").notNull().default(0),
+  failedRuns: integer("failed_runs").notNull().default(0),
+  averageLatencyMs: integer("average_latency_ms").notNull().default(0),
+  lastHeartbeatAt: timestamp("last_heartbeat_at"),
+  lastBusyAt: timestamp("last_busy_at"),
+  metadata: jsonb("metadata").notNull().default({}),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({ statusIdx: index("mesh_agents_status_idx").on(t.status) }));
+export const insertMeshAgentSchema = createInsertSchema(meshAgents).omit({ id: true, createdAt: true, totalRuns: true, successfulRuns: true, failedRuns: true, averageLatencyMs: true, lastHeartbeatAt: true, lastBusyAt: true });
+export type InsertMeshAgent = z.infer<typeof insertMeshAgentSchema>;
+export type MeshAgent = typeof meshAgents.$inferSelect;
+
+export const meshMissions = pgTable("mesh_missions", {
+  id: serial("id").primaryKey(),
+  missionKey: varchar("mission_key", { length: 120 }).notNull().unique(),
+  title: varchar("title", { length: 200 }).notNull(),
+  objective: text("objective").notNull().default(""),
+  priority: integer("priority").notNull().default(50),
+  status: varchar("status", { length: 20 }).notNull().default("queued"),
+  assignedAgentId: integer("assigned_agent_id").references(() => meshAgents.id, { onDelete: "set null" }),
+  parentMissionId: integer("parent_mission_id"),
+  workflowOrigin: varchar("workflow_origin", { length: 80 }),
+  executionPlan: jsonb("execution_plan").notNull().default({}),
+  missionContext: jsonb("mission_context").notNull().default({}),
+  resultSummary: text("result_summary").notNull().default(""),
+  confidence: integer("confidence").notNull().default(50),
+  attemptCount: integer("attempt_count").notNull().default(0),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({ statusIdx: index("mesh_missions_status_idx").on(t.status, t.priority, t.createdAt) }));
+export const insertMeshMissionSchema = createInsertSchema(meshMissions).omit({ id: true, createdAt: true, startedAt: true, completedAt: true, attemptCount: true });
+export type InsertMeshMission = z.infer<typeof insertMeshMissionSchema>;
+export type MeshMission = typeof meshMissions.$inferSelect;
+
+export const meshTasks = pgTable("mesh_tasks", {
+  id: serial("id").primaryKey(),
+  missionId: integer("mission_id").notNull().references(() => meshMissions.id, { onDelete: "cascade" }),
+  taskKey: varchar("task_key", { length: 80 }).notNull(),
+  capability: varchar("capability", { length: 80 }).notNull(),
+  assignedAgentId: integer("assigned_agent_id").references(() => meshAgents.id, { onDelete: "set null" }),
+  executionOrder: integer("execution_order").notNull().default(0),
+  status: varchar("status", { length: 20 }).notNull().default("queued"),
+  executionInput: jsonb("execution_input").notNull().default({}),
+  executionOutput: jsonb("execution_output").notNull().default({}),
+  attemptCount: integer("attempt_count").notNull().default(0),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  missionIdx: index("mesh_tasks_mission_idx").on(t.missionId, t.executionOrder),
+  statusIdx: index("mesh_tasks_status_idx").on(t.status, t.createdAt),
+}));
+export const insertMeshTaskSchema = createInsertSchema(meshTasks).omit({ id: true, createdAt: true, startedAt: true, completedAt: true, attemptCount: true });
+export type InsertMeshTask = z.infer<typeof insertMeshTaskSchema>;
+export type MeshTask = typeof meshTasks.$inferSelect;
+
+export const meshCommunications = pgTable("mesh_communications", {
+  id: serial("id").primaryKey(),
+  fromAgentId: integer("from_agent_id").references(() => meshAgents.id, { onDelete: "set null" }),
+  toAgentId: integer("to_agent_id").references(() => meshAgents.id, { onDelete: "set null" }),
+  communicationType: varchar("communication_type", { length: 40 }).notNull(),
+  payload: jsonb("payload").notNull().default({}),
+  status: varchar("status", { length: 20 }).notNull().default("sent"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({ createdIdx: index("mesh_communications_created_idx").on(t.createdAt) }));
+export const insertMeshCommunicationSchema = createInsertSchema(meshCommunications).omit({ id: true, createdAt: true });
+export type InsertMeshCommunication = z.infer<typeof insertMeshCommunicationSchema>;
+export type MeshCommunication = typeof meshCommunications.$inferSelect;
+
+export const meshQueue = pgTable("mesh_queue", {
+  id: serial("id").primaryKey(),
+  queueName: varchar("queue_name", { length: 60 }).notNull().default("default"),
+  missionId: integer("mission_id").notNull().references(() => meshMissions.id, { onDelete: "cascade" }),
+  priority: integer("priority").notNull().default(50),
+  scheduledFor: timestamp("scheduled_for").defaultNow().notNull(),
+  lockedBy: varchar("locked_by", { length: 80 }),
+  lockExpiresAt: timestamp("lock_expires_at"),
+  status: varchar("status", { length: 20 }).notNull().default("queued"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  activeMissionIdx: uniqueIndex("mesh_queue_active_mission_idx").on(t.missionId).where(sql`status IN ('queued','locked')`),
+  dispatchIdx: index("mesh_queue_dispatch_idx").on(t.status, t.scheduledFor, t.priority),
+}));
+export const insertMeshQueueSchema = createInsertSchema(meshQueue).omit({ id: true, createdAt: true, lockedBy: true, lockExpiresAt: true });
+export type InsertMeshQueueItem = z.infer<typeof insertMeshQueueSchema>;
+export type MeshQueueItem = typeof meshQueue.$inferSelect;
+
+export const meshTopologySnapshots = pgTable("mesh_topology_snapshots", {
+  id: serial("id").primaryKey(),
+  activeAgents: integer("active_agents").notNull().default(0),
+  runningMissions: integer("running_missions").notNull().default(0),
+  queuedMissions: integer("queued_missions").notNull().default(0),
+  failedMissions: integer("failed_missions").notNull().default(0),
+  meshHealthScore: integer("mesh_health_score").notNull().default(0),
+  topology: jsonb("topology").notNull().default({}),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({ createdIdx: index("mesh_topology_created_idx").on(t.createdAt) }));
+export const insertMeshTopologySnapshotSchema = createInsertSchema(meshTopologySnapshots).omit({ id: true, createdAt: true });
+export type InsertMeshTopologySnapshot = z.infer<typeof insertMeshTopologySnapshotSchema>;
+export type MeshTopologySnapshot = typeof meshTopologySnapshots.$inferSelect;
+
+export const meshWorkerMemory = pgTable("mesh_worker_memory", {
+  id: serial("id").primaryKey(),
+  agentKey: varchar("agent_key", { length: 60 }).notNull(),
+  memoryScope: varchar("memory_scope", { length: 60 }).notNull(),
+  memoryKey: varchar("memory_key", { length: 120 }).notNull(),
+  memoryValue: jsonb("memory_value").notNull().default({}),
+  confidence: integer("confidence").notNull().default(50),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  agentScopeKey: uniqueIndex("mesh_worker_memory_unique").on(t.agentKey, t.memoryScope, t.memoryKey),
+  agentIdx: index("mesh_worker_memory_agent_idx").on(t.agentKey, t.memoryScope),
+}));
+export const insertMeshWorkerMemorySchema = createInsertSchema(meshWorkerMemory).omit({ id: true, createdAt: true });
+export type InsertMeshWorkerMemory = z.infer<typeof insertMeshWorkerMemorySchema>;
+export type MeshWorkerMemory = typeof meshWorkerMemory.$inferSelect;
+
+export const meshAuditLogs = pgTable("mesh_audit_logs", {
+  id: serial("id").primaryKey(),
+  missionId: integer("mission_id").references(() => meshMissions.id, { onDelete: "cascade" }),
+  eventType: varchar("event_type", { length: 60 }).notNull(),
+  summary: text("summary").notNull().default(""),
+  metadata: jsonb("metadata").notNull().default({}),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({ missionIdx: index("mesh_audit_mission_idx").on(t.missionId, t.createdAt) }));
+export const insertMeshAuditLogSchema = createInsertSchema(meshAuditLogs).omit({ id: true, createdAt: true });
+export type InsertMeshAuditLog = z.infer<typeof insertMeshAuditLogSchema>;
+export type MeshAuditLog = typeof meshAuditLogs.$inferSelect;
+
 export type ExperimentVariant = {
   key: string;
   name: string;

@@ -1124,6 +1124,113 @@ export async function registerRoutes(
     return verifyScopedToken("pers:v1", subjectKey, token);
   }
 
+  // ─── Phase 62 — Autonomous Execution Mesh ──────────────────────────────────
+  app.get("/api/admin/mesh/overview", requireDashboardAuth, async (_req, res) => {
+    try {
+      const [stats, agents, missions, comms, snap, queue] = await Promise.all([
+        storage.getMeshStats(),
+        storage.listMeshAgents(),
+        storage.listMeshMissions(undefined, 20),
+        storage.listMeshCommunications(20),
+        storage.getLatestMeshTopologySnapshot(),
+        storage.listMeshQueue(undefined, 30),
+      ]);
+      res.json({ stats, agents, missions, communications: comms, topology: snap, queue,
+        providers: { openai: Boolean(process.env.OPENAI_API_KEY), deepseek: Boolean(process.env.DEEPSEEK_API_KEY) },
+        generatedAt: new Date().toISOString(),
+      });
+    } catch (e: any) {
+      console.error("[mesh] overview failed:", e?.message);
+      res.status(500).json({ message: "Could not load mesh." });
+    }
+  });
+
+  app.get("/api/admin/mesh/agents", requireDashboardAuth, async (req, res) => {
+    try {
+      const status = typeof req.query.status === "string" ? req.query.status.slice(0, 20) : undefined;
+      res.json(await storage.listMeshAgents(status));
+    } catch (e: any) { res.status(500).json({ message: e?.message || "Failed." }); }
+  });
+
+  app.get("/api/admin/mesh/missions", requireDashboardAuth, async (req, res) => {
+    try {
+      const status = typeof req.query.status === "string" ? req.query.status.slice(0, 20) : undefined;
+      res.json(await storage.listMeshMissions(status, 100));
+    } catch (e: any) { res.status(500).json({ message: e?.message || "Failed." }); }
+  });
+
+  app.get("/api/admin/mesh/missions/:id", requireDashboardAuth, async (req, res) => {
+    try {
+      const id = parseInt(String(req.params.id), 10);
+      if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ message: "Invalid id." });
+      const mission = await storage.getMeshMission(id);
+      if (!mission) return res.status(404).json({ message: "Mission not found." });
+      const [tasks, audit] = await Promise.all([
+        storage.listMeshTasks(id),
+        storage.listMeshAuditLogs(id, 50),
+      ]);
+      res.json({ mission, tasks, audit });
+    } catch (e: any) { res.status(500).json({ message: e?.message || "Failed." }); }
+  });
+
+  app.get("/api/admin/mesh/tasks", requireDashboardAuth, async (req, res) => {
+    try {
+      const missionId = req.query.missionId ? parseInt(String(req.query.missionId), 10) : undefined;
+      res.json(await storage.listMeshTasks(missionId, 200));
+    } catch (e: any) { res.status(500).json({ message: e?.message || "Failed." }); }
+  });
+
+  app.get("/api/admin/mesh/topology", requireDashboardAuth, async (_req, res) => {
+    try {
+      let snap = await storage.getLatestMeshTopologySnapshot();
+      if (!snap) {
+        const { buildTopologySnapshot } = await import("./mesh/topologyEngine");
+        snap = await buildTopologySnapshot();
+      }
+      res.json(snap);
+    } catch (e: any) { res.status(500).json({ message: e?.message || "Failed." }); }
+  });
+
+  app.get("/api/admin/mesh/communications", requireDashboardAuth, async (_req, res) => {
+    try { res.json(await storage.listMeshCommunications(100)); }
+    catch (e: any) { res.status(500).json({ message: e?.message || "Failed." }); }
+  });
+
+  app.post("/api/admin/mesh/missions", requireDashboardAuth, async (req, res) => {
+    try {
+      const { orchestrateMissionLifecycle } = await import("./mesh/missionEngine");
+      const r = await orchestrateMissionLifecycle({
+        title: String(req.body?.title || "Manual mission").slice(0, 200),
+        objective: String(req.body?.objective || "").slice(0, 4000),
+        workflowOrigin: String(req.body?.workflowOrigin || "manual").slice(0, 80),
+        priority: typeof req.body?.priority === "number" ? req.body.priority : undefined,
+        capabilities: Array.isArray(req.body?.capabilities) ? req.body.capabilities.slice(0, 12).map((c: any) => String(c).slice(0, 80)) : undefined,
+        missionContext: req.body?.missionContext && typeof req.body.missionContext === "object" ? req.body.missionContext : {},
+      });
+      res.json({ ok: true, ...r });
+    } catch (e: any) { res.status(400).json({ ok: false, message: e?.message || "Failed." }); }
+  });
+
+  app.post("/api/admin/mesh/missions/:id/cancel", requireDashboardAuth, async (req, res) => {
+    try {
+      const id = parseInt(String(req.params.id), 10);
+      if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ message: "Invalid id." });
+      const { cancelMission } = await import("./mesh/missionEngine");
+      res.json({ ok: true, mission: await cancelMission(id) });
+    } catch (e: any) { res.status(400).json({ ok: false, message: e?.message || "Failed." }); }
+  });
+
+  app.post("/api/admin/mesh/run", requireDashboardAuth, async (_req, res) => {
+    try {
+      const { runMeshTick } = await import("./mesh/missionEngine");
+      const r = await runMeshTick();
+      res.json({ ok: true, ...r });
+    } catch (e: any) {
+      console.error("[mesh] tick failed:", e?.message);
+      res.status(500).json({ ok: false, message: e?.message || "Tick failed." });
+    }
+  });
+
   // ─── Phase 61 — Neural Command Grid ────────────────────────────────────────
   app.get("/api/admin/command-grid/overview", requireDashboardAuth, async (_req, res) => {
     try {
