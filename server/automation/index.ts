@@ -191,4 +191,20 @@ export async function startAutomationJobs() {
     480_000 // 8-minute boot offset
   );
   console.log("[automation] Phase 60 jobs registered (1 job)");
+
+  // ── Phase 61 — Neural Command Grid (combined job for stability) ───────────
+  const { runNeuralScan } = await import("../neural/commandGrid");
+  await registerRecurringJob(
+    {
+      jobKey: "phase61_neural_command_grid",
+      jobGroup: "neural",
+      cadenceMinutes: 15,
+      run: async () => {
+        const r = await runNeuralScan();
+        return { summary: r.summary };
+      },
+    },
+    540_000 // 9-minute boot offset (after orchestrator)
+  );
+  console.log("[automation] Phase 61 jobs registered (1 job)");
 }

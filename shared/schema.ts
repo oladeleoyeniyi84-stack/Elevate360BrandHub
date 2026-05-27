@@ -757,6 +757,121 @@ export const insertOrchestratorAgentRunSchema = createInsertSchema(orchestratorA
 export type InsertOrchestratorAgentRun = z.infer<typeof insertOrchestratorAgentRunSchema>;
 export type OrchestratorAgentRun = typeof orchestratorAgentRuns.$inferSelect;
 
+// Phase 61 — Neural Command Grid
+export const neuralSignals = pgTable("neural_signals", {
+  id: serial("id").primaryKey(),
+  signalType: varchar("signal_type", { length: 60 }).notNull(),
+  source: varchar("source", { length: 60 }).notNull(),
+  severity: varchar("severity", { length: 20 }).notNull().default("info"),
+  confidence: integer("confidence").notNull().default(50),
+  summary: text("summary").notNull().default(""),
+  metadata: jsonb("metadata").notNull().default({}),
+  status: varchar("status", { length: 20 }).notNull().default("open"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  createdIdx: index("neural_signals_created_idx").on(t.createdAt),
+  sevStatusIdx: index("neural_signals_sev_status_idx").on(t.severity, t.status, t.createdAt),
+  sourceIdx: index("neural_signals_source_idx").on(t.source, t.createdAt),
+  openDedup: uniqueIndex("neural_signals_open_dedup_idx").on(t.source, t.signalType)
+    .where(sql`status = 'open' AND severity IN ('high','critical')`),
+}));
+export const insertNeuralSignalSchema = createInsertSchema(neuralSignals).omit({ id: true, createdAt: true });
+export type InsertNeuralSignal = z.infer<typeof insertNeuralSignalSchema>;
+export type NeuralSignal = typeof neuralSignals.$inferSelect;
+
+export const commandBusEvents = pgTable("command_bus_events", {
+  id: serial("id").primaryKey(),
+  eventType: varchar("event_type", { length: 60 }).notNull(),
+  source: varchar("source", { length: 60 }).notNull(),
+  priority: integer("priority").notNull().default(50),
+  payload: jsonb("payload").notNull().default({}),
+  processedAt: timestamp("processed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({ createdIdx: index("command_bus_events_created_idx").on(t.createdAt) }));
+export const insertCommandBusEventSchema = createInsertSchema(commandBusEvents).omit({ id: true, createdAt: true });
+export type InsertCommandBusEvent = z.infer<typeof insertCommandBusEventSchema>;
+export type CommandBusEvent = typeof commandBusEvents.$inferSelect;
+
+export const cognitiveStateSnapshots = pgTable("cognitive_state_snapshots", {
+  id: serial("id").primaryKey(),
+  globalStatus: varchar("global_status", { length: 20 }).notNull().default("unknown"),
+  healthScore: integer("health_score").notNull().default(0),
+  infrastructureScore: integer("infrastructure_score").notNull().default(0),
+  aiScore: integer("ai_score").notNull().default(0),
+  revenueScore: integer("revenue_score").notNull().default(0),
+  growthScore: integer("growth_score").notNull().default(0),
+  orchestrationScore: integer("orchestration_score").notNull().default(0),
+  personalizationScore: integer("personalization_score").notNull().default(0),
+  experimentScore: integer("experiment_score").notNull().default(0),
+  summary: text("summary").notNull().default(""),
+  rawState: jsonb("raw_state").notNull().default({}),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({ createdIdx: index("cognitive_state_snapshots_created_idx").on(t.createdAt) }));
+export const insertCognitiveStateSnapshotSchema = createInsertSchema(cognitiveStateSnapshots).omit({ id: true, createdAt: true });
+export type InsertCognitiveStateSnapshot = z.infer<typeof insertCognitiveStateSnapshotSchema>;
+export type CognitiveStateSnapshot = typeof cognitiveStateSnapshots.$inferSelect;
+
+export const executiveEscalations = pgTable("executive_escalations", {
+  id: serial("id").primaryKey(),
+  severity: varchar("severity", { length: 20 }).notNull().default("high"),
+  title: varchar("title", { length: 200 }).notNull(),
+  description: text("description").notNull().default(""),
+  recommendation: text("recommendation").notNull().default(""),
+  sourceSignalId: integer("source_signal_id").references(() => neuralSignals.id, { onDelete: "set null" }),
+  status: varchar("status", { length: 20 }).notNull().default("open"),
+  requiresFounderAction: boolean("requires_founder_action").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  resolvedAt: timestamp("resolved_at"),
+  resolvedBy: varchar("resolved_by", { length: 80 }),
+}, (t) => ({
+  statusIdx: index("executive_escalations_status_idx").on(t.status, t.severity, t.createdAt),
+  openDedup: uniqueIndex("executive_escalations_open_dedup_idx").on(t.title).where(sql`status = 'open'`),
+}));
+export const insertExecutiveEscalationSchema = createInsertSchema(executiveEscalations).omit({ id: true, createdAt: true, resolvedAt: true });
+export type InsertExecutiveEscalation = z.infer<typeof insertExecutiveEscalationSchema>;
+export type ExecutiveEscalation = typeof executiveEscalations.$inferSelect;
+
+export const globalHealthScores = pgTable("global_health_scores", {
+  id: serial("id").primaryKey(),
+  category: varchar("category", { length: 40 }).notNull(),
+  score: integer("score").notNull().default(0),
+  trend: varchar("trend", { length: 20 }).notNull().default("flat"),
+  explanation: text("explanation").notNull().default(""),
+  metadata: jsonb("metadata").notNull().default({}),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({ catIdx: index("global_health_scores_cat_idx").on(t.category, t.createdAt) }));
+export const insertGlobalHealthScoreSchema = createInsertSchema(globalHealthScores).omit({ id: true, createdAt: true });
+export type InsertGlobalHealthScore = z.infer<typeof insertGlobalHealthScoreSchema>;
+export type GlobalHealthScore = typeof globalHealthScores.$inferSelect;
+
+export const insightStreamEntries = pgTable("insight_stream_entries", {
+  id: serial("id").primaryKey(),
+  insightType: varchar("insight_type", { length: 40 }).notNull(),
+  title: varchar("title", { length: 200 }).notNull(),
+  body: text("body").notNull().default(""),
+  source: varchar("source", { length: 60 }).notNull().default("neural"),
+  confidence: integer("confidence").notNull().default(50),
+  providerMetadata: jsonb("provider_metadata").notNull().default({}),
+  status: varchar("status", { length: 20 }).notNull().default("new"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({ createdIdx: index("insight_stream_entries_created_idx").on(t.createdAt) }));
+export const insertInsightStreamEntrySchema = createInsertSchema(insightStreamEntries).omit({ id: true, createdAt: true });
+export type InsertInsightStreamEntry = z.infer<typeof insertInsightStreamEntrySchema>;
+export type InsightStreamEntry = typeof insightStreamEntries.$inferSelect;
+
+export const workflowDependencies = pgTable("workflow_dependencies", {
+  id: serial("id").primaryKey(),
+  parentWorkflowKey: varchar("parent_workflow_key", { length: 80 }).notNull(),
+  childWorkflowKey: varchar("child_workflow_key", { length: 80 }).notNull(),
+  dependencyType: varchar("dependency_type", { length: 40 }).notNull().default("sequence"),
+  status: varchar("status", { length: 20 }).notNull().default("active"),
+  metadata: jsonb("metadata").notNull().default({}),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({ pairIdx: uniqueIndex("workflow_dependencies_pair_idx").on(t.parentWorkflowKey, t.childWorkflowKey, t.dependencyType) }));
+export const insertWorkflowDependencySchema = createInsertSchema(workflowDependencies).omit({ id: true, createdAt: true });
+export type InsertWorkflowDependency = z.infer<typeof insertWorkflowDependencySchema>;
+export type WorkflowDependency = typeof workflowDependencies.$inferSelect;
+
 export type ExperimentVariant = {
   key: string;
   name: string;

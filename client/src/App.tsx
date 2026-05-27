@@ -14,6 +14,7 @@ import ExperimentLab from "@/pages/ExperimentLab";
 import PersonalizationConsole from "@/pages/PersonalizationConsole";
 import RevenueCommandCenter from "@/pages/RevenueCommandCenter";
 import OrchestratorCenter from "@/pages/OrchestratorCenter";
+import CommandGrid from "@/pages/CommandGrid";
 import Links from "@/pages/Links";
 import Blog from "@/pages/Blog";
 import BlogPost from "@/pages/BlogPost";
@@ -110,6 +111,17 @@ function Router() {
             path="/personalization"
           />
           <PersonalizationConsole />
+        </>
+      </Route>
+
+      <Route path="/command-grid">
+        <>
+          <SEO
+            title="Neural Command Grid | Elevate360Official"
+            description="Real-time AI nervous system for Elevate360Official."
+            path="/command-grid"
+          />
+          <CommandGrid />
         </>
       </Route>
 

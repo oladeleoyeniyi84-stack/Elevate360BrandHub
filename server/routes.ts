@@ -1124,6 +1124,86 @@ export async function registerRoutes(
     return verifyScopedToken("pers:v1", subjectKey, token);
   }
 
+  // ─── Phase 61 — Neural Command Grid ────────────────────────────────────────
+  app.get("/api/admin/command-grid/overview", requireDashboardAuth, async (_req, res) => {
+    try {
+      const { getCommandGridOverview } = await import("./neural/commandGrid");
+      res.json(await getCommandGridOverview());
+    } catch (e: any) {
+      console.error("[commandGrid] overview failed:", e?.message);
+      res.status(500).json({ message: "Could not load command grid." });
+    }
+  });
+
+  app.get("/api/admin/command-grid/signals", requireDashboardAuth, async (req, res) => {
+    try {
+      const severity = typeof req.query.severity === "string" ? req.query.severity.slice(0, 20) : undefined;
+      const status = typeof req.query.status === "string" ? req.query.status.slice(0, 20) : undefined;
+      const limit = Math.min(200, parseInt(String(req.query.limit || "100"), 10) || 100);
+      res.json(await storage.listNeuralSignals({ severity, status, limit }));
+    } catch (e: any) { res.status(500).json({ message: e?.message || "Failed." }); }
+  });
+
+  app.post("/api/admin/command-grid/signals", requireDashboardAuth, async (req, res) => {
+    try {
+      const { ingestSignal } = await import("./neural/commandBus");
+      const sig = await ingestSignal({
+        signalType: String(req.body?.signalType || "").slice(0, 60),
+        source: String(req.body?.source || "manual").slice(0, 60),
+        severity: req.body?.severity,
+        confidence: Number(req.body?.confidence ?? 60),
+        summary: String(req.body?.summary || "").slice(0, 600),
+        metadata: req.body?.metadata && typeof req.body.metadata === "object" ? req.body.metadata : {},
+      });
+      if (!sig) return res.status(409).json({ ok: false, message: "Duplicate open high/critical signal." });
+      res.json({ ok: true, signal: sig });
+    } catch (e: any) { res.status(400).json({ ok: false, message: e?.message || "Failed." }); }
+  });
+
+  app.get("/api/admin/command-grid/escalations", requireDashboardAuth, async (req, res) => {
+    try {
+      const status = typeof req.query.status === "string" ? req.query.status.slice(0, 20) : undefined;
+      res.json(await storage.listExecutiveEscalations(status, 100));
+    } catch (e: any) { res.status(500).json({ message: e?.message || "Failed." }); }
+  });
+
+  app.post("/api/admin/command-grid/escalations/:id/resolve", requireDashboardAuth, async (req, res) => {
+    try {
+      const id = parseInt(String(req.params.id), 10);
+      if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ message: "Invalid id." });
+      const row = await storage.resolveExecutiveEscalation(id, "founder");
+      res.json({ ok: true, escalation: row });
+    } catch (e: any) { res.status(400).json({ ok: false, message: e?.message || "Failed." }); }
+  });
+
+  app.get("/api/admin/command-grid/health", requireDashboardAuth, async (_req, res) => {
+    try {
+      let rows = await storage.listLatestGlobalHealthScores();
+      if (rows.length === 0) {
+        const { computeCategoryHealth } = await import("./neural/healthEngine");
+        await computeCategoryHealth();
+        rows = await storage.listLatestGlobalHealthScores();
+      }
+      res.json(rows);
+    } catch (e: any) { res.status(500).json({ message: e?.message || "Failed." }); }
+  });
+
+  app.get("/api/admin/command-grid/insights", requireDashboardAuth, async (_req, res) => {
+    try { res.json(await storage.listInsightStreamEntries(50)); }
+    catch (e: any) { res.status(500).json({ message: e?.message || "Failed." }); }
+  });
+
+  app.post("/api/admin/command-grid/run", requireDashboardAuth, async (_req, res) => {
+    try {
+      const { runNeuralScan } = await import("./neural/commandGrid");
+      const r = await runNeuralScan();
+      res.json({ ok: true, ...r });
+    } catch (e: any) {
+      console.error("[commandGrid] run failed:", e?.message);
+      res.status(500).json({ ok: false, message: e?.message || "Scan failed." });
+    }
+  });
+
   // ─── Phase 60 — AI Orchestrator Core ───────────────────────────────────────
   app.get("/api/admin/orchestrator/status", requireDashboardAuth, async (_req, res) => {
     try {

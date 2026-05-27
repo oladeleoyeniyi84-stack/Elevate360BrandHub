@@ -1,0 +1,347 @@
+Act as a Principal AI Systems Architect and Senior Production Software Engineer.
+
+Build Phase 61 — Elevate360 Neural Command Grid.
+
+Goal:
+Create the central nervous system for the Elevate360 AI Operating System.
+
+Current live systems:
+- Phase 53 QA Sentinel
+- Phase 54 Autonomous Recovery Engine
+- Phase 55 Founder Ops Center
+- Phase 56 AI Growth Engine
+- Phase 57 AI Experiment Orchestrator
+- Phase 58 Autonomous Personalization Engine
+- Phase 59 AI Revenue Command Center
+- Phase 60 AI Orchestrator Core
+
+Mission:
+Unify all AI systems into a real-time Neural Command Grid that monitors, prioritizes, escalates, visualizes, and synthesizes intelligence across the entire Elevate360 ecosystem.
+
+==================================================
+1. DATABASE TABLES
+==================================================
+
+Add these tables:
+
+neural_signals
+- id
+- signal_type
+- source
+- severity
+- confidence
+- summary
+- metadata jsonb
+- status
+- created_at
+
+command_bus_events
+- id
+- event_type
+- source
+- priority
+- payload jsonb
+- processed_at
+- created_at
+
+cognitive_state_snapshots
+- id
+- global_status
+- health_score
+- infrastructure_score
+- ai_score
+- revenue_score
+- growth_score
+- orchestration_score
+- personalization_score
+- experiment_score
+- summary
+- raw_state jsonb
+- created_at
+
+executive_escalations
+- id
+- severity
+- title
+- description
+- recommendation
+- source_signal_id
+- status
+- requires_founder_action
+- created_at
+- resolved_at
+- resolved_by
+
+global_health_scores
+- id
+- category
+- score
+- trend
+- explanation
+- metadata jsonb
+- created_at
+
+insight_stream_entries
+- id
+- insight_type
+- title
+- body
+- source
+- confidence
+- provider_metadata jsonb
+- status
+- created_at
+
+workflow_dependencies
+- id
+- parent_workflow_key
+- child_workflow_key
+- dependency_type
+- status
+- metadata jsonb
+- created_at
+
+Add useful indexes:
+- created_at desc indexes
+- severity/status indexes
+- source indexes
+- unique constraint where needed to avoid duplicate open escalations
+
+==================================================
+2. BACKEND MODULES
+==================================================
+
+Create:
+
+server/neural/commandBus.ts
+- ingestSignal()
+- listSignals()
+- createCommandBusEvent()
+- prioritizeSignal()
+- normalizeSeverity()
+- dedupe open high/critical signals
+- summary-only logging
+
+server/neural/cognitiveState.ts
+- buildCognitiveStateSnapshot()
+- read health from QA Sentinel, Recovery, Revenue, Growth, Experiments, Personalization, Orchestrator
+- compute global health score 0-100
+- persist snapshot
+- safe empty states
+
+server/neural/escalationEngine.ts
+- evaluateEscalations()
+- create escalation records for critical/high signals
+- require founder action for critical/high-risk items
+- dedupe open escalations
+- no autonomous risky execution
+
+server/neural/healthEngine.ts
+- compute category health scores
+- infrastructure health
+- AI health
+- revenue health
+- growth health
+- orchestration health
+- personalization health
+- experiment health
+- persist global_health_scores
+
+server/neural/insightEngine.ts
+- generateInsightStream()
+- DeepSeek hard-locked for diagnostics and signal interpretation
+- OpenAI hard-locked for executive synthesis if needed
+- scrub all free text before LLM calls
+- persist insights
+
+server/neural/commandGrid.ts
+- aggregate everything for dashboard:
+  - latest cognitive state
+  - signals
+  - escalations
+  - health scores
+  - insights
+  - workflow matrix
+  - orchestrator status
+  - provider status
+
+==================================================
+3. AI PROVIDER ROUTING
+==================================================
+
+DeepSeek hard-locked:
+- diagnostics
+- signal interpretation
+- anomaly analysis
+- health explanation
+- insight generation
+
+OpenAI hard-locked:
+- executive synthesis
+- founder-facing summaries
+- strategic explanations
+
+No silent fallback when providerOverride is used.
+
+==================================================
+4. GOVERNANCE
+==================================================
+
+The Neural Command Grid may:
+- monitor
+- analyze
+- prioritize
+- escalate
+- recommend
+- summarize
+- generate insight
+- request founder approval
+
+It must NOT:
+- change prices
+- execute Stripe actions
+- refund users
+- send emails
+- deploy infrastructure
+- delete data
+- expose secrets
+- bypass Phase 60 governance
+
+All escalations should be recommendation-only unless explicitly approved by founder.
+
+==================================================
+5. ADMIN ROUTES
+==================================================
+
+Add protected routes:
+
+GET /api/admin/command-grid/overview
+GET /api/admin/command-grid/signals
+POST /api/admin/command-grid/signals
+GET /api/admin/command-grid/escalations
+POST /api/admin/command-grid/escalations/:id/resolve
+GET /api/admin/command-grid/health
+GET /api/admin/command-grid/insights
+POST /api/admin/command-grid/run
+
+All requireDashboardAuth.
+
+Expected empty states:
+- overview returns safe empty dashboard if no signals exist
+- signals returns []
+- escalations returns []
+- insights returns []
+- health returns latest or generated fallback
+
+==================================================
+6. FRONTEND
+==================================================
+
+Create:
+
+client/src/pages/CommandGrid.tsx
+
+Route:
+ /command-grid
+
+UI requirements:
+- PIN-gated
+- mobile responsive
+- premium Elevate360 dark/navy/gold aesthetic
+- real-time command center feel
+- global cognitive health score
+- category health cards
+- live signal stream
+- executive escalation queue
+- insight stream
+- workflow matrix
+- provider health panel
+- AI executive summary panel
+- “Run Neural Scan” button
+- “Resolve Escalation” action
+- tabs:
+  - Overview
+  - Signals
+  - Escalations
+  - Health
+  - Insights
+  - Workflow Matrix
+
+Use:
+- Tailwind
+- shadcn/ui
+- recharts
+- lucide-react
+- framer-motion if already available
+
+Register route in client/src/App.tsx.
+
+==================================================
+7. SCHEDULED AUTOMATION
+==================================================
+
+Register jobs:
+
+phase61_signal_harvester every 5 min
+phase61_health_engine every 15 min
+phase61_escalation_engine every 15 min
+phase61_insight_engine every 30 min
+phase61_state_snapshot every 60 min
+
+If this is too many jobs for current architecture, implement one combined:
+phase61_neural_command_grid every 15 min
+
+Preferred: combined job first for stability.
+
+==================================================
+8. SECURITY
+==================================================
+
+- scrub secrets, API keys, emails, bearer tokens, dashboard PINs, long hex strings before LLM calls
+- no raw provider errors in frontend
+- no secrets in logs
+- summary-only logs:
+  [commandGrid] status=healthy signals=3 escalations=1 health=87
+- constant-time auth reused
+- safe empty states
+- no destructive DB operations
+- no autonomous financial actions
+
+==================================================
+9. SMOKE TESTS
+==================================================
+
+Verify:
+- unauthenticated routes return 401
+- authenticated overview returns 200
+- run neural scan returns 200
+- signal ingestion works
+- high/critical signals create escalation
+- duplicate open escalations dedupe
+- health snapshot persists
+- insight generation works
+- DeepSeek hard-lock verified
+- OpenAI hard-lock verified if executive synthesis is used
+- frontend /command-grid renders
+- npm run check passes
+- npm run build passes
+
+==================================================
+10. FINAL REPORT
+==================================================
+
+Provide:
+- files changed
+- tables added
+- routes added
+- jobs registered
+- AI provider routing map
+- governance rules
+- smoke-test results
+- Render verification commands
+- commit message
+
+Important:
+This phase creates the central nervous system of Elevate360.
+Keep it recommendation-only and founder-supervised.
+No autonomous money, deployment, email, secret, or destructive actions.

@@ -107,7 +107,17 @@ Full-stack brand portfolio for **Elevate360Official** — mobile apps (Bondedlov
 - Art Studio image: `@assets/Elevate360Art_Studio_Presentation_1772460961759.png`
 - `@assets` Vite alias → `attached_assets/` (NOT `client/src/assets/`)
 
-## Phase 60 — AI Orchestrator Core (current)
+## Phase 61 — Neural Command Grid (current)
+- Central nervous system unifying Phase 53-60 engines into a single real-time grid
+- 7 tables: `neural_signals` (partial-unique open dedup), `command_bus_events`, `cognitive_state_snapshots`, `executive_escalations` (partial-unique open dedup by title), `global_health_scores`, `insight_stream_entries`, `workflow_dependencies` (unique pair)
+- 6 modules under `server/neural/`: `commandBus.ts` (ingest + scrub + normalize + dedup + bus event), `healthEngine.ts` (7 category scores), `cognitiveState.ts` (weighted composite + persisted snapshot), `escalationEngine.ts` (high/critical → recommendation-only escalation), `insightEngine.ts` (DeepSeek diagnostic + OpenAI executive, both hard-locked), `commandGrid.ts` (aggregator + `runNeuralScan`)
+- 7 admin routes (PIN-gated): `GET /api/admin/command-grid/{overview,signals,escalations,health,insights}`, `POST /signals`, `POST /escalations/:id/resolve`, `POST /run`
+- Job: `phase61_neural_command_grid` every 15min (boot offset 9min) — combined for stability
+- Dashboard: `/command-grid` — 6 tabs (Overview / Signals / Escalations / Health / Insights / Workflow Matrix), radial cognitive score, category bar chart
+- **Recommendation-only**: never mutates money, infrastructure, email, secrets; respects Phase 60 governance
+- Provider hard-locks: DeepSeek diagnostics (`providerOverride:"deepseek"`), OpenAI executive (`providerOverride:"openai"`), no silent fallback
+
+## Phase 60 — AI Orchestrator Core
 - Coordination layer over Phase 53-59 engines: agent registry, shared memory, workflow queue, governance chokepoint, founder approval gate
 - 7 agents: revenue/growth/experiment/personalization/reliability/content/founder
 - 4 workflows: `daily_operational_scan`, `traffic_drop_detected`, `pricing_opportunity_review` (approval-gated), `content_cadence_scan`

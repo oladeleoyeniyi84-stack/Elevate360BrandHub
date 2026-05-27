@@ -53,6 +53,15 @@ import {
   type OrchestratorMemory, type InsertOrchestratorMemory,
   type OrchestratorWorkflow, type InsertOrchestratorWorkflow,
   type OrchestratorAgentRun, type InsertOrchestratorAgentRun,
+  neuralSignals, commandBusEvents, cognitiveStateSnapshots, executiveEscalations,
+  globalHealthScores, insightStreamEntries, workflowDependencies,
+  type NeuralSignal, type InsertNeuralSignal,
+  type CommandBusEvent, type InsertCommandBusEvent,
+  type CognitiveStateSnapshot, type InsertCognitiveStateSnapshot,
+  type ExecutiveEscalation, type InsertExecutiveEscalation,
+  type GlobalHealthScore, type InsertGlobalHealthScore,
+  type InsightStreamEntry, type InsertInsightStreamEntry,
+  type WorkflowDependency, type InsertWorkflowDependency,
 } from "@shared/schema";
 import { db } from "./db";
 import { and, asc, count, desc, eq, gte, isNull, lte, ne, or, sql } from "drizzle-orm";
@@ -277,6 +286,24 @@ export interface IStorage {
   createOrchestratorAgentRun(input: InsertOrchestratorAgentRun): Promise<OrchestratorAgentRun>;
   listOrchestratorAgentRuns(workflowId: number): Promise<OrchestratorAgentRun[]>;
   getOrchestratorStats(): Promise<{ queued: number; running: number; pendingApproval: number; succeeded24h: number; failed24h: number; blocked24h: number }>;
+
+  // Phase 61 — Neural Command Grid
+  createNeuralSignal(input: InsertNeuralSignal): Promise<NeuralSignal | null>;
+  listNeuralSignals(opts?: { severity?: string; status?: string; limit?: number }): Promise<NeuralSignal[]>;
+  updateNeuralSignalStatus(id: number, status: string): Promise<void>;
+  createCommandBusEvent(input: InsertCommandBusEvent): Promise<CommandBusEvent>;
+  listCommandBusEvents(limit?: number): Promise<CommandBusEvent[]>;
+  createCognitiveStateSnapshot(input: InsertCognitiveStateSnapshot): Promise<CognitiveStateSnapshot>;
+  getLatestCognitiveStateSnapshot(): Promise<CognitiveStateSnapshot | null>;
+  createExecutiveEscalation(input: InsertExecutiveEscalation): Promise<ExecutiveEscalation | null>;
+  listExecutiveEscalations(status?: string, limit?: number): Promise<ExecutiveEscalation[]>;
+  resolveExecutiveEscalation(id: number, by: string): Promise<ExecutiveEscalation>;
+  createGlobalHealthScore(input: InsertGlobalHealthScore): Promise<GlobalHealthScore>;
+  listLatestGlobalHealthScores(): Promise<GlobalHealthScore[]>;
+  createInsightStreamEntry(input: InsertInsightStreamEntry): Promise<InsightStreamEntry>;
+  listInsightStreamEntries(limit?: number): Promise<InsightStreamEntry[]>;
+  createWorkflowDependency(input: InsertWorkflowDependency): Promise<WorkflowDependency | null>;
+  listWorkflowDependencies(): Promise<WorkflowDependency[]>;
 
   // Phase 49 — Revenue Recovery
   getRevenueRecoveryActions(limit?: number): Promise<RevenueRecoveryAction[]>;
@@ -1961,6 +1988,97 @@ export class DatabaseStorage implements IStorage {
       failed24h: Number(r.failed24h) || 0,
       blocked24h: Number(r.blocked24h) || 0,
     };
+  }
+
+  // ── Phase 61 — Neural Command Grid ─────────────────────────────────────────
+
+  async createNeuralSignal(input: InsertNeuralSignal): Promise<NeuralSignal | null> {
+    try {
+      const [row] = await db.insert(neuralSignals).values(input as any)
+        .onConflictDoNothing().returning();
+      return row ?? null;
+    } catch (e: any) {
+      console.warn("[storage] createNeuralSignal failed:", e?.message);
+      return null;
+    }
+  }
+  async listNeuralSignals(opts: { severity?: string; status?: string; limit?: number } = {}): Promise<NeuralSignal[]> {
+    const conds: any[] = [];
+    if (opts.severity) conds.push(eq(neuralSignals.severity, opts.severity));
+    if (opts.status) conds.push(eq(neuralSignals.status, opts.status));
+    const q = db.select().from(neuralSignals).orderBy(desc(neuralSignals.createdAt)).limit(opts.limit ?? 100);
+    return conds.length ? q.where(and(...conds)) : q;
+  }
+  async updateNeuralSignalStatus(id: number, status: string): Promise<void> {
+    await db.update(neuralSignals).set({ status }).where(eq(neuralSignals.id, id));
+  }
+  async createCommandBusEvent(input: InsertCommandBusEvent): Promise<CommandBusEvent> {
+    const [row] = await db.insert(commandBusEvents).values(input as any).returning();
+    return row;
+  }
+  async listCommandBusEvents(limit = 50): Promise<CommandBusEvent[]> {
+    return db.select().from(commandBusEvents).orderBy(desc(commandBusEvents.createdAt)).limit(limit);
+  }
+  async createCognitiveStateSnapshot(input: InsertCognitiveStateSnapshot): Promise<CognitiveStateSnapshot> {
+    const [row] = await db.insert(cognitiveStateSnapshots).values(input as any).returning();
+    return row;
+  }
+  async getLatestCognitiveStateSnapshot(): Promise<CognitiveStateSnapshot | null> {
+    const [row] = await db.select().from(cognitiveStateSnapshots).orderBy(desc(cognitiveStateSnapshots.createdAt)).limit(1);
+    return row ?? null;
+  }
+  async createExecutiveEscalation(input: InsertExecutiveEscalation): Promise<ExecutiveEscalation | null> {
+    try {
+      const [row] = await db.insert(executiveEscalations).values(input as any)
+        .onConflictDoNothing().returning();
+      return row ?? null;
+    } catch (e: any) {
+      console.warn("[storage] createExecutiveEscalation failed:", e?.message);
+      return null;
+    }
+  }
+  async listExecutiveEscalations(status?: string, limit = 50): Promise<ExecutiveEscalation[]> {
+    const q = db.select().from(executiveEscalations).orderBy(desc(executiveEscalations.createdAt)).limit(limit);
+    return status ? q.where(eq(executiveEscalations.status, status)) : q;
+  }
+  async resolveExecutiveEscalation(id: number, by: string): Promise<ExecutiveEscalation> {
+    const [row] = await db.update(executiveEscalations)
+      .set({ status: "resolved", resolvedAt: new Date(), resolvedBy: by })
+      .where(eq(executiveEscalations.id, id)).returning();
+    if (!row) throw new Error("Escalation not found");
+    return row;
+  }
+  async createGlobalHealthScore(input: InsertGlobalHealthScore): Promise<GlobalHealthScore> {
+    const [row] = await db.insert(globalHealthScores).values(input as any).returning();
+    return row;
+  }
+  async listLatestGlobalHealthScores(): Promise<GlobalHealthScore[]> {
+    const rows = await db.execute(sql`
+      SELECT DISTINCT ON (category) id, category, score, trend, explanation, metadata, created_at
+      FROM global_health_scores
+      ORDER BY category, created_at DESC
+    `);
+    const list: any[] = (rows as any).rows ?? (rows as any);
+    return list.map((r: any) => ({
+      id: r.id, category: r.category, score: r.score, trend: r.trend,
+      explanation: r.explanation, metadata: r.metadata, createdAt: r.created_at,
+    })) as GlobalHealthScore[];
+  }
+  async createInsightStreamEntry(input: InsertInsightStreamEntry): Promise<InsightStreamEntry> {
+    const [row] = await db.insert(insightStreamEntries).values(input as any).returning();
+    return row;
+  }
+  async listInsightStreamEntries(limit = 50): Promise<InsightStreamEntry[]> {
+    return db.select().from(insightStreamEntries).orderBy(desc(insightStreamEntries.createdAt)).limit(limit);
+  }
+  async createWorkflowDependency(input: InsertWorkflowDependency): Promise<WorkflowDependency | null> {
+    try {
+      const [row] = await db.insert(workflowDependencies).values(input as any).onConflictDoNothing().returning();
+      return row ?? null;
+    } catch { return null; }
+  }
+  async listWorkflowDependencies(): Promise<WorkflowDependency[]> {
+    return db.select().from(workflowDependencies).orderBy(desc(workflowDependencies.createdAt));
   }
 
   async getExperimentVariantStats(experimentId: number): Promise<Array<{ variantKey: string; assignments: number; conversions: number; revenueCents: number }>> {
