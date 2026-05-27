@@ -12,6 +12,7 @@ import OpsCenter from "@/pages/OpsCenter";
 import GrowthEngine from "@/pages/GrowthEngine";
 import ExperimentLab from "@/pages/ExperimentLab";
 import PersonalizationConsole from "@/pages/PersonalizationConsole";
+import RevenueCommandCenter from "@/pages/RevenueCommandCenter";
 import Links from "@/pages/Links";
 import Blog from "@/pages/Blog";
 import BlogPost from "@/pages/BlogPost";
@@ -108,6 +109,17 @@ function Router() {
             path="/personalization"
           />
           <PersonalizationConsole />
+        </>
+      </Route>
+
+      <Route path="/revenue">
+        <>
+          <SEO
+            title="Revenue Command Center | Elevate360Official"
+            description="AI Revenue Command Center for Elevate360Official."
+            path="/revenue"
+          />
+          <RevenueCommandCenter />
         </>
       </Route>
 

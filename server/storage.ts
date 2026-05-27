@@ -46,6 +46,9 @@ import {
   qaSentinelReports, recoveryReports, growthIntelligenceReports, growthRecommendations,
   experiments, experimentAssignments, experimentEvents,
   personalizationSegments, personalizationProfiles, personalizationRules, personalizationEvents,
+  revenueCommandReports, revenueAlerts,
+  type RevenueCommandReport, type InsertRevenueCommandReport,
+  type RevenueAlert, type InsertRevenueAlert,
 } from "@shared/schema";
 import { db } from "./db";
 import { and, asc, count, desc, eq, gte, isNull, lte, ne, or, sql } from "drizzle-orm";
@@ -248,6 +251,14 @@ export interface IStorage {
   recordPersonalizationEvent(input: { subjectKey: string; segmentKey: string; surface: string; ruleId: number | null; eventType: string; value: number | null }): Promise<void>;
   getPersonalizationEventStats(surface?: string): Promise<Array<{ surface: string; segmentKey: string; views: number; clicks: number; conversions: number; ctr: number; cvr: number; revenueCents: number }>>;
   getPersonalizationProfileCounts(): Promise<Array<{ segmentKey: string; count: number; avgScore: number }>>;
+
+  // Phase 59 — Revenue Command Center
+  listRecentOrders(windowDays: number): Promise<Order[]>;
+  createRevenueCommandReport(input: InsertRevenueCommandReport): Promise<RevenueCommandReport>;
+  getLatestRevenueCommandReport(): Promise<RevenueCommandReport | null>;
+  listRevenueAlerts(status?: string, limit?: number): Promise<RevenueAlert[]>;
+  createRevenueAlert(input: InsertRevenueAlert): Promise<RevenueAlert | null>;
+  acknowledgeRevenueAlert(id: number, ackedBy: string): Promise<RevenueAlert>;
 
   // Phase 49 — Revenue Recovery
   getRevenueRecoveryActions(limit?: number): Promise<RevenueRecoveryAction[]>;
@@ -1779,6 +1790,44 @@ export class DatabaseStorage implements IStorage {
       count: Number(r.count) || 0,
       avgScore: Math.round(Number(r.avgScore) * 10) / 10,
     }));
+  }
+
+  // ── Phase 59 — Revenue Command Center ──────────────────────────────────────
+
+  async listRecentOrders(windowDays: number): Promise<Order[]> {
+    const since = new Date(Date.now() - windowDays * 86400_000);
+    return db.select().from(orders).where(gte(orders.createdAt, since)).orderBy(desc(orders.createdAt)).limit(2000);
+  }
+
+  async createRevenueCommandReport(input: InsertRevenueCommandReport): Promise<RevenueCommandReport> {
+    const [row] = await db.insert(revenueCommandReports).values(input as any).returning();
+    return row;
+  }
+
+  async getLatestRevenueCommandReport(): Promise<RevenueCommandReport | null> {
+    const [row] = await db.select().from(revenueCommandReports).orderBy(desc(revenueCommandReports.createdAt)).limit(1);
+    return row ?? null;
+  }
+
+  async listRevenueAlerts(status?: string, limit = 100): Promise<RevenueAlert[]> {
+    const q = db.select().from(revenueAlerts).orderBy(desc(revenueAlerts.createdAt)).limit(limit);
+    if (status) return q.where(eq(revenueAlerts.status, status));
+    return q;
+  }
+
+  async createRevenueAlert(input: InsertRevenueAlert): Promise<RevenueAlert | null> {
+    // ON CONFLICT DO NOTHING on the partial unique (alert_type, title) WHERE status='open'.
+    // Returns null when a duplicate open alert already exists — engine treats as dedup.
+    const [row] = await db.insert(revenueAlerts).values(input as any).onConflictDoNothing().returning();
+    return row ?? null;
+  }
+
+  async acknowledgeRevenueAlert(id: number, ackedBy: string): Promise<RevenueAlert> {
+    const [row] = await db.update(revenueAlerts).set({
+      status: "acknowledged", acknowledgedAt: new Date(), acknowledgedBy: ackedBy,
+    }).where(eq(revenueAlerts.id, id)).returning();
+    if (!row) throw new Error("Alert not found");
+    return row;
   }
 
   async getExperimentVariantStats(experimentId: number): Promise<Array<{ variantKey: string; assignments: number; conversions: number; revenueCents: number }>> {

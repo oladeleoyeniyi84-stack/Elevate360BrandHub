@@ -1124,6 +1124,54 @@ export async function registerRoutes(
     return verifyScopedToken("pers:v1", subjectKey, token);
   }
 
+  // ─── Phase 59 — AI Revenue Command Center ──────────────────────────────────
+  app.get("/api/admin/revenue/overview", requireDashboardAuth, async (_req, res) => {
+    try {
+      const { getRevenueOverview } = await import("./revenue/commandCenter");
+      const data = await getRevenueOverview();
+      res.json(data);
+    } catch (e: any) {
+      console.error("[revenue] overview failed:", e?.message);
+      res.status(500).json({ message: "Could not load revenue overview." });
+    }
+  });
+
+  app.get("/api/admin/revenue/alerts", requireDashboardAuth, async (req, res) => {
+    try {
+      const status = typeof req.query.status === "string" ? req.query.status.slice(0, 20) : undefined;
+      const alerts = await storage.listRevenueAlerts(status);
+      res.json(alerts);
+    } catch (e: any) {
+      console.error("[revenue] alerts list failed:", e?.message);
+      res.status(500).json({ message: "Could not load alerts." });
+    }
+  });
+
+  app.post("/api/admin/revenue/run", requireDashboardAuth, async (req, res) => {
+    try {
+      const windowDays = Math.max(7, Math.min(90, Number(req.body?.windowDays) || 30));
+      const { runRevenueCommandCenter } = await import("./revenue/commandCenter");
+      const result = await runRevenueCommandCenter(windowDays);
+      res.json({ ok: true, ...result });
+    } catch (e: any) {
+      console.error("[revenue] run failed:", e?.message);
+      res.status(500).json({ ok: false, message: e?.message || "Run failed." });
+    }
+  });
+
+  app.post("/api/admin/revenue/alerts/:id/acknowledge", requireDashboardAuth, async (req, res) => {
+    try {
+      const id = parseInt(String(req.params.id), 10);
+      if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ message: "Invalid id." });
+      const { acknowledgeAlert } = await import("./revenue/commandCenter");
+      const alert = await acknowledgeAlert(id, "founder");
+      res.json({ ok: true, alert });
+    } catch (e: any) {
+      console.error("[revenue] ack failed:", e?.message);
+      res.status(400).json({ ok: false, message: e?.message || "Acknowledge failed." });
+    }
+  });
+
   // ─── Phase 58 — Personalization Engine ──────────────────────────────────────
   app.get("/api/admin/personalization/segments", requireDashboardAuth, async (_req, res) => {
     try {

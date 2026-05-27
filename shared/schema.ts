@@ -651,6 +651,48 @@ export const personalizationEvents = pgTable("personalization_events", {
 }));
 export type PersonalizationEvent = typeof personalizationEvents.$inferSelect;
 
+// Phase 59 — AI Revenue Command Center
+export const revenueCommandReports = pgTable("revenue_command_reports", {
+  id: serial("id").primaryKey(),
+  status: varchar("status", { length: 20 }).notNull().default("ready"),
+  revenueSnapshot: jsonb("revenue_snapshot").notNull().default({}),
+  growthSnapshot: jsonb("growth_snapshot").notNull().default({}),
+  experimentSnapshot: jsonb("experiment_snapshot").notNull().default({}),
+  personalizationSnapshot: jsonb("personalization_snapshot").notNull().default({}),
+  recommendations: jsonb("recommendations").notNull().default([]),
+  executiveSummary: text("executive_summary").notNull().default(""),
+  diagnosticsSummary: text("diagnostics_summary").notNull().default(""),
+  providerMetadata: jsonb("provider_metadata").notNull().default({}),
+  confidence: integer("confidence").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  createdIdx: index("revenue_command_reports_created_idx").on(t.createdAt),
+}));
+export const insertRevenueCommandReportSchema = createInsertSchema(revenueCommandReports).omit({ id: true, createdAt: true });
+export type InsertRevenueCommandReport = z.infer<typeof insertRevenueCommandReportSchema>;
+export type RevenueCommandReport = typeof revenueCommandReports.$inferSelect;
+
+export const revenueAlerts = pgTable("revenue_alerts", {
+  id: serial("id").primaryKey(),
+  severity: varchar("severity", { length: 20 }).notNull().default("info"),
+  alertType: varchar("alert_type", { length: 60 }).notNull(),
+  title: varchar("title", { length: 200 }).notNull(),
+  description: text("description").notNull().default(""),
+  recommendation: text("recommendation").notNull().default(""),
+  status: varchar("status", { length: 20 }).notNull().default("open"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  acknowledgedAt: timestamp("acknowledged_at"),
+  acknowledgedBy: varchar("acknowledged_by", { length: 80 }),
+}, (t) => ({
+  statusIdx: index("revenue_alerts_status_idx").on(t.status, t.severity, t.createdAt),
+  // Partial unique index: at most one OPEN alert per (alert_type, title).
+  // Mirrors DB index revenue_alerts_open_dedup_idx. Enforces dedup under concurrency.
+  openDedupIdx: uniqueIndex("revenue_alerts_open_dedup_idx").on(t.alertType, t.title).where(sql`status = 'open'`),
+}));
+export const insertRevenueAlertSchema = createInsertSchema(revenueAlerts).omit({ id: true, createdAt: true, acknowledgedAt: true });
+export type InsertRevenueAlert = z.infer<typeof insertRevenueAlertSchema>;
+export type RevenueAlert = typeof revenueAlerts.$inferSelect;
+
 export type ExperimentVariant = {
   key: string;
   name: string;

@@ -155,4 +155,20 @@ export async function startAutomationJobs() {
   );
 
   console.log("[automation] Phase 54 jobs registered (1 job)");
+
+  // ── Phase 59 — AI Revenue Command Center ──────────────────────────────────
+  const { runRevenueCommandCenter } = await import("../revenue/commandCenter");
+  await registerRecurringJob(
+    {
+      jobKey: "phase59_revenue_command_center",
+      jobGroup: "revenue",
+      cadenceMinutes: 360, // every 6 hours
+      run: async () => {
+        const { report, alerts } = await runRevenueCommandCenter(30);
+        return { summary: `report=${report.id} conf=${report.confidence} new_alerts=${alerts.length}` };
+      },
+    },
+    420_000 // 7-minute boot offset — well after recovery engine
+  );
+  console.log("[automation] Phase 59 jobs registered (1 job)");
 }

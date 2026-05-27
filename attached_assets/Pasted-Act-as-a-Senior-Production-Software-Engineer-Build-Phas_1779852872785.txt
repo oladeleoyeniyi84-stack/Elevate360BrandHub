@@ -1,0 +1,210 @@
+Act as a Senior Production Software Engineer.
+
+Build Phase 59 — AI Revenue Command Center for Elevate360BrandHub.
+
+Goal:
+Create a unified monetization intelligence and revenue operations platform that combines:
+- Stripe revenue telemetry
+- AI Growth Engine
+- Experiment Orchestrator
+- Personalization Engine
+- Founder Ops Center
+into one founder-grade revenue intelligence system.
+
+Current architecture already exists:
+- Phase 53 QA Sentinel
+- Phase 54 Autonomous Recovery Engine
+- Phase 55 Founder Ops Center
+- Phase 56 AI Growth Engine
+- Phase 57 AI Experiment Orchestrator
+- Phase 58 Autonomous Personalization Engine
+
+Requirements
+==================================================
+
+1. Revenue Intelligence Aggregation Layer
+Create:
+server/revenue/commandCenter.ts
+
+Must aggregate:
+- Stripe revenue
+- successful payments
+- refunds
+- subscriptions if present
+- conversion funnel
+- experiment winners
+- personalization performance
+- top-performing CTAs
+- top-performing segments
+- forecasted revenue
+- revenue anomalies
+- growth velocity
+- AI operational confidence
+
+2. Database Tables
+Create live schema + migrations:
+
+revenue_command_reports
+- id
+- status
+- revenue_snapshot jsonb
+- growth_snapshot jsonb
+- experiment_snapshot jsonb
+- personalization_snapshot jsonb
+- recommendations jsonb
+- executive_summary text
+- diagnostics_summary text
+- provider_metadata jsonb
+- confidence integer
+- created_at
+
+revenue_alerts
+- id
+- severity
+- alert_type
+- title
+- description
+- recommendation
+- status
+- created_at
+- acknowledged_at
+- acknowledged_by
+
+3. AI Architecture
+DeepSeek (hard-locked):
+- diagnostics
+- anomaly analysis
+- operational reasoning
+- revenue anomaly detection
+- experiment diagnostics
+- personalization diagnostics
+
+OpenAI (hard-locked):
+- executive summaries
+- founder briefings
+- strategic monetization recommendations
+
+NO silent provider fallback when override is set.
+
+4. Revenue Forecasting
+Implement:
+- rolling averages
+- linear regression trend
+- growth slope
+- forecast confidence
+- anomaly scoring
+- volatility scoring
+
+5. AI Recommendations
+Generate recommendation-only outputs:
+- pricing hypothesis suggestions
+- CTA optimization suggestions
+- funnel recommendations
+- segment targeting ideas
+- experiment proposals
+- retention suggestions
+
+NEVER:
+- auto-change prices
+- auto-refund
+- auto-send marketing
+- auto-charge users
+- auto-edit Stripe config
+
+6. Revenue Alerts
+Generate alerts for:
+- conversion drops
+- failed payment spikes
+- abnormal refund spikes
+- traffic/revenue divergence
+- experiment underperformance
+- personalization degradation
+
+Severity:
+- info
+- warning
+- critical
+
+7. Backend Routes
+Protected admin routes only:
+
+GET /api/admin/revenue/overview
+GET /api/admin/revenue/alerts
+POST /api/admin/revenue/run
+POST /api/admin/revenue/alerts/:id/acknowledge
+
+All requireDashboardAuth.
+
+8. Frontend Dashboard
+Create:
+client/src/pages/RevenueCommandCenter.tsx
+
+Route:
+ /revenue
+
+Requirements:
+- PIN-gated
+- mobile responsive
+- premium Elevate360 styling
+- charts
+- revenue timeline
+- anomaly cards
+- recommendation cards
+- experiment impact charts
+- personalization performance charts
+- alert feed
+- AI executive summary panel
+- DeepSeek diagnostics panel
+- confidence indicators
+- revenue forecast charts
+
+Use:
+- recharts
+- shadcn/ui
+- Tailwind
+
+9. Security
+- scrub secrets/keys/emails/tokens before ALL LLM calls
+- summary-only logs
+- no PII leakage
+- constant-time comparisons where applicable
+- safe empty states
+- no raw Stripe payload logging
+
+10. Scheduled Automation
+Add:
+phase59_revenue_command_center
+
+Cadence:
+every 6 hours
+
+11. Smoke Tests
+Verify:
+- unauthenticated → 401
+- authenticated → 200
+- empty-state safe
+- charts render
+- alerts generate
+- no provider drift
+- DeepSeek hard-lock verified
+- OpenAI hard-lock verified
+- npm run check passes
+- npm run build passes
+
+12. Final Report
+Provide:
+- files changed
+- tables added
+- routes added
+- AI provider routing map
+- safety guarantees
+- smoke-test results
+- Render verification commands
+- commit message
+
+Important
+==================================================
+This phase must remain recommendation-only.
+No autonomous revenue mutations or financial actions.
+No pricing/payment execution logic.
+Founder approval always required.
