@@ -978,6 +978,53 @@ export async function registerRoutes(
     }
   });
 
+  // ─── Phase 55 — Founder AI Operations Center (admin-only) ──────────────────
+  app.get("/api/admin/ops/overview", requireDashboardAuth, async (_req, res) => {
+    try {
+      const { buildOpsOverview } = await import("./telemetry/operationsCenter");
+      const overview = await buildOpsOverview();
+      res.json(overview);
+    } catch (e: any) {
+      console.error("[ops] overview failed:", e?.message);
+      res.status(500).json({ message: "Could not build operations overview." });
+    }
+  });
+
+  app.get("/api/admin/ops/timeseries", requireDashboardAuth, async (req, res) => {
+    try {
+      const hours = Math.min(Math.max(parseInt(String(req.query.hours ?? "24"), 10) || 24, 1), 168);
+      const { buildJobTimeseries } = await import("./telemetry/operationsCenter");
+      const series = await buildJobTimeseries(hours);
+      res.json({ hours, series });
+    } catch (e: any) {
+      console.error("[ops] timeseries failed:", e?.message);
+      res.status(500).json({ message: "Could not build timeseries." });
+    }
+  });
+
+  app.post("/api/admin/ops/briefing", requireDashboardAuth, async (_req, res) => {
+    try {
+      const { buildOpsOverview, generateFounderBriefing } = await import(
+        "./telemetry/operationsCenter"
+      );
+      const overview = await buildOpsOverview();
+      const result = await generateFounderBriefing(overview);
+      console.log(
+        `[opsBriefing] provider=${result.provider} latency=${result.latencyMs}ms length=${result.briefing.length}`
+      );
+      res.json({
+        ok: true,
+        briefing: result.briefing,
+        provider: result.provider,
+        latencyMs: result.latencyMs,
+        generatedAt: overview.generatedAt,
+      });
+    } catch (e: any) {
+      console.error("[ops] briefing failed:", e?.message);
+      res.status(500).json({ ok: false, message: "Briefing generation failed." });
+    }
+  });
+
   app.get("/api/health", async (_req, res) => {
     const checks: Record<string, { ok: boolean; latencyMs?: number; detail?: string }> = {};
 

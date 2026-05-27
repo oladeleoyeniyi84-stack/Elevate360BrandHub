@@ -8,6 +8,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/Home";
 import Dashboard from "@/pages/Dashboard";
+import OpsCenter from "@/pages/OpsCenter";
 import Links from "@/pages/Links";
 import Blog from "@/pages/Blog";
 import BlogPost from "@/pages/BlogPost";
@@ -60,6 +61,17 @@ function Router() {
             path="/dashboard"
           />
           <Dashboard />
+        </>
+      </Route>
+
+      <Route path="/ops">
+        <>
+          <SEO
+            title="Ops Center | Elevate360Official"
+            description="Founder AI Operations Center for Elevate360Official."
+            path="/ops"
+          />
+          <OpsCenter />
         </>
       </Route>
 
