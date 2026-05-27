@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, serial, boolean, jsonb, integer, json } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, serial, boolean, jsonb, integer, json, index, uniqueIndex } from "drizzle-orm/pg-core";
 // relations imported for future relation definitions
 import type {} from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
@@ -526,6 +526,71 @@ export const insertGrowthRecommendationSchema = createInsertSchema(growthRecomme
 });
 export type InsertGrowthRecommendation = z.infer<typeof insertGrowthRecommendationSchema>;
 export type GrowthRecommendation = typeof growthRecommendations.$inferSelect;
+
+// Phase 57 — AI Experiment Orchestrator
+export const experiments = pgTable("experiments", {
+  id: serial("id").primaryKey(),
+  experimentKey: varchar("experiment_key", { length: 120 }).notNull().unique(),
+  name: varchar("name", { length: 200 }).notNull(),
+  hypothesis: text("hypothesis").notNull().default(""),
+  surface: varchar("surface", { length: 60 }).notNull().default("generic"),
+  targetMetric: varchar("target_metric", { length: 60 }).notNull().default("conversion"),
+  variants: jsonb("variants").notNull().default([]),
+  trafficAllocation: integer("traffic_allocation").notNull().default(100),
+  status: varchar("status", { length: 20 }).notNull().default("draft"),
+  recommendationId: integer("recommendation_id").references(() => growthRecommendations.id, { onDelete: "set null" }),
+  winnerVariantKey: varchar("winner_variant_key", { length: 60 }),
+  rollbackReason: text("rollback_reason"),
+  decidedBy: varchar("decided_by", { length: 80 }),
+  decidedAt: timestamp("decided_at"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  diagnosticsSummary: text("diagnostics_summary").notNull().default(""),
+  executiveSummary: text("executive_summary").notNull().default(""),
+  diagnosticsProvider: varchar("diagnostics_provider", { length: 20 }),
+  executiveProvider: varchar("executive_provider", { length: 20 }),
+  confidence: integer("confidence").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const insertExperimentSchema = createInsertSchema(experiments).omit({
+  id: true, createdAt: true, startedAt: true, completedAt: true, decidedAt: true,
+});
+export type InsertExperiment = z.infer<typeof insertExperimentSchema>;
+export type Experiment = typeof experiments.$inferSelect;
+
+export const experimentAssignments = pgTable("experiment_assignments", {
+  id: serial("id").primaryKey(),
+  experimentId: integer("experiment_id").notNull().references(() => experiments.id, { onDelete: "cascade" }),
+  variantKey: varchar("variant_key", { length: 60 }).notNull(),
+  subjectKey: varchar("subject_key", { length: 120 }).notNull(),
+  assignedAt: timestamp("assigned_at").defaultNow().notNull(),
+}, (t) => ({
+  uniqSubject: uniqueIndex("experiment_assignments_experiment_id_subject_key_key").on(t.experimentId, t.subjectKey),
+  variantIdx: index("exp_assign_variant_idx").on(t.experimentId, t.variantKey),
+}));
+export type ExperimentAssignment = typeof experimentAssignments.$inferSelect;
+
+export const experimentEvents = pgTable("experiment_events", {
+  id: serial("id").primaryKey(),
+  experimentId: integer("experiment_id").notNull().references(() => experiments.id, { onDelete: "cascade" }),
+  variantKey: varchar("variant_key", { length: 60 }).notNull(),
+  subjectKey: varchar("subject_key", { length: 120 }).notNull(),
+  eventType: varchar("event_type", { length: 40 }).notNull(),
+  value: integer("value"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  lookupIdx: index("exp_events_lookup_idx").on(t.experimentId, t.variantKey, t.eventType),
+}));
+export type ExperimentEvent = typeof experimentEvents.$inferSelect;
+
+export type ExperimentVariant = {
+  key: string;
+  name: string;
+  description?: string;
+  weight: number; // 0..100, weights across variants should sum to 100
+  isControl?: boolean;
+  config?: Record<string, any>;
+};
 
 export const automationJobLogs = pgTable("automation_job_logs", {
   id: serial("id").primaryKey(),

@@ -10,6 +10,7 @@ import Home from "@/pages/Home";
 import Dashboard from "@/pages/Dashboard";
 import OpsCenter from "@/pages/OpsCenter";
 import GrowthEngine from "@/pages/GrowthEngine";
+import ExperimentLab from "@/pages/ExperimentLab";
 import Links from "@/pages/Links";
 import Blog from "@/pages/Blog";
 import BlogPost from "@/pages/BlogPost";
@@ -84,6 +85,17 @@ function Router() {
             path="/growth"
           />
           <GrowthEngine />
+        </>
+      </Route>
+
+      <Route path="/experiments">
+        <>
+          <SEO
+            title="Experiment Lab | Elevate360Official"
+            description="AI Experiment Orchestrator for Elevate360Official."
+            path="/experiments"
+          />
+          <ExperimentLab />
         </>
       </Route>
 

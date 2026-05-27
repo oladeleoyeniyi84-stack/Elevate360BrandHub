@@ -34,12 +34,15 @@ import {
   type RecoveryReport, type InsertRecoveryReport,
   type GrowthIntelligenceReport, type InsertGrowthIntelligenceReport,
   type GrowthRecommendation, type InsertGrowthRecommendation,
+  type Experiment, type InsertExperiment,
+  type ExperimentAssignment, type ExperimentEvent,
   users, contactMessages, newsletterSubscribers, chatConversations, clickEvents, pageViews, testimonials, blogPosts, knowledgeDocuments, consultations, bookings, orders, digestReports, offerMappingOverrides, auditLogs, automationSettings,
   automationJobs, automationJobLogs, revenueRecoveryActions, contentOpportunities, autonomousAlerts,
   growthExperiments, sourcePerformanceSnapshots, funnelLeakReports, offerPerformanceSnapshots,
   executionPolicies, appliedChanges, executionQueue, rollbackEvents,
   userRoles, approvalRequests, aiExplanations, systemHealthSnapshots, quarterlyStrategyReports,
   qaSentinelReports, recoveryReports, growthIntelligenceReports, growthRecommendations,
+  experiments, experimentAssignments, experimentEvents,
 } from "@shared/schema";
 import { db } from "./db";
 import { and, asc, count, desc, eq, gte, isNull, lte, ne, or, sql } from "drizzle-orm";
@@ -216,6 +219,17 @@ export interface IStorage {
     decidedBy: string,
     notes?: string
   ): Promise<GrowthRecommendation>;
+
+  // Phase 57 — Experiment Orchestrator
+  createExperiment(input: InsertExperiment): Promise<Experiment>;
+  getExperiment(id: number): Promise<Experiment | null>;
+  getExperimentByKey(key: string): Promise<Experiment | null>;
+  listExperiments(status?: string, limit?: number): Promise<Experiment[]>;
+  updateExperiment(id: number, patch: Partial<Experiment>): Promise<Experiment>;
+  getOrCreateExperimentAssignment(experimentId: number, subjectKey: string, variantKey: string): Promise<ExperimentAssignment>;
+  getExperimentAssignment(experimentId: number, subjectKey: string): Promise<ExperimentAssignment | null>;
+  recordExperimentEvent(experimentId: number, variantKey: string, subjectKey: string, eventType: string, value?: number | null): Promise<void>;
+  getExperimentVariantStats(experimentId: number): Promise<Array<{ variantKey: string; assignments: number; conversions: number; revenueCents: number }>>;
 
   // Phase 49 — Revenue Recovery
   getRevenueRecoveryActions(limit?: number): Promise<RevenueRecoveryAction[]>;
@@ -1529,6 +1543,98 @@ export class DatabaseStorage implements IStorage {
       .where(eq(growthRecommendations.id, id))
       .returning();
     return row;
+  }
+
+  // ── Phase 57 — Experiment Orchestrator ─────────────────────────────────────
+
+  async createExperiment(input: InsertExperiment): Promise<Experiment> {
+    const [row] = await db.insert(experiments).values(input).returning();
+    return row;
+  }
+
+  async getExperiment(id: number): Promise<Experiment | null> {
+    const [row] = await db.select().from(experiments).where(eq(experiments.id, id));
+    return row ?? null;
+  }
+
+  async getExperimentByKey(key: string): Promise<Experiment | null> {
+    const [row] = await db.select().from(experiments).where(eq(experiments.experimentKey, key));
+    return row ?? null;
+  }
+
+  async listExperiments(status?: string, limit = 100): Promise<Experiment[]> {
+    const q = db.select().from(experiments).orderBy(desc(experiments.createdAt)).limit(limit);
+    if (status) return q.where(eq(experiments.status, status));
+    return q;
+  }
+
+  async updateExperiment(id: number, patch: Partial<Experiment>): Promise<Experiment> {
+    const [row] = await db.update(experiments).set(patch as any).where(eq(experiments.id, id)).returning();
+    return row;
+  }
+
+  async getExperimentAssignment(experimentId: number, subjectKey: string): Promise<ExperimentAssignment | null> {
+    const [row] = await db.select().from(experimentAssignments)
+      .where(and(eq(experimentAssignments.experimentId, experimentId), eq(experimentAssignments.subjectKey, subjectKey)));
+    return row ?? null;
+  }
+
+  async getOrCreateExperimentAssignment(experimentId: number, subjectKey: string, variantKey: string): Promise<ExperimentAssignment> {
+    const existing = await this.getExperimentAssignment(experimentId, subjectKey);
+    if (existing) return existing;
+    try {
+      const [row] = await db.insert(experimentAssignments)
+        .values({ experimentId, subjectKey, variantKey })
+        .returning();
+      return row;
+    } catch {
+      // race: another request wrote first
+      const again = await this.getExperimentAssignment(experimentId, subjectKey);
+      if (again) return again;
+      throw new Error("Could not assign variant");
+    }
+  }
+
+  async recordExperimentEvent(
+    experimentId: number,
+    variantKey: string,
+    subjectKey: string,
+    eventType: string,
+    value?: number | null
+  ): Promise<void> {
+    await db.insert(experimentEvents).values({
+      experimentId, variantKey, subjectKey, eventType, value: value ?? null,
+    });
+  }
+
+  async getExperimentVariantStats(experimentId: number): Promise<Array<{ variantKey: string; assignments: number; conversions: number; revenueCents: number }>> {
+    const assignRows = await db.execute(sql`
+      SELECT variant_key AS "variantKey", COUNT(*)::int AS "assignments"
+      FROM experiment_assignments
+      WHERE experiment_id = ${experimentId}
+      GROUP BY variant_key
+    `);
+    const eventRows = await db.execute(sql`
+      SELECT variant_key AS "variantKey",
+             COUNT(DISTINCT subject_key)::int AS "conversions",
+             COALESCE(SUM(value), 0)::int AS "revenueCents"
+      FROM experiment_events
+      WHERE experiment_id = ${experimentId} AND event_type = 'conversion'
+      GROUP BY variant_key
+    `);
+    const map = new Map<string, { variantKey: string; assignments: number; conversions: number; revenueCents: number }>();
+    const assignArr: any[] = (assignRows as any)?.rows ?? (Array.isArray(assignRows) ? (assignRows as any) : []);
+    const eventArr: any[] = (eventRows as any)?.rows ?? (Array.isArray(eventRows) ? (eventRows as any) : []);
+    for (const r of assignArr) {
+      map.set(r.variantKey, { variantKey: r.variantKey, assignments: Number(r.assignments) || 0, conversions: 0, revenueCents: 0 });
+    }
+    for (const r of eventArr) {
+      const cur = map.get(r.variantKey) ?? { variantKey: r.variantKey, assignments: 0, conversions: 0, revenueCents: 0 };
+      cur.conversions = Number(r.conversions) || 0;
+      cur.revenueCents = Number(r.revenueCents) || 0;
+      map.set(r.variantKey, cur);
+    }
+    return Array.from(map.values());
   }
 
   // ── Phase 49 — Revenue Recovery ─────────────────────────────────────────────

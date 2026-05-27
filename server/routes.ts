@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { timingSafeEqual } from "crypto";
+import { timingSafeEqual, createHmac } from "crypto";
 import { storage } from "./storage";
 import {
   insertContactMessageSchema,
@@ -1066,6 +1066,161 @@ export async function registerRoutes(
     } catch (e: any) {
       console.error("[growth] decide failed:", e?.message);
       res.status(500).json({ ok: false, message: "Could not record decision." });
+    }
+  });
+
+  // ─── Phase 57 — Experiment Orchestrator ─────────────────────────────────────
+  app.get("/api/admin/experiments", requireDashboardAuth, async (req, res) => {
+    try {
+      const status = typeof req.query.status === "string" ? req.query.status.slice(0, 20) : undefined;
+      const rows = await storage.listExperiments(status, 200);
+      res.json(rows);
+    } catch (e: any) {
+      console.error("[experiments] list failed:", e?.message);
+      res.status(500).json({ message: "Could not list experiments." });
+    }
+  });
+
+  app.get("/api/admin/experiments/:id", requireDashboardAuth, async (req, res) => {
+    try {
+      const id = parseInt(String(req.params.id), 10);
+      if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ message: "Invalid id." });
+      const exp = await storage.getExperiment(id);
+      if (!exp) return res.status(404).json({ message: "Not found." });
+      const stats = await storage.getExperimentVariantStats(id);
+      const { computeAnalysis } = await import("./experiments/orchestrator");
+      const analysis = computeAnalysis(exp.variants as any, stats);
+      res.json({ experiment: exp, analysis });
+    } catch (e: any) {
+      console.error("[experiments] get failed:", e?.message);
+      res.status(500).json({ message: "Could not load experiment." });
+    }
+  });
+
+  app.post("/api/admin/experiments/propose", requireDashboardAuth, async (req, res) => {
+    try {
+      const recommendationId = req.body?.recommendationId
+        ? parseInt(String(req.body.recommendationId), 10) || undefined
+        : undefined;
+      const hypothesis = typeof req.body?.hypothesis === "string" ? req.body.hypothesis.slice(0, 600) : undefined;
+      const surface = typeof req.body?.surface === "string" ? req.body.surface.slice(0, 60) : undefined;
+      const targetMetric = typeof req.body?.targetMetric === "string" ? req.body.targetMetric.slice(0, 60) : undefined;
+      const { proposeFromRecommendation } = await import("./experiments/orchestrator");
+      const { experiment } = await proposeFromRecommendation({ recommendationId, hypothesis, surface, targetMetric });
+      res.json({ ok: true, experiment });
+    } catch (e: any) {
+      console.error("[experiments] propose failed:", e?.message);
+      res.status(500).json({ ok: false, message: e?.message || "Propose failed." });
+    }
+  });
+
+  app.post("/api/admin/experiments/:id/decide", requireDashboardAuth, async (req, res) => {
+    try {
+      const id = parseInt(String(req.params.id), 10);
+      if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ message: "Invalid id." });
+      const action = String(req.body?.action ?? "").toLowerCase();
+      if (!["approve", "reject", "start", "complete", "rollback"].includes(action)) {
+        return res.status(400).json({ message: "Invalid action. Must be approve|reject|start|complete|rollback." });
+      }
+      const reason = typeof req.body?.reason === "string" ? req.body.reason.slice(0, 500) : undefined;
+      const { decideExperiment } = await import("./experiments/orchestrator");
+      const experiment = await decideExperiment(id, action as any, "founder", reason);
+      res.json({ ok: true, experiment });
+    } catch (e: any) {
+      console.error("[experiments] decide failed:", e?.message);
+      res.status(400).json({ ok: false, message: e?.message || "Decision failed." });
+    }
+  });
+
+  app.post("/api/admin/experiments/:id/analyze", requireDashboardAuth, async (req, res) => {
+    try {
+      const id = parseInt(String(req.params.id), 10);
+      if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ message: "Invalid id." });
+      const { analyzeExperiment } = await import("./experiments/orchestrator");
+      const result = await analyzeExperiment(id);
+      res.json({ ok: true, ...result });
+    } catch (e: any) {
+      console.error("[experiments] analyze failed:", e?.message);
+      res.status(500).json({ ok: false, message: e?.message || "Analyze failed." });
+    }
+  });
+
+  // Public telemetry — sticky assignment + event recording.
+  // Safe-by-design: per-IP token-bucket rate limit, server-issued subject token (HMAC),
+  // assignment must precede event, and only "running" experiments produce writes.
+  const expRateBuckets = new Map<string, { tokens: number; ts: number }>();
+  const EXP_RATE_CAP = 60;            // 60 requests
+  const EXP_RATE_WINDOW_MS = 60_000;  // per minute, per IP
+  function expRateLimit(req: any): boolean {
+    const ip = (req.headers["x-forwarded-for"]?.toString().split(",")[0].trim() || req.socket?.remoteAddress || "unknown").slice(0, 64);
+    const now = Date.now();
+    const b = expRateBuckets.get(ip) ?? { tokens: EXP_RATE_CAP, ts: now };
+    const elapsed = now - b.ts;
+    const refill = (elapsed / EXP_RATE_WINDOW_MS) * EXP_RATE_CAP;
+    b.tokens = Math.min(EXP_RATE_CAP, b.tokens + refill);
+    b.ts = now;
+    if (b.tokens < 1) { expRateBuckets.set(ip, b); return false; }
+    b.tokens -= 1;
+    expRateBuckets.set(ip, b);
+    if (expRateBuckets.size > 5000) {
+      // simple LRU-ish cleanup of cold buckets
+      expRateBuckets.forEach((v, k) => {
+        if (now - v.ts > EXP_RATE_WINDOW_MS * 5) expRateBuckets.delete(k);
+      });
+    }
+    return true;
+  }
+  const EXP_TOKEN_SECRET = process.env.SESSION_SECRET || process.env.DASHBOARD_PIN || "elevate360-exp-fallback";
+  function signSubject(experimentKey: string, subjectKey: string): string {
+    return createHmac("sha256", EXP_TOKEN_SECRET)
+      .update(`${experimentKey}|${subjectKey}`).digest("hex").slice(0, 32);
+  }
+  function verifySubject(experimentKey: string, subjectKey: string, token: string): boolean {
+    if (!token || typeof token !== "string" || token.length !== 32) return false;
+    const expected = signSubject(experimentKey, subjectKey);
+    // constant-time compare
+    if (token.length !== expected.length) return false;
+    let diff = 0;
+    for (let i = 0; i < token.length; i++) diff |= token.charCodeAt(i) ^ expected.charCodeAt(i);
+    return diff === 0;
+  }
+
+  app.post("/api/experiments/assign", async (req, res) => {
+    if (!expRateLimit(req)) return res.status(429).json({ message: "Too many requests." });
+    try {
+      const experimentKey = String(req.body?.experimentKey ?? "").slice(0, 120);
+      const subjectKey = String(req.body?.subjectKey ?? "").slice(0, 120);
+      if (!experimentKey || !subjectKey) return res.status(400).json({ message: "experimentKey and subjectKey required." });
+      const { assignVariant } = await import("./experiments/orchestrator");
+      const result = await assignVariant(experimentKey, subjectKey);
+      // Issue an HMAC subject token; events must present it to be accepted.
+      // Token is only useful for THIS (experiment, subject) pair, so it can't be replayed against others.
+      const subjectToken = signSubject(experimentKey, subjectKey);
+      res.json({ ...result, subjectToken });
+    } catch (e: any) {
+      console.error("[experiments] assign failed:", e?.message);
+      res.status(500).json({ message: "Assign failed." });
+    }
+  });
+
+  app.post("/api/experiments/event", async (req, res) => {
+    if (!expRateLimit(req)) return res.status(429).json({ message: "Too many requests." });
+    try {
+      const experimentKey = String(req.body?.experimentKey ?? "").slice(0, 120);
+      const subjectKey = String(req.body?.subjectKey ?? "").slice(0, 120);
+      const subjectToken = String(req.body?.subjectToken ?? "");
+      const eventType = String(req.body?.eventType ?? "conversion").slice(0, 40);
+      const value = typeof req.body?.value === "number" ? req.body.value : null;
+      if (!experimentKey || !subjectKey) return res.status(400).json({ message: "experimentKey and subjectKey required." });
+      if (!verifySubject(experimentKey, subjectKey, subjectToken)) {
+        return res.status(401).json({ ok: false, message: "Invalid subject token. Call /api/experiments/assign first." });
+      }
+      const { recordEvent } = await import("./experiments/orchestrator");
+      const result = await recordEvent(experimentKey, subjectKey, eventType, value);
+      res.json(result);
+    } catch (e: any) {
+      console.error("[experiments] event failed:", e?.message);
+      res.status(500).json({ message: "Event failed." });
     }
   });
 
