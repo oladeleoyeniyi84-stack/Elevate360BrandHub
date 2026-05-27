@@ -36,6 +36,8 @@ import {
   type GrowthRecommendation, type InsertGrowthRecommendation,
   type Experiment, type InsertExperiment,
   type ExperimentAssignment, type ExperimentEvent,
+  type PersonalizationSegment, type InsertPersonalizationSegment,
+  type PersonalizationProfile, type PersonalizationRule, type InsertPersonalizationRule,
   users, contactMessages, newsletterSubscribers, chatConversations, clickEvents, pageViews, testimonials, blogPosts, knowledgeDocuments, consultations, bookings, orders, digestReports, offerMappingOverrides, auditLogs, automationSettings,
   automationJobs, automationJobLogs, revenueRecoveryActions, contentOpportunities, autonomousAlerts,
   growthExperiments, sourcePerformanceSnapshots, funnelLeakReports, offerPerformanceSnapshots,
@@ -43,6 +45,7 @@ import {
   userRoles, approvalRequests, aiExplanations, systemHealthSnapshots, quarterlyStrategyReports,
   qaSentinelReports, recoveryReports, growthIntelligenceReports, growthRecommendations,
   experiments, experimentAssignments, experimentEvents,
+  personalizationSegments, personalizationProfiles, personalizationRules, personalizationEvents,
 } from "@shared/schema";
 import { db } from "./db";
 import { and, asc, count, desc, eq, gte, isNull, lte, ne, or, sql } from "drizzle-orm";
@@ -230,6 +233,21 @@ export interface IStorage {
   getExperimentAssignment(experimentId: number, subjectKey: string): Promise<ExperimentAssignment | null>;
   recordExperimentEvent(experimentId: number, variantKey: string, subjectKey: string, eventType: string, value?: number | null): Promise<void>;
   getExperimentVariantStats(experimentId: number): Promise<Array<{ variantKey: string; assignments: number; conversions: number; revenueCents: number }>>;
+
+  // Phase 58 — Personalization Engine
+  listPersonalizationSegments(): Promise<PersonalizationSegment[]>;
+  upsertPersonalizationSegment(input: InsertPersonalizationSegment): Promise<PersonalizationSegment>;
+  getPersonalizationProfile(subjectKey: string): Promise<PersonalizationProfile | null>;
+  upsertPersonalizationProfile(input: { subjectKey: string; segmentKey: string; behavioralScore: number; intent: string; funnelStage: string; signals: Record<string, any> }): Promise<PersonalizationProfile>;
+  listPersonalizationRules(status?: string, surface?: string): Promise<PersonalizationRule[]>;
+  getPersonalizationRule(id: number): Promise<PersonalizationRule | null>;
+  findActivePersonalizationRule(surface: string, segmentKey: string): Promise<PersonalizationRule | null>;
+  createPersonalizationRule(input: InsertPersonalizationRule): Promise<PersonalizationRule>;
+  updatePersonalizationRule(id: number, patch: Partial<PersonalizationRule>): Promise<PersonalizationRule>;
+  deactivateOtherPersonalizationRules(surface: string, segmentKey: string, exceptId: number): Promise<void>;
+  recordPersonalizationEvent(input: { subjectKey: string; segmentKey: string; surface: string; ruleId: number | null; eventType: string; value: number | null }): Promise<void>;
+  getPersonalizationEventStats(surface?: string): Promise<Array<{ surface: string; segmentKey: string; views: number; clicks: number; conversions: number; ctr: number; cvr: number; revenueCents: number }>>;
+  getPersonalizationProfileCounts(): Promise<Array<{ segmentKey: string; count: number; avgScore: number }>>;
 
   // Phase 49 — Revenue Recovery
   getRevenueRecoveryActions(limit?: number): Promise<RevenueRecoveryAction[]>;
@@ -1605,6 +1623,162 @@ export class DatabaseStorage implements IStorage {
     await db.insert(experimentEvents).values({
       experimentId, variantKey, subjectKey, eventType, value: value ?? null,
     });
+  }
+
+  // ── Phase 58 — Personalization ─────────────────────────────────────────────
+
+  async listPersonalizationSegments(): Promise<PersonalizationSegment[]> {
+    return db.select().from(personalizationSegments).orderBy(desc(personalizationSegments.priority), asc(personalizationSegments.id));
+  }
+
+  async upsertPersonalizationSegment(input: InsertPersonalizationSegment): Promise<PersonalizationSegment> {
+    const existing = await db.select().from(personalizationSegments).where(eq(personalizationSegments.segmentKey, input.segmentKey));
+    if (existing[0]) {
+      const [row] = await db.update(personalizationSegments).set(input as any).where(eq(personalizationSegments.id, existing[0].id)).returning();
+      return row;
+    }
+    const [row] = await db.insert(personalizationSegments).values(input as any).returning();
+    return row;
+  }
+
+  async getPersonalizationProfile(subjectKey: string): Promise<PersonalizationProfile | null> {
+    const [row] = await db.select().from(personalizationProfiles).where(eq(personalizationProfiles.subjectKey, subjectKey));
+    return row ?? null;
+  }
+
+  async upsertPersonalizationProfile(input: { subjectKey: string; segmentKey: string; behavioralScore: number; intent: string; funnelStage: string; signals: Record<string, any> }): Promise<PersonalizationProfile> {
+    const existing = await this.getPersonalizationProfile(input.subjectKey);
+    if (existing) {
+      const [row] = await db.update(personalizationProfiles).set({
+        segmentKey: input.segmentKey,
+        behavioralScore: input.behavioralScore,
+        intent: input.intent,
+        funnelStage: input.funnelStage,
+        signals: input.signals as any,
+        updatedAt: new Date(),
+      }).where(eq(personalizationProfiles.id, existing.id)).returning();
+      return row;
+    }
+    const [row] = await db.insert(personalizationProfiles).values({
+      subjectKey: input.subjectKey,
+      segmentKey: input.segmentKey,
+      behavioralScore: input.behavioralScore,
+      intent: input.intent,
+      funnelStage: input.funnelStage,
+      signals: input.signals as any,
+    }).returning();
+    return row;
+  }
+
+  async listPersonalizationRules(status?: string, surface?: string): Promise<PersonalizationRule[]> {
+    const conds: any[] = [];
+    if (status) conds.push(eq(personalizationRules.status, status));
+    if (surface) conds.push(eq(personalizationRules.surface, surface));
+    const q = db.select().from(personalizationRules).orderBy(desc(personalizationRules.createdAt)).limit(500);
+    if (conds.length === 0) return q;
+    if (conds.length === 1) return q.where(conds[0]);
+    return q.where(and(...conds));
+  }
+
+  async getPersonalizationRule(id: number): Promise<PersonalizationRule | null> {
+    const [row] = await db.select().from(personalizationRules).where(eq(personalizationRules.id, id));
+    return row ?? null;
+  }
+
+  async findActivePersonalizationRule(surface: string, segmentKey: string): Promise<PersonalizationRule | null> {
+    const [row] = await db.select().from(personalizationRules)
+      .where(and(
+        eq(personalizationRules.surface, surface),
+        eq(personalizationRules.segmentKey, segmentKey),
+        eq(personalizationRules.status, "active"),
+      ))
+      .orderBy(desc(personalizationRules.priority), desc(personalizationRules.decidedAt))
+      .limit(1);
+    return row ?? null;
+  }
+
+  async createPersonalizationRule(input: InsertPersonalizationRule): Promise<PersonalizationRule> {
+    const [row] = await db.insert(personalizationRules).values(input as any).returning();
+    return row;
+  }
+
+  async updatePersonalizationRule(id: number, patch: Partial<PersonalizationRule>): Promise<PersonalizationRule> {
+    const [row] = await db.update(personalizationRules).set(patch as any).where(eq(personalizationRules.id, id)).returning();
+    return row;
+  }
+
+  async deactivateOtherPersonalizationRules(surface: string, segmentKey: string, exceptId: number): Promise<void> {
+    // Wrap in a transaction so deactivation + the eventual activation form an
+    // atomic swap. Combined with the partial UNIQUE INDEX
+    // personalization_rules_one_active_idx (surface, segment_key) WHERE status='active',
+    // this guarantees at most one active rule per (surface, segment) under concurrency.
+    await db.transaction(async (tx) => {
+      await tx.update(personalizationRules).set({ status: "inactive" as any }).where(and(
+        eq(personalizationRules.surface, surface),
+        eq(personalizationRules.segmentKey, segmentKey),
+        eq(personalizationRules.status, "active"),
+        ne(personalizationRules.id, exceptId),
+      ));
+    });
+  }
+
+  async recordPersonalizationEvent(input: { subjectKey: string; segmentKey: string; surface: string; ruleId: number | null; eventType: string; value: number | null }): Promise<void> {
+    await db.insert(personalizationEvents).values(input as any);
+  }
+
+  async getPersonalizationEventStats(surface?: string): Promise<Array<{ surface: string; segmentKey: string; views: number; clicks: number; conversions: number; ctr: number; cvr: number; revenueCents: number }>> {
+    const rows = surface
+      ? await db.execute(sql`
+          SELECT surface, segment_key AS "segmentKey",
+            COALESCE(SUM(CASE WHEN event_type = 'view' THEN 1 ELSE 0 END), 0)::int AS views,
+            COALESCE(SUM(CASE WHEN event_type = 'click' THEN 1 ELSE 0 END), 0)::int AS clicks,
+            COALESCE(SUM(CASE WHEN event_type = 'conversion' THEN 1 ELSE 0 END), 0)::int AS conversions,
+            COALESCE(SUM(CASE WHEN event_type = 'conversion' THEN value ELSE 0 END), 0)::int AS "revenueCents"
+          FROM personalization_events
+          WHERE surface = ${surface}
+          GROUP BY surface, segment_key
+          ORDER BY surface, segment_key
+        `)
+      : await db.execute(sql`
+          SELECT surface, segment_key AS "segmentKey",
+            COALESCE(SUM(CASE WHEN event_type = 'view' THEN 1 ELSE 0 END), 0)::int AS views,
+            COALESCE(SUM(CASE WHEN event_type = 'click' THEN 1 ELSE 0 END), 0)::int AS clicks,
+            COALESCE(SUM(CASE WHEN event_type = 'conversion' THEN 1 ELSE 0 END), 0)::int AS conversions,
+            COALESCE(SUM(CASE WHEN event_type = 'conversion' THEN value ELSE 0 END), 0)::int AS "revenueCents"
+          FROM personalization_events
+          GROUP BY surface, segment_key
+          ORDER BY surface, segment_key
+        `);
+    const arr: any[] = (rows as any)?.rows ?? (Array.isArray(rows) ? (rows as any) : []);
+    return arr.map((r: any) => {
+      const views = Number(r.views) || 0;
+      const clicks = Number(r.clicks) || 0;
+      const conversions = Number(r.conversions) || 0;
+      return {
+        surface: r.surface,
+        segmentKey: r.segmentKey,
+        views, clicks, conversions,
+        revenueCents: Number(r.revenueCents) || 0,
+        ctr: views > 0 ? Math.round((clicks / views) * 10000) / 10000 : 0,
+        cvr: views > 0 ? Math.round((conversions / views) * 10000) / 10000 : 0,
+      };
+    });
+  }
+
+  async getPersonalizationProfileCounts(): Promise<Array<{ segmentKey: string; count: number; avgScore: number }>> {
+    const rows = await db.execute(sql`
+      SELECT segment_key AS "segmentKey", COUNT(*)::int AS count,
+             COALESCE(AVG(behavioral_score), 0)::float AS "avgScore"
+      FROM personalization_profiles
+      GROUP BY segment_key
+      ORDER BY count DESC
+    `);
+    const arr: any[] = (rows as any)?.rows ?? (Array.isArray(rows) ? (rows as any) : []);
+    return arr.map((r: any) => ({
+      segmentKey: r.segmentKey,
+      count: Number(r.count) || 0,
+      avgScore: Math.round(Number(r.avgScore) * 10) / 10,
+    }));
   }
 
   async getExperimentVariantStats(experimentId: number): Promise<Array<{ variantKey: string; assignments: number; conversions: number; revenueCents: number }>> {

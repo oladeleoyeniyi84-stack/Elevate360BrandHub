@@ -11,6 +11,7 @@ import Dashboard from "@/pages/Dashboard";
 import OpsCenter from "@/pages/OpsCenter";
 import GrowthEngine from "@/pages/GrowthEngine";
 import ExperimentLab from "@/pages/ExperimentLab";
+import PersonalizationConsole from "@/pages/PersonalizationConsole";
 import Links from "@/pages/Links";
 import Blog from "@/pages/Blog";
 import BlogPost from "@/pages/BlogPost";
@@ -96,6 +97,17 @@ function Router() {
             path="/experiments"
           />
           <ExperimentLab />
+        </>
+      </Route>
+
+      <Route path="/personalization">
+        <>
+          <SEO
+            title="Personalization Console | Elevate360Official"
+            description="Autonomous Personalization Engine for Elevate360Official."
+            path="/personalization"
+          />
+          <PersonalizationConsole />
         </>
       </Route>
 

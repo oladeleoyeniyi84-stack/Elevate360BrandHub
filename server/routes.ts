@@ -1069,6 +1069,207 @@ export async function registerRoutes(
     }
   });
 
+  // ─── Shared helpers for Phase 57 & 58 public telemetry ─────────────────────
+  // Per-IP token-bucket rate limit + HMAC subject token with domain-scoped prefixes.
+  const expRateBuckets = new Map<string, { tokens: number; ts: number }>();
+  const EXP_RATE_CAP = 60;
+  const EXP_RATE_WINDOW_MS = 60_000;
+  function expRateLimit(req: any): boolean {
+    // Use trusted IP helper (CF-Connecting-IP → req.ip hardened by trust proxy: 1).
+    // Never trust raw x-forwarded-for here — it is spoofable.
+    const ip = String(getClientIp(req)).slice(0, 64);
+    const now = Date.now();
+    const b = expRateBuckets.get(ip) ?? { tokens: EXP_RATE_CAP, ts: now };
+    const elapsed = now - b.ts;
+    b.tokens = Math.min(EXP_RATE_CAP, b.tokens + (elapsed / EXP_RATE_WINDOW_MS) * EXP_RATE_CAP);
+    b.ts = now;
+    if (b.tokens < 1) { expRateBuckets.set(ip, b); return false; }
+    b.tokens -= 1;
+    expRateBuckets.set(ip, b);
+    if (expRateBuckets.size > 5000) {
+      expRateBuckets.forEach((v, k) => {
+        if (now - v.ts > EXP_RATE_WINDOW_MS * 5) expRateBuckets.delete(k);
+      });
+    }
+    return true;
+  }
+  const EXP_TOKEN_SECRET = process.env.SESSION_SECRET || process.env.DASHBOARD_PIN || "elevate360-exp-fallback";
+  // Domain-scoped HMAC: scope is namespaced with a fixed prefix so that an
+  // experiment token (scope="exp:<experimentKey>") cannot ever validate as a
+  // personalization token (scope="pers:personalization"), and vice versa.
+  function signScopedToken(scope: string, subjectKey: string): string {
+    return createHmac("sha256", EXP_TOKEN_SECRET)
+      .update(`${scope}|${subjectKey}`).digest("hex").slice(0, 32);
+  }
+  function verifyScopedToken(scope: string, subjectKey: string, token: string): boolean {
+    if (!token || typeof token !== "string" || token.length !== 32) return false;
+    const expected = signScopedToken(scope, subjectKey);
+    if (token.length !== expected.length) return false;
+    let diff = 0;
+    for (let i = 0; i < token.length; i++) diff |= token.charCodeAt(i) ^ expected.charCodeAt(i);
+    return diff === 0;
+  }
+  // Backwards-compatible helpers that always namespace the scope so collisions
+  // across product domains (experiments vs personalization) are impossible.
+  function signSubject(experimentKey: string, subjectKey: string): string {
+    return signScopedToken(`exp:${experimentKey}`, subjectKey);
+  }
+  function verifySubject(experimentKey: string, subjectKey: string, token: string): boolean {
+    return verifyScopedToken(`exp:${experimentKey}`, subjectKey, token);
+  }
+  function signPersonalizationToken(subjectKey: string): string {
+    return signScopedToken("pers:v1", subjectKey);
+  }
+  function verifyPersonalizationToken(subjectKey: string, token: string): boolean {
+    return verifyScopedToken("pers:v1", subjectKey, token);
+  }
+
+  // ─── Phase 58 — Personalization Engine ──────────────────────────────────────
+  app.get("/api/admin/personalization/segments", requireDashboardAuth, async (_req, res) => {
+    try {
+      const [segments, counts] = await Promise.all([
+        storage.listPersonalizationSegments(),
+        storage.getPersonalizationProfileCounts(),
+      ]);
+      res.json({ segments, counts });
+    } catch (e: any) {
+      console.error("[personalization] segments list failed:", e?.message);
+      res.status(500).json({ message: "Could not list segments." });
+    }
+  });
+
+  app.post("/api/admin/personalization/segments", requireDashboardAuth, async (req, res) => {
+    try {
+      const { upsertSegment } = await import("./personalization/engine");
+      const segment = await upsertSegment(req.body);
+      res.json({ ok: true, segment });
+    } catch (e: any) {
+      console.error("[personalization] upsert segment failed:", e?.message);
+      res.status(400).json({ ok: false, message: e?.message || "Upsert failed." });
+    }
+  });
+
+  app.get("/api/admin/personalization/rules", requireDashboardAuth, async (req, res) => {
+    try {
+      const status = typeof req.query.status === "string" ? req.query.status.slice(0, 20) : undefined;
+      const surface = typeof req.query.surface === "string" ? req.query.surface.slice(0, 60) : undefined;
+      const rules = await storage.listPersonalizationRules(status, surface);
+      res.json(rules);
+    } catch (e: any) {
+      console.error("[personalization] list rules failed:", e?.message);
+      res.status(500).json({ message: "Could not list rules." });
+    }
+  });
+
+  app.post("/api/admin/personalization/propose", requireDashboardAuth, async (req, res) => {
+    try {
+      const surface = String(req.body?.surface ?? "").slice(0, 60);
+      const hypothesis = typeof req.body?.hypothesis === "string" ? req.body.hypothesis.slice(0, 600) : undefined;
+      const { proposeRulesForSurface } = await import("./personalization/engine");
+      const result = await proposeRulesForSurface({ surface, hypothesis });
+      res.json({ ok: true, ...result });
+    } catch (e: any) {
+      console.error("[personalization] propose failed:", e?.message);
+      res.status(400).json({ ok: false, message: e?.message || "Propose failed." });
+    }
+  });
+
+  app.post("/api/admin/personalization/rules/:id/decide", requireDashboardAuth, async (req, res) => {
+    try {
+      const id = parseInt(String(req.params.id), 10);
+      if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ message: "Invalid id." });
+      const action = String(req.body?.action ?? "").toLowerCase();
+      if (!["approve", "reject", "activate", "deactivate"].includes(action)) {
+        return res.status(400).json({ message: "Invalid action. Must be approve|reject|activate|deactivate." });
+      }
+      const { decideRule } = await import("./personalization/engine");
+      const rule = await decideRule(id, action as any, "founder");
+      res.json({ ok: true, rule });
+    } catch (e: any) {
+      console.error("[personalization] decide rule failed:", e?.message);
+      res.status(400).json({ ok: false, message: e?.message || "Decision failed." });
+    }
+  });
+
+  app.get("/api/admin/personalization/analytics", requireDashboardAuth, async (req, res) => {
+    try {
+      const surface = typeof req.query.surface === "string" ? req.query.surface.slice(0, 60) : undefined;
+      const { analyzePerformance } = await import("./personalization/engine");
+      const result = await analyzePerformance(surface);
+      res.json(result);
+    } catch (e: any) {
+      console.error("[personalization] analytics failed:", e?.message);
+      res.status(500).json({ message: "Analytics failed." });
+    }
+  });
+
+  app.get("/api/admin/personalization/surfaces", requireDashboardAuth, async (_req, res) => {
+    const { SAFE_SURFACES } = await import("./personalization/engine");
+    res.json({ surfaces: SAFE_SURFACES });
+  });
+
+  // Public personalization endpoints (rate-limited, HMAC-token for events).
+  app.post("/api/personalization/classify", async (req, res) => {
+    if (!expRateLimit(req)) return res.status(429).json({ message: "Too many requests." });
+    try {
+      const subjectKey = String(req.body?.subjectKey ?? "").slice(0, 120);
+      if (!subjectKey) return res.status(400).json({ message: "subjectKey required." });
+      const { classifySubject } = await import("./personalization/engine");
+      const { profile } = await classifySubject(subjectKey, req.body?.signals ?? {});
+      const subjectToken = signPersonalizationToken(subjectKey);
+      res.json({
+        subjectKey: profile.subjectKey,
+        segmentKey: profile.segmentKey,
+        behavioralScore: profile.behavioralScore,
+        intent: profile.intent,
+        funnelStage: profile.funnelStage,
+        subjectToken,
+      });
+    } catch (e: any) {
+      console.error("[personalization] classify failed:", e?.message);
+      res.status(500).json({ message: "Classify failed." });
+    }
+  });
+
+  app.post("/api/personalization/content", async (req, res) => {
+    if (!expRateLimit(req)) return res.status(429).json({ message: "Too many requests." });
+    try {
+      const surface = String(req.body?.surface ?? "").slice(0, 60);
+      const subjectKey = String(req.body?.subjectKey ?? "").slice(0, 120);
+      if (!surface || !subjectKey) return res.status(400).json({ message: "surface and subjectKey required." });
+      const { getPersonalizedContent, isSafeSurface } = await import("./personalization/engine");
+      if (!isSafeSurface(surface)) return res.status(400).json({ message: "Surface is not on the safe list." });
+      const result = await getPersonalizedContent(surface, subjectKey);
+      res.json(result);
+    } catch (e: any) {
+      console.error("[personalization] content failed:", e?.message);
+      res.status(500).json({ message: "Content fetch failed." });
+    }
+  });
+
+  app.post("/api/personalization/event", async (req, res) => {
+    if (!expRateLimit(req)) return res.status(429).json({ message: "Too many requests." });
+    try {
+      const subjectKey = String(req.body?.subjectKey ?? "").slice(0, 120);
+      const subjectToken = String(req.body?.subjectToken ?? "");
+      const surface = String(req.body?.surface ?? "").slice(0, 60);
+      const eventType = String(req.body?.eventType ?? "view").slice(0, 40);
+      const ruleId = typeof req.body?.ruleId === "number" ? req.body.ruleId : null;
+      const value = typeof req.body?.value === "number" ? req.body.value : null;
+      if (!subjectKey || !surface) return res.status(400).json({ message: "subjectKey and surface required." });
+      if (!verifyPersonalizationToken(subjectKey, subjectToken)) {
+        return res.status(401).json({ ok: false, message: "Invalid subject token. Call /api/personalization/classify first." });
+      }
+      const { recordPersonalizationEvent, isSafeSurface } = await import("./personalization/engine");
+      if (!isSafeSurface(surface)) return res.status(400).json({ message: "Surface is not on the safe list." });
+      const result = await recordPersonalizationEvent({ subjectKey, surface, eventType, ruleId, value });
+      res.json(result);
+    } catch (e: any) {
+      console.error("[personalization] event failed:", e?.message);
+      res.status(500).json({ message: "Event failed." });
+    }
+  });
+
   // ─── Phase 57 — Experiment Orchestrator ─────────────────────────────────────
   app.get("/api/admin/experiments", requireDashboardAuth, async (req, res) => {
     try {
@@ -1145,46 +1346,7 @@ export async function registerRoutes(
     }
   });
 
-  // Public telemetry — sticky assignment + event recording.
-  // Safe-by-design: per-IP token-bucket rate limit, server-issued subject token (HMAC),
-  // assignment must precede event, and only "running" experiments produce writes.
-  const expRateBuckets = new Map<string, { tokens: number; ts: number }>();
-  const EXP_RATE_CAP = 60;            // 60 requests
-  const EXP_RATE_WINDOW_MS = 60_000;  // per minute, per IP
-  function expRateLimit(req: any): boolean {
-    const ip = (req.headers["x-forwarded-for"]?.toString().split(",")[0].trim() || req.socket?.remoteAddress || "unknown").slice(0, 64);
-    const now = Date.now();
-    const b = expRateBuckets.get(ip) ?? { tokens: EXP_RATE_CAP, ts: now };
-    const elapsed = now - b.ts;
-    const refill = (elapsed / EXP_RATE_WINDOW_MS) * EXP_RATE_CAP;
-    b.tokens = Math.min(EXP_RATE_CAP, b.tokens + refill);
-    b.ts = now;
-    if (b.tokens < 1) { expRateBuckets.set(ip, b); return false; }
-    b.tokens -= 1;
-    expRateBuckets.set(ip, b);
-    if (expRateBuckets.size > 5000) {
-      // simple LRU-ish cleanup of cold buckets
-      expRateBuckets.forEach((v, k) => {
-        if (now - v.ts > EXP_RATE_WINDOW_MS * 5) expRateBuckets.delete(k);
-      });
-    }
-    return true;
-  }
-  const EXP_TOKEN_SECRET = process.env.SESSION_SECRET || process.env.DASHBOARD_PIN || "elevate360-exp-fallback";
-  function signSubject(experimentKey: string, subjectKey: string): string {
-    return createHmac("sha256", EXP_TOKEN_SECRET)
-      .update(`${experimentKey}|${subjectKey}`).digest("hex").slice(0, 32);
-  }
-  function verifySubject(experimentKey: string, subjectKey: string, token: string): boolean {
-    if (!token || typeof token !== "string" || token.length !== 32) return false;
-    const expected = signSubject(experimentKey, subjectKey);
-    // constant-time compare
-    if (token.length !== expected.length) return false;
-    let diff = 0;
-    for (let i = 0; i < token.length; i++) diff |= token.charCodeAt(i) ^ expected.charCodeAt(i);
-    return diff === 0;
-  }
-
+  // Public experiment telemetry — uses shared expRateLimit / signSubject / verifySubject above.
   app.post("/api/experiments/assign", async (req, res) => {
     if (!expRateLimit(req)) return res.status(429).json({ message: "Too many requests." });
     try {

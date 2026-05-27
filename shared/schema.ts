@@ -583,6 +583,74 @@ export const experimentEvents = pgTable("experiment_events", {
 }));
 export type ExperimentEvent = typeof experimentEvents.$inferSelect;
 
+// Phase 58 — Personalization Engine
+export const personalizationSegments = pgTable("personalization_segments", {
+  id: serial("id").primaryKey(),
+  segmentKey: varchar("segment_key", { length: 80 }).notNull().unique(),
+  name: varchar("name", { length: 160 }).notNull(),
+  description: text("description").notNull().default(""),
+  rules: jsonb("rules").notNull().default([]),
+  priority: integer("priority").notNull().default(0),
+  status: varchar("status", { length: 20 }).notNull().default("active"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const insertPersonalizationSegmentSchema = createInsertSchema(personalizationSegments).omit({ id: true, createdAt: true });
+export type InsertPersonalizationSegment = z.infer<typeof insertPersonalizationSegmentSchema>;
+export type PersonalizationSegment = typeof personalizationSegments.$inferSelect;
+
+export const personalizationProfiles = pgTable("personalization_profiles", {
+  id: serial("id").primaryKey(),
+  subjectKey: varchar("subject_key", { length: 120 }).notNull().unique(),
+  segmentKey: varchar("segment_key", { length: 80 }).notNull().default("default"),
+  behavioralScore: integer("behavioral_score").notNull().default(0),
+  intent: varchar("intent", { length: 40 }).notNull().default("unknown"),
+  funnelStage: varchar("funnel_stage", { length: 40 }).notNull().default("awareness"),
+  signals: jsonb("signals").notNull().default({}),
+  firstSeen: timestamp("first_seen").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (t) => ({
+  segmentIdx: index("personalization_profiles_segment_idx").on(t.segmentKey),
+}));
+export type PersonalizationProfile = typeof personalizationProfiles.$inferSelect;
+
+export const personalizationRules = pgTable("personalization_rules", {
+  id: serial("id").primaryKey(),
+  surface: varchar("surface", { length: 60 }).notNull(),
+  segmentKey: varchar("segment_key", { length: 80 }).notNull(),
+  contentVariant: jsonb("content_variant").notNull().default({}),
+  rationale: text("rationale").notNull().default(""),
+  status: varchar("status", { length: 20 }).notNull().default("pending"),
+  priority: integer("priority").notNull().default(0),
+  decidedBy: varchar("decided_by", { length: 80 }),
+  decidedAt: timestamp("decided_at"),
+  diagnosticsSummary: text("diagnostics_summary").notNull().default(""),
+  executiveSummary: text("executive_summary").notNull().default(""),
+  diagnosticsProvider: varchar("diagnostics_provider", { length: 20 }),
+  executiveProvider: varchar("executive_provider", { length: 20 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  activeIdx: index("personalization_rules_active_idx").on(t.surface, t.segmentKey, t.status),
+  // Partial unique index — at most ONE active rule per (surface, segment). Created via raw SQL.
+  oneActiveIdx: uniqueIndex("personalization_rules_one_active_idx").on(t.surface, t.segmentKey).where(sql`status = 'active'`),
+}));
+export const insertPersonalizationRuleSchema = createInsertSchema(personalizationRules).omit({ id: true, createdAt: true, decidedAt: true });
+export type InsertPersonalizationRule = z.infer<typeof insertPersonalizationRuleSchema>;
+export type PersonalizationRule = typeof personalizationRules.$inferSelect;
+
+export const personalizationEvents = pgTable("personalization_events", {
+  id: serial("id").primaryKey(),
+  subjectKey: varchar("subject_key", { length: 120 }).notNull(),
+  segmentKey: varchar("segment_key", { length: 80 }).notNull(),
+  surface: varchar("surface", { length: 60 }).notNull(),
+  ruleId: integer("rule_id").references(() => personalizationRules.id, { onDelete: "set null" }),
+  eventType: varchar("event_type", { length: 40 }).notNull(),
+  value: integer("value"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  lookupIdx: index("personalization_events_lookup_idx").on(t.surface, t.segmentKey, t.eventType),
+}));
+export type PersonalizationEvent = typeof personalizationEvents.$inferSelect;
+
 export type ExperimentVariant = {
   key: string;
   name: string;
