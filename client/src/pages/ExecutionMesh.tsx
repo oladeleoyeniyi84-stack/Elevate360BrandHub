@@ -41,12 +41,39 @@ const statusColor = (s: string) => ({
 }[s] || "#94a3b8");
 
 function PinGate({ onAuth }: { onAuth: () => void }) {
-  const [pin, setPin] = useState(""); const [show, setShow] = useState(false); const [err, setErr] = useState("");
+  const [pin, setPin] = useState("");
+  const [show, setShow] = useState(false);
+  const [err, setErr] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
   const submit = async (e: React.FormEvent) => {
-    e.preventDefault(); setErr("");
-    const r = await fetch("/api/dashboard/auth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pin }) });
-    if (r.ok) { sessionStorage.setItem("e360_dashboard_auth", "true"); onAuth(); } else { setErr("Invalid PIN."); setPin(""); }
+    e.preventDefault();
+    if (submitting) return;
+    setErr("");
+    setSubmitting(true);
+    try {
+      const r = await fetch("/api/dashboard/auth", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin }),
+      });
+      if (r.ok) {
+        sessionStorage.setItem("e360_dashboard_auth", "true");
+        onAuth();
+        return;
+      }
+      let msg = "Invalid PIN.";
+      try { const j = await r.json(); if (j?.message) msg = j.message; } catch {}
+      setErr(msg);
+      setPin("");
+    } catch {
+      setErr("Could not reach server. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
+
   return (
     <div className="min-h-screen flex items-center justify-center px-4" style={{ background: BG }}>
       <div className="w-full max-w-sm">
@@ -57,11 +84,30 @@ function PinGate({ onAuth }: { onAuth: () => void }) {
         </div>
         <form onSubmit={submit} className="lux-card space-y-4">
           <div className="relative">
-            <input data-testid="input-mesh-pin" type={show ? "text" : "password"} value={pin} onChange={e => setPin(e.target.value)} placeholder="Enter PIN" autoFocus required className="w-full bg-white/6 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 pr-12 focus:outline-none focus:border-[#F4A62A]/50" />
-            <button type="button" onClick={() => setShow(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40">{show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button>
+            <input
+              data-testid="input-mesh-pin"
+              type={show ? "text" : "password"}
+              value={pin}
+              onChange={e => setPin(e.target.value)}
+              placeholder="Enter PIN"
+              autoFocus
+              required
+              disabled={submitting}
+              className="w-full bg-white/6 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 pr-12 focus:outline-none focus:border-[#F4A62A]/50 disabled:opacity-60"
+            />
+            <button type="button" onClick={() => setShow(v => !v)} tabIndex={-1} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70">
+              {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
           </div>
-          {err && <p className="text-red-400 text-sm text-center">{err}</p>}
-          <button type="submit" data-testid="button-mesh-login" className="btn-primary w-full py-3">Enter Mesh</button>
+          {err && <p data-testid="text-mesh-auth-error" className="text-red-400 text-sm text-center">{err}</p>}
+          <button
+            type="submit"
+            data-testid="button-mesh-login"
+            disabled={submitting || pin.length === 0}
+            className="btn-primary w-full py-3 disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {submitting ? "Entering…" : "Enter Mesh"}
+          </button>
         </form>
       </div>
     </div>
