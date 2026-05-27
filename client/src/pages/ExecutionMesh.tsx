@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity, AlertTriangle, Bot, Brain, CheckCircle2, Cpu, Eye, EyeOff,
-  GitBranch, Layers, MessageSquare, Network, Pause, Play, Plus, RefreshCw,
+  GitBranch, Layers, Loader2, MessageSquare, Network, Pause, Play, Plus, RefreshCw,
   Send, Shield, Workflow, Zap,
 } from "lucide-react";
 import {
@@ -52,22 +52,39 @@ function PinGate({ onAuth }: { onAuth: () => void }) {
     setErr("");
     setSubmitting(true);
     try {
+      const trimmed = pin.trim();
       const r = await fetch("/api/dashboard/auth", {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin }),
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ pin: trimmed }),
       });
       if (r.ok) {
+        // Confirm cookie actually persisted by hitting a session-protected route
+        // before transitioning. This eliminates the "auth says OK but session
+        // didn't stick" failure mode (third-party-cookie / iframe contexts).
+        const check = await fetch("/api/admin/mesh/overview", { credentials: "include" });
+        if (check.status === 401) {
+          console.error("[mesh] auth 200 but session not retained on follow-up; cookie blocked?");
+          setErr("Signed in, but your browser did not retain the session. Open /mesh in a new tab.");
+          return;
+        }
+        if (!check.ok && check.status !== 200) {
+          console.error("[mesh] post-auth overview returned", check.status);
+        }
         sessionStorage.setItem("e360_dashboard_auth", "true");
         onAuth();
         return;
       }
-      let msg = "Invalid PIN.";
+      let msg = r.status === 401
+        ? "Invalid PIN. Please double-check and try again."
+        : `Sign-in failed (HTTP ${r.status}).`;
       try { const j = await r.json(); if (j?.message) msg = j.message; } catch {}
+      console.error("[mesh] auth failed:", r.status, msg);
       setErr(msg);
       setPin("");
-    } catch {
+    } catch (e) {
+      console.error("[mesh] auth network error:", e);
       setErr("Could not reach server. Please try again.");
     } finally {
       setSubmitting(false);
@@ -99,14 +116,27 @@ function PinGate({ onAuth }: { onAuth: () => void }) {
               {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
-          {err && <p data-testid="text-mesh-auth-error" className="text-red-400 text-sm text-center">{err}</p>}
+          {err && (
+            <div
+              data-testid="text-mesh-auth-error"
+              role="alert"
+              aria-live="assertive"
+              className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300 text-center"
+            >
+              {err}
+            </div>
+          )}
           <button
             type="submit"
             data-testid="button-mesh-login"
             disabled={submitting || pin.length === 0}
             className="btn-primary w-full py-3 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {submitting ? "Entering…" : "Enter Mesh"}
+            {submitting ? (
+              <span className="inline-flex items-center justify-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" /> Entering…
+              </span>
+            ) : "Enter Mesh"}
           </button>
         </form>
       </div>
@@ -456,8 +486,25 @@ function Console({ onLogout }: { onLogout: () => void }) {
 }
 
 export default function ExecutionMesh() {
-  const [authed, setAuthed] = useState(false);
-  useEffect(() => { setAuthed(sessionStorage.getItem("e360_dashboard_auth") === "true"); }, []);
+  // Hydrate from sessionStorage synchronously so a page refresh on an
+  // already-authed session does not flash the PIN gate or race the first query.
+  const [authed, setAuthed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try { return window.sessionStorage.getItem("e360_dashboard_auth") === "true"; }
+    catch { return false; }
+  });
+
+  // Keep state in sync if another tab/window logs in or out.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "e360_dashboard_auth") {
+        setAuthed(e.newValue === "true");
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
   if (!authed) return <PinGate onAuth={() => setAuthed(true)} />;
   return <Console onLogout={() => setAuthed(false)} />;
 }
