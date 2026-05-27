@@ -134,4 +134,25 @@ export async function startAutomationJobs() {
   );
 
   console.log("[automation] Phase 53 jobs registered (1 job)");
+
+  // ── Phase 54 — Autonomous Recovery Engine ──────────────────────────────────
+  // Boot-offset 15m so it runs well after the QA sentinel (sentinel boot=390s)
+  // and consumes the latest report. Subsequent runs follow the 6h cadence
+  // independently — both jobs offset enough that they never overlap in practice.
+  const { runRecoveryEngine } = await import("./recoveryEngine");
+
+  await registerRecurringJob(
+    {
+      jobKey: "phase54_autonomous_recovery_engine",
+      jobGroup: "diagnostics",
+      cadenceMinutes: 360, // every 6 hours
+      run: async () => {
+        const { summary } = await runRecoveryEngine();
+        return { summary };
+      },
+    },
+    900_000 // 15-minute boot offset: sentinel completes (boot 6.5m) before this fires
+  );
+
+  console.log("[automation] Phase 54 jobs registered (1 job)");
 }

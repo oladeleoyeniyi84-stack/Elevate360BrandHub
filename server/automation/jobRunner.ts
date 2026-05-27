@@ -51,11 +51,17 @@ export async function registerRecurringJob(config: JobConfig, bootDelayMs = 60_0
 
       const now = new Date();
       nextRunAt = Date.now() + cadenceMs;
+      // Read current counters to do a safe per-run increment. Used by the
+      // Phase 54 recovery engine to enforce MAX_RETRY_FAILURES.
+      const current = await storage.getAutomationJob(config.jobKey).catch(() => null);
       await storage.upsertAutomationJob(config.jobKey, {
         status: "succeeded",
         lastFinishedAt: now,
         lastSucceededAt: now,
         nextRunAt: new Date(nextRunAt),
+        runCount: (current?.runCount ?? 0) + 1,
+        successCount: (current?.successCount ?? 0) + 1,
+        failureCount: 0, // reset consecutive failures on success
       });
 
       await storage.createAutomationJobLog({
@@ -70,12 +76,15 @@ export async function registerRecurringJob(config: JobConfig, bootDelayMs = 60_0
     } catch (error: any) {
       const now = new Date();
       nextRunAt = Date.now() + cadenceMs;
+      const current = await storage.getAutomationJob(config.jobKey).catch(() => null);
       await storage.upsertAutomationJob(config.jobKey, {
         status: "failed",
         lastFinishedAt: now,
         lastFailedAt: now,
         lastError: error?.message ?? "unknown error",
         nextRunAt: new Date(nextRunAt),
+        runCount: (current?.runCount ?? 0) + 1,
+        failureCount: (current?.failureCount ?? 0) + 1,
       });
 
       await storage.createAutomationJobLog({

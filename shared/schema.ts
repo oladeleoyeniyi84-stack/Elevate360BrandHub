@@ -464,6 +464,25 @@ export const insertQaSentinelReportSchema = createInsertSchema(qaSentinelReports
 export type InsertQaSentinelReport = z.infer<typeof insertQaSentinelReportSchema>;
 export type QaSentinelReport = typeof qaSentinelReports.$inferSelect;
 
+// Phase 54 — Autonomous Recovery Engine reports
+export const recoveryReports = pgTable("recovery_reports", {
+  id: serial("id").primaryKey(),
+  status: varchar("status", { length: 20 }).notNull(),
+  actionsTaken: jsonb("actions_taken").notNull().default([]),
+  recommendations: jsonb("recommendations").notNull().default([]),
+  skippedActions: jsonb("skipped_actions").notNull().default([]),
+  rawContext: jsonb("raw_context").notNull().default({}),
+  confidence: integer("confidence").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertRecoveryReportSchema = createInsertSchema(recoveryReports).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertRecoveryReport = z.infer<typeof insertRecoveryReportSchema>;
+export type RecoveryReport = typeof recoveryReports.$inferSelect;
+
 export const automationJobLogs = pgTable("automation_job_logs", {
   id: serial("id").primaryKey(),
   jobKey: varchar("job_key", { length: 80 }).notNull(),

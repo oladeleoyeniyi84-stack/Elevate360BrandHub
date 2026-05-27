@@ -955,6 +955,29 @@ export async function registerRoutes(
     }
   });
 
+  // ─── Phase 54 — Autonomous Recovery Engine (admin-only) ────────────────────
+  app.get("/api/admin/recovery", requireDashboardAuth, async (_req, res) => {
+    try {
+      const latest = await storage.getLatestRecoveryReport();
+      const history = await storage.getRecoveryReports(20);
+      res.json({ latest, history });
+    } catch (e: any) {
+      console.error("[recovery] fetch failed:", e?.message);
+      res.status(500).json({ message: "Could not load recovery reports." });
+    }
+  });
+
+  app.post("/api/admin/recovery/run", requireDashboardAuth, async (_req, res) => {
+    try {
+      const { runRecoveryEngine } = await import("./automation/recoveryEngine");
+      const { report, summary } = await runRecoveryEngine();
+      res.json({ ok: true, summary, report });
+    } catch (e: any) {
+      console.error("[recovery] run failed:", e?.message);
+      res.status(500).json({ ok: false, message: "Recovery engine run failed." });
+    }
+  });
+
   app.get("/api/health", async (_req, res) => {
     const checks: Record<string, { ok: boolean; latencyMs?: number; detail?: string }> = {};
 

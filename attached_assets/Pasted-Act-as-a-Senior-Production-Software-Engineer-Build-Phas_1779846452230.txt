@@ -1,0 +1,110 @@
+Act as a Senior Production Software Engineer.
+
+Build Phase 54 — Autonomous Recovery Engine for Elevate360BrandHub.
+
+Goal:
+Extend the existing DeepSeek QA Sentinel into a controlled self-healing production system.
+
+Current state:
+- Render production is live.
+- OpenAI is premium layer.
+- DeepSeek is automation/diagnostics layer.
+- Phase 53 QA Sentinel is healthy.
+- automationJobs total=14, failed=0, succeeded=14.
+- qa_sentinel_reports table exists.
+- /api/admin/qa-sentinel and /api/admin/qa-sentinel/run work with dashboard PIN auth.
+
+Build requirements:
+
+1. Create new recovery engine:
+server/automation/recoveryEngine.ts
+
+2. The recovery engine should inspect:
+- latest QA Sentinel report
+- automation job statuses
+- stale jobs
+- failed jobs
+- webhook health indicators if available
+- database health
+- AI router health
+- Stripe health
+- Resend health
+
+3. Use DeepSeek through existing runTask("diagnostics", ...) to analyze recovery decisions.
+
+4. Add strict safety rules:
+- Never auto-fix payment data.
+- Never delete records.
+- Never rotate secrets.
+- Never change environment variables.
+- Never force deploy.
+- Never rollback production automatically.
+- Only perform safe recovery actions.
+
+5. Allowed safe recovery actions:
+- mark stale job as ready/retryable
+- retry failed automation job if retry count is below limit
+- clear stale self-failure if the latest run is healthy
+- create recovery report
+- recommend human action for risky items
+- log safe metadata only
+
+6. Create table if missing:
+recovery_reports
+- id
+- status
+- actions_taken jsonb
+- recommendations jsonb
+- skipped_actions jsonb
+- raw_context jsonb
+- confidence
+- created_at
+
+7. Add storage methods:
+createRecoveryReport()
+getLatestRecoveryReport()
+getRecoveryReports(limit)
+
+8. Add protected admin routes:
+GET /api/admin/recovery
+POST /api/admin/recovery/run
+
+Both must use existing dashboard auth.
+
+9. Add scheduled job:
+phase54_autonomous_recovery_engine
+Cadence: every 6 hours
+Should run after QA Sentinel when possible.
+
+10. Add safe logging:
+[recoveryEngine] status=healthy actions=0 recommendations=1 confidence=0.88
+
+Never log:
+- secrets
+- payment data
+- API keys
+- emails
+- full prompts
+- full model outputs
+- dashboard PIN
+
+11. Add route-level verification:
+- unauthenticated requests return 401
+- authenticated GET returns latest/history
+- authenticated POST runs recovery and saves report
+
+12. Run:
+npm run check
+npm run build
+
+13. Final report must include:
+- files changed
+- routes added
+- tables added
+- scheduled job added
+- test results
+- exact Render curl commands
+- commit summary
+
+Important:
+This phase should be cautious. DeepSeek can recommend serious fixes, but it must not execute risky infrastructure or payment changes automatically.

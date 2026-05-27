@@ -31,12 +31,13 @@ import {
   type SystemHealthSnapshot, type InsertSystemHealthSnapshot,
   type QuarterlyStrategyReport, type InsertQuarterlyStrategyReport,
   type QaSentinelReport, type InsertQaSentinelReport,
+  type RecoveryReport, type InsertRecoveryReport,
   users, contactMessages, newsletterSubscribers, chatConversations, clickEvents, pageViews, testimonials, blogPosts, knowledgeDocuments, consultations, bookings, orders, digestReports, offerMappingOverrides, auditLogs, automationSettings,
   automationJobs, automationJobLogs, revenueRecoveryActions, contentOpportunities, autonomousAlerts,
   growthExperiments, sourcePerformanceSnapshots, funnelLeakReports, offerPerformanceSnapshots,
   executionPolicies, appliedChanges, executionQueue, rollbackEvents,
   userRoles, approvalRequests, aiExplanations, systemHealthSnapshots, quarterlyStrategyReports,
-  qaSentinelReports,
+  qaSentinelReports, recoveryReports,
 } from "@shared/schema";
 import { db } from "./db";
 import { and, asc, count, desc, eq, gte, isNull, lte, ne, or, sql } from "drizzle-orm";
@@ -194,6 +195,11 @@ export interface IStorage {
   createQaSentinelReport(input: InsertQaSentinelReport): Promise<QaSentinelReport>;
   getLatestQaSentinelReport(): Promise<QaSentinelReport | null>;
   getQaSentinelReports(limit?: number): Promise<QaSentinelReport[]>;
+
+  // Phase 54 — Recovery reports
+  createRecoveryReport(input: InsertRecoveryReport): Promise<RecoveryReport>;
+  getLatestRecoveryReport(): Promise<RecoveryReport | null>;
+  getRecoveryReports(limit?: number): Promise<RecoveryReport[]>;
 
   // Phase 49 — Revenue Recovery
   getRevenueRecoveryActions(limit?: number): Promise<RevenueRecoveryAction[]>;
@@ -1433,6 +1439,26 @@ export class DatabaseStorage implements IStorage {
   async getQaSentinelReports(limit = 50): Promise<QaSentinelReport[]> {
     return db.select().from(qaSentinelReports)
       .orderBy(desc(qaSentinelReports.createdAt))
+      .limit(limit);
+  }
+
+  // ── Phase 54 — Recovery reports ─────────────────────────────────────────────
+
+  async createRecoveryReport(input: InsertRecoveryReport): Promise<RecoveryReport> {
+    const [created] = await db.insert(recoveryReports).values(input).returning();
+    return created;
+  }
+
+  async getLatestRecoveryReport(): Promise<RecoveryReport | null> {
+    const [row] = await db.select().from(recoveryReports)
+      .orderBy(desc(recoveryReports.createdAt))
+      .limit(1);
+    return row ?? null;
+  }
+
+  async getRecoveryReports(limit = 50): Promise<RecoveryReport[]> {
+    return db.select().from(recoveryReports)
+      .orderBy(desc(recoveryReports.createdAt))
       .limit(limit);
   }
 
