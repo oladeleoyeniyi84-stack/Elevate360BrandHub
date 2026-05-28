@@ -1,0 +1,402 @@
+Act as an Agentic AI and Senior Production Software Engineer working hand-in-hand with DeepSeek-V4-Pro to level up every app, workflow, and premium feature on the Elevate360 brand website:
+
+https://www.elevate360official.com
+
+Mission:
+Transform Elevate360 into a premium AI-powered brand ecosystem that empowers lives through technology, creativity, wellness, relationships, business automation, and intelligent digital products.
+
+Current ecosystem includes:
+- Elevate360 Brand Hub
+- AI Concierge
+- Stripe monetization
+- Consultation booking funnel
+- Founder profile/brand layer
+- Books and digital products
+- HealthWise / Health support direction
+- BondedLove relationship/dating direction
+- Together relationship book/app direction
+- AI automation layers
+- DeepSeek automation intelligence
+- OpenAI executive intelligence
+- Render production deployment
+- PostgreSQL + Drizzle
+- React/Vite frontend
+- Express backend
+- Tailwind/shadcn UI
+
+Primary goal:
+Upgrade the entire brand website from a brand hub into a premium AI-powered operating platform.
+
+Work in phases, but implement production-ready improvements.
+
+==================================================
+1. FULL SITE AUDIT
+==================================================
+
+Audit:
+- homepage
+- AI Concierge
+- products/books section
+- consultation flow
+- checkout flow
+- thank-you page
+- SEO metadata
+- mobile UX
+- speed/performance
+- accessibility
+- brand consistency
+- trust signals
+- monetization CTAs
+- navigation
+- footer
+- lead capture
+- admin dashboards
+- AI automation routes
+- Stripe routes
+- Render environment compatibility
+
+Find:
+- broken links
+- weak CTA copy
+- poor mobile layouts
+- missing loading/error states
+- missing trust badges
+- missing testimonials
+- missing founder authority
+- missing conversion sections
+- missing structured data
+- stale copy
+- duplicate routes
+- unsafe auth/session issues
+- brittle provider integrations
+- inconsistent brand language
+
+==================================================
+2. PREMIUM BRAND EXPERIENCE
+==================================================
+
+Upgrade the UI/UX to feel:
+- premium
+- professional
+- modern
+- AI-native
+- trustworthy
+- mobile-first
+- founder-led
+- enterprise-ready
+
+Brand tone:
+- deep navy
+- black
+- metallic gold
+- clean white
+- subtle gradients
+- premium cards
+- cinematic sections
+- luxury AI brand aesthetic
+
+Add/upgrade:
+- stronger hero section
+- founder authority section
+- AI-powered ecosystem section
+- app/product showcase
+- consultation CTA section
+- trust/security section
+- book showcase
+- testimonials placeholder
+- social proof section
+- newsletter capture
+- premium footer
+- mobile responsive CTA bars
+
+==================================================
+3. AI CONCIERGE UPGRADE
+==================================================
+
+Upgrade AI Concierge to act as:
+- brand guide
+- lead qualifier
+- product recommender
+- consultation assistant
+- booking assistant
+- FAQ assistant
+- app explainer
+- book recommender
+- business automation advisor
+
+Concierge should recommend:
+- AI Brand Strategy Session
+- AI Content Consultation
+- Creative Direction Call
+- App/Product Consultation
+- Collaboration Discovery Call
+- Elevate360 books
+- BondedLove
+- HealthWise/Health support
+- Together relationship resources
+
+Add:
+- stronger system prompt
+- safer fallback responses
+- lead scoring
+- intent classification
+- recommended next action
+- email/name capture prompts
+- CTA suggestions
+- admin-visible conversation intelligence
+
+Keep:
+- OpenAI for premium conversational synthesis
+- DeepSeek for backend diagnostics/automation when appropriate
+
+==================================================
+4. MONETIZATION UPGRADE
+==================================================
+
+Upgrade consultation/service offers.
+
+Create clear premium offers:
+
+1. AI Brand Strategy Session
+2. AI Content Consultation
+3. Creative Direction Call
+4. App & Product Consultation
+5. Collaboration Discovery Call
+6. Premium AI Brand Audit
+7. Founder Growth Strategy Session
+
+For each offer include:
+- title
+- short description
+- outcome bullets
+- price placeholder/configurable via env or database
+- Stripe checkout CTA
+- booking/thank-you flow
+- trust note
+- “best for” label
+
+Ensure:
+- Stripe errors degrade gracefully
+- invalid Stripe key does not crash public pages
+- /api/offers returns safe fallback offers if Stripe fails
+- checkout buttons show proper loading/error states
+- success page handles purchase/booking/message sources
+
+==================================================
+5. APP ECOSYSTEM UPGRADE
+==================================================
+
+Create/upgrade sections for:
+
+BondedLove:
+- genuine relationships
+- safe connection
+- premium dating experience
+- CTA to bondedlove.net
+
+HealthWise / Health Support:
+- wellness companion
+- health education
+- personalized support
+- CTA to healthwisesupport.com
+
+Together:
+- relationship/marriage wisdom
+- book + app direction
+- love, healing, communication
+
+Elevate360 AI:
+- AI automation
+- brand intelligence
+- content systems
+- business growth
+
+Books:
+- Healthwise: Stay Healthy
+- Together: Let There Be Love
+- One Clean Meal: A 7-Day Reset
+
+Add clean product cards and SEO-friendly descriptions.
+
+==================================================
+6. SEO + STRUCTURED DATA
+==================================================
+
+Improve:
+- homepage title/meta
+- app landing metadata
+- book metadata
+- consultation metadata
+- Open Graph
+- Twitter cards
+- canonical URLs
+- JSON-LD Organization
+- JSON-LD Person
+- JSON-LD Product/Service
+- JSON-LD WebSite
+- sitemap readiness
+- robots safety
+
+Ensure:
+- no broken canonical URLs
+- social preview image paths are stable
+- founder name appears correctly
+- Elevate360 tagline appears correctly:
+  “Empowering Lives Through Technology & Words.”
+
+==================================================
+7. PERFORMANCE + RELIABILITY
+==================================================
+
+Fix:
+- any TypeScript errors
+- broken imports
+- missing images
+- unstable asset paths
+- duplicate auth handlers
+- session-store fragility
+- Stripe 401 public crash behavior
+- unhandled provider failures
+- brittle API responses
+- excessive console logs
+- raw error leakage
+- hard-coded development URLs
+
+Add:
+- defensive API responses
+- safe empty states
+- loading skeletons
+- provider health checks
+- public fallback data
+- admin-only detailed diagnostics
+- summary-only logs
+
+==================================================
+8. ADMIN / AI OPERATIONS SURFACES
+==================================================
+
+Review and stabilize:
+- /ops
+- /growth
+- /experiments
+- /personalization
+- /revenue
+- /orchestrator
+- /command-grid
+- /mesh
+
+Do not remove them.
+
+Fix:
+- auth inconsistencies
+- broken PIN gates
+- session fallback
+- mobile rendering
+- loading states
+- empty states
+- API error handling
+
+Important:
+If session persistence fails, admin pages should still support x-dashboard-pin stateless access where already implemented.
+
+==================================================
+9. DEEPSEEK-V4-PRO ROLE
+==================================================
+
+Use DeepSeek-V4-Pro as the backend automation/diagnostic intelligence layer.
+
+DeepSeek should help with:
+- code review
+- backend diagnostics
+- test generation
+- bug detection
+- route auditing
+- performance inspection
+- automation issue detection
+- AI workflow diagnostics
+- database table consistency
+- security review
+- provider routing verification
+
+OpenAI should remain for:
+- premium AI Concierge
+- executive summaries
+- founder-facing synthesis
+- strategic copy
+- high-quality user-facing language
+
+No silent fallback when providerOverride is explicitly set.
+
+==================================================
+10. SECURITY + GOVERNANCE
+==================================================
+
+Maintain:
+- founder supervision
+- approval gates
+- recommendation-only autonomy
+- no autonomous payments/refunds/pricing changes
+- no email blasts
+- no destructive DB operations
+- no secret exposure
+- no raw provider error leaks
+- no PII in logs
+- no insecure auth shortcuts
+
+Strengthen:
+- dashboard auth
+- admin route protection
+- PIN normalization
+- session fallback
+- rate limiting
+- Stripe webhook validation
+- CORS safety
+- content security
+- API input validation
+
+==================================================
+11. TESTING
+==================================================
+
+Run:
+- npm run check
+- npm run build
+
+Add or run smoke tests for:
+- homepage renders
+- /api/health
+- /api/offers fallback
+- AI Concierge route
+- Stripe graceful failure
+- admin routes 401 unauth
+- admin routes 200 auth
+- consultation CTA flow
+- thank-you page
+- mobile responsiveness
+- SEO component compile
+- Render production compatibility
+
+==================================================
+12. OUTPUT FINAL REPORT
+==================================================
+
+Return:
+- files changed
+- bugs fixed
+- features upgraded
+- UI sections added
+- monetization improvements
+- AI Concierge improvements
+- SEO improvements
+- reliability improvements
+- security improvements
+- tests run
+- remaining risks
+- Render deploy instructions
+- commit message
+
+Important:
+Keep the site production-safe.
+Do not break existing monetization.
+Do not remove any working Phase 49–62 AI systems.
+Prioritize premium user experience, conversion, reliability, and founder-led AI brand authority.
