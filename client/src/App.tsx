@@ -29,6 +29,7 @@ import { MobileBottomNav } from "@/components/MobileBottomNav";
 import { AnnouncementBanner } from "@/components/AnnouncementBanner";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import SEO from "@/components/SEO";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 function RouteTracker() {
   const [location] = useLocation();
@@ -230,7 +231,9 @@ function App() {
         </Helmet>
         <TooltipProvider>
           <Toaster />
-          <Router />
+          <ErrorBoundary scope="app">
+            <Router />
+          </ErrorBoundary>
           <RouteTracker />
           <ScrollUtilities />
           <NewsletterPopup />

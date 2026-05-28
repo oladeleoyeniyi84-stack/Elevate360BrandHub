@@ -4,7 +4,9 @@ export type ConciergeModeKey =
   | "aiContent"
   | "creativeDirection"
   | "appProduct"
-  | "collaboration";
+  | "collaboration"
+  | "brandAudit"
+  | "founderGrowth";
 
 export type ConciergeMode = {
   title: string;
@@ -63,6 +65,22 @@ export const conciergeModes: Record<ConciergeModeKey, ConciergeMode> = {
     chip: "Partnership mode",
     placeholder: "What kind of collaboration are you exploring?",
   },
+  brandAudit: {
+    title: "Brand Audit Guide",
+    subtitle: "Founder-guided diagnostic mode",
+    intro:
+      "Let's run a premium diagnostic across your brand, content, and digital presence — then map the highest-leverage moves to elevate fast.",
+    chip: "Diagnostic mode",
+    placeholder: "What would you like audited — brand, content, or product?",
+  },
+  founderGrowth: {
+    title: "Founder Growth Guide",
+    subtitle: "Founder-guided growth mode",
+    intro:
+      "Let's build your personal founder growth roadmap — positioning, monetization, and the systems that scale you without burning out.",
+    chip: "Growth mode",
+    placeholder: "What growth goal are you focused on right now?",
+  },
 };
 
 export const SESSION_MODE_MAP: Record<string, ConciergeModeKey> = {
@@ -72,4 +90,6 @@ export const SESSION_MODE_MAP: Record<string, ConciergeModeKey> = {
   "App/Product Consultation": "appProduct",
   "App / Product Consultation": "appProduct",
   "Collaboration Discovery Call": "collaboration",
+  "Premium AI Brand Audit": "brandAudit",
+  "Founder Growth Strategy Session": "founderGrowth",
 };

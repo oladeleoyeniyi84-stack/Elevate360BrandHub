@@ -10,6 +10,7 @@ import { useTrackPageView } from "@/hooks/useTrackPageView";
 import { AIConcierge } from "@/components/AIConcierge";
 import { SessionPresenceCard } from "@/components/concierge/SessionPresenceCard";
 import { type ConciergeModeKey, SESSION_MODE_MAP } from "@/config/conciergeModes";
+import { SESSION_DETAILS, DEFAULT_SESSION_DETAIL } from "@/config/sessionDetails";
 import { Link } from "wouter";
 import {
   ArrowRight,
@@ -30,6 +31,11 @@ import {
   Calendar,
   Clock,
   CheckCircle2,
+  Check,
+  ShieldCheck,
+  UserCheck,
+  Lock,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ContactDialog } from "@/components/ContactDialog";
@@ -149,7 +155,26 @@ function ConsultationGrid({
                 </span>
               )}
               <h3 className="text-white font-heading font-bold text-lg leading-tight">{c.title}</h3>
-              <p className="text-white/50 text-sm flex-1">{c.description}</p>
+              <p className="text-white/50 text-sm">{c.description}</p>
+              {(() => {
+                const detail = SESSION_DETAILS[c.title] ?? DEFAULT_SESSION_DETAIL;
+                return (
+                  <div className="flex flex-col gap-3 flex-1">
+                    <ul className="space-y-1.5" data-testid={`list-outcomes-${c.id}`}>
+                      {detail.outcomes.map((o, i) => (
+                        <li key={i} className="flex items-start gap-2 text-[13px] text-white/70 leading-snug">
+                          <Check className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: accent }} />
+                          <span>{o}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="text-[11px] text-white/35 leading-snug">
+                      <span className="font-semibold uppercase tracking-wide" style={{ color: `${accent}cc` }}>Best for: </span>
+                      {detail.bestFor}
+                    </p>
+                  </div>
+                );
+              })()}
               <div className="flex items-center gap-4 text-sm mt-auto">
                 <span className="flex items-center gap-1.5 text-white/40">
                   <Clock className="w-3.5 h-3.5" />
@@ -166,6 +191,9 @@ function ConsultationGrid({
               >
                 <Calendar className="w-4 h-4" /> Book This Session
               </button>
+              <p className="text-[10.5px] text-center text-white/30 leading-snug" data-testid={`text-trust-${c.id}`}>
+                {(SESSION_DETAILS[c.title] ?? DEFAULT_SESSION_DETAIL).trustNote}
+              </p>
             </div>
           );
         })}
@@ -215,7 +243,7 @@ export default function Home() {
     },
   });
   // Phase 37 — Stripe offers
-  const { data: offers = [] } = useQuery<{
+  const { data: offers = [], isLoading: offersLoading } = useQuery<{
     productId: string; priceId: string; name: string; description: string | null;
     amount: number; currency: string;
     metadata: Record<string, string>;
@@ -251,7 +279,7 @@ export default function Home() {
     }
   };
 
-  const { data: consultations = [] } = useQuery<{ id: number; title: string; price: number; currency: string; duration: number; description: string; tag?: string | null }[]>({
+  const { data: consultations = [], isLoading: consultationsLoading } = useQuery<{ id: number; title: string; price: number; currency: string; duration: number; description: string; tag?: string | null }[]>({
     queryKey: ["/api/consultations"],
     queryFn: async () => {
       const res = await fetch("/api/consultations");
@@ -1684,6 +1712,28 @@ export default function Home() {
         );
       })()}
 
+      {/* ── Offers / Buy Now (loading skeleton) ── */}
+      {offersLoading && offers.length === 0 && (
+        <section className="py-20 border-t border-white/8" style={{ background: "hsl(220 50% 8%)" }} aria-busy="true" data-testid="skeleton-offers">
+          <div className="container mx-auto px-4 md:px-6">
+            <div className="text-center mb-12">
+              <div className="h-6 w-32 mx-auto rounded-full bg-white/5 animate-pulse mb-4" />
+              <div className="h-9 w-72 mx-auto rounded bg-white/5 animate-pulse" />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="lux-card p-6 h-64 animate-pulse">
+                  <div className="h-10 w-10 rounded bg-white/5 mb-4" />
+                  <div className="h-5 w-3/4 rounded bg-white/5 mb-3" />
+                  <div className="h-3 w-full rounded bg-white/5 mb-2" />
+                  <div className="h-3 w-2/3 rounded bg-white/5" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* ── Offers / Buy Now ── */}
       {offers.length > 0 && (
         <section id="offers" className="py-20 border-t border-white/8" style={{ background: "hsl(220 50% 8%)" }}>
@@ -1741,6 +1791,28 @@ export default function Home() {
               })}
             </div>
             <p className="text-center text-white/25 text-xs mt-8">Secure payments powered by Stripe · All transactions encrypted</p>
+          </div>
+        </section>
+      )}
+
+      {/* ── Book a Session (loading skeleton) ── */}
+      {consultationsLoading && consultations.length === 0 && (
+        <section className="py-20 border-t border-white/8" style={{ background: "hsl(220 50% 7%)" }} aria-busy="true" data-testid="skeleton-consultations">
+          <div className="container mx-auto px-4 md:px-6">
+            <div className="text-center mb-12">
+              <div className="h-6 w-28 mx-auto rounded-full bg-white/5 animate-pulse mb-4" />
+              <div className="h-9 w-80 mx-auto rounded bg-white/5 animate-pulse" />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="lux-card p-6 h-64 animate-pulse">
+                  <div className="h-4 w-20 rounded-full bg-white/5 mb-4" />
+                  <div className="h-5 w-3/4 rounded bg-white/5 mb-3" />
+                  <div className="h-3 w-full rounded bg-white/5 mb-2" />
+                  <div className="h-3 w-1/2 rounded bg-white/5" />
+                </div>
+              ))}
+            </div>
           </div>
         </section>
       )}
@@ -1846,6 +1918,46 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* ── Trust & Security band ── */}
+      <section id="trust" className="py-16 border-t border-white/8" style={{ background: "hsl(220 50% 6%)" }} data-testid="section-trust">
+        <div className="container mx-auto px-4 md:px-6">
+          <div className="text-center max-w-2xl mx-auto mb-12 reveal">
+            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold tracking-widest uppercase mb-4"
+              style={{ background: "rgba(244,166,42,0.12)", color: "#F4A62A", border: "1px solid rgba(244,166,42,0.25)" }}>
+              Why Elevate360
+            </span>
+            <h2 className="text-3xl md:text-4xl font-heading font-bold tracking-tight text-white">
+              Premium, secure, and founder-led
+            </h2>
+            <p className="text-white/50 text-base mt-3">
+              Every session and purchase is handled with the same care we put into our products.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {[
+              { icon: ShieldCheck, title: "Secure checkout", body: "Payments processed by Stripe with bank-grade encryption. We never store your card details." },
+              { icon: UserCheck, title: "Founder-led", body: "You work directly with the Elevate360 founder — no hand-offs, no junior account managers." },
+              { icon: Lock, title: "Privacy first", body: "Your information stays private. We never sell your data and only contact you about your request." },
+              { icon: Sparkles, title: "AI-augmented", body: "Sessions are sharpened by the Elevate360 AI ecosystem for faster, deeper, more actionable insight." },
+            ].map((item, i) => (
+              <div
+                key={i}
+                className="lux-card p-6 flex flex-col gap-3 reveal"
+                data-testid={`card-trust-${i}`}
+                style={{ borderTop: "2px solid rgba(244,166,42,0.25)" }}
+              >
+                <div className="w-11 h-11 rounded-xl flex items-center justify-center"
+                  style={{ background: "rgba(244,166,42,0.12)" }}>
+                  <item.icon className="w-5 h-5" style={{ color: "#F4A62A" }} />
+                </div>
+                <h3 className="text-white font-heading font-bold text-base leading-tight">{item.title}</h3>
+                <p className="text-white/50 text-sm leading-relaxed">{item.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
       {/* Work With Me Section */}
       <section id="collaborate" className="py-20 border-t border-white/8" style={{ background: "linear-gradient(180deg, hsl(220 50% 8%) 0%, hsl(220 50% 6%) 100%)" }}>

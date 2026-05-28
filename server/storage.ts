@@ -795,16 +795,24 @@ export class DatabaseStorage implements IStorage {
   }
 
   async seedDefaultConsultations(): Promise<void> {
-    const existing = await db.select({ id: consultations.id }).from(consultations).limit(1);
-    if (existing.length > 0) return;
+    // Idempotent backfill-by-title: guarantees the canonical 7 premium offers exist
+    // on both fresh and already-seeded databases without duplicating or overwriting
+    // founder-edited rows. Titles must stay in sync with client SESSION_MODE_MAP / SESSION_DETAILS.
     const defaults: InsertConsultation[] = [
       { title: "Brand Strategy Session", description: "Deep-dive into your brand identity, positioning, and growth roadmap. Walk away with a clear action plan to elevate your brand presence across all channels.", duration: 60, price: 9700, currency: "USD", isActive: true, sortOrder: 1 },
       { title: "AI Content Consultation", description: "Learn how to use AI tools to create, schedule, and scale your content strategy. Includes a personalised content calendar template and platform-specific guidance.", duration: 45, price: 7700, currency: "USD", isActive: true, sortOrder: 2 },
       { title: "Creative Direction Call", description: "Get expert creative feedback on your visuals, copywriting, and overall aesthetic. Ideal for product launches, rebrands, or campaigns that need a premium edge.", duration: 60, price: 9700, currency: "USD", isActive: true, sortOrder: 3 },
       { title: "App / Product Consultation", description: "Strategic guidance on your mobile app or digital product — from concept to launch. Covers UX thinking, monetisation, and growth levers based on real-world experience building Bondedlove, Healthwisesupport, and Video Crafter.", duration: 90, price: 14700, currency: "USD", isActive: true, sortOrder: 4 },
       { title: "Collaboration Discovery Call", description: "Explore potential partnerships, brand deals, music licensing, or co-creation opportunities with Elevate360Official. A relaxed, high-value call to see if we're a great fit.", duration: 30, price: 0, currency: "USD", isActive: true, sortOrder: 5 },
+      { title: "Premium AI Brand Audit", description: "A premium diagnostic across your brand, content, and digital presence. You receive a written report with scores and a prioritized list of the highest-leverage improvements to elevate fast.", duration: 60, price: 19700, currency: "USD", isActive: true, sortOrder: 6 },
+      { title: "Founder Growth Strategy Session", description: "A personalized founder growth roadmap built around your strengths — positioning, monetization, and the systems that scale you sustainably without burnout.", duration: 90, price: 24700, currency: "USD", isActive: true, sortOrder: 7 },
     ];
-    await db.insert(consultations).values(defaults);
+    const existing = await db.select({ title: consultations.title }).from(consultations);
+    const existingTitles = new Set(existing.map((c) => c.title));
+    const missing = defaults.filter((d) => !existingTitles.has(d.title));
+    if (missing.length > 0) {
+      await db.insert(consultations).values(missing);
+    }
   }
 
   // Phase 36 — Bookings

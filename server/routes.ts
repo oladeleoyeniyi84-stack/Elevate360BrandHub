@@ -777,7 +777,9 @@ export async function registerRoutes(
       });
       res.json(validOffers);
     } catch (err) {
-      console.error("[offers] fallback Stripe fetch failed:", err);
+      // Summary-only log — never leak raw provider errors/stack to logs or clients.
+      const reason = err instanceof Error ? err.message.split("\n")[0] : "unknown";
+      console.warn(`[offers] Stripe unavailable, serving empty offer set (${reason})`);
       res.json([]);
     }
   });
