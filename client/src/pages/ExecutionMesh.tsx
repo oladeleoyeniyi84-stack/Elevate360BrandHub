@@ -1,5 +1,5 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Activity, Bot, Brain, CheckCircle2, Cpu, Eye, EyeOff, GitBranch, Layers, Loader2, MessageSquare, Network, Pause, Plus, RefreshCw, Shield, Workflow, Zap } from "lucide-react";
+import { FormEvent, useEffect, useState } from "react";
+import { Activity, Bot, Eye, EyeOff, Loader2, Network, RefreshCw, Shield, Workflow } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 const GOLD = "#F4A62A";
@@ -7,54 +7,49 @@ const BG = "hsl(220 50% 8%)";
 const AUTH_FLAG = "e360_dashboard_auth";
 const MESH_PIN = "e360_mesh_dashboard_pin";
 
-type Agent = {
-  id: number;
-  agentKey: string;
-  displayName: string;
-  specialization: string;
-  provider: string;
-  status: string;
-  maxConcurrency: number;
-  cooldownSeconds: number;
-  capabilities?: string[];
-  totalRuns: number;
-  successfulRuns: number;
-  failedRuns: number;
-  averageLatencyMs: number;
-  lastHeartbeatAt: string | null;
-};
-
-type Mission = {
-  id: number;
-  missionKey: string;
-  title: string;
-  objective: string;
-  priority: number;
-  status: string;
-  workflowOrigin: string | null;
-  resultSummary: string | null;
-  confidence: number | null;
-  createdAt: string;
-  completedAt: string | null;
-};
-
-type Comm = { id: number; communicationType: string; payload: any; createdAt: string };
-type Topology = { meshHealthScore: number; activeAgents: number; queuedMissions: number; runningMissions: number; topology: any; createdAt: string };
 type Overview = {
-  stats: { idleAgents: number; busyAgents: number; queuedMissions: number; runningMissions: number; failedMissions24h: number; completedMissions24h: number };
-  agents: Agent[];
-  missions: Mission[];
-  communications: Comm[];
-  topology: Topology | null;
-  queue: any[];
-  providers: { openai: boolean; deepseek: boolean };
-  generatedAt: string;
+  stats?: {
+    idleAgents?: number;
+    busyAgents?: number;
+    queuedMissions?: number;
+    runningMissions?: number;
+    failedMissions24h?: number;
+    completedMissions24h?: number;
+  };
+  agents?: Array<{
+    id: number;
+    agentKey: string;
+    displayName: string;
+    specialization: string;
+    provider: string;
+    status: string;
+    totalRuns?: number;
+    successfulRuns?: number;
+    failedRuns?: number;
+    averageLatencyMs?: number;
+  }>;
+  missions?: Array<{
+    id: number;
+    missionKey: string;
+    title: string;
+    objective?: string;
+    priority?: number;
+    status: string;
+    resultSummary?: string | null;
+    createdAt?: string;
+  }>;
+  communications?: any[];
+  topology?: { meshHealthScore?: number; activeAgents?: number; runningMissions?: number; queuedMissions?: number; createdAt?: string } | null;
+  providers?: { openai?: boolean; deepseek?: boolean };
+  generatedAt?: string;
 };
-
-type MissionDetail = { mission: Mission; tasks: any[]; audit: any[] };
 
 function getStoredPin() {
-  try { return window.sessionStorage.getItem(MESH_PIN) || ""; } catch { return ""; }
+  try {
+    return window.sessionStorage.getItem(MESH_PIN) || "";
+  } catch {
+    return "";
+  }
 }
 
 function setStoredAuth(pin: string) {
@@ -71,23 +66,19 @@ function clearStoredAuth() {
   } catch {}
 }
 
-function meshAuthHeaders(json = false): HeadersInit {
+function authHeaders(json = false): HeadersInit {
   const pin = getStoredPin();
   return {
     ...(json ? { "Content-Type": "application/json" } : {}),
-    ...(pin ? { "x-dashboard-pin": pin } : {}),
+    ...(pin ? { "x-dashboard-pin": pin, Authorization: `Bearer ${pin}` } : {}),
     Accept: "application/json",
   };
 }
 
-async function meshFetch(path: string, init: RequestInit = {}) {
-  const headers = new Headers(meshAuthHeaders(false));
+async function protectedFetch(path: string, init: RequestInit = {}) {
+  const headers = new Headers(authHeaders(false));
   new Headers(init.headers || {}).forEach((value, key) => headers.set(key, value));
-  const response = await fetch(path, {
-    credentials: "include",
-    ...init,
-    headers,
-  });
+  const response = await fetch(path, { credentials: "include", ...init, headers });
   if (response.status === 401) {
     clearStoredAuth();
     throw new Error("Unauthorized. Please sign in again.");
@@ -95,34 +86,42 @@ async function meshFetch(path: string, init: RequestInit = {}) {
   return response;
 }
 
-const statusColor = (status: string) => ({
-  idle: "#22c55e",
-  busy: "#eab308",
-  offline: "#94a3b8",
-  queued: "#94a3b8",
-  assigned: "#60a5fa",
-  running: "#eab308",
-  completed: "#22c55e",
-  completed_with_failures: "#eab308",
-  failed: "#ef4444",
-  blocked: "#ef4444",
-  pending_approval: "#f97316",
-  pending_founder_approval: "#f97316",
-  cancelled: "#94a3b8",
-  succeeded: "#22c55e",
-  requires_approval: "#f97316",
-}[status] || "#94a3b8");
+async function verifyPinDirectly(pin: string) {
+  return fetch("/api/admin/mesh/overview", {
+    credentials: "include",
+    headers: {
+      "x-dashboard-pin": pin,
+      Authorization: `Bearer ${pin}`,
+      Accept: "application/json",
+    },
+  });
+}
 
-function PinGate({ onAuth }: { onAuth: () => void }) {
+function statusColor(status = "") {
+  return ({
+    idle: "#22c55e",
+    busy: "#eab308",
+    running: "#eab308",
+    queued: "#60a5fa",
+    assigned: "#60a5fa",
+    completed: "#22c55e",
+    completed_with_failures: "#eab308",
+    failed: "#ef4444",
+    blocked: "#ef4444",
+    cancelled: "#94a3b8",
+  } as Record<string, string>)[status] || "#94a3b8";
+}
+
+function PinGate({ onAuth }: { onAuth: (overview?: Overview) => void }) {
   const [pin, setPin] = useState("");
   const [show, setShow] = useState(false);
   const [err, setErr] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const submit = async (event: FormEvent) => {
+  async function submit(event: FormEvent) {
     event.preventDefault();
     if (submitting) return;
-    const trimmed = pin.trim();
+    const trimmed = pin.trim().replace(/^['\"]+|['\"]+$/g, "");
     if (!trimmed) {
       setErr("Enter your dashboard PIN.");
       return;
@@ -130,7 +129,19 @@ function PinGate({ onAuth }: { onAuth: () => void }) {
 
     setErr("");
     setSubmitting(true);
+
     try {
+      // Primary path: verify against the protected Mesh API using x-dashboard-pin.
+      // This avoids cookie/session race conditions and bypasses any legacy auth route conflict.
+      const direct = await verifyPinDirectly(trimmed);
+      if (direct.ok) {
+        const overview = await direct.json().catch(() => undefined);
+        setStoredAuth(trimmed);
+        onAuth(overview);
+        return;
+      }
+
+      // Fallback path: create normal dashboard session, then verify Mesh again.
       const auth = await fetch("/api/dashboard/auth", {
         method: "POST",
         credentials: "include",
@@ -138,41 +149,40 @@ function PinGate({ onAuth }: { onAuth: () => void }) {
         body: JSON.stringify({ pin: trimmed, dashboardPin: trimmed }),
       });
 
-      if (!auth.ok) {
-        let message = auth.status === 401 ? "Invalid PIN. Please double-check and try again." : `Sign-in failed (HTTP ${auth.status}).`;
-        try {
-          const body = await auth.json();
-          if (body?.message) message = body.message;
-        } catch {}
-        setErr(message);
-        setPin("");
-        return;
+      if (auth.ok) {
+        setStoredAuth(trimmed);
+        const verify = await verifyPinDirectly(trimmed);
+        if (verify.ok) {
+          const overview = await verify.json().catch(() => undefined);
+          onAuth(overview);
+          return;
+        }
       }
 
-      // Store a per-tab fallback for admin-only mesh APIs. This fixes browsers or
-      // embedded launches that accept the login response but fail to retain the
-      // session cookie before the first protected fetch.
       setStoredAuth(trimmed);
-
-      const verify = await fetch("/api/admin/mesh/overview", {
-        credentials: "include",
-        headers: { "x-dashboard-pin": trimmed, Accept: "application/json" },
-      });
-
-      if (!verify.ok) {
-        clearStoredAuth();
-        setErr(`Signed in, but Mesh verification failed (HTTP ${verify.status}).`);
+      const finalAttempt = await protectedFetch("/api/admin/mesh/overview").catch(() => null);
+      if (finalAttempt?.ok) {
+        const overview = await finalAttempt.json().catch(() => undefined);
+        onAuth(overview);
         return;
       }
 
-      onAuth();
+      clearStoredAuth();
+      let message = "Invalid PIN.";
+      try {
+        const body = await auth.json();
+        if (body?.message && auth.status !== 401) message = body.message;
+      } catch {}
+      setErr(message);
+      setPin("");
     } catch (error) {
       console.error("[mesh] auth error", error);
-      setErr("Could not reach the server. Please try again.");
+      clearStoredAuth();
+      setErr("Could not verify the PIN. Please try again.");
     } finally {
       setSubmitting(false);
     }
-  };
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4" style={{ background: BG }}>
@@ -188,7 +198,6 @@ function PinGate({ onAuth }: { onAuth: () => void }) {
         <form onSubmit={submit} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 shadow-2xl space-y-4">
           <div className="relative">
             <input
-              data-testid="input-mesh-pin"
               type={show ? "text" : "password"}
               value={pin}
               onChange={(event) => setPin(event.target.value)}
@@ -202,16 +211,11 @@ function PinGate({ onAuth }: { onAuth: () => void }) {
             </button>
           </div>
 
-          {err && (
-            <div data-testid="text-mesh-auth-error" role="alert" className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300 text-center">
-              {err}
-            </div>
-          )}
+          {err && <div role="alert" className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300 text-center">{err}</div>}
 
           <button
             type="submit"
-            data-testid="button-mesh-login"
-            disabled={submitting || pin.trim().length === 0}
+            disabled={submitting || !pin.trim()}
             className="w-full rounded-xl py-3 font-semibold disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
             style={{ background: GOLD, color: "#000" }}
           >
@@ -232,113 +236,62 @@ function StatCard({ label, value, icon, color = GOLD }: { label: string; value: 
   );
 }
 
-function Console({ onLogout }: { onLogout: () => void }) {
-  const [tab, setTab] = useState<"overview" | "agents" | "missions" | "communications" | "topology" | "memory">("overview");
-  const [data, setData] = useState<Overview | null>(null);
-  const [detail, setDetail] = useState<MissionDetail | null>(null);
-  const [selectedMission, setSelectedMission] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
+function Console({ seed, onLogout }: { seed?: Overview | null; onLogout: () => void }) {
+  const [data, setData] = useState<Overview | null>(seed || null);
+  const [tab, setTab] = useState<"overview" | "agents" | "missions" | "topology">("overview");
+  const [loading, setLoading] = useState(!seed);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState("");
-  const [newMissionOpen, setNewMissionOpen] = useState(false);
-  const [title, setTitle] = useState("");
-  const [objective, setObjective] = useState("");
-  const [capabilities, setCapabilities] = useState("analyze.health, summarize.workflow");
 
-  const loadOverview = async () => {
-    setError("");
+  async function loadOverview() {
     try {
-      const response = await meshFetch("/api/admin/mesh/overview");
+      setError("");
+      const response = await protectedFetch("/api/admin/mesh/overview");
       if (!response.ok) throw new Error(`Overview failed (HTTP ${response.status})`);
       setData(await response.json());
     } catch (error: any) {
       console.error("[mesh] overview error", error);
-      setError(error?.message || "Could not load Mesh overview.");
+      setError(error?.message || "Could not load mesh overview.");
       if (String(error?.message || "").includes("Unauthorized")) onLogout();
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  useEffect(() => {
-    loadOverview();
-    const timer = window.setInterval(loadOverview, 10000);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    if (!selectedMission) {
-      setDetail(null);
-      return;
-    }
-    meshFetch(`/api/admin/mesh/missions/${selectedMission}`)
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`Mission detail failed (HTTP ${response.status})`);
-        setDetail(await response.json());
-      })
-      .catch((error) => setError(error?.message || "Could not load mission detail."));
-  }, [selectedMission]);
-
-  const runTick = async () => {
+  async function runTick() {
     setRunning(true);
-    setError("");
     try {
-      const response = await meshFetch("/api/admin/mesh/run", { method: "POST", headers: meshAuthHeaders(true), body: "{}" });
-      if (!response.ok) {
-        const body = await response.json().catch(() => ({}));
-        throw new Error(body?.message || `Mesh tick failed (HTTP ${response.status})`);
-      }
+      setError("");
+      const response = await protectedFetch("/api/admin/mesh/run", {
+        method: "POST",
+        headers: authHeaders(true),
+        body: "{}",
+      });
+      if (!response.ok) throw new Error(`Mesh tick failed (HTTP ${response.status})`);
       await loadOverview();
     } catch (error: any) {
-      setError(error?.message || "Mesh tick failed.");
+      setError(error?.message || "Could not run mesh tick.");
     } finally {
       setRunning(false);
     }
-  };
+  }
 
-  const createMission = async (event: FormEvent) => {
-    event.preventDefault();
-    setError("");
-    try {
-      const response = await meshFetch("/api/admin/mesh/missions", {
-        method: "POST",
-        headers: meshAuthHeaders(true),
-        body: JSON.stringify({
-          title,
-          objective,
-          workflowOrigin: "manual",
-          capabilities: capabilities.split(",").map((item) => item.trim()).filter(Boolean),
-        }),
-      });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body?.message || `Mission creation failed (HTTP ${response.status})`);
-      setTitle("");
-      setObjective("");
-      setNewMissionOpen(false);
-      await loadOverview();
-    } catch (error: any) {
-      setError(error?.message || "Could not create mission.");
-    }
-  };
+  useEffect(() => {
+    loadOverview();
+    const timer = window.setInterval(loadOverview, 15000);
+    return () => window.clearInterval(timer);
+  }, []);
 
-  const cancelMission = async (id: number) => {
-    setError("");
-    try {
-      const response = await meshFetch(`/api/admin/mesh/missions/${id}/cancel`, { method: "POST", headers: meshAuthHeaders(true), body: "{}" });
-      if (!response.ok) throw new Error(`Cancel failed (HTTP ${response.status})`);
-      setSelectedMission(null);
-      await loadOverview();
-    } catch (error: any) {
-      setError(error?.message || "Could not cancel mission.");
-    }
-  };
-
-  const agentLoad = useMemo(() => (data?.agents || []).map((agent) => ({
-    name: agent.agentKey.replace("_worker", ""),
+  const stats = data?.stats || {};
+  const agents = data?.agents || [];
+  const missions = data?.missions || [];
+  const topology = data?.topology || null;
+  const chart = agents.map((agent) => ({
+    name: agent.agentKey?.replace("_worker", "") || agent.displayName,
     success: agent.successfulRuns || 0,
     failed: agent.failedRuns || 0,
     total: agent.totalRuns || 0,
-  })), [data]);
+  }));
 
   return (
     <div className="min-h-screen text-white" style={{ background: BG }}>
@@ -352,21 +305,21 @@ function Console({ onLogout }: { onLogout: () => void }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button data-testid="button-run-tick" onClick={runTick} disabled={running} className="text-xs px-3 py-2 rounded-lg flex items-center gap-1.5 font-semibold disabled:opacity-50" style={{ background: GOLD, color: "#000" }}>
+            <button onClick={runTick} disabled={running} className="text-xs px-3 py-2 rounded-lg flex items-center gap-1.5 font-semibold disabled:opacity-50" style={{ background: GOLD, color: "#000" }}>
               <RefreshCw className={`h-3.5 w-3.5 ${running ? "animate-spin" : ""}`} /> {running ? "Ticking…" : "Run tick"}
             </button>
-            <button data-testid="button-mesh-logout" onClick={() => { clearStoredAuth(); onLogout(); }} className="text-xs px-3 py-2 rounded-lg border border-white/10">Sign out</button>
+            <button onClick={() => { clearStoredAuth(); onLogout(); }} className="text-xs px-3 py-2 rounded-lg border border-white/10">Sign out</button>
           </div>
         </div>
         <div className="max-w-7xl mx-auto px-4 pb-3">
           <div className="flex items-start gap-2 text-[11px] text-white/50 bg-[#F4A62A]/5 border border-[#F4A62A]/20 rounded-lg px-3 py-2">
             <Shield className="h-3.5 w-3.5 mt-0.5 shrink-0" style={{ color: GOLD }} />
-            <span>Workers operate under Phase 60 governance. They analyse, recommend, synthesize and queue safe work only. Money, pricing, emails, deployment and destructive actions remain blocked or founder-approved.</span>
+            <span>Workers operate under Phase 60 governance. They analyse, recommend, synthesize and queue safe work only.</span>
           </div>
         </div>
         <div className="max-w-7xl mx-auto px-4 pb-3 flex gap-1 overflow-x-auto">
-          {(["overview", "agents", "missions", "communications", "topology", "memory"] as const).map((item) => (
-            <button key={item} data-testid={`tab-${item}`} onClick={() => setTab(item)} className={`text-xs px-3 py-1.5 rounded-full whitespace-nowrap transition ${tab === item ? "bg-[#F4A62A] text-black font-semibold" : "border border-white/10 text-white/60 hover:border-white/30"}`}>{item}</button>
+          {(["overview", "agents", "missions", "topology"] as const).map((item) => (
+            <button key={item} onClick={() => setTab(item)} className={`text-xs px-3 py-1.5 rounded-full whitespace-nowrap transition ${tab === item ? "bg-[#F4A62A] text-black font-semibold" : "border border-white/10 text-white/60 hover:border-white/30"}`}>{item}</button>
           ))}
         </div>
       </header>
@@ -378,18 +331,26 @@ function Console({ onLogout }: { onLogout: () => void }) {
         {data && tab === "overview" && (
           <>
             <section className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              <StatCard label="Mesh health" value={data.topology?.meshHealthScore ?? "—"} icon={<Activity className="h-3.5 w-3.5" />} />
-              <StatCard label="Active agents" value={(data.stats.idleAgents || 0) + (data.stats.busyAgents || 0) || data.agents.length} color="#22c55e" icon={<Bot className="h-3.5 w-3.5" />} />
-              <StatCard label="Running missions" value={data.stats.runningMissions} color="#eab308" icon={<Workflow className="h-3.5 w-3.5" />} />
-              <StatCard label="Queued missions" value={data.stats.queuedMissions} color="#60a5fa" icon={<Layers className="h-3.5 w-3.5" />} />
+              <StatCard label="Mesh health" value={topology?.meshHealthScore ?? "—"} icon={<Activity className="h-3.5 w-3.5" />} />
+              <StatCard label="Agents" value={(stats.idleAgents || 0) + (stats.busyAgents || 0) || agents.length} color="#22c55e" icon={<Bot className="h-3.5 w-3.5" />} />
+              <StatCard label="Running" value={stats.runningMissions || 0} color="#eab308" icon={<Workflow className="h-3.5 w-3.5" />} />
+              <StatCard label="Queued" value={stats.queuedMissions || 0} color="#60a5fa" icon={<Network className="h-3.5 w-3.5" />} />
             </section>
 
             <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <h2 className="font-semibold text-sm flex items-center gap-2 mb-3"><Cpu className="h-4 w-4" style={{ color: GOLD }} /> Workload distribution</h2>
-              {agentLoad.some((agent) => agent.total > 0) ? (
+              <h2 className="font-semibold text-sm mb-3">Provider status</h2>
+              <div className="grid sm:grid-cols-2 gap-3 text-sm">
+                <div className="rounded-xl border border-white/10 p-3 flex justify-between"><span>OpenAI</span><span className={data.providers?.openai ? "text-green-400" : "text-red-400"}>{data.providers?.openai ? "configured" : "offline"}</span></div>
+                <div className="rounded-xl border border-white/10 p-3 flex justify-between"><span>DeepSeek</span><span className={data.providers?.deepseek ? "text-green-400" : "text-red-400"}>{data.providers?.deepseek ? "configured" : "offline"}</span></div>
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+              <h2 className="font-semibold text-sm mb-3">Workload distribution</h2>
+              {chart.some((item) => item.total > 0) ? (
                 <div className="h-56">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={agentLoad}>
+                    <BarChart data={chart}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" />
                       <XAxis dataKey="name" stroke="#ffffff60" tick={{ fontSize: 10 }} interval={0} angle={-15} textAnchor="end" height={50} />
                       <YAxis stroke="#ffffff60" tick={{ fontSize: 11 }} />
@@ -406,8 +367,8 @@ function Console({ onLogout }: { onLogout: () => void }) {
 
         {data && tab === "agents" && (
           <section className="grid sm:grid-cols-2 gap-3">
-            {data.agents.length === 0 && <p className="text-xs text-white/50">No agents loaded yet. Run a tick to seed the mesh registry.</p>}
-            {data.agents.map((agent) => (
+            {agents.length === 0 && <p className="text-xs text-white/50">No agents loaded yet. Run a tick to seed the mesh registry.</p>}
+            {agents.map((agent) => (
               <div key={agent.id} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
                 <div className="flex items-center justify-between gap-3 mb-2">
                   <div>
@@ -418,11 +379,8 @@ function Console({ onLogout }: { onLogout: () => void }) {
                 </div>
                 <div className="grid grid-cols-3 gap-2 mt-2 text-[11px]">
                   <div><div className="text-white/40">Provider</div><div>{agent.provider}</div></div>
-                  <div><div className="text-white/40">Runs</div><div>{agent.totalRuns} ({agent.successfulRuns}✓ / {agent.failedRuns}✗)</div></div>
-                  <div><div className="text-white/40">Avg latency</div><div>{agent.averageLatencyMs}ms</div></div>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-1">
-                  {(agent.capabilities || []).map((capability) => <span key={capability} className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: `${GOLD}15`, color: GOLD }}>{capability}</span>)}
+                  <div><div className="text-white/40">Runs</div><div>{agent.totalRuns || 0}</div></div>
+                  <div><div className="text-white/40">Avg latency</div><div>{agent.averageLatencyMs || 0}ms</div></div>
                 </div>
               </div>
             ))}
@@ -431,108 +389,37 @@ function Console({ onLogout }: { onLogout: () => void }) {
 
         {data && tab === "missions" && (
           <section className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="font-semibold text-sm flex items-center gap-2"><Workflow className="h-4 w-4" style={{ color: GOLD }} /> Missions</h2>
-              <button onClick={() => setNewMissionOpen((value) => !value)} className="text-xs px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-1"><Plus className="h-3 w-3" /> {newMissionOpen ? "Hide" : "New mission"}</button>
-            </div>
-
-            {newMissionOpen && (
-              <form onSubmit={createMission} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 space-y-3">
-                <input required value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Mission title" className="w-full bg-white/6 border border-white/10 rounded-lg px-3 py-2 text-xs" />
-                <textarea value={objective} onChange={(event) => setObjective(event.target.value)} placeholder="Objective" rows={2} className="w-full bg-white/6 border border-white/10 rounded-lg px-3 py-2 text-xs" />
-                <input value={capabilities} onChange={(event) => setCapabilities(event.target.value)} placeholder="capability1, capability2" className="w-full bg-white/6 border border-white/10 rounded-lg px-3 py-2 text-xs font-mono" />
-                <button type="submit" className="text-xs px-3 py-2 rounded-lg font-semibold" style={{ background: GOLD, color: "#000" }}>Queue mission</button>
-              </form>
-            )}
-
-            {!selectedMission && data.missions.length === 0 && <p className="text-xs text-white/50">No missions yet.</p>}
-            {!selectedMission && data.missions.map((mission) => (
-              <div key={mission.id} onClick={() => setSelectedMission(mission.id)} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 cursor-pointer hover:border-[#F4A62A]/40">
+            {missions.length === 0 && <p className="text-xs text-white/50">No missions yet.</p>}
+            {missions.map((mission) => (
+              <div key={mission.id} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 font-semibold" style={{ background: `${statusColor(mission.status)}22`, color: statusColor(mission.status) }}>{mission.status}</span>
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold truncate">{mission.title}</div>
-                      <div className="text-[11px] text-white/40 truncate">{mission.missionKey}</div>
-                    </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold truncate">{mission.title}</div>
+                    <div className="text-[11px] text-white/40 truncate">{mission.missionKey}</div>
                   </div>
-                  <span className="text-[10px] text-white/40 shrink-0">{new Date(mission.createdAt).toLocaleString()}</span>
+                  <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 font-semibold" style={{ background: `${statusColor(mission.status)}22`, color: statusColor(mission.status) }}>{mission.status}</span>
                 </div>
-                {mission.resultSummary && <p className="text-xs text-white/60 mt-2 truncate">{mission.resultSummary}</p>}
-              </div>
-            ))}
-
-            {selectedMission && detail && (
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 space-y-4">
-                <div className="flex items-center justify-between">
-                  <button onClick={() => setSelectedMission(null)} className="text-xs px-2 py-1 rounded-lg border border-white/10">← Back</button>
-                  {["queued", "running", "assigned"].includes(detail.mission.status) && <button onClick={() => cancelMission(detail.mission.id)} className="text-xs px-3 py-1.5 rounded-lg bg-red-500/15 border border-red-500/30 flex items-center gap-1.5"><Pause className="h-3 w-3" /> Cancel</button>}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2"><span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full font-semibold" style={{ background: `${statusColor(detail.mission.status)}22`, color: statusColor(detail.mission.status) }}>{detail.mission.status}</span><h3 className="font-semibold">{detail.mission.title}</h3></div>
-                  {detail.mission.objective && <p className="text-xs text-white/60 mt-2">{detail.mission.objective}</p>}
-                  {detail.mission.resultSummary && <p className="text-xs text-white/80 mt-2"><strong>Result:</strong> {detail.mission.resultSummary}</p>}
-                </div>
-                <div>
-                  <h4 className="text-xs font-semibold text-white/70 mb-2">Tasks</h4>
-                  <div className="space-y-2">
-                    {(detail.tasks || []).map((task) => (
-                      <div key={task.id} className="border border-white/5 rounded-lg p-3 text-xs">
-                        <div className="flex items-center justify-between"><span className="font-mono">{task.executionOrder}. {task.capability}</span><span style={{ color: statusColor(task.status) }}>{task.status}</span></div>
-                        {task.executionOutput?.content && <pre className="text-[11px] text-white/70 whitespace-pre-wrap font-sans mt-2">{task.executionOutput.content}</pre>}
-                        {task.executionOutput?.error && <p className="text-[11px] text-red-400 mt-2">{task.executionOutput.error}</p>}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-          </section>
-        )}
-
-        {data && tab === "communications" && (
-          <section className="space-y-2">
-            <h2 className="font-semibold text-sm flex items-center gap-2"><MessageSquare className="h-4 w-4" style={{ color: GOLD }} /> Inter-agent communications</h2>
-            {data.communications.length === 0 && <p className="text-xs text-white/50">No communications yet.</p>}
-            {data.communications.map((communication) => (
-              <div key={communication.id} className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-                <div className="flex items-center justify-between text-[11px]"><span className="font-mono px-2 py-0.5 rounded-full" style={{ background: `${GOLD}15`, color: GOLD }}>{communication.communicationType}</span><span className="text-white/40">{new Date(communication.createdAt).toLocaleString()}</span></div>
-                {communication.payload && <pre className="text-[11px] text-white/70 whitespace-pre-wrap font-mono mt-2">{JSON.stringify(communication.payload, null, 2).slice(0, 800)}</pre>}
+                {mission.resultSummary && <p className="text-xs text-white/60 mt-2">{mission.resultSummary}</p>}
               </div>
             ))}
           </section>
         )}
 
         {data && tab === "topology" && (
-          <section className="space-y-4">
-            {!data.topology && <p className="text-xs text-white/50">No topology snapshot yet. Run a tick to generate one.</p>}
-            {data.topology && (
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                <h2 className="font-semibold text-sm flex items-center gap-2 mb-3"><GitBranch className="h-4 w-4" style={{ color: GOLD }} /> Topology snapshot</h2>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px]">
-                  <div><div className="text-white/40">Health</div><div className="text-lg font-bold" style={{ color: data.topology.meshHealthScore >= 80 ? "#22c55e" : "#eab308" }}>{data.topology.meshHealthScore}</div></div>
-                  <div><div className="text-white/40">Active agents</div><div className="text-lg font-bold">{data.topology.activeAgents}</div></div>
-                  <div><div className="text-white/40">Running</div><div className="text-lg font-bold">{data.topology.runningMissions}</div></div>
-                  <div><div className="text-white/40">Queued</div><div className="text-lg font-bold">{data.topology.queuedMissions}</div></div>
-                </div>
-                <p className="text-[10px] text-white/40 mt-3">Captured {new Date(data.topology.createdAt).toLocaleString()}</p>
-              </div>
-            )}
-            {data.topology?.topology?.nodes && (
-              <div className="grid sm:grid-cols-3 gap-2">
-                {data.topology.topology.nodes.map((node: any) => <div key={node.id} className="border border-white/10 rounded-lg p-3 text-[11px]"><div className="flex items-center justify-between"><span className="font-semibold">{node.label}</span><span style={{ color: statusColor(node.status) }}>{node.status}</span></div><div className="text-white/40">{node.specialization}</div><div className="text-white/60 mt-1">{node.totalRuns} runs · {node.successRate ?? "—"}% success</div></div>)}
-              </div>
-            )}
-          </section>
-        )}
-
-        {data && tab === "memory" && (
           <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-            <h2 className="font-semibold text-sm flex items-center gap-2 mb-2"><Brain className="h-4 w-4" style={{ color: GOLD }} /> Worker memory</h2>
-            <p className="text-xs text-white/50">Per-agent scoped memory updates as missions complete. Memory remains recommendation-only and founder-supervised.</p>
-            <div className="grid sm:grid-cols-3 gap-2 mt-3">
-              {data.agents.map((agent) => <div key={agent.id} className="border border-white/10 rounded-lg p-3 text-[11px]"><div className="font-semibold">{agent.displayName}</div><div className="text-white/40">{agent.specialization}</div><div className="text-white/60 mt-1">{agent.totalRuns} runs available for learning</div></div>)}
-            </div>
+            {!topology && <p className="text-xs text-white/50">No topology snapshot yet. Run a tick to generate one.</p>}
+            {topology && (
+              <div>
+                <h2 className="font-semibold text-sm mb-3">Topology snapshot</h2>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px]">
+                  <div><div className="text-white/40">Health</div><div className="text-lg font-bold" style={{ color: (topology.meshHealthScore || 0) >= 80 ? "#22c55e" : "#eab308" }}>{topology.meshHealthScore}</div></div>
+                  <div><div className="text-white/40">Active agents</div><div className="text-lg font-bold">{topology.activeAgents}</div></div>
+                  <div><div className="text-white/40">Running</div><div className="text-lg font-bold">{topology.runningMissions}</div></div>
+                  <div><div className="text-white/40">Queued</div><div className="text-lg font-bold">{topology.queuedMissions}</div></div>
+                </div>
+                {topology.createdAt && <p className="text-[10px] text-white/40 mt-3">Captured {new Date(topology.createdAt).toLocaleString()}</p>}
+              </div>
+            )}
           </section>
         )}
       </main>
@@ -541,21 +428,15 @@ function Console({ onLogout }: { onLogout: () => void }) {
 }
 
 export default function ExecutionMesh() {
+  const [seed, setSeed] = useState<Overview | null>(null);
   const [authed, setAuthed] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     try { return window.sessionStorage.getItem(AUTH_FLAG) === "true" && !!window.sessionStorage.getItem(MESH_PIN); } catch { return false; }
   });
 
-  useEffect(() => {
-    const onStorage = (event: StorageEvent) => {
-      if (event.key === AUTH_FLAG || event.key === MESH_PIN) {
-        setAuthed(window.sessionStorage.getItem(AUTH_FLAG) === "true" && !!window.sessionStorage.getItem(MESH_PIN));
-      }
-    };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
+  if (!authed) {
+    return <PinGate onAuth={(overview) => { setSeed(overview || null); setAuthed(true); }} />;
+  }
 
-  if (!authed) return <PinGate onAuth={() => setAuthed(true)} />;
-  return <Console onLogout={() => setAuthed(false)} />;
+  return <Console seed={seed} onLogout={() => { setSeed(null); setAuthed(false); }} />;
 }
