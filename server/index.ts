@@ -9,6 +9,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import ConnectPgSimple from "connect-pg-simple";
 import { Pool } from "pg";
+import { timingSafeEqual } from "crypto";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
@@ -43,6 +44,7 @@ app.use(
     cookie: {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
       maxAge: 1000 * 60 * 60 * 8,
     },
   })
@@ -63,6 +65,64 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false }));
+
+function normalizeDashboardPin(value: unknown): string {
+  if (typeof value !== "string") return "";
+  return value.trim().replace(/^['\"]+|['\"]+$/g, "");
+}
+
+function pinMatches(provided: unknown): boolean {
+  const expected = normalizeDashboardPin(process.env.DASHBOARD_PIN);
+  const candidate = normalizeDashboardPin(provided);
+  if (!expected || !candidate) return false;
+  const a = Buffer.from(candidate);
+  const b = Buffer.from(expected);
+  const len = Math.max(a.length, b.length);
+  const ap = Buffer.alloc(len);
+  const bp = Buffer.alloc(len);
+  a.copy(ap);
+  b.copy(bp);
+  return timingSafeEqual(ap, bp) && a.length === b.length;
+}
+
+function extractDashboardPin(req: Request): string | null {
+  const headerPin = req.headers["x-dashboard-pin"];
+  if (typeof headerPin === "string" && headerPin.trim()) return headerPin;
+
+  const auth = req.headers.authorization;
+  if (typeof auth === "string" && auth.toLowerCase().startsWith("bearer ")) {
+    const token = auth.slice(7).trim();
+    if (token) return token;
+  }
+
+  const body = req.body as any;
+  if (typeof body?.pin === "string" && body.pin.trim()) return body.pin;
+  if (typeof body?.dashboardPin === "string" && body.dashboardPin.trim()) return body.dashboardPin;
+  return null;
+}
+
+// Centralized dashboard login shim registered before route modules. It fixes
+// production env formatting issues (accidental whitespace/quotes) and ensures
+// every admin surface, including /mesh, uses the same timing-safe PIN matcher.
+app.post("/api/dashboard/auth", (req: any, res: Response) => {
+  if (!normalizeDashboardPin(process.env.DASHBOARD_PIN)) {
+    return res.status(500).json({ message: "Dashboard PIN not configured." });
+  }
+
+  const candidate = extractDashboardPin(req);
+  if (pinMatches(candidate)) {
+    req.session.dashboardAuthed = true;
+    return req.session.save((error: unknown) => {
+      if (error) {
+        console.error("[dashboardAuth] session save failed");
+        return res.status(500).json({ message: "Could not save dashboard session." });
+      }
+      return res.json({ ok: true });
+    });
+  }
+
+  return res.status(401).json({ message: "Invalid PIN." });
+});
 
 app.use((_req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
