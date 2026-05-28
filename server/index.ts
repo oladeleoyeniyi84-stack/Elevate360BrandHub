@@ -124,6 +124,17 @@ app.post("/api/dashboard/auth", (req: any, res: Response) => {
   return res.status(401).json({ message: "Invalid PIN." });
 });
 
+// Pre-authorize protected admin APIs before server/routes.ts legacy guards run.
+// routes.ts first trusts req.session.dashboardAuthed; this normalized middleware
+// sets that flag for any valid x-dashboard-pin/Bearer/body PIN so all admin
+// surfaces share one production-safe matcher without exposing secrets.
+app.use((req: any, _res, next) => {
+  if ((req.path.startsWith("/api/admin") || req.path.startsWith("/api/dashboard")) && pinMatches(extractDashboardPin(req))) {
+    req.session.dashboardAuthed = true;
+  }
+  next();
+});
+
 app.use((_req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "DENY");
