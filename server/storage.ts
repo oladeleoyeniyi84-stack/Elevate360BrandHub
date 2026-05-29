@@ -78,6 +78,9 @@ import {
   founderIntelReports, founderDecisionItems,
   type FounderIntelReport, type InsertFounderIntelReport,
   type FounderDecisionItem, type InsertFounderDecisionItem,
+  revenueIntelReports, revenueInsights,
+  type RevenueIntelReport, type InsertRevenueIntelReport,
+  type RevenueInsight, type InsertRevenueInsight,
 } from "@shared/schema";
 import { db } from "./db";
 import { and, asc, count, desc, eq, gte, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
@@ -3123,6 +3126,185 @@ export class DatabaseStorage implements IStorage {
     const [row] = await db.update(founderDecisionItems)
       .set({ status })
       .where(eq(founderDecisionItems.id, id))
+      .returning();
+    return row;
+  }
+
+  // ─── Phase 65 — Revenue Intelligence Engine ────────────────────────────────
+
+  // Customer Lifetime Value: aggregate paid orders by customer. Emails are
+  // masked here so raw PII never leaves storage. Read-only.
+  async getCustomerLtvData(): Promise<{
+    totalCustomers: number;
+    repeatCustomers: number;
+    repeatRate: number;        // % of customers with >1 paid order
+    avgLtvCents: number;       // avg total spend per customer
+    avgOrdersPerCustomer: number;
+    medianLtvCents: number;
+    topCustomers: Array<{ label: string; orders: number; totalCents: number; firstOrder: string; lastOrder: string }>;
+    cohorts: Array<{ month: string; customers: number; revenueCents: number }>;
+  }> {
+    const rows = await db
+      .select({
+        email: orders.customerEmail,
+        orderCount: sql<number>`count(*)`,
+        totalCents: sql<number>`coalesce(sum(${orders.amountPaid}), 0)`,
+        firstOrder: sql<string>`to_char(min(${orders.createdAt}), 'YYYY-MM-DD')`,
+        lastOrder: sql<string>`to_char(max(${orders.createdAt}), 'YYYY-MM-DD')`,
+        firstMonth: sql<string>`to_char(min(${orders.createdAt}), 'YYYY-MM')`,
+      })
+      .from(orders)
+      .where(eq(orders.status, "paid"))
+      .groupBy(orders.customerEmail);
+
+    const customers = rows.map((r) => ({
+      email: r.email,
+      orders: Number(r.orderCount),
+      totalCents: Number(r.totalCents),
+      firstOrder: r.firstOrder,
+      lastOrder: r.lastOrder,
+      firstMonth: r.firstMonth,
+    }));
+
+    const totalCustomers = customers.length;
+    const repeatCustomers = customers.filter((c) => c.orders > 1).length;
+    const totalSpend = customers.reduce((s, c) => s + c.totalCents, 0);
+    const totalOrders = customers.reduce((s, c) => s + c.orders, 0);
+    const avgLtvCents = totalCustomers ? Math.round(totalSpend / totalCustomers) : 0;
+    const avgOrdersPerCustomer = totalCustomers ? Math.round((totalOrders / totalCustomers) * 100) / 100 : 0;
+    const repeatRate = totalCustomers ? Math.round((repeatCustomers / totalCustomers) * 1000) / 10 : 0;
+
+    const sortedSpend = [...customers].map((c) => c.totalCents).sort((a, b) => a - b);
+    const medianLtvCents = sortedSpend.length
+      ? (sortedSpend.length % 2 === 1
+          ? sortedSpend[(sortedSpend.length - 1) / 2]
+          : Math.round((sortedSpend[sortedSpend.length / 2 - 1] + sortedSpend[sortedSpend.length / 2]) / 2))
+      : 0;
+
+    const mask = (email: string): string => {
+      const [local, domain] = String(email || "").split("@");
+      if (!domain) return "customer";
+      const head = local.slice(0, 2);
+      return `${head}${"*".repeat(Math.max(1, Math.min(4, local.length - 2)))}@${domain}`;
+    };
+
+    const topCustomers = [...customers]
+      .sort((a, b) => b.totalCents - a.totalCents)
+      .slice(0, 10)
+      .map((c) => ({ label: mask(c.email), orders: c.orders, totalCents: c.totalCents, firstOrder: c.firstOrder, lastOrder: c.lastOrder }));
+
+    const cohortMap = new Map<string, { customers: number; revenueCents: number }>();
+    for (const c of customers) {
+      const key = c.firstMonth || "unknown";
+      const entry = cohortMap.get(key) ?? { customers: 0, revenueCents: 0 };
+      entry.customers += 1;
+      entry.revenueCents += c.totalCents;
+      cohortMap.set(key, entry);
+    }
+    const cohorts = Array.from(cohortMap.entries())
+      .map(([month, v]) => ({ month, customers: v.customers, revenueCents: v.revenueCents }))
+      .sort((a, b) => a.month.localeCompare(b.month))
+      .slice(-12);
+
+    return {
+      totalCustomers, repeatCustomers, repeatRate, avgLtvCents,
+      avgOrdersPerCustomer, medianLtvCents, topCustomers, cohorts,
+    };
+  }
+
+  // Booking intelligence: status mix, conversion of bookings → won deals,
+  // and recent booking volume. Read-only.
+  async getBookingIntelligence(): Promise<{
+    total: number;
+    byStatus: Array<{ status: string; count: number }>;
+    pending: number;
+    confirmed: number;
+    last30Days: number;
+    bookedLeads: number;        // leads currently at 'booked' stage
+    wonLeads: number;           // leads that reached 'won'
+    bookingToWonRate: number;   // % of booked sessions that became won deals
+  }> {
+    const since = new Date();
+    since.setUTCDate(since.getUTCDate() - 30);
+
+    const [statusRows, totalRow, recentRow, bookedRow, wonFromBookedRow] = await Promise.all([
+      db.select({ status: bookings.status, c: count() }).from(bookings).groupBy(bookings.status),
+      db.select({ c: count() }).from(bookings),
+      db.select({ c: count() }).from(bookings).where(gte(bookings.createdAt, since)),
+      db.select({ c: count() }).from(chatConversations).where(eq(chatConversations.pipelineStage, "booked")),
+      db.select({ c: count() }).from(chatConversations).where(eq(chatConversations.pipelineStage, "won")),
+    ]);
+
+    const byStatus = statusRows.map((r) => ({ status: r.status ?? "unknown", count: Number(r.c) }));
+    const total = Number(totalRow[0]?.c ?? 0);
+    const pending = byStatus.find((s) => s.status === "pending")?.count ?? 0;
+    const confirmed = byStatus.find((s) => s.status === "confirmed")?.count ?? 0;
+    const bookedLeads = Number(bookedRow[0]?.c ?? 0);
+    const wonLeads = Number(wonFromBookedRow[0]?.c ?? 0);
+    // Conversion proxy: won deals relative to (booked + won) lead stages.
+    const denom = bookedLeads + wonLeads;
+    const bookingToWonRate = denom > 0 ? Math.round((wonLeads / denom) * 1000) / 10 : 0;
+
+    return {
+      total, byStatus, pending, confirmed,
+      last30Days: Number(recentRow[0]?.c ?? 0),
+      bookedLeads, wonLeads, bookingToWonRate,
+    };
+  }
+
+  async createRevenueIntelReport(input: InsertRevenueIntelReport): Promise<RevenueIntelReport> {
+    const [row] = await db.insert(revenueIntelReports).values(input).returning();
+    return row;
+  }
+
+  async listRevenueIntelReports(periodType?: string, limit = 30): Promise<RevenueIntelReport[]> {
+    const q = db.select().from(revenueIntelReports);
+    const rows = periodType
+      ? await q.where(eq(revenueIntelReports.periodType, periodType)).orderBy(desc(revenueIntelReports.createdAt)).limit(limit)
+      : await q.orderBy(desc(revenueIntelReports.createdAt)).limit(limit);
+    return rows;
+  }
+
+  async getRevenueIntelReport(id: number): Promise<RevenueIntelReport | undefined> {
+    const [row] = await db.select().from(revenueIntelReports).where(eq(revenueIntelReports.id, id)).limit(1);
+    return row;
+  }
+
+  async createRevenueInsight(input: InsertRevenueInsight): Promise<RevenueInsight> {
+    const [row] = await db.insert(revenueInsights).values(input).returning();
+    return row;
+  }
+
+  // Atomic regeneration: clears only open auto-derived insights (rules/forecast),
+  // preserving open items from other sources, then inserts the fresh batch.
+  async replaceRevenueInsights(items: InsertRevenueInsight[]): Promise<RevenueInsight[]> {
+    return db.transaction(async (tx) => {
+      await tx.delete(revenueInsights).where(
+        and(
+          eq(revenueInsights.status, "open"),
+          inArray(revenueInsights.source, ["rules", "forecast"]),
+        ),
+      );
+      if (items.length === 0) return [];
+      return tx.insert(revenueInsights).values(items).returning();
+    });
+  }
+
+  async listRevenueInsights(opts: { kind?: string; status?: string; limit?: number } = {}): Promise<RevenueInsight[]> {
+    const conds: any[] = [];
+    if (opts.kind) conds.push(eq(revenueInsights.kind, opts.kind));
+    if (opts.status) conds.push(eq(revenueInsights.status, opts.status));
+    const base = db.select().from(revenueInsights);
+    const filtered = conds.length > 0 ? base.where(and(...conds)) : base;
+    return filtered
+      .orderBy(desc(revenueInsights.priority), desc(revenueInsights.createdAt))
+      .limit(Math.max(1, Math.min(200, opts.limit ?? 100)));
+  }
+
+  async updateRevenueInsightStatus(id: number, status: string): Promise<RevenueInsight | undefined> {
+    const [row] = await db.update(revenueInsights)
+      .set({ status })
+      .where(eq(revenueInsights.id, id))
       .returning();
     return row;
   }

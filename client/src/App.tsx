@@ -20,6 +20,7 @@ import Marketplace from "@/pages/Marketplace";
 import MarketplaceAdmin from "@/pages/MarketplaceAdmin";
 import MemoryExplorer from "@/pages/MemoryExplorer";
 import FounderIntelligence from "@/pages/FounderIntelligence";
+import RevenueIntelligence from "@/pages/RevenueIntelligence";
 import ContentFactory from "@/pages/ContentFactory";
 import OrchestratorCenter from "@/pages/OrchestratorCenter";
 import CommandGrid from "@/pages/CommandGrid";
@@ -254,6 +255,17 @@ function Router() {
             path="/founder-intelligence"
           />
           <FounderIntelligence />
+        </>
+      </Route>
+
+      <Route path="/revenue-intelligence">
+        <>
+          <SEO
+            title="Revenue Intelligence | Elevate360Official"
+            description="Executive revenue intelligence — attribution, lifetime value, offer performance, funnel, bookings, forecasts, and a revenue copilot for Elevate360Official."
+            path="/revenue-intelligence"
+          />
+          <RevenueIntelligence />
         </>
       </Route>
 

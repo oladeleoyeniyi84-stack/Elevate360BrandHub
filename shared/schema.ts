@@ -1561,3 +1561,56 @@ export const insertFounderDecisionItemSchema = createInsertSchema(founderDecisio
 });
 export type InsertFounderDecisionItem = z.infer<typeof insertFounderDecisionItemSchema>;
 export type FounderDecisionItem = typeof founderDecisionItems.$inferSelect;
+
+// ─── Phase 65 — Revenue Intelligence Engine ──────────────────────────────────
+// Executive revenue intelligence reports (daily/weekly/monthly/quarterly).
+// OpenAI executive synthesis over a scrubbed cross-system revenue snapshot.
+export const revenueIntelReports = pgTable("revenue_intel_reports", {
+  id: serial("id").primaryKey(),
+  // 'daily' | 'weekly' | 'monthly' | 'quarterly'
+  periodType: varchar("period_type", { length: 20 }).notNull(),
+  title: varchar("title", { length: 200 }).notNull(),
+  summary: text("summary").notNull(),
+  // structured sections: { revenue, attribution, clv, offers, funnel, bookings, forecasts, opportunities, risks, actions }
+  sections: jsonb("sections").notNull().default(sql`'{}'::jsonb`),
+  providerMetadata: jsonb("provider_metadata").notNull().default(sql`'{}'::jsonb`),
+  source: varchar("source", { length: 40 }).notNull().default("openai"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  periodIdx: index("revenue_intel_reports_period_idx").on(t.periodType),
+  createdIdx: index("revenue_intel_reports_created_idx").on(t.createdAt),
+}));
+
+export const insertRevenueIntelReportSchema = createInsertSchema(revenueIntelReports).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertRevenueIntelReport = z.infer<typeof insertRevenueIntelReportSchema>;
+export type RevenueIntelReport = typeof revenueIntelReports.$inferSelect;
+
+// Revenue intelligence insights: opportunities / risks / recommended actions.
+export const revenueInsights = pgTable("revenue_insights", {
+  id: serial("id").primaryKey(),
+  // 'opportunity' | 'risk' | 'action'
+  kind: varchar("kind", { length: 20 }).notNull(),
+  // 'attribution' | 'clv' | 'offers' | 'funnel' | 'bookings' | 'forecast' | 'stripe' | 'leads' | 'general'
+  area: varchar("area", { length: 40 }).notNull().default("general"),
+  title: varchar("title", { length: 200 }).notNull(),
+  detail: text("detail").notNull(),
+  priority: integer("priority").notNull().default(50),
+  confidence: integer("confidence").notNull().default(50),
+  // 'open' | 'acknowledged' | 'dismissed'
+  status: varchar("status", { length: 20 }).notNull().default("open"),
+  source: varchar("source", { length: 40 }).notNull().default("rules"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  kindIdx: index("revenue_insights_kind_idx").on(t.kind),
+  statusIdx: index("revenue_insights_status_idx").on(t.status),
+}));
+
+export const insertRevenueInsightSchema = createInsertSchema(revenueInsights).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertRevenueInsight = z.infer<typeof insertRevenueInsightSchema>;
+export type RevenueInsight = typeof revenueInsights.$inferSelect;

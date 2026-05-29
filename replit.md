@@ -107,7 +107,18 @@ Full-stack brand portfolio for **Elevate360Official** — mobile apps (Bondedlov
 - Art Studio image: `@assets/Elevate360Art_Studio_Presentation_1772460961759.png`
 - `@assets` Vite alias → `attached_assets/` (NOT `client/src/assets/`)
 
-## Phase 64 — Founder Intelligence System (current)
+## Phase 65 — Revenue Intelligence Engine (current)
+- Founder-only (PIN-gated), recommendation-only executive revenue intelligence layer. Mirrors Phase 64 architecture. Never mutates money/pricing/refunds/email/infra/secrets.
+- 2 tables: `revenueIntelReports` (periodType daily/weekly/monthly/quarterly, title, summary, sections jsonb, providerMetadata jsonb, source) + `revenueInsights` (kind opportunity/risk/action, area attribution/clv/offers/funnel/bookings/forecast/leads/general, title, detail, priority 0-100, confidence 0-100, status open/acknowledged/dismissed, source rules/forecast).
+- Storage: `getCustomerLtvData` (CLV/cohorts/segments, masked emails, median), `getBookingIntelligence` (status mix, booked/won leads, bookingToWonRate); report CRUD; insight create/`replaceRevenueInsights` (atomic tx; deletes only open rows source in rules/forecast)/list/`updateRevenueInsightStatus`. Reuses `getRevenueAttributionData`, `getConversionFunnel`, `getOfferOptimizerData`, `getFounderIntelSeries`.
+- 9 modules under `server/revenue-intel/`: `aggregator.ts` (`buildRevenueSnapshot` read-only scrubbed cross-system snapshot + `scrub`), `clvEngine.ts` (`computeClvAnalytics` value tiers + top-20 Pareto share), `offerAnalytics.ts` (`computeOfferAnalytics` revenue × acceptance ranking), `funnelIntel.ts` (`analyzeFunnel` stage-to-stage + biggest leak), `revenueForecast.ts` (`computeRevenueForecast` deterministic OLS, 7/30/90d horizons, R²-derived confidence + scenario bands), `insightEngine.ts` (`deriveRevenueInsights` pure rules + `generateRevenueInsights` DeepSeek-enriched top risk, final scrub pass, atomic persist), `reportEngine.ts` (`generateRevenueReport` OpenAI synthesis + `deepScrub` before persist), `copilot.ts` (`askRevenueCopilot` snapshot-grounded OpenAI), `revenueCenter.ts` (`buildRevenueOverview` composer).
+- 9 PIN-gated routes: `GET /api/admin/revenue-intel/{overview,forecast,insights,reports,reports/:id}`, `POST /api/admin/revenue-intel/{insights/generate,reports,copilot}`, `PATCH /api/admin/revenue-intel/insights/:id`.
+- Provider hard-locks: DeepSeek diagnostics (`providerOverride:"deepseek"`), OpenAI executive synthesis + copilot (`providerOverride:"openai"`), no fallback. Scrub on LLM inbound + before all persistence (`deepScrub` recursive for report sections; explicit scrub pass for insight fields).
+- Job: `phase65_revenue_intelligence` daily (cadence 1440, boot offset 12min) — regenerates insights + daily revenue briefing.
+- Dashboard: `/revenue-intelligence` — PIN-gated, 10 tabs (Briefing / Revenue / CLV / Offers / Funnel / Bookings / Forecasts / Insights / Copilot / Reports).
+- No new required env vars; uses existing OpenAI/DeepSeek/DB. No Calendly API — booking intelligence uses internal `bookings` table.
+
+## Phase 64 — Founder Intelligence System
 - Executive intelligence layer turning cross-system data into founder-grade decisions. Recommendation-only — never mutates money/pricing/email/infra/secrets/destructive actions.
 - 2 tables: `founderIntelReports` (periodType daily/weekly/monthly/quarterly, title, summary, sections jsonb, providerMetadata jsonb, source) + `founderDecisionItems` (kind opportunity/risk/action, area, title, detail, priority 0-100, confidence 0-100, status open/acknowledged/dismissed, source).
 - 6 modules under `server/founder-intel/`: `aggregator.ts` (`buildIntelSnapshot` read-only scrubbed cross-system snapshot + `scrub`), `forecastEngine.ts` (`computeForecasts` deterministic OLS linreg, R²-derived confidence, revenue/leads/traffic/conversion), `decisionEngine.ts` (`deriveDecisionItems` pure rules + `generateDecisionCenter` DeepSeek-enriched top risk, atomic persist), `reportEngine.ts` (`generateExecutiveReport` OpenAI synthesis + `deepScrub` before persist), `copilot.ts` (`askCopilot` snapshot+founder/brand-memory grounded OpenAI), `intelligenceCenter.ts` (`buildOverview` composer).
@@ -172,9 +183,9 @@ Full-stack brand portfolio for **Elevate360Official** — mobile apps (Bondedlov
 - **T005 AI Marketplace** (`/marketplace` public + `/marketplace-admin` admin): `marketplaceProducts` table; public `GET /api/marketplace` + `GET /api/marketplace/product/:slug` (both strip `deliveryContent`); `POST /api/marketplace/checkout` (Stripe session, degrades 503 if no `stripePriceId`/Stripe off); `GET /api/marketplace/delivery?session_id=` (returns deliverable only when `order.status==='paid'`, marks delivered); PIN-gated admin CRUD `/api/admin/marketplace` (slug-conflict 409); webhook marks marketplace orders delivered on `checkout.session.completed`; marketplace delivery block in `CheckoutSuccess.tsx`; sitemap entry.
 
 ## Roadmap (next phases)
-- **Phase 65** — Voice + Video AI Integration
-- **Phase 66** — Autonomous Agent Workforce
-- **Phase 67** — Cognitive OS (unify all phases into one operating layer)
+- **Phase 66** — Voice + Video AI Integration
+- **Phase 67** — Autonomous Agent Workforce
+- **Phase 68** — Cognitive OS (unify all phases into one operating layer)
 
 ## User Preferences
 - Communication style: concise, build-focused; user prefers clear progress markers and checkpoints

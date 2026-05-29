@@ -1228,6 +1228,117 @@ export async function registerRoutes(
     }
   });
 
+  // ─── Phase 65 — Revenue Intelligence Engine (admin-only) ───────────────────
+  app.get("/api/admin/revenue-intel/overview", requireDashboardAuth, async (_req, res) => {
+    try {
+      const { buildRevenueOverview } = await import("./revenue-intel/revenueCenter");
+      res.json(await buildRevenueOverview());
+    } catch (e: any) {
+      console.error("[revenue-intel] overview failed:", e?.message);
+      res.status(500).json({ message: "Could not build revenue intelligence overview." });
+    }
+  });
+
+  app.get("/api/admin/revenue-intel/forecast", requireDashboardAuth, async (_req, res) => {
+    try {
+      const { buildRevenueSnapshot } = await import("./revenue-intel/aggregator");
+      const { computeRevenueForecast } = await import("./revenue-intel/revenueForecast");
+      const snap = await buildRevenueSnapshot();
+      res.json(computeRevenueForecast(snap.series.map((p) => ({ date: p.date, revenueCents: p.revenueCents }))));
+    } catch (e: any) {
+      console.error("[revenue-intel] forecast failed:", e?.message);
+      res.status(500).json({ message: "Could not compute revenue forecast." });
+    }
+  });
+
+  app.get("/api/admin/revenue-intel/insights", requireDashboardAuth, async (req, res) => {
+    try {
+      const kind = typeof req.query.kind === "string" ? req.query.kind : undefined;
+      const status = typeof req.query.status === "string" ? req.query.status : "open";
+      res.json(await storage.listRevenueInsights({ kind, status }));
+    } catch (e: any) {
+      console.error("[revenue-intel] insights failed:", e?.message);
+      res.status(500).json({ message: "Could not load revenue insights." });
+    }
+  });
+
+  app.post("/api/admin/revenue-intel/insights/generate", requireDashboardAuth, async (_req, res) => {
+    try {
+      const { generateRevenueInsights } = await import("./revenue-intel/insightEngine");
+      const items = await generateRevenueInsights();
+      res.json({ ok: true, generated: items.length, items });
+    } catch (e: any) {
+      console.error("[revenue-intel] insight generate failed:", e?.message);
+      res.status(500).json({ ok: false, message: "Could not regenerate revenue insights." });
+    }
+  });
+
+  app.patch("/api/admin/revenue-intel/insights/:id", requireDashboardAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const status = typeof req.body?.status === "string" ? req.body.status : "";
+      if (!Number.isInteger(id) || !["open", "acknowledged", "dismissed"].includes(status)) {
+        return res.status(400).json({ message: "Invalid id or status." });
+      }
+      const row = await storage.updateRevenueInsightStatus(id, status);
+      if (!row) return res.status(404).json({ message: "Not found." });
+      res.json(row);
+    } catch (e: any) {
+      console.error("[revenue-intel] insight update failed:", e?.message);
+      res.status(500).json({ message: "Could not update insight." });
+    }
+  });
+
+  app.get("/api/admin/revenue-intel/reports", requireDashboardAuth, async (req, res) => {
+    try {
+      const period = typeof req.query.period === "string" ? req.query.period : undefined;
+      res.json(await storage.listRevenueIntelReports(period));
+    } catch (e: any) {
+      console.error("[revenue-intel] reports list failed:", e?.message);
+      res.status(500).json({ message: "Could not load revenue reports." });
+    }
+  });
+
+  app.get("/api/admin/revenue-intel/reports/:id", requireDashboardAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id)) return res.status(400).json({ message: "Invalid id." });
+      const report = await storage.getRevenueIntelReport(id);
+      if (!report) return res.status(404).json({ message: "Not found." });
+      res.json(report);
+    } catch (e: any) {
+      console.error("[revenue-intel] report fetch failed:", e?.message);
+      res.status(500).json({ message: "Could not load report." });
+    }
+  });
+
+  app.post("/api/admin/revenue-intel/reports", requireDashboardAuth, async (req, res) => {
+    try {
+      const { PERIODS, generateRevenueReport } = await import("./revenue-intel/reportEngine");
+      const period = typeof req.body?.period === "string" ? req.body.period : "daily";
+      if (!PERIODS.includes(period as any)) {
+        return res.status(400).json({ message: "Invalid period. Use daily, weekly, monthly, or quarterly." });
+      }
+      const report = await generateRevenueReport(period as any);
+      res.status(201).json(report);
+    } catch (e: any) {
+      console.error("[revenue-intel] report generate failed:", e?.message);
+      res.status(500).json({ message: "Could not generate revenue report." });
+    }
+  });
+
+  app.post("/api/admin/revenue-intel/copilot", requireDashboardAuth, async (req, res) => {
+    try {
+      const question = typeof req.body?.question === "string" ? req.body.question.trim() : "";
+      if (!question) return res.status(400).json({ message: "A question is required." });
+      const { askRevenueCopilot } = await import("./revenue-intel/copilot");
+      res.json(await askRevenueCopilot(question));
+    } catch (e: any) {
+      console.error("[revenue-intel] copilot failed:", e?.message);
+      res.status(500).json({ message: "Revenue copilot could not answer right now." });
+    }
+  });
+
   // ─── Phase 54 — Autonomous Recovery Engine (admin-only) ────────────────────
   app.get("/api/admin/recovery", requireDashboardAuth, async (_req, res) => {
     try {

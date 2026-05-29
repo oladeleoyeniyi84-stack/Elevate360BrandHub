@@ -243,4 +243,22 @@ export async function startAutomationJobs() {
     660_000 // 11-minute boot offset (after execution mesh)
   );
   console.log("[automation] Phase 64 jobs registered (1 job)");
+
+  // ── Phase 65 — Revenue Intelligence Engine ────────────────────────────────
+  const { generateRevenueInsights } = await import("../revenue-intel/insightEngine");
+  const { generateRevenueReport } = await import("../revenue-intel/reportEngine");
+  await registerRecurringJob(
+    {
+      jobKey: "phase65_revenue_intelligence",
+      jobGroup: "revenue-intel",
+      cadenceMinutes: 1440,
+      run: async () => {
+        const items = await generateRevenueInsights();
+        const report = await generateRevenueReport("daily");
+        return { summary: `insights=${items.length} report=${report.id}` };
+      },
+    },
+    720_000 // 12-minute boot offset (after founder intelligence)
+  );
+  console.log("[automation] Phase 65 jobs registered (1 job)");
 }
