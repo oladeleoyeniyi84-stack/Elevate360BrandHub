@@ -107,7 +107,17 @@ Full-stack brand portfolio for **Elevate360Official** — mobile apps (Bondedlov
 - Art Studio image: `@assets/Elevate360Art_Studio_Presentation_1772460961759.png`
 - `@assets` Vite alias → `attached_assets/` (NOT `client/src/assets/`)
 
-## Phase 62 — Autonomous Execution Mesh (current)
+## Phase 63 — Cognitive Memory Layer (current)
+- pgvector-backed (0.8.0) shared semantic memory across Concierge / Founder Intelligence / Orchestrator / Neural Grid / Execution Mesh.
+- Table `cognitive_memories`: `embedding vector(1536)` (text-embedding-3-small), `memory_scope` (conversation/lead/founder/agent/brand_knowledge), `memory_type` (short_term/long_term/episodic/strategic), `subject_key`, `title`, `content`, `importance` (0-100), `source`, `metadata` jsonb, `access_count`, `last_accessed_at`, `expires_at`. 3 indexes incl. HNSW `vector_cosine_ops`.
+- 3 modules under `server/memory/`: `embeddings.ts` (`embedText` via text-embedding-3-small, `toVectorLiteral`, graceful null degrade if no `OPENAI_API_KEY`), `memoryEngine.ts` (`writeMemory`, `searchMemory` cosine `<=>`, `recallForSubject`, `listMemories`, `deleteMemory`, `pruneExpired`, `getMemoryHealth`, `getMemoryAnalytics`), `conciergeMemory.ts` (`buildConciergeMemoryContext`, `rememberConciergeTurn`).
+- **Security**: `scrubSensitive` strips keys/tokens/emails/hex/card/phone from `content`, `title`, **`subjectKey`** (client-controlled), and recursively from `metadata` before embed+store. `rowToMemory` always forces `embedding:null` — embeddings never returned to clients. All memory routes founder-PIN gated.
+- Concierge integration: `/api/chat` recalls + semantic-searches prior memories before reply (injected into `getConciergeReply`), async non-blocking write after reply. Returning visitors recalled without re-stating interests.
+- 6 PIN-gated routes: `GET /api/admin/memory/{overview,search,list}`, `POST /api/admin/memory` (201/422), `DELETE /api/admin/memory/:id`, `POST /api/admin/memory/prune`.
+- Dashboard: `/memory-explorer` — 4 tabs (Overview / Search / Explorer / Add) + prune.
+- SQL-injection safe: all values via drizzle `sql`` parameterization; vector literal is numeric-only interpolation. Access tracking (`touchAccess`) fires in both vector and recency-fallback search branches.
+
+## Phase 62 — Autonomous Execution Mesh
 - Distributed AI worker layer over Phase 60/61. 9 worker agents registered on boot, recommendation-only.
 - 8 tables (all `mesh_` prefixed to avoid collision with Phase 49 `execution_queue`): `mesh_agents` (unique agent_key), `mesh_missions` (unique mission_key), `mesh_tasks`, `mesh_communications`, `mesh_queue` (partial unique on mission_id WHERE status IN queued/locked), `mesh_topology_snapshots`, `mesh_worker_memory` (unique agent_key+scope+key), `mesh_audit_logs`.
 - 8 modules under `server/mesh/`: `agentRegistry.ts` (seedDefaultAgents + selectBestAgent w/ cooldown), `missionPlanner.ts` (createMission + decomposition), `taskRouter.ts` (capability-matched assignment), `workerRuntime.ts` (per-task governance + providerOverride LLM call + scrub + retry), `communicationBus.ts` (typed inter-agent messages), `topologyEngine.ts` (mesh health + graph snapshot), `memoryEngine.ts` (scoped upsert), `missionEngine.ts` (lifecycle orchestrator + `runMeshTick`).
@@ -152,11 +162,10 @@ Full-stack brand portfolio for **Elevate360Official** — mobile apps (Bondedlov
 - **T005 AI Marketplace** (`/marketplace` public + `/marketplace-admin` admin): `marketplaceProducts` table; public `GET /api/marketplace` + `GET /api/marketplace/product/:slug` (both strip `deliveryContent`); `POST /api/marketplace/checkout` (Stripe session, degrades 503 if no `stripePriceId`/Stripe off); `GET /api/marketplace/delivery?session_id=` (returns deliverable only when `order.status==='paid'`, marks delivered); PIN-gated admin CRUD `/api/admin/marketplace` (slug-conflict 409); webhook marks marketplace orders delivered on `checkout.session.completed`; marketplace delivery block in `CheckoutSuccess.tsx`; sitemap entry.
 
 ## Roadmap (next phases)
-- **Phase 4** — Persistent AI Memory + pgvector
-- **Phase 5** — AI Agents
-- **Phase 6** — Founder Intelligence System
-- **Phase 7** — Voice + Video AI Integration
-- **Phase 8** — Autonomous AI Workflow Engine
+- **Phase 64** — Founder Intelligence System (memory-driven insights, predictive briefings)
+- **Phase 65** — Voice + Video AI Integration
+- **Phase 66** — Autonomous Agent Workforce
+- **Phase 67** — Cognitive OS (unify all phases into one operating layer)
 
 ## User Preferences
 - Communication style: concise, build-focused; user prefers clear progress markers and checkpoints

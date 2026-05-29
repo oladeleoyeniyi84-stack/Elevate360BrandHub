@@ -26,6 +26,19 @@ import { getMemoryStats } from "./ai/memory";
 import { getAIStatus } from "./ai/modelRouter";
 import { processConversationIntelligence, applyStageAutomation } from "./services/leadService";
 import { resolveRecommendedAction } from "./ai/recommendedAction";
+import { buildConciergeMemoryContext, rememberConciergeTurn } from "./memory/conciergeMemory";
+import {
+  writeMemory,
+  searchMemory,
+  listMemories,
+  deleteMemory,
+  pruneExpired,
+  getMemoryHealth,
+  getMemoryAnalytics,
+  type MemoryScope,
+  type MemoryType,
+} from "./memory/memoryEngine";
+import { insertCognitiveMemorySchema } from "@shared/schema";
 import { generateContentDraft } from "./ai/contentFactory";
 import { generateAndSaveDigest } from "./ai/digestGenerator";
 import { notifyNewContact, notifyNewLead, notifyNewSubscriber, sendContactReply, sendDigestEmail, notifyNewBooking } from "./email";
@@ -264,6 +277,9 @@ export async function registerRoutes(
         listStripeOffers().catch(() => []),
       ]);
 
+      // Phase 63 — recall returning-visitor memory before generating the reply.
+      const { context: memoryContext } = await buildConciergeMemoryContext(sessionId, message);
+
       // Phase 39 — inject recommended offer for this session into concierge.
       // runConcierge reads history from in-process memory (DB fallback on miss)
       // and updates the cache after generating the reply.
@@ -273,6 +289,7 @@ export async function registerRoutes(
         knowledgeDocs,
         consultationTypes: activeConsultations,
         recommendedOffer: conversation.recommendedOffer,
+        memoryContext,
       });
 
       await storage.appendChatMessage(sessionId, { role: "user", content: message });
@@ -287,6 +304,16 @@ export async function registerRoutes(
 
       // Async intelligence: intent classification + lead scoring (non-blocking)
       processConversationIntelligence(sessionId, history, message).catch(() => {});
+
+      // Phase 63 — persist durable memory from this turn (non-blocking)
+      rememberConciergeTurn({
+        sessionId,
+        userMessage: message,
+        reply,
+        intent: conversation.intent,
+        leadEmail: leadEmail ?? conversation.capturedEmail,
+        recommendedOffer: conversation.recommendedOffer,
+      }).catch(() => {});
 
       // Concierge 2.0 — surface a concrete, clickable action when the session
       // already has a confident recommendation (set by a prior turn's scoring).
@@ -994,6 +1021,98 @@ export async function registerRoutes(
     } catch (e: any) {
       console.error("[qa-sentinel] run failed:", e?.message);
       res.status(500).json({ ok: false, message: "QA sentinel run failed." });
+    }
+  });
+
+  // ─── Phase 63 — Cognitive Memory Layer (founder-only) ──────────────────────
+  app.get("/api/admin/memory/overview", requireDashboardAuth, async (_req, res) => {
+    try {
+      const [health, analytics] = await Promise.all([getMemoryHealth(), getMemoryAnalytics()]);
+      res.json({ health, analytics });
+    } catch (e: any) {
+      console.error("[memory] overview failed:", e?.message);
+      res.status(500).json({ message: "Could not load memory overview." });
+    }
+  });
+
+  app.get("/api/admin/memory/search", requireDashboardAuth, async (req, res) => {
+    try {
+      const q = String(req.query.q ?? "").trim();
+      if (!q) return res.status(400).json({ message: "Query 'q' is required." });
+      const hits = await searchMemory({
+        query: q,
+        scope: (req.query.scope as MemoryScope) || undefined,
+        type: (req.query.type as MemoryType) || undefined,
+        subjectKey: (req.query.subjectKey as string) || undefined,
+        limit: Math.min(50, Number(req.query.limit) || 12),
+      });
+      res.json(hits);
+    } catch (e: any) {
+      console.error("[memory] search failed:", e?.message);
+      res.status(500).json({ message: "Memory search failed." });
+    }
+  });
+
+  app.get("/api/admin/memory/list", requireDashboardAuth, async (req, res) => {
+    try {
+      const rows = await listMemories({
+        scope: (req.query.scope as MemoryScope) || undefined,
+        type: (req.query.type as MemoryType) || undefined,
+        subjectKey: (req.query.subjectKey as string) || undefined,
+        limit: Math.min(200, Number(req.query.limit) || 50),
+      });
+      res.json(rows);
+    } catch (e: any) {
+      console.error("[memory] list failed:", e?.message);
+      res.status(500).json({ message: "Could not load memories." });
+    }
+  });
+
+  app.post("/api/admin/memory", requireDashboardAuth, async (req, res) => {
+    try {
+      const parsed = insertCognitiveMemorySchema.parse(req.body);
+      const created = await writeMemory({
+        scope: parsed.memoryScope as MemoryScope,
+        type: (parsed.memoryType as MemoryType) || "strategic",
+        subjectKey: parsed.subjectKey,
+        title: parsed.title ?? undefined,
+        content: parsed.content,
+        importance: parsed.importance ?? 60,
+        source: parsed.source || "founder",
+        metadata: (parsed.metadata as Record<string, unknown>) ?? {},
+      });
+      if (!created) return res.status(422).json({ message: "Memory could not be stored (empty after scrub)." });
+      res.status(201).json(created);
+    } catch (error: any) {
+      if (error instanceof ZodError) {
+        res.status(400).json({ message: fromZodError(error).message });
+      } else {
+        console.error("[memory] create failed:", error?.message);
+        res.status(500).json({ message: "Could not store memory." });
+      }
+    }
+  });
+
+  app.delete("/api/admin/memory/:id", requireDashboardAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id)) return res.status(400).json({ message: "Invalid id." });
+      const ok = await deleteMemory(id);
+      if (!ok) return res.status(404).json({ message: "Memory not found." });
+      res.json({ ok: true });
+    } catch (e: any) {
+      console.error("[memory] delete failed:", e?.message);
+      res.status(500).json({ message: "Could not delete memory." });
+    }
+  });
+
+  app.post("/api/admin/memory/prune", requireDashboardAuth, async (_req, res) => {
+    try {
+      const removed = await pruneExpired();
+      res.json({ ok: true, removed });
+    } catch (e: any) {
+      console.error("[memory] prune failed:", e?.message);
+      res.status(500).json({ message: "Prune failed." });
     }
   });
 

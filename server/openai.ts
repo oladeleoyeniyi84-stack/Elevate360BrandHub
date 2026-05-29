@@ -126,11 +126,13 @@ export async function getConciergeReply(
   userMessage: string,
   knowledgeDocs?: { title: string; category: string; content: string }[],
   consultationTypes?: { title: string; description: string; duration: number; price: number; currency: string }[],
-  recommendedOffer?: string | null
+  recommendedOffer?: string | null,
+  memoryContext?: string | null
 ): Promise<string> {
   const systemPrompt = buildConciergePromptText(knowledgeDocs, consultationTypes, recommendedOffer);
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
     { role: "system", content: systemPrompt },
+    ...(memoryContext ? [{ role: "system" as const, content: memoryContext }] : []),
     ...history.map((m) => ({
       role: m.role as "user" | "assistant",
       content: m.content,

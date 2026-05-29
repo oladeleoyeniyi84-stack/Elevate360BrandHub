@@ -14,6 +14,7 @@ export interface ConciergeInput {
     currency: string;
   }[];
   recommendedOffer?: string | null;
+  memoryContext?: string | null;
 }
 
 export interface ConciergeOutput {
@@ -30,7 +31,8 @@ export async function runConcierge(input: ConciergeInput): Promise<ConciergeOutp
     input.userMessage,
     input.knowledgeDocs,
     input.consultationTypes,
-    input.recommendedOffer
+    input.recommendedOffer,
+    input.memoryContext
   );
 
   const updatedMessages: ChatMessage[] = [

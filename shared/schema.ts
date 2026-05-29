@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, serial, boolean, jsonb, integer, json, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, serial, boolean, jsonb, integer, json, index, uniqueIndex, vector } from "drizzle-orm/pg-core";
 // relations imported for future relation definitions
 import type {} from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
@@ -1472,3 +1472,40 @@ export type SystemHealthSnapshot = typeof systemHealthSnapshots.$inferSelect;
 export const insertQuarterlyStrategyReportSchema = createInsertSchema(quarterlyStrategyReports).omit({ id: true, createdAt: true });
 export type InsertQuarterlyStrategyReport = z.infer<typeof insertQuarterlyStrategyReportSchema>;
 export type QuarterlyStrategyReport = typeof quarterlyStrategyReports.$inferSelect;
+
+// Phase 63 — Cognitive Memory Layer (pgvector semantic memory)
+export const cognitiveMemories = pgTable("cognitive_memories", {
+  id: serial("id").primaryKey(),
+  // 'conversation' | 'lead' | 'founder' | 'agent' | 'brand_knowledge'
+  memoryScope: varchar("memory_scope", { length: 40 }).notNull(),
+  // 'short_term' | 'long_term' | 'episodic' | 'strategic'
+  memoryType: varchar("memory_type", { length: 20 }).notNull().default("long_term"),
+  // sessionId, lead key, agent_key, 'founder', 'brand'
+  subjectKey: varchar("subject_key", { length: 120 }).notNull(),
+  title: varchar("title", { length: 200 }),
+  content: text("content").notNull(),
+  embedding: vector("embedding", { dimensions: 1536 }),
+  importance: integer("importance").notNull().default(50),
+  source: varchar("source", { length: 60 }).notNull().default("system"),
+  metadata: jsonb("metadata").notNull().default(sql`'{}'::jsonb`),
+  accessCount: integer("access_count").notNull().default(0),
+  lastAccessedAt: timestamp("last_accessed_at"),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (t) => ({
+  scopeSubjectIdx: index("cognitive_memories_scope_subject_idx").on(t.memoryScope, t.subjectKey),
+  typeIdx: index("cognitive_memories_type_idx").on(t.memoryType),
+}));
+
+export const insertCognitiveMemorySchema = createInsertSchema(cognitiveMemories).omit({
+  id: true,
+  embedding: true,
+  accessCount: true,
+  lastAccessedAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export const updateCognitiveMemorySchema = insertCognitiveMemorySchema.partial();
+export type InsertCognitiveMemory = z.infer<typeof insertCognitiveMemorySchema>;
+export type CognitiveMemory = typeof cognitiveMemories.$inferSelect;

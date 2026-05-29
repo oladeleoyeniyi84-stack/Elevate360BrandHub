@@ -18,6 +18,7 @@ import Authority from "@/pages/Authority";
 import AuthorityAdmin from "@/pages/AuthorityAdmin";
 import Marketplace from "@/pages/Marketplace";
 import MarketplaceAdmin from "@/pages/MarketplaceAdmin";
+import MemoryExplorer from "@/pages/MemoryExplorer";
 import ContentFactory from "@/pages/ContentFactory";
 import OrchestratorCenter from "@/pages/OrchestratorCenter";
 import CommandGrid from "@/pages/CommandGrid";
@@ -230,6 +231,17 @@ function Router() {
             path="/marketplace-admin"
           />
           <MarketplaceAdmin />
+        </>
+      </Route>
+
+      <Route path="/memory-explorer">
+        <>
+          <SEO
+            title="Cognitive Memory | Elevate360Official"
+            description="Founder cognitive memory explorer for Elevate360Official."
+            path="/memory-explorer"
+          />
+          <MemoryExplorer />
         </>
       </Route>
 
