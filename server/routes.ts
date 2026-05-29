@@ -9,6 +9,13 @@ import {
   insertTestimonialSchema,
   insertBlogPostSchema,
   updateBlogPostSchema,
+  updateContentDraftSchema,
+  generateContentFactorySchema,
+  insertAuthorityItemSchema,
+  updateAuthorityItemSchema,
+  insertMarketplaceProductSchema,
+  updateMarketplaceProductSchema,
+  marketplaceCheckoutSchema,
   type ChatMessage,
 } from "@shared/schema";
 import { ZodError } from "zod";
@@ -18,6 +25,8 @@ import { runConcierge } from "./ai/router";
 import { getMemoryStats } from "./ai/memory";
 import { getAIStatus } from "./ai/modelRouter";
 import { processConversationIntelligence, applyStageAutomation } from "./services/leadService";
+import { resolveRecommendedAction } from "./ai/recommendedAction";
+import { generateContentDraft } from "./ai/contentFactory";
 import { generateAndSaveDigest } from "./ai/digestGenerator";
 import { notifyNewContact, notifyNewLead, notifyNewSubscriber, sendContactReply, sendDigestEmail, notifyNewBooking } from "./email";
 import { generateSitemap } from "./sitemap";
@@ -34,6 +43,54 @@ import { generateFounderWeeklyBrief, generateMonthlyStrategyBrief } from "./auto
 import { runAnomalyEngine } from "./automation/anomalyEngine";
 
 const DASHBOARD_PIN = process.env.DASHBOARD_PIN;
+
+// Shared Stripe offer listing — used by the public /api/offers route and by the
+// Concierge 2.0 recommendation resolver. Degrades to [] when Stripe is
+// unavailable (e.g. dev without keys) so neither path ever throws.
+export type StripeOffer = {
+  productId: string;
+  priceId: string;
+  name: string;
+  description: string;
+  amount: number;
+  currency: string;
+  metadata: Record<string, string>;
+};
+
+async function listStripeOffers(): Promise<StripeOffer[]> {
+  try {
+    const stripe = await getUncachableStripeClient();
+    const products = await stripe.products.list({ active: true, limit: 20 });
+    const offers = await Promise.all(
+      products.data.map(async (product) => {
+        const prices = await stripe.prices.list({ product: product.id, active: true, limit: 1 });
+        const price = prices.data[0];
+        if (!price) return null;
+        return {
+          productId: product.id,
+          priceId: price.id,
+          name: product.name,
+          description: product.description ?? "",
+          amount: price.unit_amount ?? 0,
+          currency: price.currency ?? "usd",
+          metadata: (product.metadata ?? {}) as Record<string, string>,
+        } as StripeOffer;
+      })
+    );
+    const validOffers = offers.filter((o): o is StripeOffer => o !== null);
+    validOffers.sort((a, b) => {
+      const ao = parseInt(a.metadata?.displayOrder ?? "999");
+      const bo = parseInt(b.metadata?.displayOrder ?? "999");
+      return ao - bo || a.name.localeCompare(b.name);
+    });
+    return validOffers;
+  } catch (err) {
+    // Summary-only log — never leak raw provider errors/stack to logs or clients.
+    const reason = err instanceof Error ? err.message.split("\n")[0] : "unknown";
+    console.warn(`[offers] Stripe unavailable, serving empty offer set (${reason})`);
+    return [];
+  }
+}
 
 // Timing-safe PIN comparison. Never logs PIN values or echoes them in errors.
 function pinMatches(provided: unknown): boolean {
@@ -201,9 +258,10 @@ export async function registerRoutes(
 
       const conversation = await storage.getOrCreateChatSession(sessionId);
 
-      const [knowledgeDocs, activeConsultations] = await Promise.all([
+      const [knowledgeDocs, activeConsultations, liveOffers] = await Promise.all([
         storage.getPublishedKnowledgeByIntent(null).catch(() => []),
         storage.getConsultations(true).catch(() => []),
+        listStripeOffers().catch(() => []),
       ]);
 
       // Phase 39 — inject recommended offer for this session into concierge.
@@ -230,7 +288,16 @@ export async function registerRoutes(
       // Async intelligence: intent classification + lead scoring (non-blocking)
       processConversationIntelligence(sessionId, history, message).catch(() => {});
 
-      res.json({ reply });
+      // Concierge 2.0 — surface a concrete, clickable action when the session
+      // already has a confident recommendation (set by a prior turn's scoring).
+      const recommendedAction = resolveRecommendedAction(
+        conversation.recommendedOffer,
+        conversation.recommendedOfferConfidence,
+        activeConsultations,
+        liveOffers,
+      );
+
+      res.json({ reply, recommendedAction });
     } catch (error: any) {
       if (error instanceof ZodError) {
         res.status(400).json({ message: fromZodError(error).message });
@@ -715,6 +782,10 @@ export async function registerRoutes(
             amountPaid: session.amount_total ?? undefined,
             customerName: session.customer_details?.name ?? undefined,
           });
+          // Marketplace digital products are fulfilled immediately on payment.
+          if (session.metadata?.marketplaceSlug) {
+            storage.setOrderFulfillment(session.id, "delivered").catch(() => {});
+          }
           // M02 fix — auto-advance pipeline to "won" + mark offer accepted
           // NOTE: do NOT pass wonValue here; revenue is already tracked via the orders table (M01 fix)
           const sessionChatId = session.metadata?.sessionId;
@@ -750,38 +821,7 @@ export async function registerRoutes(
 
   // Phase 37 — Public Offers (fetched directly from Stripe API; native SDK)
   app.get("/api/offers", async (_req, res) => {
-    try {
-      const stripe = await getUncachableStripeClient();
-      const products = await stripe.products.list({ active: true, limit: 20 });
-      const offers = await Promise.all(
-        products.data.map(async (product) => {
-          const prices = await stripe.prices.list({ product: product.id, active: true, limit: 1 });
-          const price = prices.data[0];
-          if (!price) return null;
-          return {
-            productId: product.id,
-            priceId: price.id,
-            name: product.name,
-            description: product.description ?? "",
-            amount: price.unit_amount ?? 0,
-            currency: price.currency ?? "usd",
-            metadata: product.metadata ?? {},
-          };
-        })
-      );
-      const validOffers = offers.filter(Boolean);
-      validOffers.sort((a: any, b: any) => {
-        const ao = parseInt(a.metadata?.displayOrder ?? "999");
-        const bo = parseInt(b.metadata?.displayOrder ?? "999");
-        return ao - bo || a.name.localeCompare(b.name);
-      });
-      res.json(validOffers);
-    } catch (err) {
-      // Summary-only log — never leak raw provider errors/stack to logs or clients.
-      const reason = err instanceof Error ? err.message.split("\n")[0] : "unknown";
-      console.warn(`[offers] Stripe unavailable, serving empty offer set (${reason})`);
-      res.json([]);
-    }
+    res.json(await listStripeOffers());
   });
 
   // Phase 37 — Create Stripe Checkout Session
@@ -1002,6 +1042,417 @@ export async function registerRoutes(
       console.error("[ops] timeseries failed:", e?.message);
       res.status(500).json({ message: "Could not build timeseries." });
     }
+  });
+
+  // ─── Unified Executive Command Center (read-only cockpit) ──────────────────
+  // Rolls up cross-system KPIs from existing storage + AI status. Purely
+  // aggregative: makes no Phase 49–62 changes and mutates nothing.
+  app.get("/api/admin/executive/overview", requireDashboardAuth, async (_req, res) => {
+    try {
+      const [
+        summary,
+        attribution,
+        funnel,
+        urgency,
+        health,
+        blogPosts,
+        offers,
+      ] = await Promise.all([
+        storage.getDashboardSummary().catch(() => null),
+        storage.getRevenueAttributionData().catch(() => null),
+        storage.getConversionFunnel().catch(() => null),
+        storage.getUrgencyDashboard().catch(() => null),
+        storage.getSystemHealthSummary().catch(() => null),
+        storage.getBlogPosts(false).catch(() => [] as any[]),
+        listStripeOffers().catch(() => [] as StripeOffer[]),
+      ]);
+
+      const ai = getAIStatus();
+      const memory = getMemoryStats();
+
+      const publishedPosts = (blogPosts ?? []).filter((p: any) => p.published || p.isPublished || p.status === "published");
+
+      res.json({
+        generatedAt: new Date().toISOString(),
+        revenue: {
+          totalPaidCents: summary?.revenue?.totalPaid ?? 0,
+          paidOrders: summary?.revenue?.paidOrders ?? 0,
+          avgOrderValueCents: summary?.revenue?.avgOrderValue ?? 0,
+          abandoned: summary?.revenue?.abandoned ?? 0,
+          combinedRevenueCents: attribution?.totals?.combinedRevenue ?? 0,
+          wonRevenueCents: attribution?.totals?.wonRevenue ?? 0,
+          wonDeals: attribution?.totals?.wonDeals ?? 0,
+          monthlySeries: attribution?.monthlySeries ?? [],
+          byOffer: attribution?.byOffer ?? [],
+        },
+        pipeline: {
+          totalLeads: summary?.leads?.total ?? 0,
+          emailCaptured: summary?.leads?.emailCaptured ?? 0,
+          hot: summary?.leads?.hot ?? 0,
+          qualified: summary?.leads?.qualified ?? 0,
+          bookedThisWeek: summary?.leads?.bookedThisWeek ?? 0,
+          wonThisMonth: summary?.leads?.wonThisMonth ?? 0,
+          topIntent: summary?.topIntent ?? null,
+          topRecommendedOffer: summary?.topRecommendedOffer ?? null,
+          funnel: funnel?.stages ?? [],
+        },
+        urgency: {
+          overdueHotLeads: urgency?.overdueHotLeads ?? 0,
+          newQualifiedLeads: urgency?.newQualifiedLeads ?? 0,
+          pendingBookings: urgency?.pendingBookings ?? 0,
+          paidOrdersToday: urgency?.paidOrdersToday ?? 0,
+          unrepliedContacts: urgency?.unrepliedContacts ?? 0,
+        },
+        engagement: {
+          newsletterSubscribers: summary?.engagement?.newsletterSubscribers ?? 0,
+          contactForms: summary?.engagement?.contactForms ?? 0,
+          unrepliedContacts: summary?.engagement?.unrepliedContacts ?? 0,
+          pendingBookings: summary?.engagement?.pendingBookings ?? 0,
+        },
+        content: {
+          totalPosts: (blogPosts ?? []).length,
+          publishedPosts: publishedPosts.length,
+          draftPosts: (blogPosts ?? []).length - publishedPosts.length,
+          liveOffers: offers.length,
+        },
+        ai: {
+          openai: ai.openai,
+          deepseek: ai.deepseek,
+          router: ai.router,
+          premiumModel: ai.defaultPremiumModel,
+          automationModel: ai.defaultAutomationModel,
+          activeSessions: memory?.activeSessions ?? 0,
+        },
+        system: {
+          lastLeadAt: health?.lastLeadAt ?? null,
+          lastDigestAt: health?.lastDigestAt ?? null,
+          totalLeads: health?.totalLeads ?? 0,
+          totalPaidOrders: health?.totalPaidOrders ?? 0,
+          totalAuditActions: health?.totalAuditActions ?? 0,
+        },
+      });
+    } catch (e: any) {
+      console.error("[executive] overview failed:", e?.message);
+      res.status(500).json({ message: "Could not build executive overview." });
+    }
+  });
+
+  // ─── AI Content Factory (admin-only) ───────────────────────────────────────
+  app.get("/api/admin/content-factory/drafts", requireDashboardAuth, async (req, res) => {
+    try {
+      const status = typeof req.query.status === "string" ? req.query.status : undefined;
+      const drafts = await storage.getContentDrafts(status);
+      res.json(drafts);
+    } catch (e: any) {
+      console.error("[content-factory] list failed:", e?.message);
+      res.status(500).json({ message: "Could not load drafts." });
+    }
+  });
+
+  app.post("/api/admin/content-factory/generate", requireDashboardAuth, async (req, res) => {
+    try {
+      const { kind, topics, premium } = generateContentFactorySchema.parse(req.body);
+      const created = [];
+      const failed: string[] = [];
+      for (const topic of topics) {
+        try {
+          const draft = await generateContentDraft(kind, topic, !!premium);
+          created.push(await storage.createContentDraft(draft));
+        } catch (err: any) {
+          console.error(`[content-factory] generate failed for "${topic}":`, err?.message);
+          failed.push(topic);
+        }
+      }
+      res.json({ created, failed, generated: created.length });
+    } catch (err) {
+      if (err instanceof ZodError) return res.status(400).json({ message: fromZodError(err).message });
+      console.error("[content-factory] generate error:", err);
+      res.status(500).json({ message: "Generation failed." });
+    }
+  });
+
+  app.patch("/api/admin/content-factory/drafts/:id", requireDashboardAuth, async (req, res) => {
+    try {
+      const updates = updateContentDraftSchema.parse(req.body);
+      const draft = await storage.updateContentDraft(Number(req.params.id), updates);
+      if (!draft) return res.status(404).json({ message: "Not found" });
+      res.json(draft);
+    } catch (err) {
+      if (err instanceof ZodError) return res.status(400).json({ message: fromZodError(err).message });
+      res.status(500).json({ message: "Update failed." });
+    }
+  });
+
+  app.post("/api/admin/content-factory/drafts/:id/approve", requireDashboardAuth, async (req, res) => {
+    const id = Number(req.params.id);
+    // Atomic, state-gated: only a draft can be approved.
+    const draft = await storage.transitionContentDraftStatus(id, ["draft"], "approved");
+    if (draft) return res.json(draft);
+    const existing = await storage.getContentDraft(id);
+    if (!existing) return res.status(404).json({ message: "Not found" });
+    return res.status(409).json({ message: `Cannot approve a ${existing.status} draft.` });
+  });
+
+  app.post("/api/admin/content-factory/drafts/:id/reject", requireDashboardAuth, async (req, res) => {
+    const id = Number(req.params.id);
+    const draft = await storage.transitionContentDraftStatus(id, ["draft", "approved"], "rejected");
+    if (draft) return res.json(draft);
+    const existing = await storage.getContentDraft(id);
+    if (!existing) return res.status(404).json({ message: "Not found" });
+    return res.status(409).json({ message: `Cannot reject a ${existing.status} draft.` });
+  });
+
+  app.post("/api/admin/content-factory/drafts/:id/publish", requireDashboardAuth, async (req, res) => {
+    try {
+      const draft = await storage.getContentDraft(Number(req.params.id));
+      if (!draft) return res.status(404).json({ message: "Not found" });
+
+      // Idempotent: an already-published draft returns its existing post (no duplicate).
+      if (draft.status === "published") {
+        const existing = draft.publishedPostId ? await storage.getBlogPost(draft.publishedPostId) : null;
+        return res.json({ draft, post: existing ?? null, note: "Already published." });
+      }
+
+      // Atomic claim: only one request can move approved → publishing. Losers get 409.
+      const claimed = await storage.transitionContentDraftStatus(draft.id, ["approved"], "publishing");
+      if (!claimed) {
+        return res.status(409).json({ message: "Draft must be approved before publishing." });
+      }
+
+      if (claimed.kind !== "blog") {
+        const updated = await storage.setContentDraftStatus(claimed.id, "published");
+        return res.json({ draft: updated, post: null, note: "Marked published (non-blog kinds are not posted to /blog)." });
+      }
+
+      try {
+        const baseSlug = claimed.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 180) || `post-${claimed.id}`;
+
+        // Race-safe slug allocation: retry on unique-violation with incremented suffix.
+        let created: Awaited<ReturnType<typeof storage.createBlogPost>> | null = null;
+        let n = 0;
+        while (!created && n < 50) {
+          const slug = n === 0 ? baseSlug : `${baseSlug}-${n}`;
+          if (await storage.getBlogPostBySlug(slug)) { n++; continue; }
+          try {
+            created = await storage.createBlogPost({
+              title: claimed.title,
+              slug,
+              excerpt: claimed.excerpt || claimed.title,
+              body: claimed.body,
+              category: claimed.category,
+            });
+          } catch (err: any) {
+            if (String(err?.code) === "23505" || /unique/i.test(err?.message ?? "")) { n++; continue; }
+            throw err;
+          }
+        }
+        if (!created) throw new Error("Could not allocate a unique slug.");
+
+        const post = (await storage.toggleBlogPostPublished(created.id)) ?? created;
+        const updated = await storage.setContentDraftStatus(claimed.id, "published", post.id);
+        res.json({ draft: updated, post });
+      } catch (inner: any) {
+        // Release the claim so the draft can be retried.
+        await storage.transitionContentDraftStatus(claimed.id, ["publishing"], "approved").catch(() => {});
+        throw inner;
+      }
+    } catch (e: any) {
+      console.error("[content-factory] publish failed:", e?.message);
+      res.status(500).json({ message: "Publish failed." });
+    }
+  });
+
+  app.delete("/api/admin/content-factory/drafts/:id", requireDashboardAuth, async (req, res) => {
+    await storage.deleteContentDraft(Number(req.params.id));
+    res.json({ ok: true });
+  });
+
+  // ─── Founder Authority Layer ───────────────────────────────────────────────
+  app.get("/api/authority", async (_req, res) => {
+    const items = await storage.getAuthorityItems(true);
+    res.json(items);
+  });
+
+  app.get("/api/admin/authority", requireDashboardAuth, async (_req, res) => {
+    const items = await storage.getAuthorityItems(false);
+    res.json(items);
+  });
+
+  app.post("/api/admin/authority", requireDashboardAuth, async (req, res) => {
+    try {
+      const data = insertAuthorityItemSchema.parse(req.body);
+      const item = await storage.createAuthorityItem(data);
+      res.json(item);
+    } catch (err) {
+      if (err instanceof ZodError) return res.status(400).json({ message: fromZodError(err).message });
+      res.status(500).json({ message: "Create failed." });
+    }
+  });
+
+  app.patch("/api/admin/authority/:id", requireDashboardAuth, async (req, res) => {
+    try {
+      const updates = updateAuthorityItemSchema.parse(req.body);
+      const item = await storage.updateAuthorityItem(Number(req.params.id), updates);
+      if (!item) return res.status(404).json({ message: "Not found" });
+      res.json(item);
+    } catch (err) {
+      if (err instanceof ZodError) return res.status(400).json({ message: fromZodError(err).message });
+      res.status(500).json({ message: "Update failed." });
+    }
+  });
+
+  app.delete("/api/admin/authority/:id", requireDashboardAuth, async (req, res) => {
+    await storage.deleteAuthorityItem(Number(req.params.id));
+    res.json({ ok: true });
+  });
+
+  // ─── AI Marketplace ────────────────────────────────────────────────────────
+  app.get("/api/marketplace", async (_req, res) => {
+    const products = await storage.getMarketplaceProducts(true);
+    // Never expose delivery payload in the public listing.
+    res.json(products.map(({ deliveryContent, ...pub }) => pub));
+  });
+
+  app.get("/api/marketplace/product/:slug", async (req, res) => {
+    const product = await storage.getMarketplaceProductBySlug(req.params.slug);
+    if (!product || !product.published) return res.status(404).json({ message: "Not found" });
+    const { deliveryContent, ...pub } = product;
+    res.json(pub);
+  });
+
+  // Create a Stripe Checkout session for a marketplace product.
+  app.post("/api/marketplace/checkout", async (req, res) => {
+    try {
+      const { slug, customerEmail, sessionId: chatSessionId } = marketplaceCheckoutSchema.parse(req.body);
+      const product = await storage.getMarketplaceProductBySlug(slug);
+      if (!product || !product.published) return res.status(404).json({ message: "Product not found." });
+      if (!isStripeConfigured() || !product.stripePriceId) {
+        return res.status(503).json({ message: "Checkout is not available for this product yet." });
+      }
+
+      const rawHost =
+        process.env.PUBLIC_BASE_URL ??
+        process.env.CANONICAL_HOST ??
+        process.env.RENDER_EXTERNAL_HOSTNAME ??
+        (process.env.REPLIT_DOMAINS ?? "").split(",")[0] ??
+        "localhost:5000";
+      const cleanHost = rawHost.replace(/^https?:\/\//, "").replace(/\/$/, "") || "localhost:5000";
+      const origin = cleanHost.startsWith("localhost") ? `http://${cleanHost}` : `https://${cleanHost}`;
+
+      const stripe = await getUncachableStripeClient();
+      const successParams = new URLSearchParams({ source: "marketplace", slug: product.slug });
+      successParams.set("session_id", "{CHECKOUT_SESSION_ID}");
+
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ["card"],
+        line_items: [{ price: product.stripePriceId, quantity: 1 }],
+        mode: "payment",
+        success_url: `${origin}/checkout/success?${successParams.toString()}`,
+        cancel_url: `${origin}/marketplace`,
+        customer_email: customerEmail || undefined,
+        metadata: {
+          sessionId: chatSessionId ?? "",
+          source: "elevate360-marketplace",
+          marketplaceSlug: product.slug,
+          productName: product.name,
+        },
+      } as any);
+
+      storage.createOrder({
+        stripeSessionId: session.id,
+        stripePriceId: product.stripePriceId,
+        productName: product.name,
+        customerEmail: customerEmail ?? "unknown",
+        status: "initiated",
+        fulfillmentStatus: "pending",
+        sessionId: chatSessionId ?? undefined,
+        metadata: {
+          source: "elevate360-marketplace",
+          marketplaceSlug: product.slug,
+          checkoutCreatedAt: new Date().toISOString(),
+        },
+      }).catch(() => {});
+
+      res.json({ url: session.url });
+    } catch (e: any) {
+      if (e instanceof ZodError) return res.status(400).json({ message: fromZodError(e).message });
+      console.error("[marketplace] checkout error:", e?.message);
+      if (e?.type === "StripeInvalidRequestError" || e?.statusCode === 400 || e?.statusCode === 404) {
+        return res.status(400).json({ message: e.message ?? "Invalid checkout parameters." });
+      }
+      res.status(500).json({ message: "Could not create checkout session." });
+    }
+  });
+
+  // Post-purchase digital delivery. Only returns the deliverable once the order is paid.
+  app.get("/api/marketplace/delivery", async (req, res) => {
+    const sessionId = (req.query.session_id as string | undefined)?.trim();
+    if (!sessionId) return res.status(400).json({ message: "session_id required" });
+    const order = await storage.getOrderByStripeSession(sessionId);
+    if (!order) return res.status(404).json({ message: "Order not found." });
+
+    const slug = (order.metadata as any)?.marketplaceSlug as string | undefined;
+    if (!slug) return res.status(404).json({ message: "Not a marketplace order." });
+
+    if (order.status !== "paid") {
+      return res.json({ status: order.status, fulfillmentStatus: order.fulfillmentStatus, productName: order.productName });
+    }
+
+    const product = await storage.getMarketplaceProductBySlug(slug);
+    if (!product) return res.status(404).json({ message: "Product no longer available." });
+
+    // Mark delivered for admin visibility (idempotent).
+    if (order.fulfillmentStatus !== "delivered") {
+      await storage.setOrderFulfillment(sessionId, "delivered").catch(() => {});
+    }
+
+    res.json({
+      status: "paid",
+      fulfillmentStatus: "delivered",
+      productName: product.name,
+      deliveryType: product.deliveryType,
+      deliveryContent: product.deliveryContent,
+    });
+  });
+
+  app.get("/api/admin/marketplace", requireDashboardAuth, async (_req, res) => {
+    res.json(await storage.getMarketplaceProducts(false));
+  });
+
+  app.post("/api/admin/marketplace", requireDashboardAuth, async (req, res) => {
+    try {
+      const data = insertMarketplaceProductSchema.parse(req.body);
+      const existing = await storage.getMarketplaceProductBySlug(data.slug);
+      if (existing) return res.status(409).json({ message: "A product with that slug already exists." });
+      const product = await storage.createMarketplaceProduct(data);
+      res.json(product);
+    } catch (err) {
+      if (err instanceof ZodError) return res.status(400).json({ message: fromZodError(err).message });
+      res.status(500).json({ message: "Create failed." });
+    }
+  });
+
+  app.patch("/api/admin/marketplace/:id", requireDashboardAuth, async (req, res) => {
+    try {
+      const updates = updateMarketplaceProductSchema.parse(req.body);
+      if (updates.slug) {
+        const existing = await storage.getMarketplaceProductBySlug(updates.slug);
+        if (existing && existing.id !== Number(req.params.id)) {
+          return res.status(409).json({ message: "A product with that slug already exists." });
+        }
+      }
+      const product = await storage.updateMarketplaceProduct(Number(req.params.id), updates);
+      if (!product) return res.status(404).json({ message: "Not found" });
+      res.json(product);
+    } catch (err) {
+      if (err instanceof ZodError) return res.status(400).json({ message: fromZodError(err).message });
+      res.status(500).json({ message: "Update failed." });
+    }
+  });
+
+  app.delete("/api/admin/marketplace/:id", requireDashboardAuth, async (req, res) => {
+    await storage.deleteMarketplaceProduct(Number(req.params.id));
+    res.json({ ok: true });
   });
 
   // ─── Phase 56 — Autonomous AI Growth Engine (admin-only) ───────────────────

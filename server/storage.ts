@@ -5,6 +5,9 @@ import {
   type ChatConversation, type ChatMessage,
   type Testimonial, type InsertTestimonial,
   type BlogPost, type InsertBlogPost, type UpdateBlogPost,
+  type ContentDraft, type InsertContentDraft, type UpdateContentDraft,
+  type AuthorityItem, type InsertAuthorityItem, type UpdateAuthorityItem,
+  type MarketplaceProduct, type InsertMarketplaceProduct, type UpdateMarketplaceProduct,
   type KnowledgeDocument, type InsertKnowledgeDoc, type UpdateKnowledgeDoc,
   type Consultation, type InsertConsultation, type UpdateConsultation,
   type Booking, type InsertBooking,
@@ -38,7 +41,7 @@ import {
   type ExperimentAssignment, type ExperimentEvent,
   type PersonalizationSegment, type InsertPersonalizationSegment,
   type PersonalizationProfile, type PersonalizationRule, type InsertPersonalizationRule,
-  users, contactMessages, newsletterSubscribers, chatConversations, clickEvents, pageViews, testimonials, blogPosts, knowledgeDocuments, consultations, bookings, orders, digestReports, offerMappingOverrides, auditLogs, automationSettings,
+  users, contactMessages, newsletterSubscribers, chatConversations, clickEvents, pageViews, testimonials, blogPosts, contentDrafts, authorityItems, marketplaceProducts, knowledgeDocuments, consultations, bookings, orders, digestReports, offerMappingOverrides, auditLogs, automationSettings,
   automationJobs, automationJobLogs, revenueRecoveryActions, contentOpportunities, autonomousAlerts,
   growthExperiments, sourcePerformanceSnapshots, funnelLeakReports, offerPerformanceSnapshots,
   executionPolicies, appliedChanges, executionQueue, rollbackEvents,
@@ -74,7 +77,7 @@ import {
   type MeshAuditLog, type InsertMeshAuditLog,
 } from "@shared/schema";
 import { db } from "./db";
-import { and, asc, count, desc, eq, gte, isNull, lte, ne, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -108,7 +111,27 @@ export interface IStorage {
   createTestimonial(t: InsertTestimonial): Promise<Testimonial>;
   deleteTestimonial(id: number): Promise<void>;
   toggleTestimonialApproval(id: number): Promise<Testimonial | undefined>;
+  getContentDrafts(status?: string): Promise<ContentDraft[]>;
+  getContentDraft(id: number): Promise<ContentDraft | undefined>;
+  createContentDraft(draft: InsertContentDraft): Promise<ContentDraft>;
+  updateContentDraft(id: number, updates: UpdateContentDraft): Promise<ContentDraft | undefined>;
+  setContentDraftStatus(id: number, status: string, publishedPostId?: number): Promise<ContentDraft | undefined>;
+  transitionContentDraftStatus(id: number, from: string[], to: string): Promise<ContentDraft | undefined>;
+  deleteContentDraft(id: number): Promise<void>;
+  getAuthorityItems(publishedOnly?: boolean): Promise<AuthorityItem[]>;
+  getAuthorityItem(id: number): Promise<AuthorityItem | undefined>;
+  createAuthorityItem(item: InsertAuthorityItem): Promise<AuthorityItem>;
+  updateAuthorityItem(id: number, updates: UpdateAuthorityItem): Promise<AuthorityItem | undefined>;
+  deleteAuthorityItem(id: number): Promise<void>;
+  getMarketplaceProducts(publishedOnly?: boolean): Promise<MarketplaceProduct[]>;
+  getMarketplaceProduct(id: number): Promise<MarketplaceProduct | undefined>;
+  getMarketplaceProductBySlug(slug: string): Promise<MarketplaceProduct | undefined>;
+  createMarketplaceProduct(product: InsertMarketplaceProduct): Promise<MarketplaceProduct>;
+  updateMarketplaceProduct(id: number, updates: UpdateMarketplaceProduct): Promise<MarketplaceProduct | undefined>;
+  deleteMarketplaceProduct(id: number): Promise<void>;
+  setOrderFulfillment(stripeSessionId: string, fulfillmentStatus: string): Promise<Order | undefined>;
   getBlogPosts(publishedOnly?: boolean): Promise<BlogPost[]>;
+  getBlogPost(id: number): Promise<BlogPost | undefined>;
   getBlogPostBySlug(slug: string): Promise<BlogPost | undefined>;
   createBlogPost(post: InsertBlogPost): Promise<BlogPost>;
   updateBlogPost(id: number, updates: UpdateBlogPost): Promise<BlogPost | undefined>;
@@ -609,11 +632,136 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
+  async getContentDrafts(status?: string): Promise<ContentDraft[]> {
+    if (status) {
+      return db.select().from(contentDrafts).where(eq(contentDrafts.status, status)).orderBy(desc(contentDrafts.createdAt));
+    }
+    return db.select().from(contentDrafts).orderBy(desc(contentDrafts.createdAt));
+  }
+
+  async getContentDraft(id: number): Promise<ContentDraft | undefined> {
+    const [row] = await db.select().from(contentDrafts).where(eq(contentDrafts.id, id));
+    return row;
+  }
+
+  async createContentDraft(draft: InsertContentDraft): Promise<ContentDraft> {
+    const [row] = await db.insert(contentDrafts).values(draft).returning();
+    return row;
+  }
+
+  async updateContentDraft(id: number, updates: UpdateContentDraft): Promise<ContentDraft | undefined> {
+    const [row] = await db.update(contentDrafts)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(contentDrafts.id, id))
+      .returning();
+    return row;
+  }
+
+  async setContentDraftStatus(id: number, status: string, publishedPostId?: number): Promise<ContentDraft | undefined> {
+    const set: Record<string, unknown> = { status, updatedAt: new Date() };
+    if (publishedPostId !== undefined) set.publishedPostId = publishedPostId;
+    const [row] = await db.update(contentDrafts)
+      .set(set)
+      .where(eq(contentDrafts.id, id))
+      .returning();
+    return row;
+  }
+
+  async transitionContentDraftStatus(id: number, from: string[], to: string): Promise<ContentDraft | undefined> {
+    const [row] = await db.update(contentDrafts)
+      .set({ status: to, updatedAt: new Date() })
+      .where(and(eq(contentDrafts.id, id), inArray(contentDrafts.status, from)))
+      .returning();
+    return row;
+  }
+
+  async deleteContentDraft(id: number): Promise<void> {
+    await db.delete(contentDrafts).where(eq(contentDrafts.id, id));
+  }
+
+  async getAuthorityItems(publishedOnly = true): Promise<AuthorityItem[]> {
+    const order = [asc(authorityItems.sortOrder), desc(authorityItems.createdAt)];
+    if (publishedOnly) {
+      return db.select().from(authorityItems).where(eq(authorityItems.published, true)).orderBy(...order);
+    }
+    return db.select().from(authorityItems).orderBy(...order);
+  }
+
+  async getAuthorityItem(id: number): Promise<AuthorityItem | undefined> {
+    const [row] = await db.select().from(authorityItems).where(eq(authorityItems.id, id));
+    return row;
+  }
+
+  async createAuthorityItem(item: InsertAuthorityItem): Promise<AuthorityItem> {
+    const [row] = await db.insert(authorityItems).values(item).returning();
+    return row;
+  }
+
+  async updateAuthorityItem(id: number, updates: UpdateAuthorityItem): Promise<AuthorityItem | undefined> {
+    const [row] = await db.update(authorityItems)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(authorityItems.id, id))
+      .returning();
+    return row;
+  }
+
+  async deleteAuthorityItem(id: number): Promise<void> {
+    await db.delete(authorityItems).where(eq(authorityItems.id, id));
+  }
+
+  async getMarketplaceProducts(publishedOnly = true): Promise<MarketplaceProduct[]> {
+    const order = [asc(marketplaceProducts.sortOrder), desc(marketplaceProducts.createdAt)];
+    if (publishedOnly) {
+      return db.select().from(marketplaceProducts).where(eq(marketplaceProducts.published, true)).orderBy(...order);
+    }
+    return db.select().from(marketplaceProducts).orderBy(...order);
+  }
+
+  async getMarketplaceProduct(id: number): Promise<MarketplaceProduct | undefined> {
+    const [row] = await db.select().from(marketplaceProducts).where(eq(marketplaceProducts.id, id));
+    return row;
+  }
+
+  async getMarketplaceProductBySlug(slug: string): Promise<MarketplaceProduct | undefined> {
+    const [row] = await db.select().from(marketplaceProducts).where(eq(marketplaceProducts.slug, slug));
+    return row;
+  }
+
+  async createMarketplaceProduct(product: InsertMarketplaceProduct): Promise<MarketplaceProduct> {
+    const [row] = await db.insert(marketplaceProducts).values(product).returning();
+    return row;
+  }
+
+  async updateMarketplaceProduct(id: number, updates: UpdateMarketplaceProduct): Promise<MarketplaceProduct | undefined> {
+    const [row] = await db.update(marketplaceProducts)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(marketplaceProducts.id, id))
+      .returning();
+    return row;
+  }
+
+  async deleteMarketplaceProduct(id: number): Promise<void> {
+    await db.delete(marketplaceProducts).where(eq(marketplaceProducts.id, id));
+  }
+
+  async setOrderFulfillment(stripeSessionId: string, fulfillmentStatus: string): Promise<Order | undefined> {
+    const [row] = await db.update(orders)
+      .set({ fulfillmentStatus, updatedAt: new Date() })
+      .where(eq(orders.stripeSessionId, stripeSessionId))
+      .returning();
+    return row;
+  }
+
   async getBlogPosts(publishedOnly = true): Promise<BlogPost[]> {
     if (publishedOnly) {
       return db.select().from(blogPosts).where(eq(blogPosts.published, true)).orderBy(blogPosts.createdAt);
     }
     return db.select().from(blogPosts).orderBy(blogPosts.createdAt);
+  }
+
+  async getBlogPost(id: number): Promise<BlogPost | undefined> {
+    const [post] = await db.select().from(blogPosts).where(eq(blogPosts.id, id));
+    return post;
   }
 
   async getBlogPostBySlug(slug: string): Promise<BlogPost | undefined> {

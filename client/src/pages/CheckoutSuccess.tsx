@@ -12,6 +12,8 @@ import {
   PackageCheck,
   CalendarCheck2,
   MessageSquareText,
+  Download,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -88,6 +90,28 @@ export default function CheckoutSuccess() {
   const formattedAmount = formatAmount(amount);
   const meta = getSourceMeta(source);
   const Icon = meta.Icon;
+
+  const marketplaceSlug = params.get("slug");
+  const isMarketplace = source === "marketplace";
+
+  const deliveryQuery = useQuery<{
+    status: string;
+    fulfillmentStatus?: string;
+    productName?: string;
+    deliveryType?: "link" | "content";
+    deliveryContent?: string;
+  }>({
+    queryKey: ["marketplace-delivery", sessionId],
+    queryFn: async () => {
+      const res = await fetch(`/api/marketplace/delivery?session_id=${encodeURIComponent(sessionId || "")}`);
+      if (!res.ok) throw new Error("Failed to fetch delivery");
+      return res.json();
+    },
+    enabled: isMarketplace && !!sessionId,
+    retry: 3,
+    retryDelay: 2000,
+    refetchInterval: (q) => (q.state.data?.status === "paid" ? false : 3000),
+  });
 
   const orderStatusQuery = useQuery<OrderStatusResponse>({
     queryKey: ["order-status", sessionId],
@@ -192,6 +216,40 @@ export default function CheckoutSuccess() {
                     <p className="mt-1 text-white font-medium" data-testid="status-fulfillment">{titleCase(orderStatusQuery.data.fulfillmentStatus || "queued")}</p>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Marketplace digital delivery */}
+            {isMarketplace && (
+              <div className="mx-auto mt-6 max-w-2xl rounded-2xl border border-emerald-400/20 bg-emerald-500/5 p-5" data-testid="panel-marketplace-delivery">
+                <h3 className="mb-3 text-sm font-semibold uppercase tracking-widest text-emerald-300">Your Digital Delivery</h3>
+                {deliveryQuery.data?.status === "paid" ? (
+                  <div className="space-y-3" data-testid="block-delivery-ready">
+                    {deliveryQuery.data.productName && (
+                      <p className="text-white font-medium">{deliveryQuery.data.productName}</p>
+                    )}
+                    {deliveryQuery.data.deliveryType === "link" ? (
+                      <a
+                        href={deliveryQuery.data.deliveryContent}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        data-testid="link-delivery-download"
+                        className="inline-flex items-center gap-2 rounded-lg bg-[#F4A62A] px-4 py-2.5 font-semibold text-[#0d1a2e] hover:bg-amber-400 transition"
+                      >
+                        <Download className="h-4 w-4" /> Access your download
+                      </a>
+                    ) : (
+                      <div className="whitespace-pre-wrap rounded-lg border border-white/10 bg-slate-900/70 p-4 text-sm text-slate-200" data-testid="text-delivery-content">
+                        {deliveryQuery.data.deliveryContent}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-slate-300 text-sm" data-testid="block-delivery-pending">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Confirming your payment and preparing your delivery…
+                  </div>
+                )}
               </div>
             )}
 

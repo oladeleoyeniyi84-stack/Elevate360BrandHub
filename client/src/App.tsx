@@ -13,6 +13,12 @@ import GrowthEngine from "@/pages/GrowthEngine";
 import ExperimentLab from "@/pages/ExperimentLab";
 import PersonalizationConsole from "@/pages/PersonalizationConsole";
 import RevenueCommandCenter from "@/pages/RevenueCommandCenter";
+import ExecutiveCenter from "@/pages/ExecutiveCenter";
+import Authority from "@/pages/Authority";
+import AuthorityAdmin from "@/pages/AuthorityAdmin";
+import Marketplace from "@/pages/Marketplace";
+import MarketplaceAdmin from "@/pages/MarketplaceAdmin";
+import ContentFactory from "@/pages/ContentFactory";
 import OrchestratorCenter from "@/pages/OrchestratorCenter";
 import CommandGrid from "@/pages/CommandGrid";
 import ExecutionMesh from "@/pages/ExecutionMesh";
@@ -157,6 +163,73 @@ function Router() {
             path="/revenue"
           />
           <RevenueCommandCenter />
+        </>
+      </Route>
+
+      <Route path="/executive">
+        <>
+          <SEO
+            title="Executive Command Center | Elevate360Official"
+            description="Unified executive cockpit for Elevate360Official."
+            path="/executive"
+          />
+          <ExecutiveCenter />
+        </>
+      </Route>
+
+      <Route path="/content-factory">
+        <>
+          <SEO
+            title="AI Content Factory | Elevate360Official"
+            description="Batch AI content generation cockpit for Elevate360Official."
+            path="/content-factory"
+          />
+          <ContentFactory />
+        </>
+      </Route>
+
+      <Route path="/founder">
+        <>
+          <SEO
+            title="Founder Authority | Elevate360Official"
+            description="Media features, milestones, credentials, and awards establishing the authority of Oladele Oyeniyi, founder of Elevate360Official."
+            path="/founder"
+            type="article"
+          />
+          <Authority />
+        </>
+      </Route>
+
+      <Route path="/authority">
+        <>
+          <SEO
+            title="Authority Manager | Elevate360Official"
+            description="Manage founder authority items for Elevate360Official."
+            path="/authority"
+          />
+          <AuthorityAdmin />
+        </>
+      </Route>
+
+      <Route path="/marketplace">
+        <>
+          <SEO
+            title="Marketplace | Elevate360Official"
+            description="Premium digital products from Elevate360Official — tools, templates, and resources delivered instantly."
+            path="/marketplace"
+          />
+          <Marketplace />
+        </>
+      </Route>
+
+      <Route path="/marketplace-admin">
+        <>
+          <SEO
+            title="Marketplace Manager | Elevate360Official"
+            description="Manage marketplace digital products for Elevate360Official."
+            path="/marketplace-admin"
+          />
+          <MarketplaceAdmin />
         </>
       </Route>
 

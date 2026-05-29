@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { X, Send, Loader2 } from "lucide-react";
+import { X, Send, Loader2, Calendar, CreditCard, ArrowRight } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { conciergeModes, type ConciergeModeKey } from "@/config/conciergeModes";
 import { ConciergePresenceHeader } from "@/components/concierge/ConciergePresenceHeader";
@@ -8,6 +8,16 @@ import { CreatorAvatar } from "@/components/concierge/CreatorAvatar";
 interface Message {
   role: "user" | "assistant";
   content: string;
+}
+
+type RecommendedAction =
+  | { type: "booking"; consultationId: number; title: string; price: number; currency: string; ctaText: string; confidence: number }
+  | { type: "offer"; priceId: string; name: string; amount: number; currency: string; ctaText: string; confidence: number }
+  | { type: "book_session"; ctaText: string; confidence: number };
+
+interface ChatResponse {
+  reply: string;
+  recommendedAction?: RecommendedAction | null;
 }
 
 function generateSessionId(): string {
@@ -50,6 +60,8 @@ export function AIConcierge() {
   const [leadName, setLeadName] = useState("");
   const [leadEmail, setLeadEmail] = useState("");
   const [showLeadForm, setShowLeadForm] = useState(false);
+  const [action, setAction] = useState<RecommendedAction | null>(null);
+  const [actionPending, setActionPending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -63,6 +75,7 @@ export function AIConcierge() {
   // Reset messages when mode changes
   useEffect(() => {
     setMessages([welcomeMessage]);
+    setAction(null);
   }, [welcomeMessage]);
 
   useEffect(() => {
@@ -102,14 +115,15 @@ export function AIConcierge() {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.message || "Something went wrong");
       }
-      return res.json() as Promise<{ reply: string }>;
+      return res.json() as Promise<ChatResponse>;
     },
     onMutate: ({ message }) => {
       setMessages((prev) => [...prev, { role: "user", content: message }]);
       setSpeaking(true);
     },
-    onSuccess: ({ reply }) => {
+    onSuccess: ({ reply, recommendedAction }) => {
       setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
+      setAction(recommendedAction ?? null);
       if (!leadCaptured && messages.length >= 4) {
         setShowLeadForm(true);
       }
@@ -139,6 +153,58 @@ export function AIConcierge() {
     e.preventDefault();
     sendMessage(input);
   };
+
+  const goToBooking = (consultationId?: number) => {
+    setOpen(false);
+    // Hand the resolved consultation to Home so it can preselect the booking modal.
+    if (consultationId != null) {
+      try {
+        sessionStorage.setItem("e360_preselect_consultation", String(consultationId));
+      } catch {}
+    }
+    if (window.location.pathname !== "/") {
+      window.location.assign("/#book-session");
+    } else {
+      window.location.hash = "book-session";
+      document.getElementById("book-session")?.scrollIntoView({ behavior: "smooth" });
+      window.dispatchEvent(new CustomEvent("e360:preselect-consultation"));
+    }
+  };
+
+  const handleAction = useCallback(async (a: RecommendedAction) => {
+    if (actionPending) return;
+    if (a.type === "offer") {
+      setActionPending(true);
+      try {
+        const res = await fetch("/api/checkout/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            priceId: a.priceId,
+            productName: a.name,
+            amount: a.amount,
+            sessionId,
+            ...(leadEmail && { customerEmail: leadEmail }),
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.url) {
+          window.location.assign(data.url);
+          return;
+        }
+        // Checkout unavailable — fall back to booking so the lead is never stuck.
+        goToBooking();
+      } catch {
+        goToBooking();
+      } finally {
+        setActionPending(false);
+      }
+      return;
+    }
+    // booking + book_session → drive to the consultation section, preselecting
+    // the resolved consultation when we have one.
+    goToBooking(a.type === "booking" ? a.consultationId : undefined);
+  }, [actionPending, sessionId, leadEmail]);
 
   const handleLeadSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -265,6 +331,52 @@ export function AIConcierge() {
                     </button>
                   </div>
                 </form>
+              </div>
+            )}
+
+            {/* Concierge 2.0 — actionable recommendation card */}
+            {action && !chatMutation.isPending && (
+              <div
+                data-testid="card-recommended-action"
+                className="rounded-2xl p-4 border border-[#F4A62A]/30"
+                style={{ background: "linear-gradient(135deg, rgba(244,166,42,0.12), rgba(244,166,42,0.04))" }}
+              >
+                <div className="flex items-center gap-2 mb-1.5">
+                  {action.type === "offer" ? (
+                    <CreditCard className="h-4 w-4 text-[#F4A62A]" />
+                  ) : (
+                    <Calendar className="h-4 w-4 text-[#F4A62A]" />
+                  )}
+                  <span className="text-[11px] font-bold tracking-wide uppercase text-[#F4A62A]">
+                    Recommended for you
+                  </span>
+                </div>
+                <p className="text-sm text-white font-semibold leading-snug">
+                  {action.type === "offer" ? action.name : action.type === "booking" ? action.title : "Book a session"}
+                </p>
+                {(action.type === "offer" || action.type === "booking") && (
+                  <p className="text-xs text-white/50 mt-0.5">
+                    {(() => {
+                      const cents = action.type === "offer" ? action.amount : action.price;
+                      return cents === 0 ? "Free" : `$${(cents / 100).toFixed(0)} ${action.currency}`;
+                    })()}
+                  </p>
+                )}
+                <button
+                  data-testid="button-recommended-action"
+                  onClick={() => handleAction(action)}
+                  disabled={actionPending}
+                  className="mt-3 w-full flex items-center justify-center gap-2 bg-[#F4A62A] text-black text-sm font-semibold rounded-xl py-2.5 hover:bg-[#ffb84d] transition disabled:opacity-60"
+                >
+                  {actionPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      {action.ctaText}
+                      <ArrowRight className="h-4 w-4" />
+                    </>
+                  )}
+                </button>
               </div>
             )}
 

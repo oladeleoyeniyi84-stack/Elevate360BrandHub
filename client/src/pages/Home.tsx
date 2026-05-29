@@ -328,6 +328,31 @@ export default function Home() {
 
   useScrollReveal();
 
+  // Concierge 2.0 — when the chat CTA routes here with a resolved consultation,
+  // open its booking modal automatically once consultations have loaded.
+  useEffect(() => {
+    const preselect = () => {
+      let raw: string | null = null;
+      try {
+        raw = sessionStorage.getItem("e360_preselect_consultation");
+      } catch {}
+      if (!raw) return;
+      const id = parseInt(raw, 10);
+      const match = consultations.find((c) => c.id === id);
+      if (match) {
+        setBookingConsultation(match);
+        setBookingSuccess(false);
+        setBookingError("");
+        try {
+          sessionStorage.removeItem("e360_preselect_consultation");
+        } catch {}
+      }
+    };
+    preselect();
+    window.addEventListener("e360:preselect-consultation", preselect);
+    return () => window.removeEventListener("e360:preselect-consultation", preselect);
+  }, [consultations]);
+
   useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 50);

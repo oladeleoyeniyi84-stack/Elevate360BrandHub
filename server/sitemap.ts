@@ -43,6 +43,8 @@ export function generateSitemap(blogPosts: BlogPostEntry[] = []): string {
     { loc: `${BASE_URL}/blog`, changefreq: "daily", priority: "0.9" },
     { loc: `${BASE_URL}/links`, changefreq: "monthly", priority: "0.8" },
     { loc: `${BASE_URL}/press-kit`, changefreq: "monthly", priority: "0.7" },
+    { loc: `${BASE_URL}/founder`, changefreq: "monthly", priority: "0.8" },
+    { loc: `${BASE_URL}/marketplace`, changefreq: "weekly", priority: "0.9" },
     { loc: `${BASE_URL}/#apps`, changefreq: "monthly", priority: "0.9" },
     { loc: `${BASE_URL}/#books`, changefreq: "monthly", priority: "0.9" },
     { loc: `${BASE_URL}/#art-studio`, changefreq: "monthly", priority: "0.8" },

@@ -294,6 +294,133 @@ export type InsertBlogPost = z.infer<typeof insertBlogPostSchema>;
 export type UpdateBlogPost = z.infer<typeof updateBlogPostSchema>;
 export type BlogPost = typeof blogPosts.$inferSelect;
 
+// AI Content Factory — batch-generated drafts with approval workflow
+export const contentDrafts = pgTable("content_drafts", {
+  id: serial("id").primaryKey(),
+  kind: text("kind").notNull().default("blog"), // blog | social | newsletter
+  topic: text("topic").notNull(),
+  title: text("title").notNull(),
+  excerpt: text("excerpt").notNull().default(""),
+  body: text("body").notNull(),
+  category: text("category").notNull().default("general"),
+  status: text("status").notNull().default("draft"), // draft | approved | published | rejected
+  provider: text("provider").notNull().default("deepseek"),
+  publishedPostId: integer("published_post_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertContentDraftSchema = createInsertSchema(contentDrafts, {
+  kind: z.enum(["blog", "social", "newsletter"]),
+  topic: z.string().min(1).max(300),
+  title: z.string().min(1).max(300),
+  excerpt: z.string().max(1000).optional(),
+  body: z.string().min(1),
+  category: z.string().max(60).optional(),
+  provider: z.string().max(40).optional(),
+}).pick({ kind: true, topic: true, title: true, excerpt: true, body: true, category: true, provider: true });
+
+export const updateContentDraftSchema = z.object({
+  title: z.string().min(1).max(300).optional(),
+  excerpt: z.string().max(1000).optional(),
+  body: z.string().min(1).optional(),
+  category: z.string().max(60).optional(),
+}).strict();
+
+export const generateContentFactorySchema = z.object({
+  kind: z.enum(["blog", "social", "newsletter"]).default("blog"),
+  topics: z.array(z.string().min(1).max(300)).min(1).max(8),
+  premium: z.boolean().optional(),
+});
+
+export type InsertContentDraft = z.infer<typeof insertContentDraftSchema>;
+export type UpdateContentDraft = z.infer<typeof updateContentDraftSchema>;
+export type ContentDraft = typeof contentDrafts.$inferSelect;
+
+// Founder Authority Layer — media features, milestones, credentials, awards
+export const authorityItems = pgTable("authority_items", {
+  id: serial("id").primaryKey(),
+  type: text("type").notNull().default("media_feature"), // media_feature | milestone | credential | award | press
+  title: text("title").notNull(),
+  description: text("description").notNull().default(""),
+  source: text("source").notNull().default(""), // publication / issuer name
+  url: text("url").notNull().default(""),
+  imageUrl: text("image_url").notNull().default(""),
+  dateLabel: text("date_label").notNull().default(""), // e.g. "Mar 2026"
+  featured: boolean("featured").notNull().default(false),
+  sortOrder: integer("sort_order").notNull().default(0),
+  published: boolean("published").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertAuthorityItemSchema = createInsertSchema(authorityItems, {
+  type: z.enum(["media_feature", "milestone", "credential", "award", "press"]),
+  title: z.string().min(1).max(300),
+  description: z.string().max(2000).optional(),
+  source: z.string().max(200).optional(),
+  url: z.string().url().max(500).optional().or(z.literal("")),
+  imageUrl: z.string().url().max(500).optional().or(z.literal("")),
+  dateLabel: z.string().max(60).optional(),
+  featured: z.boolean().optional(),
+  sortOrder: z.number().int().optional(),
+  published: z.boolean().optional(),
+}).pick({ type: true, title: true, description: true, source: true, url: true, imageUrl: true, dateLabel: true, featured: true, sortOrder: true, published: true });
+
+export const updateAuthorityItemSchema = insertAuthorityItemSchema.partial();
+
+export type InsertAuthorityItem = z.infer<typeof insertAuthorityItemSchema>;
+export type UpdateAuthorityItem = z.infer<typeof updateAuthorityItemSchema>;
+export type AuthorityItem = typeof authorityItems.$inferSelect;
+
+// AI Marketplace — digital products with Stripe checkout + post-purchase delivery
+export const marketplaceProducts = pgTable("marketplace_products", {
+  id: serial("id").primaryKey(),
+  slug: text("slug").notNull().unique(),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  category: text("category").notNull().default("general"),
+  priceCents: integer("price_cents").notNull().default(0),
+  currency: varchar("currency", { length: 10 }).notNull().default("usd"),
+  imageUrl: text("image_url").notNull().default(""),
+  stripePriceId: text("stripe_price_id").notNull().default(""), // empty => checkout disabled (coming soon)
+  deliveryType: text("delivery_type").notNull().default("link"), // link | content
+  deliveryContent: text("delivery_content").notNull().default(""), // download URL or unlocked text
+  featured: boolean("featured").notNull().default(false),
+  sortOrder: integer("sort_order").notNull().default(0),
+  published: boolean("published").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertMarketplaceProductSchema = createInsertSchema(marketplaceProducts, {
+  slug: z.string().min(1).max(180).regex(/^[a-z0-9-]+$/, "lowercase letters, numbers, hyphens only"),
+  name: z.string().min(1).max(200),
+  description: z.string().max(4000).optional(),
+  category: z.string().max(80).optional(),
+  priceCents: z.number().int().min(0),
+  currency: z.string().max(10).optional(),
+  imageUrl: z.string().url().max(500).optional().or(z.literal("")),
+  stripePriceId: z.string().max(200).optional(),
+  deliveryType: z.enum(["link", "content"]),
+  deliveryContent: z.string().max(8000).optional(),
+  featured: z.boolean().optional(),
+  sortOrder: z.number().int().optional(),
+  published: z.boolean().optional(),
+}).pick({ slug: true, name: true, description: true, category: true, priceCents: true, currency: true, imageUrl: true, stripePriceId: true, deliveryType: true, deliveryContent: true, featured: true, sortOrder: true, published: true });
+
+export const updateMarketplaceProductSchema = insertMarketplaceProductSchema.partial();
+
+export const marketplaceCheckoutSchema = z.object({
+  slug: z.string().min(1).max(180),
+  customerEmail: z.string().email().optional(),
+  sessionId: z.string().max(64).optional(),
+});
+
+export type InsertMarketplaceProduct = z.infer<typeof insertMarketplaceProductSchema>;
+export type UpdateMarketplaceProduct = z.infer<typeof updateMarketplaceProductSchema>;
+export type MarketplaceProduct = typeof marketplaceProducts.$inferSelect;
+
 // Phase 39 — Weekly Intelligence Digest
 export const digestReports = pgTable("digest_reports", {
   id: serial("id").primaryKey(),

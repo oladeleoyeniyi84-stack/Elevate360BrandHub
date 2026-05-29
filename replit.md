@@ -144,6 +144,13 @@ Full-stack brand portfolio for **Elevate360Official** — mobile apps (Bondedlov
 - Job: `phase60_orchestrator_core` every 15min (boot offset 8min); self-feeds `daily_operational_scan` on each tick
 - Dashboard: `/orchestrator` — tabs Workflows / Agents / Memory / Governance
 
+## Revenue/AI/Authority Features (T001–T005 — Current)
+- **T001 AI Founder Concierge 2.0**: `server/ai/recommendedAction.ts` resolves stored leadScoring offer → live Stripe offer / consultation booking / generic; structured `recommendedAction` in `POST /api/chat`; in-chat CTA card in `AIConcierge.tsx`; booking preselect via sessionStorage+event in `Home.tsx`; shared `listStripeOffers()` helper.
+- **T002 Unified Executive Command Center** (`/executive`): read-only PIN-gated `GET /api/admin/executive/overview` composing existing storage getters + AI status; `ExecutiveCenter.tsx`.
+- **T003 AI Content Factory** (`/content-factory`): `contentDrafts` table + atomic state transitions; `server/ai/contentFactory.ts` (DeepSeek bulk / OpenAI premium); 7 PIN-gated routes `/api/admin/content-factory/*`; approval-gated, idempotent, concurrency-safe publish → `/blog`.
+- **T004 Founder Authority Layer** (`/founder` public + `/authority` admin): `authorityItems` table; public `GET /api/authority` (published-only) + PIN-gated admin CRUD `/api/admin/authority`; `Authority.tsx` with Person JSON-LD (award/hasCredential/subjectOf); `AuthorityAdmin.tsx`; sitemap entry.
+- **T005 AI Marketplace** (`/marketplace` public + `/marketplace-admin` admin): `marketplaceProducts` table; public `GET /api/marketplace` + `GET /api/marketplace/product/:slug` (both strip `deliveryContent`); `POST /api/marketplace/checkout` (Stripe session, degrades 503 if no `stripePriceId`/Stripe off); `GET /api/marketplace/delivery?session_id=` (returns deliverable only when `order.status==='paid'`, marks delivered); PIN-gated admin CRUD `/api/admin/marketplace` (slug-conflict 409); webhook marks marketplace orders delivered on `checkout.session.completed`; marketplace delivery block in `CheckoutSuccess.tsx`; sitemap entry.
+
 ## Roadmap (next phases)
 - **Phase 4** — Persistent AI Memory + pgvector
 - **Phase 5** — AI Agents
