@@ -261,4 +261,22 @@ export async function startAutomationJobs() {
     720_000 // 12-minute boot offset (after founder intelligence)
   );
   console.log("[automation] Phase 65 jobs registered (1 job)");
+
+  // ── Phase 66 — Growth Automation Engine ───────────────────────────────────
+  const { generateGrowthOpportunities } = await import("../growth-automation/opportunityEngine");
+  const { generateGrowthReport } = await import("../growth-automation/reportEngine");
+  await registerRecurringJob(
+    {
+      jobKey: "phase66_growth_automation",
+      jobGroup: "growth-automation",
+      cadenceMinutes: 1440,
+      run: async () => {
+        const items = await generateGrowthOpportunities();
+        const report = await generateGrowthReport("daily");
+        return { summary: `opportunities=${items.length} report=${report.id}` };
+      },
+    },
+    840_000 // 14-minute boot offset (after revenue intelligence)
+  );
+  console.log("[automation] Phase 66 jobs registered (1 job)");
 }

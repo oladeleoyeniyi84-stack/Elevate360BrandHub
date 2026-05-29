@@ -1614,3 +1614,92 @@ export const insertRevenueInsightSchema = createInsertSchema(revenueInsights).om
 });
 export type InsertRevenueInsight = z.infer<typeof insertRevenueInsightSchema>;
 export type RevenueInsight = typeof revenueInsights.$inferSelect;
+
+// ── Phase 66 — Growth Automation Engine ──────────────────────────────────────
+// Recommendation-only growth layer. Tables are `growth_auto_*` prefixed to avoid
+// collision with the existing growthIntelligenceReports / growthRecommendations /
+// growthExperiments tables.
+
+// Discovered growth opportunities: SEO / content / campaign / lead / conversion / social.
+export const growthAutoOpportunities = pgTable("growth_auto_opportunities", {
+  id: serial("id").primaryKey(),
+  // 'seo' | 'content' | 'campaign' | 'lead' | 'conversion' | 'social' | 'general'
+  kind: varchar("kind", { length: 20 }).notNull().default("general"),
+  // 'seo' | 'content' | 'campaign' | 'leads' | 'funnel' | 'social' | 'traffic' | 'forecast' | 'general'
+  area: varchar("area", { length: 40 }).notNull().default("general"),
+  title: varchar("title", { length: 200 }).notNull(),
+  detail: text("detail").notNull(),
+  priority: integer("priority").notNull().default(50),
+  confidence: integer("confidence").notNull().default(50),
+  // 'open' | 'acknowledged' | 'dismissed'
+  status: varchar("status", { length: 20 }).notNull().default("open"),
+  // 'rules' | 'forecast'
+  source: varchar("source", { length: 40 }).notNull().default("rules"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  kindIdx: index("growth_auto_opps_kind_idx").on(t.kind),
+  statusIdx: index("growth_auto_opps_status_idx").on(t.status),
+}));
+
+export const insertGrowthAutoOpportunitySchema = createInsertSchema(growthAutoOpportunities).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertGrowthAutoOpportunity = z.infer<typeof insertGrowthAutoOpportunitySchema>;
+export type GrowthAutoOpportunity = typeof growthAutoOpportunities.$inferSelect;
+
+// Planned campaigns + social publishing workflows. Recommendation-only — "approved"
+// means the founder OK'd it; nothing is auto-published. approvalRequestId links to
+// the existing founder approvalRequests record created on approval.
+export const growthAutoCampaigns = pgTable("growth_auto_campaigns", {
+  id: serial("id").primaryKey(),
+  campaignKey: varchar("campaign_key", { length: 180 }).notNull().unique(),
+  // 'blog' | 'instagram' | 'youtube' | 'email' | 'etsy' | 'audiomack' | 'multi'
+  channel: varchar("channel", { length: 30 }).notNull().default("multi"),
+  objective: varchar("objective", { length: 200 }).notNull(),
+  title: varchar("title", { length: 200 }).notNull(),
+  // structured plan: { summary, audience, steps[], schedule[], copy[], kpis[] } (social drafts add { posts[] })
+  plan: jsonb("plan").notNull().default(sql`'{}'::jsonb`),
+  providerMetadata: jsonb("provider_metadata").notNull().default(sql`'{}'::jsonb`),
+  // 'draft' | 'pending_approval' | 'approved' | 'rejected'
+  status: varchar("status", { length: 30 }).notNull().default("draft"),
+  approvalRequestId: integer("approval_request_id"),
+  // 'campaign' | 'social'
+  source: varchar("source", { length: 40 }).notNull().default("campaign"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  resolvedAt: timestamp("resolved_at"),
+}, (t) => ({
+  statusIdx: index("growth_auto_campaigns_status_idx").on(t.status),
+  channelIdx: index("growth_auto_campaigns_channel_idx").on(t.channel),
+}));
+
+export const insertGrowthAutoCampaignSchema = createInsertSchema(growthAutoCampaigns).omit({
+  id: true,
+  createdAt: true,
+  resolvedAt: true,
+});
+export type InsertGrowthAutoCampaign = z.infer<typeof insertGrowthAutoCampaignSchema>;
+export type GrowthAutoCampaign = typeof growthAutoCampaigns.$inferSelect;
+
+// Executive growth reports (daily / weekly / monthly / quarterly).
+export const growthAutoReports = pgTable("growth_auto_reports", {
+  id: serial("id").primaryKey(),
+  periodType: varchar("period_type", { length: 20 }).notNull(),
+  title: varchar("title", { length: 200 }).notNull(),
+  summary: text("summary").notNull(),
+  // structured sections: { traffic, leadScoring, seo, content, campaigns, funnel, forecast, opportunities, risks, actions }
+  sections: jsonb("sections").notNull().default(sql`'{}'::jsonb`),
+  providerMetadata: jsonb("provider_metadata").notNull().default(sql`'{}'::jsonb`),
+  source: varchar("source", { length: 40 }).notNull().default("openai"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  periodIdx: index("growth_auto_reports_period_idx").on(t.periodType),
+  createdIdx: index("growth_auto_reports_created_idx").on(t.createdAt),
+}));
+
+export const insertGrowthAutoReportSchema = createInsertSchema(growthAutoReports).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertGrowthAutoReport = z.infer<typeof insertGrowthAutoReportSchema>;
+export type GrowthAutoReport = typeof growthAutoReports.$inferSelect;

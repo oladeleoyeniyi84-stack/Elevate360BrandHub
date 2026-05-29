@@ -21,6 +21,7 @@ import MarketplaceAdmin from "@/pages/MarketplaceAdmin";
 import MemoryExplorer from "@/pages/MemoryExplorer";
 import FounderIntelligence from "@/pages/FounderIntelligence";
 import RevenueIntelligence from "@/pages/RevenueIntelligence";
+import GrowthAutomation from "@/pages/GrowthAutomation";
 import ContentFactory from "@/pages/ContentFactory";
 import OrchestratorCenter from "@/pages/OrchestratorCenter";
 import CommandGrid from "@/pages/CommandGrid";
@@ -266,6 +267,17 @@ function Router() {
             path="/revenue-intelligence"
           />
           <RevenueIntelligence />
+        </>
+      </Route>
+
+      <Route path="/growth-automation">
+        <>
+          <SEO
+            title="Growth Automation | Elevate360Official"
+            description="Unified growth automation — lead scoring, SEO opportunities, content ideas, campaign planning, conversion forecasts, social workflows, and a growth copilot for Elevate360Official."
+            path="/growth-automation"
+          />
+          <GrowthAutomation />
         </>
       </Route>
 

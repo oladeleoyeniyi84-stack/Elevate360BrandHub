@@ -1339,6 +1339,280 @@ export async function registerRoutes(
     }
   });
 
+  // ─── Phase 66 — Growth Automation Engine (admin-only, PIN-gated) ───────────
+  // Recommendation-only. Campaign launch / social publishing always require
+  // explicit founder approval; nothing is executed autonomously.
+  app.get("/api/admin/growth-automation/overview", requireDashboardAuth, async (_req, res) => {
+    try {
+      const { buildGrowthOverview } = await import("./growth-automation/growthCenter");
+      res.json(await buildGrowthOverview());
+    } catch (e: any) {
+      console.error("[growth-automation] overview failed:", e?.message);
+      res.status(500).json({ message: "Could not build growth automation overview." });
+    }
+  });
+
+  app.get("/api/admin/growth-automation/forecast", requireDashboardAuth, async (_req, res) => {
+    try {
+      const { buildGrowthSnapshot } = await import("./growth-automation/aggregator");
+      const { computeConversionForecast } = await import("./growth-automation/conversionForecast");
+      const snap = await buildGrowthSnapshot();
+      res.json(computeConversionForecast(snap.series.map((p) => ({ date: p.date, visits: p.visits, conversions: p.conversions }))));
+    } catch (e: any) {
+      console.error("[growth-automation] forecast failed:", e?.message);
+      res.status(500).json({ message: "Could not compute conversion forecast." });
+    }
+  });
+
+  app.get("/api/admin/growth-automation/lead-scoring", requireDashboardAuth, async (_req, res) => {
+    try {
+      const { buildGrowthSnapshot } = await import("./growth-automation/aggregator");
+      const { computeLeadScoring } = await import("./growth-automation/leadScoring");
+      res.json(computeLeadScoring(await buildGrowthSnapshot()));
+    } catch (e: any) {
+      console.error("[growth-automation] lead-scoring failed:", e?.message);
+      res.status(500).json({ message: "Could not compute lead scoring." });
+    }
+  });
+
+  app.get("/api/admin/growth-automation/seo", requireDashboardAuth, async (_req, res) => {
+    try {
+      const { buildGrowthSnapshot } = await import("./growth-automation/aggregator");
+      const { discoverSeoOpportunities } = await import("./growth-automation/seoEngine");
+      res.json(discoverSeoOpportunities(await buildGrowthSnapshot()));
+    } catch (e: any) {
+      console.error("[growth-automation] seo failed:", e?.message);
+      res.status(500).json({ message: "Could not analyze SEO opportunities." });
+    }
+  });
+
+  app.post("/api/admin/growth-automation/content/generate", requireDashboardAuth, async (_req, res) => {
+    try {
+      const { generateContentOpportunities } = await import("./growth-automation/contentEngine");
+      res.json(await generateContentOpportunities());
+    } catch (e: any) {
+      console.error("[growth-automation] content generate failed:", e?.message);
+      res.status(500).json({ message: "Could not generate content ideas." });
+    }
+  });
+
+  app.get("/api/admin/growth-automation/opportunities", requireDashboardAuth, async (req, res) => {
+    try {
+      const kind = typeof req.query.kind === "string" ? req.query.kind : undefined;
+      const status = typeof req.query.status === "string" ? req.query.status : "open";
+      res.json(await storage.listGrowthAutoOpportunities({ kind, status }));
+    } catch (e: any) {
+      console.error("[growth-automation] opportunities failed:", e?.message);
+      res.status(500).json({ message: "Could not load growth opportunities." });
+    }
+  });
+
+  app.post("/api/admin/growth-automation/opportunities/generate", requireDashboardAuth, async (_req, res) => {
+    try {
+      const { generateGrowthOpportunities } = await import("./growth-automation/opportunityEngine");
+      const items = await generateGrowthOpportunities();
+      res.json({ ok: true, generated: items.length, items });
+    } catch (e: any) {
+      console.error("[growth-automation] opportunity generate failed:", e?.message);
+      res.status(500).json({ ok: false, message: "Could not regenerate growth opportunities." });
+    }
+  });
+
+  app.patch("/api/admin/growth-automation/opportunities/:id", requireDashboardAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const status = typeof req.body?.status === "string" ? req.body.status : "";
+      if (!Number.isInteger(id) || !["open", "acknowledged", "dismissed"].includes(status)) {
+        return res.status(400).json({ message: "Invalid id or status." });
+      }
+      const row = await storage.updateGrowthAutoOpportunityStatus(id, status);
+      if (!row) return res.status(404).json({ message: "Not found." });
+      res.json(row);
+    } catch (e: any) {
+      console.error("[growth-automation] opportunity update failed:", e?.message);
+      res.status(500).json({ message: "Could not update opportunity." });
+    }
+  });
+
+  app.get("/api/admin/growth-automation/campaigns", requireDashboardAuth, async (req, res) => {
+    try {
+      const status = typeof req.query.status === "string" ? req.query.status : undefined;
+      const channel = typeof req.query.channel === "string" ? req.query.channel : undefined;
+      res.json(await storage.listGrowthAutoCampaigns({ status, channel }));
+    } catch (e: any) {
+      console.error("[growth-automation] campaigns failed:", e?.message);
+      res.status(500).json({ message: "Could not load campaigns." });
+    }
+  });
+
+  app.get("/api/admin/growth-automation/campaigns/:id", requireDashboardAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id)) return res.status(400).json({ message: "Invalid id." });
+      const row = await storage.getGrowthAutoCampaign(id);
+      if (!row) return res.status(404).json({ message: "Not found." });
+      res.json(row);
+    } catch (e: any) {
+      console.error("[growth-automation] campaign fetch failed:", e?.message);
+      res.status(500).json({ message: "Could not load campaign." });
+    }
+  });
+
+  app.post("/api/admin/growth-automation/campaigns/plan", requireDashboardAuth, async (req, res) => {
+    try {
+      const { CHANNELS, planCampaign } = await import("./growth-automation/campaignPlanner");
+      const objective = typeof req.body?.objective === "string" ? req.body.objective.trim() : "";
+      const channel = typeof req.body?.channel === "string" ? req.body.channel : "multi";
+      if (!objective) return res.status(400).json({ message: "An objective is required." });
+      if (!CHANNELS.includes(channel as any)) return res.status(400).json({ message: "Invalid channel." });
+      const campaign = await planCampaign({ objective, channel: channel as any });
+      res.status(201).json(campaign);
+    } catch (e: any) {
+      console.error("[growth-automation] campaign plan failed:", e?.message);
+      res.status(500).json({ message: "Could not plan campaign." });
+    }
+  });
+
+  // Founder approval gate. Authorizes a campaign/social workflow but performs NO
+  // autonomous execution — recommendation-only by design.
+  app.post("/api/admin/growth-automation/campaigns/:id/approve", requireDashboardAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id)) return res.status(400).json({ message: "Invalid id." });
+      const campaign = await storage.getGrowthAutoCampaign(id);
+      if (!campaign) return res.status(404).json({ message: "Not found." });
+      if (!["draft", "pending_approval"].includes(campaign.status)) {
+        return res.status(409).json({ message: `Campaign is '${campaign.status}'; only draft/pending_approval can be approved.` });
+      }
+
+      const { evaluateActionSafety } = await import("./orchestrator/governance");
+      const capability = campaign.source === "social" ? "publish.outbound" : "activate.campaign";
+      const governance = evaluateActionSafety({ agentKey: "growth_agent", capability, payload: { campaignId: id } });
+      if (governance.decision === "blocked") {
+        return res.status(403).json({ message: governance.reason, governance });
+      }
+
+      const actionType = campaign.source === "social" ? "publish_social" : "launch_campaign";
+
+      // Atomic guarded transition first — only one concurrent approve/reject wins.
+      const updated = await storage.transitionGrowthAutoCampaign(id, ["draft", "pending_approval"], {
+        status: "approved",
+        resolvedAt: new Date(),
+      });
+      if (!updated) {
+        const current = await storage.getGrowthAutoCampaign(id);
+        return res.status(409).json({ message: `Campaign is '${current?.status ?? "resolved"}'; only draft/pending_approval can be approved.` });
+      }
+
+      // Only create the approval record after we won the transition (prevents duplicate approvals on retries/races).
+      const approval = await storage.createApprovalRequest({
+        requestKey: `growth_campaign_${id}_${Date.now()}`,
+        area: "growth",
+        actionType,
+        payloadJson: { campaignId: id, title: campaign.title, channel: campaign.channel },
+        requestedBy: "founder",
+        status: "approved",
+      });
+      const linked = await storage.updateGrowthAutoCampaign(id, { approvalRequestId: approval.id });
+
+      res.json({
+        ok: true,
+        campaign: linked ?? updated,
+        approval,
+        governance,
+        note: "Approved by founder. Recommendation-only: no autonomous launch/publish is performed by the system.",
+      });
+    } catch (e: any) {
+      console.error("[growth-automation] campaign approve failed:", e?.message);
+      res.status(500).json({ message: "Could not approve campaign." });
+    }
+  });
+
+  app.post("/api/admin/growth-automation/campaigns/:id/reject", requireDashboardAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id)) return res.status(400).json({ message: "Invalid id." });
+      const campaign = await storage.getGrowthAutoCampaign(id);
+      if (!campaign) return res.status(404).json({ message: "Not found." });
+      // Atomic guarded transition — refuse to reject an already-resolved campaign.
+      const updated = await storage.transitionGrowthAutoCampaign(id, ["draft", "pending_approval"], { status: "rejected", resolvedAt: new Date() });
+      if (!updated) {
+        const current = await storage.getGrowthAutoCampaign(id);
+        return res.status(409).json({ message: `Campaign is '${current?.status ?? "resolved"}'; only draft/pending_approval can be rejected.` });
+      }
+      res.json({ ok: true, campaign: updated });
+    } catch (e: any) {
+      console.error("[growth-automation] campaign reject failed:", e?.message);
+      res.status(500).json({ message: "Could not reject campaign." });
+    }
+  });
+
+  app.post("/api/admin/growth-automation/social/draft", requireDashboardAuth, async (req, res) => {
+    try {
+      const { draftSocialWorkflow } = await import("./growth-automation/socialEngine");
+      const { CHANNELS } = await import("./growth-automation/campaignPlanner");
+      const channel = typeof req.body?.channel === "string" ? req.body.channel : "instagram";
+      const topic = typeof req.body?.topic === "string" ? req.body.topic.trim() : "";
+      if (!topic) return res.status(400).json({ message: "A topic is required." });
+      if (!CHANNELS.includes(channel as any)) return res.status(400).json({ message: "Invalid channel." });
+      const campaign = await draftSocialWorkflow({ channel: channel as any, topic });
+      res.status(201).json(campaign);
+    } catch (e: any) {
+      console.error("[growth-automation] social draft failed:", e?.message);
+      res.status(500).json({ message: "Could not draft social workflow." });
+    }
+  });
+
+  app.get("/api/admin/growth-automation/reports", requireDashboardAuth, async (req, res) => {
+    try {
+      const period = typeof req.query.period === "string" ? req.query.period : undefined;
+      res.json(await storage.listGrowthAutoReports(period));
+    } catch (e: any) {
+      console.error("[growth-automation] reports list failed:", e?.message);
+      res.status(500).json({ message: "Could not load growth reports." });
+    }
+  });
+
+  app.get("/api/admin/growth-automation/reports/:id", requireDashboardAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id)) return res.status(400).json({ message: "Invalid id." });
+      const report = await storage.getGrowthAutoReport(id);
+      if (!report) return res.status(404).json({ message: "Not found." });
+      res.json(report);
+    } catch (e: any) {
+      console.error("[growth-automation] report fetch failed:", e?.message);
+      res.status(500).json({ message: "Could not load report." });
+    }
+  });
+
+  app.post("/api/admin/growth-automation/reports", requireDashboardAuth, async (req, res) => {
+    try {
+      const { PERIODS, generateGrowthReport } = await import("./growth-automation/reportEngine");
+      const period = typeof req.body?.period === "string" ? req.body.period : "daily";
+      if (!PERIODS.includes(period as any)) {
+        return res.status(400).json({ message: "Invalid period. Use daily, weekly, monthly, or quarterly." });
+      }
+      const report = await generateGrowthReport(period as any);
+      res.status(201).json(report);
+    } catch (e: any) {
+      console.error("[growth-automation] report generate failed:", e?.message);
+      res.status(500).json({ message: "Could not generate growth report." });
+    }
+  });
+
+  app.post("/api/admin/growth-automation/copilot", requireDashboardAuth, async (req, res) => {
+    try {
+      const question = typeof req.body?.question === "string" ? req.body.question.trim() : "";
+      if (!question) return res.status(400).json({ message: "A question is required." });
+      const { askGrowthCopilot } = await import("./growth-automation/copilot");
+      res.json(await askGrowthCopilot(question));
+    } catch (e: any) {
+      console.error("[growth-automation] copilot failed:", e?.message);
+      res.status(500).json({ message: "Growth copilot could not answer right now." });
+    }
+  });
+
   // ─── Phase 54 — Autonomous Recovery Engine (admin-only) ────────────────────
   app.get("/api/admin/recovery", requireDashboardAuth, async (_req, res) => {
     try {

@@ -107,7 +107,20 @@ Full-stack brand portfolio for **Elevate360Official** — mobile apps (Bondedlov
 - Art Studio image: `@assets/Elevate360Art_Studio_Presentation_1772460961759.png`
 - `@assets` Vite alias → `attached_assets/` (NOT `client/src/assets/`)
 
-## Phase 65 — Revenue Intelligence Engine (current)
+## Phase 66 — Growth Automation Engine (current)
+- Founder-only (PIN-gated), recommendation-only unified growth system. Mirrors Phase 64/65 architecture. Never auto-launches campaigns or publishes social — founder approval required before any "execution".
+- Covers: lead scoring, SEO opportunity discovery, content opportunity generation, campaign planning, conversion forecasting, social publishing workflows, executive growth dashboard.
+- Naming collision-safe: existing `growthIntelligenceReports`/`growthRecommendations`/`growthExperiments` untouched; NEW tables prefixed `growth_auto_*`.
+- 3 tables: `growthAutoOpportunities` (kind seo/content/campaign/lead/conversion/social/general, area, title, detail, priority 0-100, confidence 0-100, status open/acknowledged/dismissed, source rules/forecast) + `growthAutoCampaigns` (campaignKey unique, channel blog/instagram/youtube/email/etsy/audiomack/multi, objective, title, plan jsonb, providerMetadata jsonb, status draft/pending_approval/approved/rejected, approvalRequestId nullable, source, resolvedAt) + `growthAutoReports` (periodType, title, summary, sections jsonb, providerMetadata jsonb, source). Tables+indexes created via `CREATE TABLE IF NOT EXISTS` (NOT db:push).
+- Storage: `getGrowthSeoData` (pageViews-by-page + published blog list), `getLeadScoringData` (lead distribution); opportunity create/`replaceGrowthAutoOpportunities` (atomic tx; deletes only open rows source rules/forecast)/list/updateStatus; campaign create/list/get/`updateGrowthAutoCampaign`/`transitionGrowthAutoCampaign` (atomic guarded `UPDATE…WHERE id AND status IN(...)` — prevents double-approve races + contradictory terminal states); report create/list/get. Reuses `getRevenueAttributionData`, `getConversionFunnel`, `getOfferOptimizerData`, `getFounderIntelSeries`, `getLatestSourcePerformance`, `getDashboardSummary`, `getBlogPosts`, `getPageViews`.
+- 11 modules under `server/growth-automation/`: `aggregator.ts` (`buildGrowthSnapshot` read-only scrubbed cross-system snapshot + `scrub` + SOCIAL_CHANNELS), `leadScoring.ts` (`computeLeadScoring` tiers + readinessScore), `seoEngine.ts` (`discoverSeoOpportunities` deterministic — thin/missing content, cadence gaps, top pages), `conversionForecast.ts` (`computeConversionForecast` deterministic OLS, 7/30/90d conversion-rate horizons + bands + R²-confidence), `contentEngine.ts` (`generateContentOpportunities` DeepSeek), `campaignPlanner.ts` (CHANNELS, `planCampaign` OpenAI → draft), `socialEngine.ts` (`draftSocialWorkflow` channel-specific posts → draft), `opportunityEngine.ts` (`deriveGrowthOpportunities` pure rules + `generateGrowthOpportunities` DeepSeek-enriched top item, final scrub, atomic persist), `reportEngine.ts` (PERIODS, `generateGrowthReport` OpenAI + `deepScrub`), `copilot.ts` (`askGrowthCopilot` snapshot-grounded OpenAI), `growthCenter.ts` (`buildGrowthOverview` composer).
+- 18 PIN-gated routes: `GET /api/admin/growth-automation/{overview,forecast,lead-scoring,seo,opportunities,campaigns,campaigns/:id,reports,reports/:id}`, `POST /api/admin/growth-automation/{content/generate,opportunities/generate,campaigns/plan,campaigns/:id/approve,campaigns/:id/reject,social/draft,reports,copilot}`, `PATCH /api/admin/growth-automation/opportunities/:id`.
+- Approval gate: `campaigns/:id/approve` runs `evaluateActionSafety` (growth_agent capability `activate.campaign` / `publish.outbound`) → atomic guarded transition → creates `approvalRequests` row (area "growth", actionType launch_campaign/publish_social) only after winning the transition. Recommendation-only — no autonomous launch/publish ever performed.
+- Provider hard-locks: DeepSeek diagnostics/research (`providerOverride:"deepseek"` in content/opportunity engines), OpenAI executive synthesis (`providerOverride:"openai"` in campaignPlanner/socialEngine/reportEngine/copilot), no fallback. Scrub on LLM inbound + before all persistence (`deepScrub` recursive for report sections).
+- Job: `phase66_growth_automation` daily (cadence 1440, boot offset 14min) — regenerates opportunities + daily growth briefing.
+- Dashboard: `/growth-automation` — PIN-gated, 10 tabs (Briefing / Lead Scoring / SEO / Content / Campaigns / Social / Forecasts / Opportunities / Copilot / Reports). No new required env vars.
+
+## Phase 65 — Revenue Intelligence Engine
 - Founder-only (PIN-gated), recommendation-only executive revenue intelligence layer. Mirrors Phase 64 architecture. Never mutates money/pricing/refunds/email/infra/secrets.
 - 2 tables: `revenueIntelReports` (periodType daily/weekly/monthly/quarterly, title, summary, sections jsonb, providerMetadata jsonb, source) + `revenueInsights` (kind opportunity/risk/action, area attribution/clv/offers/funnel/bookings/forecast/leads/general, title, detail, priority 0-100, confidence 0-100, status open/acknowledged/dismissed, source rules/forecast).
 - Storage: `getCustomerLtvData` (CLV/cohorts/segments, masked emails, median), `getBookingIntelligence` (status mix, booked/won leads, bookingToWonRate); report CRUD; insight create/`replaceRevenueInsights` (atomic tx; deletes only open rows source in rules/forecast)/list/`updateRevenueInsightStatus`. Reuses `getRevenueAttributionData`, `getConversionFunnel`, `getOfferOptimizerData`, `getFounderIntelSeries`.
@@ -183,9 +196,9 @@ Full-stack brand portfolio for **Elevate360Official** — mobile apps (Bondedlov
 - **T005 AI Marketplace** (`/marketplace` public + `/marketplace-admin` admin): `marketplaceProducts` table; public `GET /api/marketplace` + `GET /api/marketplace/product/:slug` (both strip `deliveryContent`); `POST /api/marketplace/checkout` (Stripe session, degrades 503 if no `stripePriceId`/Stripe off); `GET /api/marketplace/delivery?session_id=` (returns deliverable only when `order.status==='paid'`, marks delivered); PIN-gated admin CRUD `/api/admin/marketplace` (slug-conflict 409); webhook marks marketplace orders delivered on `checkout.session.completed`; marketplace delivery block in `CheckoutSuccess.tsx`; sitemap entry.
 
 ## Roadmap (next phases)
-- **Phase 66** — Voice + Video AI Integration
-- **Phase 67** — Autonomous Agent Workforce
-- **Phase 68** — Cognitive OS (unify all phases into one operating layer)
+- **Phase 67** — Voice + Video AI Integration
+- **Phase 68** — Autonomous Agent Workforce
+- **Phase 69** — Cognitive OS (unify all phases into one operating layer)
 
 ## User Preferences
 - Communication style: concise, build-focused; user prefers clear progress markers and checkpoints

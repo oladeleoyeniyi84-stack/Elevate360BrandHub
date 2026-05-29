@@ -81,6 +81,10 @@ import {
   revenueIntelReports, revenueInsights,
   type RevenueIntelReport, type InsertRevenueIntelReport,
   type RevenueInsight, type InsertRevenueInsight,
+  growthAutoOpportunities, growthAutoCampaigns, growthAutoReports,
+  type GrowthAutoOpportunity, type InsertGrowthAutoOpportunity,
+  type GrowthAutoCampaign, type InsertGrowthAutoCampaign,
+  type GrowthAutoReport, type InsertGrowthAutoReport,
 } from "@shared/schema";
 import { db } from "./db";
 import { and, asc, count, desc, eq, gte, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
@@ -3306,6 +3310,155 @@ export class DatabaseStorage implements IStorage {
       .set({ status })
       .where(eq(revenueInsights.id, id))
       .returning();
+    return row;
+  }
+
+  // ── Phase 66 — Growth Automation Engine ────────────────────────────────────
+
+  // SEO/content discovery data: per-page traffic + published blog inventory.
+  async getGrowthSeoData(): Promise<{
+    pages: Array<{ page: string; views: number }>;
+    totalViews: number;
+    blogPosts: Array<{ title: string; slug: string; publishedAt: Date | null }>;
+    blogCount: number;
+    latestBlogAt: Date | null;
+  }> {
+    const [views, posts] = await Promise.all([
+      this.getPageViews().catch(() => [] as Array<{ createdAt: Date; page: string }>),
+      this.getBlogPosts(true).catch(() => [] as BlogPost[]),
+    ]);
+    const counts = new Map<string, number>();
+    for (const v of views) counts.set(v.page, (counts.get(v.page) ?? 0) + 1);
+    const pages = Array.from(counts.entries())
+      .map(([page, vs]) => ({ page, views: vs }))
+      .sort((a, b) => b.views - a.views)
+      .slice(0, 25);
+    const blogPosts = posts
+      .map((p) => ({ title: p.title, slug: p.slug, publishedAt: (p as any).publishedAt ?? p.createdAt ?? null }))
+      .slice(0, 50);
+    const latestBlogAt = blogPosts.reduce<Date | null>((acc, p) => {
+      const d = p.publishedAt ? new Date(p.publishedAt) : null;
+      return d && (!acc || d > acc) ? d : acc;
+    }, null);
+    return { pages, totalViews: views.length, blogPosts, blogCount: posts.length, latestBlogAt };
+  }
+
+  // Lead scoring distribution drawn from the dashboard summary + pipeline stages.
+  async getLeadScoringData(): Promise<{
+    total: number; emailCaptured: number; hot: number; qualified: number;
+    bookedThisWeek: number; wonThisMonth: number; topIntent: string | null;
+  }> {
+    const summary = await this.getDashboardSummary().catch(() => null as any);
+    return {
+      total: summary?.leads?.total ?? 0,
+      emailCaptured: summary?.leads?.emailCaptured ?? 0,
+      hot: summary?.leads?.hot ?? 0,
+      qualified: summary?.leads?.qualified ?? 0,
+      bookedThisWeek: summary?.leads?.bookedThisWeek ?? 0,
+      wonThisMonth: summary?.leads?.wonThisMonth ?? 0,
+      topIntent: summary?.topIntent ?? null,
+    };
+  }
+
+  async createGrowthAutoOpportunity(input: InsertGrowthAutoOpportunity): Promise<GrowthAutoOpportunity> {
+    const [row] = await db.insert(growthAutoOpportunities).values(input).returning();
+    return row;
+  }
+
+  // Atomic regeneration: clears only open auto-derived opportunities (rules/forecast),
+  // preserving open items from other sources, then inserts the fresh batch.
+  async replaceGrowthAutoOpportunities(items: InsertGrowthAutoOpportunity[]): Promise<GrowthAutoOpportunity[]> {
+    return db.transaction(async (tx) => {
+      await tx.delete(growthAutoOpportunities).where(
+        and(
+          eq(growthAutoOpportunities.status, "open"),
+          inArray(growthAutoOpportunities.source, ["rules", "forecast"]),
+        ),
+      );
+      if (items.length === 0) return [];
+      return tx.insert(growthAutoOpportunities).values(items).returning();
+    });
+  }
+
+  async listGrowthAutoOpportunities(opts: { kind?: string; status?: string; limit?: number } = {}): Promise<GrowthAutoOpportunity[]> {
+    const conds: any[] = [];
+    if (opts.kind) conds.push(eq(growthAutoOpportunities.kind, opts.kind));
+    if (opts.status) conds.push(eq(growthAutoOpportunities.status, opts.status));
+    const base = db.select().from(growthAutoOpportunities);
+    const filtered = conds.length > 0 ? base.where(and(...conds)) : base;
+    return filtered
+      .orderBy(desc(growthAutoOpportunities.priority), desc(growthAutoOpportunities.createdAt))
+      .limit(Math.max(1, Math.min(200, opts.limit ?? 100)));
+  }
+
+  async updateGrowthAutoOpportunityStatus(id: number, status: string): Promise<GrowthAutoOpportunity | undefined> {
+    const [row] = await db.update(growthAutoOpportunities)
+      .set({ status })
+      .where(eq(growthAutoOpportunities.id, id))
+      .returning();
+    return row;
+  }
+
+  async createGrowthAutoCampaign(input: InsertGrowthAutoCampaign): Promise<GrowthAutoCampaign> {
+    const [row] = await db.insert(growthAutoCampaigns).values(input).returning();
+    return row;
+  }
+
+  async listGrowthAutoCampaigns(opts: { status?: string; channel?: string; limit?: number } = {}): Promise<GrowthAutoCampaign[]> {
+    const conds: any[] = [];
+    if (opts.status) conds.push(eq(growthAutoCampaigns.status, opts.status));
+    if (opts.channel) conds.push(eq(growthAutoCampaigns.channel, opts.channel));
+    const base = db.select().from(growthAutoCampaigns);
+    const filtered = conds.length > 0 ? base.where(and(...conds)) : base;
+    return filtered
+      .orderBy(desc(growthAutoCampaigns.createdAt))
+      .limit(Math.max(1, Math.min(200, opts.limit ?? 50)));
+  }
+
+  async getGrowthAutoCampaign(id: number): Promise<GrowthAutoCampaign | undefined> {
+    const [row] = await db.select().from(growthAutoCampaigns).where(eq(growthAutoCampaigns.id, id)).limit(1);
+    return row;
+  }
+
+  async updateGrowthAutoCampaign(id: number, patch: Partial<Pick<GrowthAutoCampaign, "status" | "approvalRequestId" | "resolvedAt">>): Promise<GrowthAutoCampaign | undefined> {
+    const [row] = await db.update(growthAutoCampaigns)
+      .set(patch)
+      .where(eq(growthAutoCampaigns.id, id))
+      .returning();
+    return row;
+  }
+
+  // Atomic guarded transition: only succeeds if the campaign is currently in one
+  // of `fromStatuses`. Returns the updated row, or null if the guard did not match
+  // (already resolved / concurrent transition). Prevents double-approve races and
+  // contradictory terminal states.
+  async transitionGrowthAutoCampaign(
+    id: number,
+    fromStatuses: string[],
+    patch: Partial<Pick<GrowthAutoCampaign, "status" | "approvalRequestId" | "resolvedAt">>,
+  ): Promise<GrowthAutoCampaign | null> {
+    const [row] = await db.update(growthAutoCampaigns)
+      .set(patch)
+      .where(and(eq(growthAutoCampaigns.id, id), inArray(growthAutoCampaigns.status, fromStatuses)))
+      .returning();
+    return row ?? null;
+  }
+
+  async createGrowthAutoReport(input: InsertGrowthAutoReport): Promise<GrowthAutoReport> {
+    const [row] = await db.insert(growthAutoReports).values(input).returning();
+    return row;
+  }
+
+  async listGrowthAutoReports(periodType?: string, limit = 30): Promise<GrowthAutoReport[]> {
+    const q = db.select().from(growthAutoReports);
+    const rows = periodType
+      ? await q.where(eq(growthAutoReports.periodType, periodType)).orderBy(desc(growthAutoReports.createdAt)).limit(limit)
+      : await q.orderBy(desc(growthAutoReports.createdAt)).limit(limit);
+    return rows;
+  }
+
+  async getGrowthAutoReport(id: number): Promise<GrowthAutoReport | undefined> {
+    const [row] = await db.select().from(growthAutoReports).where(eq(growthAutoReports.id, id)).limit(1);
     return row;
   }
 }

@@ -55,7 +55,7 @@ const REQUIRES_APPROVAL_TOKENS = [
 // the agent function. Prefix match — `analyze.*` allows `analyze.revenue`,
 // `analyze.funnel`, etc.
 const AGENT_CAPABILITY_ALLOWLIST: Record<string, string[]> = {
-  growth_agent:          ["analyze.growth", "analyze.funnel", "recommend.growth", "propose.experiment"],
+  growth_agent:          ["analyze.growth", "analyze.funnel", "recommend.growth", "propose.experiment", "activate.campaign", "publish.outbound"],
   revenue_agent:         ["analyze.revenue", "analyze.forecast", "recommend.revenue", "propose.pricing"],
   reliability_agent:     ["analyze.health", "analyze.errors", "recommend.recovery"],
   experiment_agent:      ["propose.experiment", "evaluate.experiment", "rollback.experiment"],
