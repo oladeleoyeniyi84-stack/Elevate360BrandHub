@@ -75,6 +75,9 @@ import {
   type MeshTopologySnapshot, type InsertMeshTopologySnapshot,
   type MeshWorkerMemory, type InsertMeshWorkerMemory,
   type MeshAuditLog, type InsertMeshAuditLog,
+  founderIntelReports, founderDecisionItems,
+  type FounderIntelReport, type InsertFounderIntelReport,
+  type FounderDecisionItem, type InsertFounderDecisionItem,
 } from "@shared/schema";
 import { db } from "./db";
 import { and, asc, count, desc, eq, gte, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
@@ -3016,6 +3019,112 @@ export class DatabaseStorage implements IStorage {
     for (const policy of defaults) {
       await this.upsertExecutionPolicy(policy);
     }
+  }
+
+  // ─── Phase 64 — Founder Intelligence System ────────────────────────────────
+  // Daily time-series for predictive intelligence (last N days).
+  async getFounderIntelSeries(days = 30): Promise<Array<{
+    date: string; visits: number; leads: number; conversions: number; revenueCents: number;
+  }>> {
+    const since = new Date();
+    since.setUTCHours(0, 0, 0, 0);
+    since.setUTCDate(since.getUTCDate() - (days - 1));
+
+    const [visitRows, leadRows, orderRows] = await Promise.all([
+      db.select({ d: sql<string>`to_char(${pageViews.createdAt}, 'YYYY-MM-DD')`, c: count() })
+        .from(pageViews).where(gte(pageViews.createdAt, since))
+        .groupBy(sql`to_char(${pageViews.createdAt}, 'YYYY-MM-DD')`),
+      db.select({
+        d: sql<string>`to_char(${chatConversations.createdAt}, 'YYYY-MM-DD')`,
+        c: count(),
+      }).from(chatConversations).where(gte(chatConversations.createdAt, since))
+        .groupBy(sql`to_char(${chatConversations.createdAt}, 'YYYY-MM-DD')`),
+      db.select({
+        d: sql<string>`to_char(${orders.createdAt}, 'YYYY-MM-DD')`,
+        rev: sql<number>`coalesce(sum(${orders.amountPaid}), 0)`,
+        conv: sql<number>`count(*) FILTER (WHERE ${orders.status} = 'paid')`,
+      }).from(orders).where(gte(orders.createdAt, since))
+        .groupBy(sql`to_char(${orders.createdAt}, 'YYYY-MM-DD')`),
+    ]);
+
+    const visitMap = new Map(visitRows.map((r) => [r.d, Number(r.c)]));
+    const leadMap = new Map(leadRows.map((r) => [r.d, Number(r.c)]));
+    const revMap = new Map(orderRows.map((r) => [r.d, Number(r.rev)]));
+    const orderConvMap = new Map(orderRows.map((r) => [r.d, Number(r.conv)]));
+
+    const out: Array<{ date: string; visits: number; leads: number; conversions: number; revenueCents: number }> = [];
+    for (let i = 0; i < days; i++) {
+      const d = new Date(since);
+      d.setUTCDate(since.getUTCDate() + i);
+      const key = d.toISOString().slice(0, 10);
+      out.push({
+        date: key,
+        visits: visitMap.get(key) ?? 0,
+        leads: leadMap.get(key) ?? 0,
+        // Canonical conversion = paid orders only, to avoid double-counting a
+        // won lead and its paid order as two separate conversions.
+        conversions: orderConvMap.get(key) ?? 0,
+        revenueCents: revMap.get(key) ?? 0,
+      });
+    }
+    return out;
+  }
+
+  async createFounderIntelReport(input: InsertFounderIntelReport): Promise<FounderIntelReport> {
+    const [row] = await db.insert(founderIntelReports).values(input).returning();
+    return row;
+  }
+
+  async listFounderIntelReports(periodType?: string, limit = 30): Promise<FounderIntelReport[]> {
+    const q = db.select().from(founderIntelReports);
+    const rows = periodType
+      ? await q.where(eq(founderIntelReports.periodType, periodType)).orderBy(desc(founderIntelReports.createdAt)).limit(limit)
+      : await q.orderBy(desc(founderIntelReports.createdAt)).limit(limit);
+    return rows;
+  }
+
+  async getFounderIntelReport(id: number): Promise<FounderIntelReport | undefined> {
+    const [row] = await db.select().from(founderIntelReports).where(eq(founderIntelReports.id, id)).limit(1);
+    return row;
+  }
+
+  async createFounderDecisionItem(input: InsertFounderDecisionItem): Promise<FounderDecisionItem> {
+    const [row] = await db.insert(founderDecisionItems).values(input).returning();
+    return row;
+  }
+
+  // Atomic regeneration: clears open auto-derived items only (preserving any
+  // open items from other sources), then inserts the fresh batch.
+  async replaceFounderDecisionItems(items: InsertFounderDecisionItem[]): Promise<FounderDecisionItem[]> {
+    return db.transaction(async (tx) => {
+      await tx.delete(founderDecisionItems).where(
+        and(
+          eq(founderDecisionItems.status, "open"),
+          inArray(founderDecisionItems.source, ["rules", "forecast", "growth"]),
+        ),
+      );
+      if (items.length === 0) return [];
+      return tx.insert(founderDecisionItems).values(items).returning();
+    });
+  }
+
+  async listFounderDecisionItems(opts: { kind?: string; status?: string; limit?: number } = {}): Promise<FounderDecisionItem[]> {
+    const conds: any[] = [];
+    if (opts.kind) conds.push(eq(founderDecisionItems.kind, opts.kind));
+    if (opts.status) conds.push(eq(founderDecisionItems.status, opts.status));
+    const base = db.select().from(founderDecisionItems);
+    const filtered = conds.length > 0 ? base.where(and(...conds)) : base;
+    return filtered
+      .orderBy(desc(founderDecisionItems.priority), desc(founderDecisionItems.createdAt))
+      .limit(Math.max(1, Math.min(200, opts.limit ?? 100)));
+  }
+
+  async updateFounderDecisionStatus(id: number, status: string): Promise<FounderDecisionItem | undefined> {
+    const [row] = await db.update(founderDecisionItems)
+      .set({ status })
+      .where(eq(founderDecisionItems.id, id))
+      .returning();
+    return row;
   }
 }
 

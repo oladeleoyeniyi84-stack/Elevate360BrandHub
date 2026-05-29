@@ -107,7 +107,17 @@ Full-stack brand portfolio for **Elevate360Official** — mobile apps (Bondedlov
 - Art Studio image: `@assets/Elevate360Art_Studio_Presentation_1772460961759.png`
 - `@assets` Vite alias → `attached_assets/` (NOT `client/src/assets/`)
 
-## Phase 63 — Cognitive Memory Layer (current)
+## Phase 64 — Founder Intelligence System (current)
+- Executive intelligence layer turning cross-system data into founder-grade decisions. Recommendation-only — never mutates money/pricing/email/infra/secrets/destructive actions.
+- 2 tables: `founderIntelReports` (periodType daily/weekly/monthly/quarterly, title, summary, sections jsonb, providerMetadata jsonb, source) + `founderDecisionItems` (kind opportunity/risk/action, area, title, detail, priority 0-100, confidence 0-100, status open/acknowledged/dismissed, source).
+- 6 modules under `server/founder-intel/`: `aggregator.ts` (`buildIntelSnapshot` read-only scrubbed cross-system snapshot + `scrub`), `forecastEngine.ts` (`computeForecasts` deterministic OLS linreg, R²-derived confidence, revenue/leads/traffic/conversion), `decisionEngine.ts` (`deriveDecisionItems` pure rules + `generateDecisionCenter` DeepSeek-enriched top risk, atomic persist), `reportEngine.ts` (`generateExecutiveReport` OpenAI synthesis + `deepScrub` before persist), `copilot.ts` (`askCopilot` snapshot+founder/brand-memory grounded OpenAI), `intelligenceCenter.ts` (`buildOverview` composer).
+- Storage: `getFounderIntelSeries(days)` daily series (visits/leads/conversions=paid-orders-only/revenueCents); report CRUD; decision items create/list/`replaceFounderDecisionItems` (atomic tx; deletes only open items with source in rules/forecast/growth)/`updateFounderDecisionStatus`.
+- 9 PIN-gated routes: `GET /api/admin/founder-intel/{overview,forecasts,decisions,reports,reports/:id}`, `POST /api/admin/founder-intel/{decisions/generate,reports,copilot}`, `PATCH /api/admin/founder-intel/decisions/:id`.
+- Provider hard-locks: DeepSeek diagnostics (`providerOverride:"deepseek"`), OpenAI executive synthesis (`providerOverride:"openai"`), no fallback. Scrub on LLM inbound + before all persistence (`deepScrub` recursive for report sections).
+- Job: `phase64_founder_intelligence` daily (cadence 1440, boot offset 11min) — regenerates decision center + daily briefing.
+- Dashboard: `/founder-intelligence` — PIN-gated, 6 tabs (Briefing / Decision Center / Intelligence / Forecasts / Copilot / Reports).
+
+## Phase 63 — Cognitive Memory Layer
 - pgvector-backed (0.8.0) shared semantic memory across Concierge / Founder Intelligence / Orchestrator / Neural Grid / Execution Mesh.
 - Table `cognitive_memories`: `embedding vector(1536)` (text-embedding-3-small), `memory_scope` (conversation/lead/founder/agent/brand_knowledge), `memory_type` (short_term/long_term/episodic/strategic), `subject_key`, `title`, `content`, `importance` (0-100), `source`, `metadata` jsonb, `access_count`, `last_accessed_at`, `expires_at`. 3 indexes incl. HNSW `vector_cosine_ops`.
 - 3 modules under `server/memory/`: `embeddings.ts` (`embedText` via text-embedding-3-small, `toVectorLiteral`, graceful null degrade if no `OPENAI_API_KEY`), `memoryEngine.ts` (`writeMemory`, `searchMemory` cosine `<=>`, `recallForSubject`, `listMemories`, `deleteMemory`, `pruneExpired`, `getMemoryHealth`, `getMemoryAnalytics`), `conciergeMemory.ts` (`buildConciergeMemoryContext`, `rememberConciergeTurn`).
@@ -162,7 +172,6 @@ Full-stack brand portfolio for **Elevate360Official** — mobile apps (Bondedlov
 - **T005 AI Marketplace** (`/marketplace` public + `/marketplace-admin` admin): `marketplaceProducts` table; public `GET /api/marketplace` + `GET /api/marketplace/product/:slug` (both strip `deliveryContent`); `POST /api/marketplace/checkout` (Stripe session, degrades 503 if no `stripePriceId`/Stripe off); `GET /api/marketplace/delivery?session_id=` (returns deliverable only when `order.status==='paid'`, marks delivered); PIN-gated admin CRUD `/api/admin/marketplace` (slug-conflict 409); webhook marks marketplace orders delivered on `checkout.session.completed`; marketplace delivery block in `CheckoutSuccess.tsx`; sitemap entry.
 
 ## Roadmap (next phases)
-- **Phase 64** — Founder Intelligence System (memory-driven insights, predictive briefings)
 - **Phase 65** — Voice + Video AI Integration
 - **Phase 66** — Autonomous Agent Workforce
 - **Phase 67** — Cognitive OS (unify all phases into one operating layer)

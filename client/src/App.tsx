@@ -19,6 +19,7 @@ import AuthorityAdmin from "@/pages/AuthorityAdmin";
 import Marketplace from "@/pages/Marketplace";
 import MarketplaceAdmin from "@/pages/MarketplaceAdmin";
 import MemoryExplorer from "@/pages/MemoryExplorer";
+import FounderIntelligence from "@/pages/FounderIntelligence";
 import ContentFactory from "@/pages/ContentFactory";
 import OrchestratorCenter from "@/pages/OrchestratorCenter";
 import CommandGrid from "@/pages/CommandGrid";
@@ -242,6 +243,17 @@ function Router() {
             path="/memory-explorer"
           />
           <MemoryExplorer />
+        </>
+      </Route>
+
+      <Route path="/founder-intelligence">
+        <>
+          <SEO
+            title="Founder Intelligence | Elevate360Official"
+            description="Executive intelligence, decision center, forecasts, and founder copilot for Elevate360Official."
+            path="/founder-intelligence"
+          />
+          <FounderIntelligence />
         </>
       </Route>
 

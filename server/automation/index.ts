@@ -225,4 +225,22 @@ export async function startAutomationJobs() {
     600_000 // 10-minute boot offset (after neural grid)
   );
   console.log("[automation] Phase 62 jobs registered (1 job)");
+
+  // ── Phase 64 — Founder Intelligence System ────────────────────────────────
+  const { generateDecisionCenter } = await import("../founder-intel/decisionEngine");
+  const { generateExecutiveReport } = await import("../founder-intel/reportEngine");
+  await registerRecurringJob(
+    {
+      jobKey: "phase64_founder_intelligence",
+      jobGroup: "founder-intel",
+      cadenceMinutes: 1440,
+      run: async () => {
+        const items = await generateDecisionCenter();
+        const report = await generateExecutiveReport("daily");
+        return { summary: `decisions=${items.length} report=${report.id}` };
+      },
+    },
+    660_000 // 11-minute boot offset (after execution mesh)
+  );
+  console.log("[automation] Phase 64 jobs registered (1 job)");
 }

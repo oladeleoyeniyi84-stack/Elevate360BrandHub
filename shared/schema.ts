@@ -1509,3 +1509,55 @@ export const insertCognitiveMemorySchema = createInsertSchema(cognitiveMemories)
 export const updateCognitiveMemorySchema = insertCognitiveMemorySchema.partial();
 export type InsertCognitiveMemory = z.infer<typeof insertCognitiveMemorySchema>;
 export type CognitiveMemory = typeof cognitiveMemories.$inferSelect;
+
+// ─── Phase 64 — Founder Intelligence System ──────────────────────────────────
+// AI executive reports (daily / weekly / monthly / quarterly). Recommendation-only.
+export const founderIntelReports = pgTable("founder_intel_reports", {
+  id: serial("id").primaryKey(),
+  // 'daily' | 'weekly' | 'monthly' | 'quarterly'
+  periodType: varchar("period_type", { length: 20 }).notNull(),
+  title: varchar("title", { length: 200 }).notNull(),
+  summary: text("summary").notNull(),
+  // structured sections: { revenue, growth, experiments, personalization, aiOps, forecasts, opportunities, risks, actions }
+  sections: jsonb("sections").notNull().default(sql`'{}'::jsonb`),
+  providerMetadata: jsonb("provider_metadata").notNull().default(sql`'{}'::jsonb`),
+  source: varchar("source", { length: 40 }).notNull().default("openai"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  periodIdx: index("founder_intel_reports_period_idx").on(t.periodType),
+  createdIdx: index("founder_intel_reports_created_idx").on(t.createdAt),
+}));
+
+export const insertFounderIntelReportSchema = createInsertSchema(founderIntelReports).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertFounderIntelReport = z.infer<typeof insertFounderIntelReportSchema>;
+export type FounderIntelReport = typeof founderIntelReports.$inferSelect;
+
+// Founder Decision Center items: opportunities / risks / recommended actions.
+export const founderDecisionItems = pgTable("founder_decision_items", {
+  id: serial("id").primaryKey(),
+  // 'opportunity' | 'risk' | 'action'
+  kind: varchar("kind", { length: 20 }).notNull(),
+  // 'revenue' | 'growth' | 'experiments' | 'personalization' | 'concierge' | 'memory' | 'execution' | 'ai_ops'
+  area: varchar("area", { length: 40 }).notNull().default("general"),
+  title: varchar("title", { length: 200 }).notNull(),
+  detail: text("detail").notNull(),
+  priority: integer("priority").notNull().default(50),
+  confidence: integer("confidence").notNull().default(50),
+  // 'open' | 'acknowledged' | 'dismissed'
+  status: varchar("status", { length: 20 }).notNull().default("open"),
+  source: varchar("source", { length: 40 }).notNull().default("rules"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  kindIdx: index("founder_decision_items_kind_idx").on(t.kind),
+  statusIdx: index("founder_decision_items_status_idx").on(t.status),
+}));
+
+export const insertFounderDecisionItemSchema = createInsertSchema(founderDecisionItems).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertFounderDecisionItem = z.infer<typeof insertFounderDecisionItemSchema>;
+export type FounderDecisionItem = typeof founderDecisionItems.$inferSelect;
