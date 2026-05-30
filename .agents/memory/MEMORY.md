@@ -1,0 +1,1 @@
+- [Production table bootstrap pattern](table-bootstrap-pattern.md) — new DB tables reach prod via idempotent scripts/create_phaseNN_tables.ts, NOT db:push (it wants to rename user_sessions).

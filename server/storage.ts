@@ -3579,9 +3579,12 @@ export class DatabaseStorage implements IStorage {
   // intelligence engines into one normalized list. Never mutates anything.
   async getAllCognitiveSignals(): Promise<CognitiveSignal[]> {
     const [founder, revenue, growth] = await Promise.all([
-      db.select().from(founderDecisionItems).where(eq(founderDecisionItems.status, "open")).limit(120),
-      db.select().from(revenueInsights).where(eq(revenueInsights.status, "open")).limit(120),
-      db.select().from(growthAutoOpportunities).where(eq(growthAutoOpportunities.status, "open")).limit(120),
+      db.select().from(founderDecisionItems).where(eq(founderDecisionItems.status, "open"))
+        .orderBy(desc(founderDecisionItems.priority), desc(founderDecisionItems.createdAt)).limit(120),
+      db.select().from(revenueInsights).where(eq(revenueInsights.status, "open"))
+        .orderBy(desc(revenueInsights.priority), desc(revenueInsights.createdAt)).limit(120),
+      db.select().from(growthAutoOpportunities).where(eq(growthAutoOpportunities.status, "open"))
+        .orderBy(desc(growthAutoOpportunities.priority), desc(growthAutoOpportunities.createdAt)).limit(120),
     ]);
 
     const signals: CognitiveSignal[] = [];

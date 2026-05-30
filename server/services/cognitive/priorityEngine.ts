@@ -67,10 +67,10 @@ export function summarizeSystems(signals: CognitiveSignal[]): SystemSummary[] {
     groups.set(s.system, arr);
   }
   const out: SystemSummary[] = [];
-  for (const [system, arr] of groups.entries()) {
+  for (const [system, arr] of Array.from(groups.entries())) {
     const areaCounts = new Map<string, number>();
     for (const s of arr) areaCounts.set(s.area, (areaCounts.get(s.area) ?? 0) + 1);
-    const topArea = [...areaCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+    const topArea = Array.from(areaCounts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
     out.push({
       system,
       signals: arr.length,

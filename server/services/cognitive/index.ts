@@ -45,21 +45,34 @@ export async function buildCognitiveOverview(): Promise<CognitiveOverview> {
   };
 }
 
-export async function runCognitiveScan(): Promise<CognitiveScanResult> {
-  const decisions = await generateCognitiveDecisions();
-  const conflicts = await generateCognitiveConflicts();
-  let briefingId: number | null = null;
+// Single-flight guard: prevents an overlapping manual POST /run and the
+// scheduled job (or two manual runs) from interleaving their atomic
+// regeneration transactions and clobbering each other's results.
+let scanInFlight: Promise<CognitiveScanResult> | null = null;
+
+export function runCognitiveScan(): Promise<CognitiveScanResult> {
+  if (scanInFlight) return scanInFlight;
+  scanInFlight = (async () => {
+    const decisions = await generateCognitiveDecisions();
+    const conflicts = await generateCognitiveConflicts();
+    let briefingId: number | null = null;
+    try {
+      const briefing = await generateCognitiveBriefing("daily");
+      briefingId = briefing.id;
+    } catch (e: any) {
+      console.warn("[cognitive-os] daily briefing during scan failed:", e?.message);
+    }
+    const signals = await storage.getAllCognitiveSignals();
+    return {
+      signals: signals.length,
+      decisions: decisions.length,
+      conflicts: conflicts.length,
+      briefingId,
+    };
+  })();
   try {
-    const briefing = await generateCognitiveBriefing("daily");
-    briefingId = briefing.id;
-  } catch (e: any) {
-    console.warn("[cognitive-os] daily briefing during scan failed:", e?.message);
+    return scanInFlight;
+  } finally {
+    scanInFlight.finally(() => { scanInFlight = null; });
   }
-  const signals = await storage.getAllCognitiveSignals();
-  return {
-    signals: signals.length,
-    decisions: decisions.length,
-    conflicts: conflicts.length,
-    briefingId,
-  };
 }

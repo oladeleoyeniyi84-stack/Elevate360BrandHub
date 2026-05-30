@@ -107,7 +107,17 @@ Full-stack brand portfolio for **Elevate360Official** — mobile apps (Bondedlov
 - Art Studio image: `@assets/Elevate360Art_Studio_Presentation_1772460961759.png`
 - `@assets` Vite alias → `attached_assets/` (NOT `client/src/assets/`)
 
-## Phase 66 — Growth Automation Engine (current)
+## Phase 67 — Cognitive Operating System (current)
+- Founder-only (PIN-gated), recommendation-only **meta-layer** sitting above Founder Intelligence (Phase 64), Revenue Intelligence (Phase 65), and Growth Automation (Phase 66). Reads their OPEN items as one unified signal stream and synthesizes unified decisions, cross-system conflicts, and an executive cognitive briefing. Never mutates money/pricing/email/infra/secrets and never executes anything autonomously.
+- 3 tables: `cognitiveDecisions` (kind opportunity/risk/action, area, title, detail, priority 0-100, confidence 0-100, sources jsonb [{system,area,title}], status open/acknowledged/dismissed, source rules/deepseek) + `cognitiveBriefings` (periodType daily/weekly/monthly/quarterly, title, summary, sections jsonb {cognitiveLoad,systems,topSignals,decisions,conflicts}, providerMetadata jsonb, source) + `cognitiveConflicts` (area, title, detail, severity 0-100, leftSignal, rightSignal, status open/acknowledged/resolved, source rules). Created via raw `CREATE TABLE IF NOT EXISTS` matching the Drizzle schema exactly (NOT db:push — db:push falsely offers to rename the express-session `user_sessions` table; SQL-first keeps the schema in sync so a later db:push sees no diff).
+- Storage: `getAllCognitiveSignals` (read-only union of open founderDecisionItems + revenueInsights + growthAutoOpportunities → normalized `CognitiveSignal`); decisions create/`replaceCognitiveDecisions` (atomic tx; deletes only open rows source in rules/deepseek)/list/`updateCognitiveDecisionStatus`; briefings create/list/get; conflicts create/`replaceCognitiveConflicts` (atomic tx; deletes only open rows source rules)/list/`updateCognitiveConflictStatus`. `CognitiveSignal` canonical type in `shared/types/cognitive.ts`.
+- 5 modules under `server/services/cognitive/`: `priorityEngine.ts` (leaf — `scrub`/`deepScrub` PII, `rankSignals` score=priority*0.65+confidence*0.35, `cognitiveLoad`, `summarizeSystems`), `decisionEngine.ts` (`deriveCognitiveDecisions` pure rules — area convergence across systems boosts priority+confidence; `generateCognitiveDecisions` DeepSeek-enriched top risk → atomic persist), `conflictEngine.ts` (`detectConflicts` pure heuristics — opportunity/expansion vs risk/negative across different systems in same area; `generateCognitiveConflicts`), `briefingEngine.ts` (PERIODS, `generateCognitiveBriefing` OpenAI exec synthesis + deepScrub before persist), `index.ts` (`buildCognitiveOverview` composer + `runCognitiveScan` = decisions+conflicts+daily briefing).
+- Router: `server/routes/cognitiveOs.ts` exports `cognitiveOsRouter` (express.Router), mounted `app.use("/api/admin/cognitive-os", cognitiveOsRouter)` via dynamic import in `server/routes.ts` (avoids circular import; reuses exported `requireDashboardAuth`). 12 PIN-gated routes: `GET {overview,signals,decisions,conflicts,briefings,briefings/:id}`, `POST {decisions/generate,conflicts/generate,briefings,run}`, `PATCH {decisions/:id,conflicts/:id}`.
+- Provider hard-locks: DeepSeek diagnostics (`providerOverride:"deepseek"`), OpenAI executive synthesis (`providerOverride:"openai"`), no fallback. Scrub on LLM inbound + before all persistence (deepScrub recursive for briefing sections).
+- Job: `phase67_cognitive_os` daily (cadence 1440, boot offset 900_000 = 15min, after growth automation) — runs `runCognitiveScan`.
+- Dashboard: `/cognitive-os` — PIN-gated, 6 tabs (Briefing / Decisions / Conflicts / Signals / Systems / History). Components under `client/src/components/cognitive/` (BriefingCard, DecisionTable, ConflictPanel); typed fetch helpers in `client/src/api/admin.ts` (`cognitiveApi`). No new required env vars.
+
+## Phase 66 — Growth Automation Engine
 - Founder-only (PIN-gated), recommendation-only unified growth system. Mirrors Phase 64/65 architecture. Never auto-launches campaigns or publishes social — founder approval required before any "execution".
 - Covers: lead scoring, SEO opportunity discovery, content opportunity generation, campaign planning, conversion forecasting, social publishing workflows, executive growth dashboard.
 - Naming collision-safe: existing `growthIntelligenceReports`/`growthRecommendations`/`growthExperiments` untouched; NEW tables prefixed `growth_auto_*`.
@@ -196,9 +206,8 @@ Full-stack brand portfolio for **Elevate360Official** — mobile apps (Bondedlov
 - **T005 AI Marketplace** (`/marketplace` public + `/marketplace-admin` admin): `marketplaceProducts` table; public `GET /api/marketplace` + `GET /api/marketplace/product/:slug` (both strip `deliveryContent`); `POST /api/marketplace/checkout` (Stripe session, degrades 503 if no `stripePriceId`/Stripe off); `GET /api/marketplace/delivery?session_id=` (returns deliverable only when `order.status==='paid'`, marks delivered); PIN-gated admin CRUD `/api/admin/marketplace` (slug-conflict 409); webhook marks marketplace orders delivered on `checkout.session.completed`; marketplace delivery block in `CheckoutSuccess.tsx`; sitemap entry.
 
 ## Roadmap (next phases)
-- **Phase 67** — Voice + Video AI Integration
-- **Phase 68** — Autonomous Agent Workforce
-- **Phase 69** — Cognitive OS (unify all phases into one operating layer)
+- **Phase 68** — Voice + Video AI Integration
+- **Phase 69** — Autonomous Agent Workforce
 
 ## User Preferences
 - Communication style: concise, build-focused; user prefers clear progress markers and checkpoints

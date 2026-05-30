@@ -33,7 +33,7 @@ export function deriveCognitiveDecisions(signals: CognitiveSignal[]): InsertCogn
 
   const decisions: InsertCognitiveDecision[] = [];
 
-  for (const [area, arr] of byArea.entries()) {
+  for (const [area, arr] of Array.from(byArea.entries())) {
     const systems = new Set(arr.map((s) => s.system));
     const top = arr[0];
     const consensus = systems.size > 1;
@@ -42,7 +42,7 @@ export function deriveCognitiveDecisions(signals: CognitiveSignal[]): InsertCogn
     const oppCount = arr.filter((s) => s.kind === "opportunity").length;
     const kind = riskCount > oppCount ? "risk" : oppCount > 0 ? "opportunity" : "action";
 
-    const systemList = [...systems].map((s) => SYSTEM_LABEL[s] ?? s).join(", ");
+    const systemList = Array.from(systems).map((s) => SYSTEM_LABEL[s] ?? s).join(", ");
     const confidence = clamp(
       arr.reduce((s, x) => s + x.confidence, 0) / arr.length + (consensus ? 12 : 0),
     );

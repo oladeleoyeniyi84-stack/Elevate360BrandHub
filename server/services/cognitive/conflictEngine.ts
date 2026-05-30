@@ -29,7 +29,7 @@ export function detectConflicts(signals: CognitiveSignal[]): InsertCognitiveConf
 
   const conflicts: InsertCognitiveConflict[] = [];
 
-  for (const [area, arr] of byArea.entries()) {
+  for (const [area, arr] of Array.from(byArea.entries())) {
     if (arr.length < 2) continue;
 
     const opportunities = arr.filter(
