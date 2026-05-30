@@ -1703,3 +1703,90 @@ export const insertGrowthAutoReportSchema = createInsertSchema(growthAutoReports
 });
 export type InsertGrowthAutoReport = z.infer<typeof insertGrowthAutoReportSchema>;
 export type GrowthAutoReport = typeof growthAutoReports.$inferSelect;
+
+// ── Phase 67 — Cognitive Operating System ────────────────────────────────────
+// Recommendation-only meta-layer. Unifies the open signals emitted by the
+// existing intelligence engines (Founder Intelligence decision items, Revenue
+// Intelligence insights, Growth Automation opportunities) into one prioritized
+// cognitive layer: unified decisions, cross-system conflict detection, and an
+// executive cognitive briefing. Never mutates money / pricing / email / infra /
+// secrets and never executes anything autonomously.
+
+// Unified cross-system decisions distilled from many subsystem signals.
+export const cognitiveDecisions = pgTable("cognitive_decisions", {
+  id: serial("id").primaryKey(),
+  // 'opportunity' | 'risk' | 'action'
+  kind: varchar("kind", { length: 20 }).notNull().default("action"),
+  // 'revenue' | 'growth' | 'pipeline' | 'experiments' | 'personalization' | 'ai_ops' | 'general'
+  area: varchar("area", { length: 40 }).notNull().default("general"),
+  title: varchar("title", { length: 200 }).notNull(),
+  detail: text("detail").notNull(),
+  priority: integer("priority").notNull().default(50),
+  confidence: integer("confidence").notNull().default(50),
+  // contributing signal refs: [{ system, area, title }]
+  sources: jsonb("sources").notNull().default(sql`'[]'::jsonb`),
+  // 'open' | 'acknowledged' | 'dismissed'
+  status: varchar("status", { length: 20 }).notNull().default("open"),
+  // 'rules' | 'deepseek'
+  source: varchar("source", { length: 40 }).notNull().default("rules"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  kindIdx: index("cognitive_decisions_kind_idx").on(t.kind),
+  statusIdx: index("cognitive_decisions_status_idx").on(t.status),
+}));
+
+export const insertCognitiveDecisionSchema = createInsertSchema(cognitiveDecisions).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertCognitiveDecision = z.infer<typeof insertCognitiveDecisionSchema>;
+export type CognitiveDecision = typeof cognitiveDecisions.$inferSelect;
+
+// Executive cognitive briefings (daily / weekly / monthly / quarterly).
+export const cognitiveBriefings = pgTable("cognitive_briefings", {
+  id: serial("id").primaryKey(),
+  periodType: varchar("period_type", { length: 20 }).notNull(),
+  title: varchar("title", { length: 200 }).notNull(),
+  summary: text("summary").notNull(),
+  // structured sections: { signals, decisions, conflicts, systems }
+  sections: jsonb("sections").notNull().default(sql`'{}'::jsonb`),
+  providerMetadata: jsonb("provider_metadata").notNull().default(sql`'{}'::jsonb`),
+  source: varchar("source", { length: 40 }).notNull().default("openai"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  periodIdx: index("cognitive_briefings_period_idx").on(t.periodType),
+  createdIdx: index("cognitive_briefings_created_idx").on(t.createdAt),
+}));
+
+export const insertCognitiveBriefingSchema = createInsertSchema(cognitiveBriefings).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertCognitiveBriefing = z.infer<typeof insertCognitiveBriefingSchema>;
+export type CognitiveBriefing = typeof cognitiveBriefings.$inferSelect;
+
+// Detected contradictions between signals from different subsystems
+// (e.g. growth pushing expansion while revenue is trending down).
+export const cognitiveConflicts = pgTable("cognitive_conflicts", {
+  id: serial("id").primaryKey(),
+  area: varchar("area", { length: 40 }).notNull().default("general"),
+  title: varchar("title", { length: 200 }).notNull(),
+  detail: text("detail").notNull(),
+  severity: integer("severity").notNull().default(50),
+  leftSignal: text("left_signal").notNull().default(""),
+  rightSignal: text("right_signal").notNull().default(""),
+  // 'open' | 'acknowledged' | 'resolved'
+  status: varchar("status", { length: 20 }).notNull().default("open"),
+  source: varchar("source", { length: 40 }).notNull().default("rules"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  areaIdx: index("cognitive_conflicts_area_idx").on(t.area),
+  statusIdx: index("cognitive_conflicts_status_idx").on(t.status),
+}));
+
+export const insertCognitiveConflictSchema = createInsertSchema(cognitiveConflicts).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertCognitiveConflict = z.infer<typeof insertCognitiveConflictSchema>;
+export type CognitiveConflict = typeof cognitiveConflicts.$inferSelect;

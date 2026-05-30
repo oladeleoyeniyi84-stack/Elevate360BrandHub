@@ -279,4 +279,20 @@ export async function startAutomationJobs() {
     840_000 // 14-minute boot offset (after revenue intelligence)
   );
   console.log("[automation] Phase 66 jobs registered (1 job)");
+
+  // ── Phase 67 — Cognitive Operating System ─────────────────────────────────
+  const { runCognitiveScan } = await import("../services/cognitive");
+  await registerRecurringJob(
+    {
+      jobKey: "phase67_cognitive_os",
+      jobGroup: "cognitive-os",
+      cadenceMinutes: 1440,
+      run: async () => {
+        const r = await runCognitiveScan();
+        return { summary: `signals=${r.signals} decisions=${r.decisions} conflicts=${r.conflicts} briefing=${r.briefingId ?? "none"}` };
+      },
+    },
+    900_000 // 15-minute boot offset (after growth automation)
+  );
+  console.log("[automation] Phase 67 jobs registered (1 job)");
 }

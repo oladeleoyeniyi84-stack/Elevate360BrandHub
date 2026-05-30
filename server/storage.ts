@@ -85,7 +85,12 @@ import {
   type GrowthAutoOpportunity, type InsertGrowthAutoOpportunity,
   type GrowthAutoCampaign, type InsertGrowthAutoCampaign,
   type GrowthAutoReport, type InsertGrowthAutoReport,
+  cognitiveDecisions, cognitiveBriefings, cognitiveConflicts,
+  type CognitiveDecision, type InsertCognitiveDecision,
+  type CognitiveBriefing, type InsertCognitiveBriefing,
+  type CognitiveConflict, type InsertCognitiveConflict,
 } from "@shared/schema";
+import type { CognitiveSignal } from "@shared/types/cognitive";
 import { db } from "./db";
 import { and, asc, count, desc, eq, gte, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
 
@@ -448,6 +453,20 @@ export interface IStorage {
   createQuarterlyStrategyReport(input: InsertQuarterlyStrategyReport): Promise<QuarterlyStrategyReport>;
   getFounderOverview(): Promise<any>;
   getWhatChangedToday(): Promise<any>;
+
+  // Phase 67 — Cognitive Operating System
+  getCognitiveDecisions(opts?: { kind?: string; status?: string; limit?: number }): Promise<CognitiveDecision[]>;
+  createCognitiveDecision(input: InsertCognitiveDecision): Promise<CognitiveDecision>;
+  replaceCognitiveDecisions(items: InsertCognitiveDecision[]): Promise<CognitiveDecision[]>;
+  updateCognitiveDecisionStatus(id: number, status: string): Promise<CognitiveDecision | undefined>;
+  getCognitiveBriefings(periodType?: string, limit?: number): Promise<CognitiveBriefing[]>;
+  getCognitiveBriefing(id: number): Promise<CognitiveBriefing | undefined>;
+  createCognitiveBriefing(input: InsertCognitiveBriefing): Promise<CognitiveBriefing>;
+  getCognitiveConflicts(opts?: { status?: string; limit?: number }): Promise<CognitiveConflict[]>;
+  createCognitiveConflict(input: InsertCognitiveConflict): Promise<CognitiveConflict>;
+  replaceCognitiveConflicts(items: InsertCognitiveConflict[]): Promise<CognitiveConflict[]>;
+  updateCognitiveConflictStatus(id: number, status: string): Promise<CognitiveConflict | undefined>;
+  getAllCognitiveSignals(): Promise<CognitiveSignal[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -3460,6 +3479,131 @@ export class DatabaseStorage implements IStorage {
   async getGrowthAutoReport(id: number): Promise<GrowthAutoReport | undefined> {
     const [row] = await db.select().from(growthAutoReports).where(eq(growthAutoReports.id, id)).limit(1);
     return row;
+  }
+
+  // ── Phase 67 — Cognitive Operating System ──────────────────────────────────
+
+  async getCognitiveDecisions(opts: { kind?: string; status?: string; limit?: number } = {}): Promise<CognitiveDecision[]> {
+    const conds: any[] = [];
+    if (opts.kind) conds.push(eq(cognitiveDecisions.kind, opts.kind));
+    if (opts.status) conds.push(eq(cognitiveDecisions.status, opts.status));
+    const base = db.select().from(cognitiveDecisions);
+    const filtered = conds.length > 0 ? base.where(and(...conds)) : base;
+    return filtered
+      .orderBy(desc(cognitiveDecisions.priority), desc(cognitiveDecisions.createdAt))
+      .limit(Math.max(1, Math.min(200, opts.limit ?? 100)));
+  }
+
+  async createCognitiveDecision(input: InsertCognitiveDecision): Promise<CognitiveDecision> {
+    const [row] = await db.insert(cognitiveDecisions).values(input).returning();
+    return row;
+  }
+
+  // Atomic regeneration: clears open auto-derived decisions only (preserving
+  // any open items from other sources), then inserts the fresh batch.
+  async replaceCognitiveDecisions(items: InsertCognitiveDecision[]): Promise<CognitiveDecision[]> {
+    return db.transaction(async (tx) => {
+      await tx.delete(cognitiveDecisions).where(
+        and(
+          eq(cognitiveDecisions.status, "open"),
+          inArray(cognitiveDecisions.source, ["rules", "deepseek"]),
+        ),
+      );
+      if (items.length === 0) return [];
+      return tx.insert(cognitiveDecisions).values(items).returning();
+    });
+  }
+
+  async updateCognitiveDecisionStatus(id: number, status: string): Promise<CognitiveDecision | undefined> {
+    const [row] = await db.update(cognitiveDecisions)
+      .set({ status })
+      .where(eq(cognitiveDecisions.id, id))
+      .returning();
+    return row;
+  }
+
+  async getCognitiveBriefings(periodType?: string, limit = 30): Promise<CognitiveBriefing[]> {
+    const q = db.select().from(cognitiveBriefings);
+    const rows = periodType
+      ? await q.where(eq(cognitiveBriefings.periodType, periodType)).orderBy(desc(cognitiveBriefings.createdAt)).limit(limit)
+      : await q.orderBy(desc(cognitiveBriefings.createdAt)).limit(limit);
+    return rows;
+  }
+
+  async getCognitiveBriefing(id: number): Promise<CognitiveBriefing | undefined> {
+    const [row] = await db.select().from(cognitiveBriefings).where(eq(cognitiveBriefings.id, id)).limit(1);
+    return row;
+  }
+
+  async createCognitiveBriefing(input: InsertCognitiveBriefing): Promise<CognitiveBriefing> {
+    const [row] = await db.insert(cognitiveBriefings).values(input).returning();
+    return row;
+  }
+
+  async getCognitiveConflicts(opts: { status?: string; limit?: number } = {}): Promise<CognitiveConflict[]> {
+    const base = db.select().from(cognitiveConflicts);
+    const filtered = opts.status ? base.where(eq(cognitiveConflicts.status, opts.status)) : base;
+    return filtered
+      .orderBy(desc(cognitiveConflicts.severity), desc(cognitiveConflicts.createdAt))
+      .limit(Math.max(1, Math.min(200, opts.limit ?? 100)));
+  }
+
+  async createCognitiveConflict(input: InsertCognitiveConflict): Promise<CognitiveConflict> {
+    const [row] = await db.insert(cognitiveConflicts).values(input).returning();
+    return row;
+  }
+
+  // Atomic regeneration mirroring replaceCognitiveDecisions.
+  async replaceCognitiveConflicts(items: InsertCognitiveConflict[]): Promise<CognitiveConflict[]> {
+    return db.transaction(async (tx) => {
+      await tx.delete(cognitiveConflicts).where(
+        and(
+          eq(cognitiveConflicts.status, "open"),
+          eq(cognitiveConflicts.source, "rules"),
+        ),
+      );
+      if (items.length === 0) return [];
+      return tx.insert(cognitiveConflicts).values(items).returning();
+    });
+  }
+
+  async updateCognitiveConflictStatus(id: number, status: string): Promise<CognitiveConflict | undefined> {
+    const [row] = await db.update(cognitiveConflicts)
+      .set({ status })
+      .where(eq(cognitiveConflicts.id, id))
+      .returning();
+    return row;
+  }
+
+  // Read-only unification: pulls every OPEN signal from the existing
+  // intelligence engines into one normalized list. Never mutates anything.
+  async getAllCognitiveSignals(): Promise<CognitiveSignal[]> {
+    const [founder, revenue, growth] = await Promise.all([
+      db.select().from(founderDecisionItems).where(eq(founderDecisionItems.status, "open")).limit(120),
+      db.select().from(revenueInsights).where(eq(revenueInsights.status, "open")).limit(120),
+      db.select().from(growthAutoOpportunities).where(eq(growthAutoOpportunities.status, "open")).limit(120),
+    ]);
+
+    const signals: CognitiveSignal[] = [];
+    for (const r of founder) {
+      signals.push({
+        system: "founder", kind: r.kind, area: r.area, title: r.title,
+        detail: r.detail, priority: r.priority, confidence: r.confidence,
+      });
+    }
+    for (const r of revenue) {
+      signals.push({
+        system: "revenue", kind: r.kind, area: r.area, title: r.title,
+        detail: r.detail, priority: r.priority, confidence: r.confidence,
+      });
+    }
+    for (const r of growth) {
+      signals.push({
+        system: "growth", kind: r.kind, area: r.area, title: r.title,
+        detail: r.detail, priority: r.priority, confidence: r.confidence,
+      });
+    }
+    return signals;
   }
 }
 

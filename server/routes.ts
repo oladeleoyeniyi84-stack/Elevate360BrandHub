@@ -144,7 +144,7 @@ function isDashboardAuthed(req: any): boolean {
   return candidate !== null && pinMatches(candidate);
 }
 
-function requireDashboardAuth(req: any, res: any, next: any) {
+export function requireDashboardAuth(req: any, res: any, next: any) {
   if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
   next();
 }
@@ -221,6 +221,9 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  const { cognitiveOsRouter } = await import("./routes/cognitiveOs");
+  app.use("/api/admin/cognitive-os", cognitiveOsRouter);
+
   app.get("/sitemap.xml", async (_req, res) => {
     try {
       const posts = await storage.getBlogPosts(true);

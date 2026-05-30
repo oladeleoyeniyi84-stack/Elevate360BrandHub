@@ -22,6 +22,7 @@ import MemoryExplorer from "@/pages/MemoryExplorer";
 import FounderIntelligence from "@/pages/FounderIntelligence";
 import RevenueIntelligence from "@/pages/RevenueIntelligence";
 import GrowthAutomation from "@/pages/GrowthAutomation";
+import CognitiveOS from "@/pages/CognitiveOS";
 import ContentFactory from "@/pages/ContentFactory";
 import OrchestratorCenter from "@/pages/OrchestratorCenter";
 import CommandGrid from "@/pages/CommandGrid";
@@ -278,6 +279,17 @@ function Router() {
             path="/growth-automation"
           />
           <GrowthAutomation />
+        </>
+      </Route>
+
+      <Route path="/cognitive-os">
+        <>
+          <SEO
+            title="Cognitive OS | Elevate360Official"
+            description="The Cognitive Operating System — a recommendation-only meta-layer unifying Founder, Revenue, and Growth intelligence into unified decisions, cross-system conflict detection, and an executive cognitive briefing for Elevate360Official."
+            path="/cognitive-os"
+          />
+          <CognitiveOS />
         </>
       </Route>
 
