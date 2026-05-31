@@ -295,4 +295,26 @@ export async function startAutomationJobs() {
     900_000 // 15-minute boot offset (after growth automation)
   );
   console.log("[automation] Phase 67 jobs registered (1 job)");
+
+  // ── Phase 68A — Billing maintenance (credit reset + churn flag) ───────────
+  const { runMonthlyCreditReset, runChurnFlag } = await import("./phase68Billing");
+  await registerRecurringJob(
+    {
+      jobKey: "phase68_monthly_credit_reset",
+      jobGroup: "billing",
+      cadenceMinutes: 1440,
+      run: runMonthlyCreditReset,
+    },
+    960_000 // 16-minute boot offset (after cognitive OS)
+  );
+  await registerRecurringJob(
+    {
+      jobKey: "phase68_churn_flag",
+      jobGroup: "billing",
+      cadenceMinutes: 1440,
+      run: runChurnFlag,
+    },
+    1_020_000 // 17-minute boot offset
+  );
+  console.log("[automation] Phase 68 jobs registered (2 jobs)");
 }

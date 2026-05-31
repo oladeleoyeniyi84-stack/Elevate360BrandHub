@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { X, Send, Loader2, Calendar, CreditCard, ArrowRight } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { conciergeModes, type ConciergeModeKey } from "@/config/conciergeModes";
+import { UpgradeBanner } from "@/components/premium/UpgradeBanner";
 import { ConciergePresenceHeader } from "@/components/concierge/ConciergePresenceHeader";
 import { CreatorAvatar } from "@/components/concierge/CreatorAvatar";
 
@@ -62,6 +63,7 @@ export function AIConcierge() {
   const [showLeadForm, setShowLeadForm] = useState(false);
   const [action, setAction] = useState<RecommendedAction | null>(null);
   const [actionPending, setActionPending] = useState(false);
+  const [outOfCredits, setOutOfCredits] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -128,7 +130,13 @@ export function AIConcierge() {
         setShowLeadForm(true);
       }
     },
-    onError: () => {
+    onError: (err: any) => {
+      // Phase 68A — signed-in customer out of AI credits.
+      if (typeof err?.message === "string" && /credit/i.test(err.message)) {
+        setOutOfCredits(true);
+        setMessages((prev) => prev.slice(0, -1));
+        return;
+      }
       setMessages((prev) => [
         ...prev,
         { role: "assistant", content: "Sorry, I'm having a moment. Please try again!" },
@@ -377,6 +385,12 @@ export function AIConcierge() {
                     </>
                   )}
                 </button>
+              </div>
+            )}
+
+            {outOfCredits && (
+              <div className="mt-3">
+                <UpgradeBanner />
               </div>
             )}
 

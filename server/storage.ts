@@ -1,4 +1,7 @@
 import {
+  subscriptions, aiCredits, userPremiumFeatures,
+  type Subscription, type InsertSubscription,
+  type AiCredits, type UserPremiumFeature,
   type User, type InsertUser,
   type ContactMessage, type InsertContactMessage,
   type NewsletterSubscriber, type InsertNewsletterSubscriber,
@@ -98,6 +101,23 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+
+  // Phase 68A — customer accounts + billing + AI credits
+  getUserByEmail(email: string): Promise<User | undefined>;
+  createCustomer(email: string, passwordHash: string): Promise<User>;
+  setUserStripeCustomerId(userId: string, stripeCustomerId: string): Promise<void>;
+  setUserPremiumTier(userId: string, tier: string): Promise<void>;
+  upsertSubscription(sub: InsertSubscription): Promise<Subscription>;
+  getSubscriptionByStripeId(stripeSubscriptionId: string): Promise<Subscription | undefined>;
+  getActiveSubscriptionForUser(userId: string): Promise<Subscription | undefined>;
+  listSubscriptionsByStatus(statuses: string[]): Promise<Subscription[]>;
+  ensureAiCredits(userId: string, monthlyAllotment: number): Promise<AiCredits>;
+  getAiCredits(userId: string): Promise<AiCredits | undefined>;
+  consumeAiCredit(userId: string, cost: number): Promise<AiCredits | null>;
+  setAiCreditAllotment(userId: string, monthlyAllotment: number, resetBalance: boolean): Promise<AiCredits>;
+  listAiCreditAccounts(): Promise<AiCredits[]>;
+  setPremiumFeatures(userId: string, featureKeys: string[], source: string): Promise<void>;
+  getPremiumFeatures(userId: string): Promise<UserPremiumFeature[]>;
   createContactMessage(message: InsertContactMessage): Promise<ContactMessage>;
   getContactMessages(): Promise<ContactMessage[]>;
   replyContactMessage(id: number): Promise<ContactMessage | undefined>;
@@ -483,6 +503,121 @@ export class DatabaseStorage implements IStorage {
   async createUser(insertUser: InsertUser): Promise<User> {
     const [user] = await db.insert(users).values(insertUser).returning();
     return user;
+  }
+
+  // ─── Phase 68A — customer accounts + billing + AI credits ───────────────────
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase()));
+    return user;
+  }
+
+  async createCustomer(email: string, passwordHash: string): Promise<User> {
+    const [user] = await db.insert(users)
+      .values({ email: email.toLowerCase(), passwordHash, premiumTier: "free" })
+      .returning();
+    return user;
+  }
+
+  async setUserStripeCustomerId(userId: string, stripeCustomerId: string): Promise<void> {
+    await db.update(users).set({ stripeCustomerId }).where(eq(users.id, userId));
+  }
+
+  async setUserPremiumTier(userId: string, tier: string): Promise<void> {
+    await db.update(users).set({ premiumTier: tier }).where(eq(users.id, userId));
+  }
+
+  async upsertSubscription(sub: InsertSubscription): Promise<Subscription> {
+    const existing = sub.stripeSubscriptionId
+      ? await this.getSubscriptionByStripeId(sub.stripeSubscriptionId)
+      : undefined;
+    if (existing) {
+      const [updated] = await db.update(subscriptions)
+        .set({ ...sub, updatedAt: new Date() })
+        .where(eq(subscriptions.id, existing.id))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(subscriptions).values(sub).returning();
+    return created;
+  }
+
+  async getSubscriptionByStripeId(stripeSubscriptionId: string): Promise<Subscription | undefined> {
+    const [row] = await db.select().from(subscriptions)
+      .where(eq(subscriptions.stripeSubscriptionId, stripeSubscriptionId));
+    return row;
+  }
+
+  async getActiveSubscriptionForUser(userId: string): Promise<Subscription | undefined> {
+    const [row] = await db.select().from(subscriptions)
+      .where(and(
+        eq(subscriptions.userId, userId),
+        inArray(subscriptions.status, ["active", "trialing", "past_due"]),
+      ))
+      .orderBy(desc(subscriptions.currentPeriodEnd))
+      .limit(1);
+    return row;
+  }
+
+  async listSubscriptionsByStatus(statuses: string[]): Promise<Subscription[]> {
+    if (statuses.length === 0) return [];
+    return db.select().from(subscriptions).where(inArray(subscriptions.status, statuses));
+  }
+
+  async ensureAiCredits(userId: string, monthlyAllotment: number): Promise<AiCredits> {
+    const existing = await this.getAiCredits(userId);
+    if (existing) return existing;
+    const [created] = await db.insert(aiCredits)
+      .values({ userId, balance: monthlyAllotment, monthlyAllotment })
+      .onConflictDoNothing({ target: aiCredits.userId })
+      .returning();
+    if (created) return created;
+    // Lost the race — row already created concurrently.
+    return (await this.getAiCredits(userId))!;
+  }
+
+  async getAiCredits(userId: string): Promise<AiCredits | undefined> {
+    const [row] = await db.select().from(aiCredits).where(eq(aiCredits.userId, userId));
+    return row;
+  }
+
+  // Atomic, race-safe decrement. Returns the updated row, or null if there were
+  // not enough credits (the guarded UPDATE matched no row).
+  async consumeAiCredit(userId: string, cost: number): Promise<AiCredits | null> {
+    const [row] = await db.update(aiCredits)
+      .set({ balance: sql`${aiCredits.balance} - ${cost}`, updatedAt: new Date() })
+      .where(and(eq(aiCredits.userId, userId), gte(aiCredits.balance, cost)))
+      .returning();
+    return row ?? null;
+  }
+
+  async setAiCreditAllotment(userId: string, monthlyAllotment: number, resetBalance: boolean): Promise<AiCredits> {
+    await this.ensureAiCredits(userId, monthlyAllotment);
+    const set: any = { monthlyAllotment, updatedAt: new Date() };
+    if (resetBalance) { set.balance = monthlyAllotment; set.lastResetAt = new Date(); }
+    const [row] = await db.update(aiCredits).set(set).where(eq(aiCredits.userId, userId)).returning();
+    return row;
+  }
+
+  async listAiCreditAccounts(): Promise<AiCredits[]> {
+    return db.select().from(aiCredits);
+  }
+
+  async setPremiumFeatures(userId: string, featureKeys: string[], source: string): Promise<void> {
+    await db.transaction(async (tx) => {
+      // Replace subscription-sourced entitlements; preserve manual grants.
+      await tx.delete(userPremiumFeatures)
+        .where(and(eq(userPremiumFeatures.userId, userId), eq(userPremiumFeatures.source, source)));
+      if (featureKeys.length > 0) {
+        await tx.insert(userPremiumFeatures)
+          .values(featureKeys.map((featureKey) => ({ userId, featureKey, source, enabled: true })))
+          .onConflictDoNothing({ target: [userPremiumFeatures.userId, userPremiumFeatures.featureKey] });
+      }
+    });
+  }
+
+  async getPremiumFeatures(userId: string): Promise<UserPremiumFeature[]> {
+    return db.select().from(userPremiumFeatures)
+      .where(and(eq(userPremiumFeatures.userId, userId), eq(userPremiumFeatures.enabled, true)));
   }
 
   async createContactMessage(message: InsertContactMessage): Promise<ContactMessage> {

@@ -5,11 +5,62 @@ import type {} from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Customer accounts (public end-users). Separate from the founder PIN dashboard.
+// `username`/`password` are legacy boilerplate columns kept nullable for back-compat;
+// customer auth uses `email` + `passwordHash`. (Phase 68A)
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
+  username: text("username").unique(),
+  password: text("password"),
+  email: text("email").unique(),
+  passwordHash: text("password_hash"),
+  stripeCustomerId: text("stripe_customer_id"),
+  // 'free' | 'starter' | 'pro'
+  premiumTier: varchar("premium_tier", { length: 20 }).notNull().default("free"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// Phase 68A — Stripe subscriptions linked to a customer (users.id).
+export const subscriptions = pgTable("subscriptions", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
+  stripeSubscriptionId: text("stripe_subscription_id").unique(),
+  stripeCustomerId: text("stripe_customer_id"),
+  // 'active' | 'trialing' | 'past_due' | 'canceled' | 'incomplete' | 'unpaid'
+  status: varchar("status", { length: 30 }).notNull().default("incomplete"),
+  // plan tier key: 'starter' | 'pro'
+  tier: varchar("tier", { length: 20 }).notNull().default("starter"),
+  currentPeriodEnd: timestamp("current_period_end"),
+  cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (t) => ({
+  userIdx: index("subscriptions_user_idx").on(t.userId),
+  statusIdx: index("subscriptions_status_idx").on(t.status),
+}));
+
+// Phase 68A — AI credit balance (one row per customer). Atomic decrement on use.
+export const aiCredits = pgTable("ai_credits", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().unique(),
+  balance: integer("balance").notNull().default(0),
+  monthlyAllotment: integer("monthly_allotment").notNull().default(0),
+  lastResetAt: timestamp("last_reset_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Phase 68A — entitlement rows: which premium features a customer has access to.
+export const userPremiumFeatures = pgTable("user_premium_features", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
+  featureKey: varchar("feature_key", { length: 80 }).notNull(),
+  enabled: boolean("enabled").notNull().default(true),
+  // 'subscription' | 'grant'
+  source: varchar("source", { length: 30 }).notNull().default("subscription"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  userFeatureIdx: uniqueIndex("user_premium_features_user_feature_idx").on(t.userId, t.featureKey),
+}));
 
 export const contactMessages = pgTable("contact_messages", {
   id: serial("id").primaryKey(),
@@ -83,6 +134,40 @@ export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
 });
+
+// Phase 68A — customer auth + billing schemas/types
+export const customerSignupSchema = z.object({
+  email: z.string().email("Please enter a valid email address").max(255),
+  password: z.string().min(8, "Password must be at least 8 characters").max(200),
+});
+export const customerLoginSchema = z.object({
+  email: z.string().email("Please enter a valid email address").max(255),
+  password: z.string().min(1, "Password is required").max(200),
+});
+export type CustomerSignup = z.infer<typeof customerSignupSchema>;
+export type CustomerLogin = z.infer<typeof customerLoginSchema>;
+
+export const insertSubscriptionSchema = createInsertSchema(subscriptions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertSubscription = z.infer<typeof insertSubscriptionSchema>;
+export type Subscription = typeof subscriptions.$inferSelect;
+
+export const insertAiCreditsSchema = createInsertSchema(aiCredits).omit({
+  id: true,
+  updatedAt: true,
+});
+export type InsertAiCredits = z.infer<typeof insertAiCreditsSchema>;
+export type AiCredits = typeof aiCredits.$inferSelect;
+
+export const insertUserPremiumFeatureSchema = createInsertSchema(userPremiumFeatures).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertUserPremiumFeature = z.infer<typeof insertUserPremiumFeatureSchema>;
+export type UserPremiumFeature = typeof userPremiumFeatures.$inferSelect;
 
 export const insertContactMessageSchema = createInsertSchema(contactMessages, {
   name: z.string().min(1, "Name is required").max(200),

@@ -32,6 +32,8 @@ import Blog from "@/pages/Blog";
 import BlogPost from "@/pages/BlogPost";
 import PressKit from "@/pages/PressKit";
 import CheckoutSuccess from "@/pages/CheckoutSuccess";
+import Pricing from "@/pages/Pricing";
+import Account from "@/pages/Account";
 import { CookieBanner } from "@/components/CookieBanner";
 import { ScrollUtilities } from "@/components/ScrollUtilities";
 import { NewsletterPopup } from "@/components/NewsletterPopup";
@@ -339,6 +341,9 @@ function Router() {
           <CheckoutSuccess />
         </>
       </Route>
+
+      <Route path="/pricing" component={Pricing} />
+      <Route path="/account" component={Account} />
 
       <Route>
         <>

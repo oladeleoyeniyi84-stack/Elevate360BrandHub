@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useState } from "react";
 import { Activity, Bot, Eye, EyeOff, Loader2, Network, RefreshCw, Shield, Workflow } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
@@ -148,7 +148,7 @@ function PinGate({ onAuth }: { onAuth: (overview?: Overview | null) => void }) {
   );
 }
 
-function StatCard({ label, value, icon, color = GOLD }: { label: string; value: string | number; icon: JSX.Element; color?: string }) {
+function StatCard({ label, value, icon, color = GOLD }: { label: string; value: string | number; icon: ReactNode; color?: string }) {
   return <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"><div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-white/40">{icon}{label}</div><div className="text-3xl font-bold mt-2" style={{ color }}>{value}</div></div>;
 }
 

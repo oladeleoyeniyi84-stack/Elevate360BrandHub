@@ -46,6 +46,8 @@ import { generateSitemap } from "./sitemap";
 import { z } from "zod";
 import { WebhookHandlers } from "./webhookHandlers";
 import { getUncachableStripeClient, getStripePublishableKey, isStripeConfigured } from "./stripeClient";
+import { getCustomerId } from "./auth/customerAuth";
+import { consumeCredits } from "./billing/premiumService";
 import { db } from "./db";
 import { sql, eq, desc } from "drizzle-orm";
 import { auditRuns, auditChecks, auditIssues, insertAuditIssueSchema, updateAuditIssueSchema, updateRevenueRecoveryActionSchema, updateContentOpportunitySchema, updateAutonomousAlertSchema } from "@shared/schema";
@@ -224,6 +226,10 @@ export async function registerRoutes(
   const { cognitiveOsRouter } = await import("./routes/cognitiveOs");
   app.use("/api/admin/cognitive-os", cognitiveOsRouter);
 
+  // Phase 68A — customer accounts, billing, premium (full /api paths).
+  const { customerBillingRouter, handleBillingEvent } = await import("./routes/customerBilling");
+  app.use(customerBillingRouter);
+
   app.get("/sitemap.xml", async (_req, res) => {
     try {
       const posts = await storage.getBlogPosts(true);
@@ -271,6 +277,19 @@ export async function registerRoutes(
   app.post("/api/chat", rateLimit(15, 60), botGuard, async (req, res) => {
     try {
       const { sessionId, message, leadName, leadEmail } = chatRequestSchema.parse(req.body);
+
+      // Phase 68A — AI Concierge is the first live premium gate. Anonymous
+      // visitors keep working unchanged; signed-in customers spend AI credits.
+      const customerId = getCustomerId(req);
+      if (customerId) {
+        const remaining = await consumeCredits(customerId, 1);
+        if (remaining === null) {
+          return res.status(402).json({
+            message: "You're out of AI credits. Upgrade your plan for more concierge conversations.",
+            code: "insufficient_credits",
+          });
+        }
+      }
 
       const conversation = await storage.getOrCreateChatSession(sessionId);
 
@@ -832,6 +851,11 @@ export async function registerRoutes(
           }
         }
       }
+      // Phase 68A — dispatch subscription events to the billing handler.
+      // Single endpoint / single signing secret handles both one-time orders
+      // and subscriptions. handleBillingEvent self-filters by event type and
+      // ignores non-subscription checkout sessions, so this is safe to always call.
+      await handleBillingEvent(event);
       res.json({ received: true });
     } catch (e: any) {
       console.error("[stripe] webhook fulfillment error:", e.message);
