@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { X, Send, Loader2, Calendar, CreditCard, ArrowRight } from "lucide-react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { conciergeModes, type ConciergeModeKey } from "@/config/conciergeModes";
 import { UpgradeBanner } from "@/components/premium/UpgradeBanner";
+import { CreditMeter } from "@/components/premium/CreditMeter";
+import { useCustomer, usePremiumStatus } from "@/hooks/useCustomer";
 import { ConciergePresenceHeader } from "@/components/concierge/ConciergePresenceHeader";
 import { CreatorAvatar } from "@/components/concierge/CreatorAvatar";
 
@@ -67,6 +69,10 @@ export function AIConcierge() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const queryClient = useQueryClient();
+  const { isAuthenticated } = useCustomer();
+  const { data: premium } = usePremiumStatus(isAuthenticated);
+
   const modeConfig = useMemo(() => conciergeModes[mode], [mode]);
 
   const welcomeMessage = useMemo<Message>(
@@ -129,12 +135,19 @@ export function AIConcierge() {
       if (!leadCaptured && messages.length >= 4) {
         setShowLeadForm(true);
       }
+      // Phase 68B — a signed-in customer just spent an AI credit; refresh the meter.
+      if (isAuthenticated) {
+        queryClient.invalidateQueries({ queryKey: ["/api/premium/status"] });
+      }
     },
     onError: (err: any) => {
       // Phase 68A — signed-in customer out of AI credits.
       if (typeof err?.message === "string" && /credit/i.test(err.message)) {
         setOutOfCredits(true);
         setMessages((prev) => prev.slice(0, -1));
+        if (isAuthenticated) {
+          queryClient.invalidateQueries({ queryKey: ["/api/premium/status"] });
+        }
         return;
       }
       setMessages((prev) => [
@@ -385,6 +398,15 @@ export function AIConcierge() {
                     </>
                   )}
                 </button>
+              </div>
+            )}
+
+            {isAuthenticated && premium?.credits && !outOfCredits && (
+              <div className="mt-3">
+                <CreditMeter
+                  balance={premium.credits.balance}
+                  allotment={premium.credits.monthlyAllotment}
+                />
               </div>
             )}
 
