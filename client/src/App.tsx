@@ -34,6 +34,9 @@ import PressKit from "@/pages/PressKit";
 import CheckoutSuccess from "@/pages/CheckoutSuccess";
 import Pricing from "@/pages/Pricing";
 import Account from "@/pages/Account";
+import BondedLoveProduct from "@/pages/BondedLoveProduct";
+import HealthWiseProduct from "@/pages/HealthWiseProduct";
+import VideoCrafterProduct from "@/pages/VideoCrafterProduct";
 import { CookieBanner } from "@/components/CookieBanner";
 import { ScrollUtilities } from "@/components/ScrollUtilities";
 import { NewsletterPopup } from "@/components/NewsletterPopup";
@@ -344,6 +347,9 @@ function Router() {
 
       <Route path="/pricing" component={Pricing} />
       <Route path="/account" component={Account} />
+      <Route path="/apps/bondedlove" component={BondedLoveProduct} />
+      <Route path="/apps/healthwise" component={HealthWiseProduct} />
+      <Route path="/apps/video-crafter" component={VideoCrafterProduct} />
 
       <Route>
         <>
