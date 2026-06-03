@@ -49,31 +49,6 @@ function publicUser(u: { id: string; email: string | null; premiumTier: string }
   return { id: u.id, email: u.email, premiumTier: u.premiumTier };
 }
 
-// Establishes the customer session. Tries the fixation-safe regenerate() path
-// first (rotates the session id), but a store DELETE failure during regenerate
-// must NOT take down auth — it degrades to the same set+save path the founder
-// dashboard auth uses successfully in production. Only a final save() failure
-// is fatal. `done(err)` is invoked once with any unrecoverable error.
-function establishCustomerSession(
-  req: any,
-  userId: string,
-  done: (err?: unknown) => void,
-): void {
-  const persist = () => {
-    (req.session as any).customerId = userId;
-    req.session.save((saveErr: any) => done(saveErr));
-  };
-  req.session.regenerate((regenErr: any) => {
-    if (regenErr) {
-      console.error(
-        "[customer-auth] session regenerate failed, falling back to direct save",
-        regenErr?.message || regenErr,
-      );
-    }
-    persist();
-  });
-}
-
 // ─── Auth ───────────────────────────────────────────────────────────────────
 customerBillingRouter.post("/api/auth/signup", async (req, res) => {
   const parsed = customerSignupSchema.safeParse(req.body);
@@ -88,12 +63,16 @@ customerBillingRouter.post("/api/auth/signup", async (req, res) => {
   const user = await storage.createCustomer(email, passwordHash);
   await storage.ensureAiCredits(user.id, PLANS.free.monthlyCredits);
 
-  establishCustomerSession(req, user.id, (err) => {
+  // Direct session save (no regenerate) — mirrors founder auth, which persists
+  // reliably in production. A regenerate() DELETE on the session store was the
+  // prod-only failure that returned "Session error".
+  (req.session as any).customerId = user.id;
+  req.session.save((err: any) => {
     if (err) {
-      console.error("[customer-auth] session save failed (signup)", (err as any)?.message || err);
+      console.error("[customer-auth] session save failed (signup)", err?.message || err);
       return res.status(500).json({ message: "Session error" });
     }
-    res.status(201).json({ user: publicUser(user) });
+    return res.status(201).json({ user: publicUser(user) });
   });
 });
 
@@ -106,12 +85,14 @@ customerBillingRouter.post("/api/auth/login", async (req, res) => {
   const ok = user && (await verifyPassword(parsed.data.password, user.passwordHash));
   if (!user || !ok) return res.status(401).json({ message: "Invalid email or password" });
 
-  establishCustomerSession(req, user.id, (err) => {
+  // Direct session save (no regenerate) — see signup for rationale.
+  (req.session as any).customerId = user.id;
+  req.session.save((err: any) => {
     if (err) {
-      console.error("[customer-auth] session save failed (login)", (err as any)?.message || err);
+      console.error("[customer-auth] session save failed (login)", err?.message || err);
       return res.status(500).json({ message: "Session error" });
     }
-    res.json({ user: publicUser(user) });
+    return res.status(200).json({ user: publicUser(user) });
   });
 });
 

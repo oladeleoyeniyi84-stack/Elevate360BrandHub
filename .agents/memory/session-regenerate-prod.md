@@ -31,3 +31,5 @@ rotation only on the error edge is an acceptable tradeoff vs. total auth outage.
 
 **Follow-up worth doing:** root-cause the prod session-store DELETE failure (DB grants/role)
 so regenerate stays the dominant path.
+
+**Update (final):** decision was to REMOVE `regenerate()` from customer signup/login entirely and use the direct `req.session.customerId = id` + `req.session.save()` pattern (identical to founder auth), plus `createTableIfMissing: true` on the connect-pg-simple store (tableName `user_sessions`). Net: no session-store DELETE happens during auth, so the prod-only failure cannot occur. Tradeoff: no session-id rotation on login (matches founder auth behavior).
