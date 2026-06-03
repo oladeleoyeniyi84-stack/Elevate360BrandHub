@@ -1,0 +1,84 @@
+BUGFIX REQUIRED — Phase 68A Customer Auth Session Error
+
+Problem:
+Customer signup and login routes exist and return JSON, but both fail with:
+
+{"message":"Session error"}
+
+Confirmed:
+POST /api/auth/signup returns 500 Session error
+POST /api/auth/login returns 500 Session error
+GET /api/auth/me returns {"user":null}
+Set-Cookie is present, so Express session exists, but req.session.save callback returns an error.
+
+Do not redesign auth.
+Do not touch Stripe.
+Do not rebuild Phase 68.
+Do not create new routes.
+Only debug and fix session persistence in server/routes/customerBilling.ts and session middleware if needed.
+
+Required investigation:
+
+1. Open server/routes/customerBilling.ts.
+2. Find both places returning:
+   res.status(500).json({ message: "Session error" })
+3. Log the actual session save error safely:
+   console.error("[customer-auth] session save failed", err?.message || err)
+4. Inspect the session assignment immediately before req.session.save.
+5. Confirm what property is being written, e.g.:
+   req.session.customerId = user.id
+6. Confirm express-session TypeScript declaration supports that property.
+7. Inspect server/index.ts or wherever express-session middleware is configured:
+   - store
+   - cookie.secure
+   - proxy / trust proxy
+   - sameSite
+   - saveUninitialized
+   - resave
+8. Fix the smallest root cause.
+
+Likely fixes to evaluate:
+- Missing session type augmentation for customerId
+- Session store error
+- Cookie secure/proxy mismatch on Render
+- req.session being mutated incorrectly
+- Session callback failing because store cannot serialize something
+- Multiple session middleware instances
+- Store table/connection issue
+
+After fix, run:
+
+npm run check
+npm run build
+
+Then test on Render or local:
+
+curl -i -c /tmp/e360cookies.txt -X POST https://www.elevate360official.com/api/auth/signup \
+-H "Content-Type: application/json" \
+-d '{"email":"test68fix@example.com","password":"TestPassword123!"}'
+
+curl -i -b /tmp/e360cookies.txt https://www.elevate360official.com/api/auth/me
+
+Expected:
+signup returns 200 JSON with user
+/api/auth/me returns user object, not null
+
+Then test login:
+
+curl -i -c /tmp/e360cookies.txt -X POST https://www.elevate360official.com/api/auth/login \
+-H "Content-Type: application/json" \
+-d '{"email":"test68fix@example.com","password":"TestPassword123!"}'
+
+curl -i -b /tmp/e360cookies.txt https://www.elevate360official.com/api/auth/me
+
+Expected:
+login returns 200 JSON with user
+/api/auth/me returns user object
+
+Return:
+- exact root cause
+- exact files changed
+- npm run check result
+- npm run build result
+- curl proof
+- git diff --stat
