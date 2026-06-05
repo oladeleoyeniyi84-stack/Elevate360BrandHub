@@ -24,6 +24,7 @@ import {
   publicPlans,
   getStripePriceId,
   tierFromPriceId,
+  isValidTier,
   type TierKey,
 } from "../billing/plans";
 import {
@@ -243,12 +244,13 @@ export async function handleBillingEvent(event: any): Promise<void> {
     const sub = event.data?.object;
     const userId = await resolveUserId(sub?.metadata?.userId, sub?.customer);
     if (!userId) return;
+    const canceledTier: TierKey = isValidTier(sub.metadata?.tier) ? sub.metadata.tier : "free";
     await storage.upsertSubscription({
       userId,
       stripeSubscriptionId: sub.id,
       stripeCustomerId: typeof sub.customer === "string" ? sub.customer : undefined,
       status: "canceled",
-      tier: (sub.metadata?.tier as TierKey) ?? "starter",
+      tier: canceledTier,
       currentPeriodEnd: sub.current_period_end ? new Date(sub.current_period_end * 1000) : undefined,
       cancelAtPeriodEnd: false,
     });
@@ -258,7 +260,20 @@ export async function handleBillingEvent(event: any): Promise<void> {
 
 async function syncSubscription(userId: string, sub: any): Promise<void> {
   const priceId = sub.items?.data?.[0]?.price?.id ?? null;
-  const tier: TierKey = tierFromPriceId(priceId) ?? (sub.metadata?.tier as TierKey) ?? "starter";
+  const resolvedTier = tierFromPriceId(priceId) ?? sub.metadata?.tier ?? "starter";
+
+  // Validate the resolved tier BEFORE any database write. An unknown tier (e.g. an
+  // out-of-band Stripe subscription with metadata.tier="elite") is logged and
+  // skipped — we never throw (which would 500 the webhook and trigger infinite
+  // Stripe retries) and never write a partial subscription row that would leave
+  // the user on a tier with no plan/credits/features.
+  if (!isValidTier(resolvedTier)) {
+    console.warn(
+      `[billing] Unknown subscription tier "${resolvedTier}" for user ${userId} (sub ${sub?.id}); skipping sync (no DB write).`,
+    );
+    return;
+  }
+  const tier: TierKey = resolvedTier;
   const active = sub.status === "active" || sub.status === "trialing";
 
   await storage.upsertSubscription({

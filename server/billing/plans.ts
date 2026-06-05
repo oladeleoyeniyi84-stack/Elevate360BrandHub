@@ -59,6 +59,13 @@ export const PLANS: Record<TierKey, Plan> = {
 
 export const PAID_TIERS: TierKey[] = ["starter", "pro"];
 
+// Type guard: is this string a tier we actually have a plan for? Used to reject
+// unknown tiers (e.g. an out-of-band Stripe subscription with metadata.tier="elite")
+// BEFORE any database write, so we never persist a partial/invalid subscription.
+export function isValidTier(tier: string | null | undefined): tier is TierKey {
+  return tier === "free" || tier === "starter" || tier === "pro";
+}
+
 export function getPlan(tier: string | null | undefined): Plan {
   if (tier && (tier === "starter" || tier === "pro")) return PLANS[tier];
   return PLANS.free;

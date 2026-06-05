@@ -2,7 +2,7 @@
 // customer's entitlements from their subscription tier. Recommendation-only
 // billing backend — never charges autonomously; Stripe is the money authority.
 import { storage } from "../storage";
-import { PLANS, getPlan, FEATURE_CATALOG, type TierKey } from "./plans";
+import { PLANS, getPlan, isValidTier, FEATURE_CATALOG, type TierKey } from "./plans";
 
 export interface PremiumStatus {
   tier: TierKey;
@@ -25,11 +25,19 @@ export interface PremiumStatus {
 // and ensures their AI credit allotment matches the plan. Used by the webhook on
 // subscription create/update. `resetBalance` tops the customer up on a new/renewed
 // subscription (caller decides).
-export async function applyTier(userId: string, tier: TierKey, resetBalance: boolean): Promise<void> {
+export async function applyTier(userId: string, tier: TierKey, resetBalance: boolean): Promise<boolean> {
+  // Defense-in-depth: never apply (and never write) an unknown tier. Callers
+  // should already validate, but this guarantees we can't crash on PLANS[tier]
+  // being undefined or strand a user on a tier with no plan definition.
+  if (!isValidTier(tier)) {
+    console.warn(`[billing] applyTier called with unknown tier "${tier}" for user ${userId}; skipping (no DB write).`);
+    return false;
+  }
   const plan = PLANS[tier];
   await storage.setUserPremiumTier(userId, tier);
   await storage.setAiCreditAllotment(userId, plan.monthlyCredits, resetBalance);
   await storage.setPremiumFeatures(userId, plan.features, "subscription");
+  return true;
 }
 
 // Resolve a customer's live entitlement snapshot.

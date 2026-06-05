@@ -1,3 +1,4 @@
 - [Production table bootstrap pattern](table-bootstrap-pattern.md) — new DB tables reach prod via idempotent scripts/create_phaseNN_tables.ts, NOT db:push (it wants to rename user_sessions).
 - [Stripe single webhook](stripe-single-webhook.md) — one Stripe endpoint per signing secret; route all events through the single /api/stripe/webhook, no second endpoint on a shared secret.
 - [Session regenerate prod failures](session-regenerate-prod.md) — express-session regenerate() DELETE can 500 only in prod; degrade to save() fallback, keep fixation-safe happy path.
+- [Billing tier validation before write](billing-tier-validation.md) — webhook sync must validate resolved tier (isValidTier) before any DB write; unknown tier logs+returns, never throws (500→Stripe retry loop) or writes a partial sub row.
