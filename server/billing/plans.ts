@@ -2,7 +2,7 @@
 // Stripe price IDs come from env so the same code works across test/live mode
 // and degrades gracefully when Stripe is not configured (dev).
 
-export type TierKey = "free" | "starter" | "pro";
+export type TierKey = "free" | "starter" | "pro" | "elite";
 
 export interface PlanFeature {
   key: string;
@@ -55,19 +55,28 @@ export const PLANS: Record<TierKey, Plan> = {
     monthlyCredits: 1000,
     features: ["concierge_premium", "concierge_unlimited_history", "priority_support", "early_access"],
   },
+  elite: {
+    tier: "elite",
+    name: "Elite",
+    description: "Everything in Pro with our highest AI credit allotment for power users.",
+    priceMonthlyCents: 9900,
+    stripePriceEnv: "STRIPE_PRICE_ELITE",
+    monthlyCredits: 5000,
+    features: ["concierge_premium", "concierge_unlimited_history", "priority_support", "early_access"],
+  },
 };
 
-export const PAID_TIERS: TierKey[] = ["starter", "pro"];
+export const PAID_TIERS: TierKey[] = ["starter", "pro", "elite"];
 
 // Type guard: is this string a tier we actually have a plan for? Used to reject
-// unknown tiers (e.g. an out-of-band Stripe subscription with metadata.tier="elite")
-// BEFORE any database write, so we never persist a partial/invalid subscription.
+// unknown tiers (an out-of-band Stripe subscription whose metadata.tier is not in
+// PLANS) BEFORE any database write, so we never persist a partial/invalid subscription.
 export function isValidTier(tier: string | null | undefined): tier is TierKey {
-  return tier === "free" || tier === "starter" || tier === "pro";
+  return tier === "free" || tier === "starter" || tier === "pro" || tier === "elite";
 }
 
 export function getPlan(tier: string | null | undefined): Plan {
-  if (tier && (tier === "starter" || tier === "pro")) return PLANS[tier];
+  if (tier === "starter" || tier === "pro" || tier === "elite") return PLANS[tier];
   return PLANS.free;
 }
 

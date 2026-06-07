@@ -21,6 +21,7 @@ import {
 } from "../stripeClient";
 import {
   PLANS,
+  PAID_TIERS,
   publicPlans,
   getStripePriceId,
   tierFromPriceId,
@@ -132,7 +133,7 @@ customerBillingRouter.get("/api/premium/features", async (req, res) => {
 customerBillingRouter.post("/api/billing/create-checkout", requireCustomerAuth, async (req, res) => {
   const id = getCustomerId(req)!;
   const tier = (req.body?.tier as TierKey) ?? "starter";
-  if (tier !== "starter" && tier !== "pro") {
+  if (!PAID_TIERS.includes(tier)) {
     return res.status(400).json({ message: "Invalid plan tier" });
   }
   if (!isStripeConfigured()) {

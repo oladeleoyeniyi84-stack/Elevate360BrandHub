@@ -17,7 +17,7 @@ export function PlanComparison({
   const [loadingTier, setLoadingTier] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const subscribe = async (tier: "starter" | "pro") => {
+  const subscribe = async (tier: "starter" | "pro" | "elite") => {
     setError(null);
     if (!isAuthenticated) {
       window.location.assign("/account?next=pricing");
@@ -35,7 +35,7 @@ export function PlanComparison({
 
   return (
     <div>
-      <div className="grid gap-6 md:grid-cols-3">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {plans.map((plan) => {
           const isCurrent = currentTier === plan.tier;
           const price = (plan.priceMonthlyCents / 100).toFixed(plan.priceMonthlyCents % 100 === 0 ? 0 : 2);
@@ -79,7 +79,7 @@ export function PlanComparison({
                 </div>
               ) : (
                 <button
-                  onClick={() => subscribe(plan.tier as "starter" | "pro")}
+                  onClick={() => subscribe(plan.tier as "starter" | "pro" | "elite")}
                   disabled={loadingTier === plan.tier || !plan.available}
                   className="mt-6 rounded-xl py-2.5 text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
                   style={{ background: GOLD, color: "#0a1124" }}

@@ -6,7 +6,7 @@ export interface CustomerUser {
 }
 
 export interface PremiumStatus {
-  tier: "free" | "starter" | "pro";
+  tier: "free" | "starter" | "pro" | "elite";
   isPremium: boolean;
   subscription: {
     status: string;
@@ -19,7 +19,7 @@ export interface PremiumStatus {
 }
 
 export interface PublicPlan {
-  tier: "free" | "starter" | "pro";
+  tier: "free" | "starter" | "pro" | "elite";
   name: string;
   description: string;
   priceMonthlyCents: number;
@@ -72,7 +72,7 @@ export const customerApi = {
   async features(): Promise<FeaturesResponse> {
     return jsonOrThrow(await fetch("/api/premium/features", { credentials: "include" }));
   },
-  async createCheckout(tier: "starter" | "pro"): Promise<{ url: string }> {
+  async createCheckout(tier: "starter" | "pro" | "elite"): Promise<{ url: string }> {
     return jsonOrThrow(await POST("/api/billing/create-checkout", { tier }));
   },
   async openPortal(): Promise<{ url: string }> {
