@@ -411,6 +411,9 @@ export default function Home() {
             <Link href="/blog" data-testid="link-nav-blog" className="text-sm font-medium hover:text-primary transition-colors">
               {t("nav_blog")}
             </Link>
+            <Link href="/knowledge" data-testid="link-nav-knowledge" className="text-sm font-medium hover:text-primary transition-colors">
+              Knowledge
+            </Link>
             <a href="#offers" data-testid="link-nav-offers"
               className="text-sm font-medium hover:text-primary transition-colors">
               Shop

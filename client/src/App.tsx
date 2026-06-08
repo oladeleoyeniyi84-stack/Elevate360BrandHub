@@ -30,6 +30,8 @@ import ExecutionMesh from "@/pages/ExecutionMesh";
 import Links from "@/pages/Links";
 import Blog from "@/pages/Blog";
 import BlogPost from "@/pages/BlogPost";
+import KnowledgeCenter from "@/pages/KnowledgeCenter";
+import ArticleDetail from "@/pages/ArticleDetail";
 import PressKit from "@/pages/PressKit";
 import CheckoutSuccess from "@/pages/CheckoutSuccess";
 import Pricing from "@/pages/Pricing";
@@ -311,6 +313,9 @@ function Router() {
       </Route>
 
       <Route path="/blog/:slug" component={BlogPost} />
+
+      <Route path="/knowledge" component={KnowledgeCenter} />
+      <Route path="/knowledge/:slug" component={ArticleDetail} />
 
       <Route path="/press-kit">
         <>
