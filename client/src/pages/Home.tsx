@@ -257,28 +257,6 @@ export default function Home() {
     staleTime: 60_000,
   });
 
-  const [buyingOffer, setBuyingOffer] = useState<string | null>(null); // priceId being processed
-
-  const handleBuyNow = async (priceId: string, productName: string, amount?: number) => {
-    setBuyingOffer(priceId);
-    try {
-      const chatSessionId = sessionStorage.getItem("e360_chat_session");
-      // Phase 41 — store offer for acceptance attribution on success page
-      sessionStorage.setItem("e360_last_offer", productName);
-      const res = await fetch("/api/checkout/session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ priceId, productName, amount, sessionId: chatSessionId }),
-      });
-      const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url;
-      }
-    } catch {
-      setBuyingOffer(null);
-    }
-  };
-
   const { data: consultations = [], isLoading: consultationsLoading } = useQuery<{ id: number; title: string; price: number; currency: string; duration: number; description: string; tag?: string | null }[]>({
     queryKey: ["/api/consultations"],
     queryFn: async () => {
@@ -1778,7 +1756,6 @@ export default function Home() {
                 const isHighlight = offer.metadata?.highlight === "true";
                 const deliveryDays = offer.metadata?.deliveryDays;
                 const priceLabel = `$${(offer.amount / 100).toFixed(0)}`;
-                const isBuying = buyingOffer === offer.priceId;
 
                 return (
                   <div key={offer.priceId}
@@ -1803,14 +1780,13 @@ export default function Home() {
                       <span className="text-2xl font-bold" style={{ color: "#F4A62A" }}>{priceLabel}</span>
                       <span className="text-white/30 text-xs">USD · one-time</span>
                     </div>
-                    <button
+                    <Link
+                      href="/pricing"
                       data-testid={`btn-buy-${offer.productId}`}
-                      onClick={() => handleBuyNow(offer.priceId, offer.name, offer.amount)}
-                      disabled={isBuying}
-                      className="btn-primary w-full mt-1 flex items-center justify-center gap-2 text-sm disabled:opacity-60"
+                      className="btn-primary w-full mt-1 flex items-center justify-center gap-2 text-sm"
                     >
-                      {isBuying ? "Redirecting to Checkout…" : "Buy Now →"}
-                    </button>
+                      Buy Now →
+                    </Link>
                   </div>
                 );
               })}
