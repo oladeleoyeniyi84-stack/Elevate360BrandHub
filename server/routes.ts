@@ -830,6 +830,7 @@ export async function registerRoutes(
             stripePaymentIntentId: session.payment_intent ?? undefined,
             amountPaid: session.amount_total ?? undefined,
             customerName: session.customer_details?.name ?? undefined,
+            customerEmail: session.customer_details?.email ?? session.customer_email ?? undefined,
           });
           // Marketplace digital products are fulfilled immediately on payment.
           if (session.metadata?.marketplaceSlug) {
@@ -943,6 +944,66 @@ export async function registerRoutes(
     } catch (e: any) {
       console.error("[stripe] checkout error:", e.message);
       // Stripe validation errors (invalid price ID, bad params) are client errors → 400
+      if (e?.type === "StripeInvalidRequestError" || e?.statusCode === 400 || e?.statusCode === 404) {
+        return res.status(400).json({ message: e.message ?? "Invalid checkout parameters." });
+      }
+      res.status(500).json({ message: "Could not create checkout session." });
+    }
+  });
+
+  // Phase 70.3 — AI Growth Strategy Session one-time checkout ($97).
+  // Public (no login). Separate from subscription billing. Uses a dedicated
+  // env price so it can never collide with Starter/Pro/Elite plans.
+  app.post("/api/checkout/strategy-session", async (req, res) => {
+    const priceId = process.env.STRIPE_PRICE_STRATEGY_SESSION;
+    if (!priceId) {
+      return res.status(503).json({ message: "Strategy session checkout is not configured yet." });
+    }
+    if (!isStripeConfigured()) {
+      return res.status(503).json({ message: "Strategy session checkout is not configured yet." });
+    }
+
+    const rawHost =
+      process.env.PUBLIC_BASE_URL ??
+      process.env.CANONICAL_HOST ??
+      process.env.RENDER_EXTERNAL_HOSTNAME ??
+      (process.env.REPLIT_DOMAINS ?? "").split(",")[0] ??
+      "localhost:5000";
+    const cleanHost = rawHost.replace(/^https?:\/\//, "").replace(/\/$/, "") || "localhost:5000";
+    const origin = cleanHost.startsWith("localhost") ? `http://${cleanHost}` : `https://${cleanHost}`;
+
+    try {
+      const stripe = await getUncachableStripeClient();
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ["card"],
+        mode: "payment",
+        line_items: [{ price: priceId, quantity: 1 }],
+        success_url: `${origin}/thank-you?source=strategy-session&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${origin}/strategy-session`,
+        metadata: {
+          source: "elevate360-website",
+          product: "strategy-session",
+        },
+      } as any);
+
+      // Track as an initiated order so the existing webhook marks it paid on completion.
+      storage.createOrder({
+        stripeSessionId: session.id,
+        stripePriceId: priceId,
+        productName: "AI Growth Strategy Session",
+        customerEmail: "unknown",
+        status: "initiated",
+        fulfillmentStatus: "pending",
+        metadata: {
+          source: "elevate360-website",
+          product: "strategy-session",
+          checkoutCreatedAt: new Date().toISOString(),
+        },
+      }).catch(() => {});
+
+      res.json({ url: session.url });
+    } catch (e: any) {
+      console.error("[stripe] strategy-session checkout error:", e.message);
       if (e?.type === "StripeInvalidRequestError" || e?.statusCode === 400 || e?.statusCode === 404) {
         return res.status(400).json({ message: e.message ?? "Invalid checkout parameters." });
       }

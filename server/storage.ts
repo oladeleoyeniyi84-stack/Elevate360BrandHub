@@ -1186,6 +1186,7 @@ export class DatabaseStorage implements IStorage {
     stripePaymentIntentId: string;
     amountPaid: number;
     customerName: string;
+    customerEmail: string;
   }>): Promise<Order | undefined> {
     const [row] = await db.update(orders)
       .set({ status, updatedAt: new Date(), ...(extra ?? {}) })

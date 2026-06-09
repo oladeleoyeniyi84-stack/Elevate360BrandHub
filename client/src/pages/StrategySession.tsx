@@ -1,7 +1,8 @@
+import { useState } from "react";
 import { Link } from "wouter";
 import { Helmet } from "react-helmet-async";
 import SEO from "@/components/SEO";
-import { ArrowRight, Check, Rocket, Target, Sparkles, Zap, BrainCircuit } from "lucide-react";
+import { ArrowRight, Check, Loader2, Rocket, Target, Sparkles, Zap, BrainCircuit } from "lucide-react";
 import brandLogo from "@assets/Elevate360_Brand_Logo_1772418122164.png";
 
 const INCLUDES = [
@@ -25,6 +26,30 @@ const FAQ = [
 ];
 
 export default function StrategySession() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function startCheckout() {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/checkout/strategy-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.url) {
+        setError(data?.message || "Checkout is unavailable right now. Please try again later.");
+        setLoading(false);
+        return;
+      }
+      window.location.href = data.url as string;
+    } catch {
+      setError("Something went wrong starting checkout. Please try again.");
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="min-h-screen" style={{ background: "hsl(220 50% 8%)" }}>
       <SEO
@@ -80,11 +105,14 @@ export default function StrategySession() {
             <span className="text-4xl font-heading font-bold" style={{ color: "#F4A62A" }} data-testid="text-strategy-price">$97</span>
             <span className="text-white/40 text-sm">launch price</span>
           </div>
-          <Link href="/pricing" data-testid="button-strategy-cta-hero"
-            className="btn-primary px-8 py-3 rounded-full text-base font-semibold inline-flex items-center gap-2">
-            <Target className="h-5 w-5" />
-            Claim your session
-          </Link>
+          <button onClick={startCheckout} disabled={loading} data-testid="button-strategy-cta-hero"
+            className="btn-primary px-8 py-3 rounded-full text-base font-semibold inline-flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
+            {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Target className="h-5 w-5" />}
+            {loading ? "Starting checkout…" : "Book My Session — $97"}
+          </button>
+          {error && (
+            <p className="text-red-400 text-sm mt-4" data-testid="text-strategy-error">{error}</p>
+          )}
           <p className="text-white/30 text-xs mt-4">Secure your spot — limited launch availability.</p>
         </div>
       </section>
@@ -149,15 +177,19 @@ export default function StrategySession() {
               Lock in the $97 launch price and walk away with a plan you can act on this month.
             </p>
             <div className="flex flex-wrap items-center justify-center gap-3">
-              <Link href="/pricing" data-testid="button-strategy-cta-final"
-                className="btn-primary px-8 py-3 rounded-full text-base font-semibold inline-flex items-center gap-2">
-                Claim your session — $97
-              </Link>
+              <button onClick={startCheckout} disabled={loading} data-testid="button-strategy-cta-final"
+                className="btn-primary px-8 py-3 rounded-full text-base font-semibold inline-flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
+                {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
+                {loading ? "Starting checkout…" : "Book My Session — $97"}
+              </button>
               <Link href="/about-founder" data-testid="button-strategy-about"
                 className="px-6 py-3 rounded-full text-sm font-semibold border border-white/15 text-white/80 hover:bg-white/5 transition inline-flex items-center gap-2">
                 Meet your strategist <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
+            {error && (
+              <p className="text-red-400 text-sm mt-4 text-center" data-testid="text-strategy-error-final">{error}</p>
+            )}
           </div>
         </div>
       </section>
