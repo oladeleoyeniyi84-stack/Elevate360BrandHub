@@ -108,7 +108,7 @@ export default function StrategySession() {
           <button onClick={startCheckout} disabled={loading} data-testid="button-strategy-cta-hero"
             className="btn-primary px-8 py-3 rounded-full text-base font-semibold inline-flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
             {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Target className="h-5 w-5" />}
-            {loading ? "Starting checkout…" : "Book My Session — $97"}
+            {loading ? "Starting secure checkout..." : "Book My Session — $97"}
           </button>
           {error && (
             <p className="text-red-400 text-sm mt-4" data-testid="text-strategy-error">{error}</p>
@@ -180,7 +180,7 @@ export default function StrategySession() {
               <button onClick={startCheckout} disabled={loading} data-testid="button-strategy-cta-final"
                 className="btn-primary px-8 py-3 rounded-full text-base font-semibold inline-flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
                 {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
-                {loading ? "Starting checkout…" : "Book My Session — $97"}
+                {loading ? "Starting secure checkout..." : "Book My Session — $97"}
               </button>
               <Link href="/about-founder" data-testid="button-strategy-about"
                 className="px-6 py-3 rounded-full text-sm font-semibold border border-white/15 text-white/80 hover:bg-white/5 transition inline-flex items-center gap-2">

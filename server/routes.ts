@@ -826,6 +826,11 @@ export async function registerRoutes(
       if (event.type === "checkout.session.completed") {
         const session: any = event.data?.object;
         if (session?.id) {
+          // Strategy session is a one-time product, NOT a subscription. Log clearly
+          // and let the generic order-fulfillment path below mark it paid.
+          if (session.metadata?.source === "strategy-session" || session.metadata?.offer === "ai-growth-strategy-session") {
+            console.log("[strategy-session] checkout completed", { sessionId: session.id });
+          }
           await storage.updateOrderStatus(session.id, "paid", {
             stripePaymentIntentId: session.payment_intent ?? undefined,
             amountPaid: session.amount_total ?? undefined,
@@ -972,17 +977,21 @@ export async function registerRoutes(
     const cleanHost = rawHost.replace(/^https?:\/\//, "").replace(/\/$/, "") || "localhost:5000";
     const origin = cleanHost.startsWith("localhost") ? `http://${cleanHost}` : `https://${cleanHost}`;
 
+    const customerEmail = typeof req.body?.email === "string" && req.body.email.trim() ? req.body.email.trim() : undefined;
+
     try {
       const stripe = await getUncachableStripeClient();
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
         mode: "payment",
         line_items: [{ price: priceId, quantity: 1 }],
-        success_url: `${origin}/thank-you?source=strategy-session&session_id={CHECKOUT_SESSION_ID}`,
+        allow_promotion_codes: true,
+        customer_email: customerEmail,
+        success_url: `${origin}/checkout/success?source=strategy-session&session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${origin}/strategy-session`,
         metadata: {
-          source: "elevate360-website",
-          product: "strategy-session",
+          source: "strategy-session",
+          offer: "ai-growth-strategy-session",
         },
       } as any);
 
@@ -991,12 +1000,12 @@ export async function registerRoutes(
         stripeSessionId: session.id,
         stripePriceId: priceId,
         productName: "AI Growth Strategy Session",
-        customerEmail: "unknown",
+        customerEmail: customerEmail ?? "unknown",
         status: "initiated",
         fulfillmentStatus: "pending",
         metadata: {
-          source: "elevate360-website",
-          product: "strategy-session",
+          source: "strategy-session",
+          offer: "ai-growth-strategy-session",
           checkoutCreatedAt: new Date().toISOString(),
         },
       }).catch(() => {});
@@ -1004,10 +1013,7 @@ export async function registerRoutes(
       res.json({ url: session.url });
     } catch (e: any) {
       console.error("[stripe] strategy-session checkout error:", e.message);
-      if (e?.type === "StripeInvalidRequestError" || e?.statusCode === 400 || e?.statusCode === 404) {
-        return res.status(400).json({ message: e.message ?? "Invalid checkout parameters." });
-      }
-      res.status(500).json({ message: "Could not create checkout session." });
+      res.status(500).json({ message: "Could not start strategy session checkout." });
     }
   });
 

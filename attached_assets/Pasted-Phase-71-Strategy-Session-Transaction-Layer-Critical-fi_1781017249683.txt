@@ -1,0 +1,80 @@
+Phase 71 — Strategy Session Transaction Layer
+
+Critical finding:
+POST /api/checkout/strategy-session currently returns index.html, meaning the API route does not exist and the request falls through to the SPA catch-all.
+
+Goal:
+Connect the live /strategy-session page to a working Stripe one-time checkout for the $97 AI Growth Strategy Session.
+
+Do not modify:
+- Starter/Pro/Elite subscription billing
+- Auth/session logic
+- Existing webhook subscription logic unless safely extending checkout.session.completed
+- Stripe secrets
+
+Build:
+
+1. Add server route:
+POST /api/checkout/strategy-session
+
+Behavior:
+- Public endpoint, no login required
+- Requires STRIPE_SECRET_KEY
+- Requires STRIPE_PRICE_STRATEGY_SESSION
+- Creates Stripe Checkout Session:
+  mode: "payment"
+  line_items: [{ price: process.env.STRIPE_PRICE_STRATEGY_SESSION, quantity: 1 }]
+  allow_promotion_codes: true
+  customer_email: optional from req.body.email if provided
+  success_url: `${PUBLIC_BASE_URL}/checkout/success?source=strategy-session&session_id={CHECKOUT_SESSION_ID}`
+  cancel_url: `${PUBLIC_BASE_URL}/strategy-session`
+  metadata: {
+    source: "strategy-session",
+    offer: "ai-growth-strategy-session"
+  }
+
+Response:
+{ "url": session.url }
+
+If missing config:
+503 { "message": "Strategy session checkout is not configured yet." }
+
+If Stripe fails:
+500 { "message": "Could not start strategy session checkout." }
+
+2. Update /strategy-session frontend:
+- Main CTA button text:
+  "Book My Session — $97"
+- On click, POST /api/checkout/strategy-session
+- Redirect to returned url
+- Add loading state:
+  "Starting secure checkout..."
+- Add visible error state
+
+3. Add or reuse success page:
+If /checkout/success already exists, ensure source=strategy-session shows:
+- Thank you
+- Payment received
+- Next step: check your email
+- Book your calendar time placeholder/button if real booking link exists
+If no booking link exists, do not add fake Calendly.
+
+4. Webhook safety:
+If existing Stripe webhook receives checkout.session.completed for strategy-session:
+- Do not treat it as subscription
+- Log clearly:
+  "[strategy-session] checkout completed"
+- Do not break existing Starter/Pro/Elite subscription webhook handling
+
+5. Run:
+npm run check
+npm run build
+
+Return proof:
+- git diff --stat
+- grep -R "STRIPE_PRICE_STRATEGY_SESSION" server client
+- grep -R "strategy-session" server client
+- curl missing-env/local 503 proof if env absent
+- curl production proof after Render env is set:
+  curl -i -X POST https://www.elevate360official.com/api/checkout/strategy-session
+  Expected: JSON with Stripe checkout url, not HTML

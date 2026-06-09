@@ -60,6 +60,13 @@ function getSourceMeta(source: string) {
         description: "Your message was submitted successfully. We will follow up with you shortly.",
         Icon: MessageSquareText,
       };
+    case "strategy-session":
+      return {
+        label: "AI Growth Strategy Session",
+        heading: "Payment Received — Thank You!",
+        description: "Your AI Growth Strategy Session is booked. Check your email for confirmation and next steps to schedule your session.",
+        Icon: CalendarCheck2,
+      };
     default:
       return {
         label: "transaction",
@@ -259,9 +266,19 @@ export default function CheckoutSuccess() {
                 What Happens Next
               </h3>
               <ul className="space-y-2 text-sm text-slate-300">
-                <li>• Your submission has been recorded successfully.</li>
-                <li>• A confirmation email or follow-up message may be sent shortly.</li>
-                <li>• Our team will review and process the next step within 24 hours.</li>
+                {source === "strategy-session" ? (
+                  <>
+                    <li>• Your payment for the AI Growth Strategy Session was received.</li>
+                    <li>• Check your email for your confirmation and scheduling details.</li>
+                    <li>• We'll reach out within 24 hours to lock in your session time.</li>
+                  </>
+                ) : (
+                  <>
+                    <li>• Your submission has been recorded successfully.</li>
+                    <li>• A confirmation email or follow-up message may be sent shortly.</li>
+                    <li>• Our team will review and process the next step within 24 hours.</li>
+                  </>
+                )}
               </ul>
             </div>
 
