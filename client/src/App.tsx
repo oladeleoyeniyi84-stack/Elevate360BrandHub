@@ -32,6 +32,8 @@ import Blog from "@/pages/Blog";
 import BlogPost from "@/pages/BlogPost";
 import KnowledgeCenter from "@/pages/KnowledgeCenter";
 import ArticleDetail from "@/pages/ArticleDetail";
+import AboutFounder from "@/pages/AboutFounder";
+import StrategySession from "@/pages/StrategySession";
 import PressKit from "@/pages/PressKit";
 import CheckoutSuccess from "@/pages/CheckoutSuccess";
 import Pricing from "@/pages/Pricing";
@@ -316,6 +318,9 @@ function Router() {
 
       <Route path="/knowledge" component={KnowledgeCenter} />
       <Route path="/knowledge/:slug" component={ArticleDetail} />
+
+      <Route path="/about-founder" component={AboutFounder} />
+      <Route path="/strategy-session" component={StrategySession} />
 
       <Route path="/press-kit">
         <>

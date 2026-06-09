@@ -3,7 +3,7 @@ import { Link, useParams } from "wouter";
 import { Helmet } from "react-helmet-async";
 import SEO from "@/components/SEO";
 import { ARTICLES, getArticle, getRelatedArticles } from "@/data/articles";
-import { ArrowLeft, ArrowRight, Clock, Download, Sparkles, Tag } from "lucide-react";
+import { ArrowLeft, ArrowRight, Clock, Download, Rocket, Sparkles, Tag, Target } from "lucide-react";
 import brandLogo from "@assets/Elevate360_Brand_Logo_1772418122164.png";
 
 function formatDate(d: string) {
@@ -62,6 +62,30 @@ export default function ArticleDetail() {
 
   const seoTitle = `${article.title} | Elevate360Official`;
   const seoPath = `/knowledge/${article.slug}`;
+
+  const bodyBlocks = renderBody(article.body);
+  const midIndex = Math.max(1, Math.floor(bodyBlocks.length / 2));
+  const midCta = (
+    <Link
+      key="cta-article-mid"
+      href="/pricing"
+      data-testid="cta-article-mid"
+      className="group not-prose flex items-center justify-between gap-3 rounded-2xl border p-5 my-8 transition-all hover:scale-[1.01]"
+      style={{ background: "rgba(244,166,42,0.08)", borderColor: "rgba(244,166,42,0.3)" }}
+    >
+      <span className="flex items-center gap-3">
+        <Target className="h-6 w-6 flex-shrink-0" style={{ color: "#F4A62A" }} />
+        <span className="text-white/85 text-sm font-semibold">
+          Ready to go further? Unlock premium tools and AI credits with an Elevate360 plan.
+        </span>
+      </span>
+      <ArrowRight className="h-5 w-5 flex-shrink-0 text-white/40 group-hover:text-primary group-hover:translate-x-1 transition-all" />
+    </Link>
+  );
+  const bodyWithMidCta =
+    bodyBlocks.length > 1
+      ? [...bodyBlocks.slice(0, midIndex), midCta, ...bodyBlocks.slice(midIndex)]
+      : [...bodyBlocks, midCta];
 
   return (
     <div className="min-h-screen" style={{ background: "hsl(220 50% 8%)" }}>
@@ -124,8 +148,21 @@ export default function ArticleDetail() {
             <p className="text-white/55 text-lg leading-relaxed border-l-4 pl-4" style={{ borderColor: "#F4A62A" }}>{article.excerpt}</p>
           </div>
 
+          {/* Top CTA */}
+          <Link href="/strategy-session" data-testid="cta-article-top"
+            className="group flex items-center justify-between gap-3 rounded-2xl border p-5 mb-2 transition-all hover:scale-[1.01]"
+            style={{ background: "rgba(244,166,42,0.08)", borderColor: "rgba(244,166,42,0.3)" }}>
+            <span className="flex items-center gap-3">
+              <Rocket className="h-6 w-6 flex-shrink-0" style={{ color: "#F4A62A" }} />
+              <span className="text-white/85 text-sm font-semibold">
+                Want a custom plan? Book the AI Growth Strategy Session — launch offer $97.
+              </span>
+            </span>
+            <ArrowRight className="h-5 w-5 flex-shrink-0 text-white/40 group-hover:text-primary group-hover:translate-x-1 transition-all" />
+          </Link>
+
           <div className="border-t border-white/8 pt-8" data-testid="article-body">
-            {renderBody(article.body)}
+            {bodyWithMidCta}
           </div>
 
           {/* Lead magnet */}

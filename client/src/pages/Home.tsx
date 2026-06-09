@@ -36,6 +36,7 @@ import {
   UserCheck,
   Lock,
   Sparkles,
+  Rocket,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ContactDialog } from "@/components/ContactDialog";
@@ -412,7 +413,13 @@ export default function Home() {
               {t("nav_blog")}
             </Link>
             <Link href="/knowledge" data-testid="link-nav-knowledge" className="text-sm font-medium hover:text-primary transition-colors">
-              Knowledge
+              Knowledge Center
+            </Link>
+            <Link href="/about-founder" data-testid="link-nav-founder" className="text-sm font-medium hover:text-primary transition-colors">
+              Founder
+            </Link>
+            <Link href="/strategy-session" data-testid="link-nav-strategy" className="text-sm font-medium hover:text-primary transition-colors">
+              Strategy Session
             </Link>
             <a href="#offers" data-testid="link-nav-offers"
               className="text-sm font-medium hover:text-primary transition-colors">
@@ -504,6 +511,22 @@ export default function Home() {
                 {label}
               </a>
             ))}
+            {[
+              { href: "/knowledge", label: "Knowledge Center", icon: <BookOpen className="h-4 w-4" /> },
+              { href: "/about-founder", label: "Founder", icon: <Sparkles className="h-4 w-4" /> },
+              { href: "/strategy-session", label: "Strategy Session", icon: <Rocket className="h-4 w-4" /> },
+            ].map(({ href, label, icon }) => (
+              <Link
+                key={href}
+                href={href}
+                data-testid={`link-mobile-nav-${label.toLowerCase().replace(/\s+/g, "-")}`}
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/5 text-sm font-medium text-foreground/80 hover:text-primary transition-colors"
+              >
+                <span className="text-primary">{icon}</span>
+                {label}
+              </Link>
+            ))}
             {/* Mobile language picker */}
             <div className="pt-2 border-t border-white/10">
               <p className="px-4 pb-2 text-[10px] uppercase tracking-widest text-white/30 font-semibold">Language</p>
@@ -554,6 +577,16 @@ export default function Home() {
 
         <div className="container relative z-10 mx-auto px-4 md:px-6">
           <div className="max-w-4xl mx-auto text-center space-y-8">
+            <Link
+              href="/strategy-session"
+              data-testid="banner-revenue-strategy"
+              className="group flex items-center justify-center gap-2 mx-auto max-w-2xl rounded-full px-4 py-2.5 text-sm font-semibold transition-all hover:scale-[1.02]"
+              style={{ background: "rgba(244,166,42,0.12)", color: "#F4A62A", border: "1px solid rgba(244,166,42,0.35)" }}
+            >
+              <span>🚀 AI Growth Strategy Session — Launch Offer $97</span>
+              <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+            </Link>
+
             <div className="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-sm font-medium text-primary mb-4 animate-in fade-in slide-in-from-bottom-4 duration-700 backdrop-blur-sm">
               <span className="flex h-2 w-2 rounded-full bg-primary mr-2 animate-pulse"></span>
               Innovating digital experiences
@@ -586,6 +619,42 @@ export default function Home() {
                 <BookOpen className="h-5 w-5" />
                 View Publications
               </a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Founder Authority Section */}
+      <section className="py-20 border-t border-white/10" style={{ background: "hsl(220 50% 7%)" }} data-testid="section-founder-authority">
+        <div className="container mx-auto px-4 md:px-6 max-w-5xl">
+          <div className="grid md:grid-cols-[auto,1fr] gap-8 md:gap-12 items-center">
+            <div className="flex justify-center md:justify-start">
+              <div className="h-28 w-28 rounded-full flex items-center justify-center text-4xl font-bold font-heading"
+                style={{ background: "rgba(244,166,42,0.15)", color: "#F4A62A", border: "1px solid rgba(244,166,42,0.3)" }}>
+                OO
+              </div>
+            </div>
+            <div className="text-center md:text-left">
+              <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold tracking-widest uppercase mb-4"
+                style={{ background: "rgba(244,166,42,0.12)", color: "#F4A62A", border: "1px solid rgba(244,166,42,0.25)" }}>
+                Meet the Founder
+              </span>
+              <h2 className="text-3xl md:text-4xl font-heading font-bold text-white mb-3">Oladele Oyeniyi</h2>
+              <p className="text-white/60 leading-relaxed max-w-2xl mb-6">
+                Entrepreneur, app developer, author, visual artist, and music producer. The mind behind every
+                Elevate360 product — building across technology, words, and art to{" "}
+                <span style={{ color: "#F4A62A" }}>elevate the world, one product at a time.</span>
+              </p>
+              <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
+                <Link href="/about-founder" data-testid="button-home-about-founder"
+                  className="btn-primary px-6 py-2.5 rounded-full text-sm font-semibold inline-flex items-center gap-2">
+                  About the Founder <ArrowRight className="h-4 w-4" />
+                </Link>
+                <Link href="/strategy-session" data-testid="button-home-strategy-session"
+                  className="px-6 py-2.5 rounded-full text-sm font-semibold border border-white/15 text-white/80 hover:bg-white/5 transition">
+                  Book a Strategy Session
+                </Link>
+              </div>
             </div>
           </div>
         </div>
