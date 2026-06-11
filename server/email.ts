@@ -219,6 +219,62 @@ export async function notifyNewSubscriber(email: string): Promise<void> {
   ]);
 }
 
+// Lead Magnet delivery — sends the actual AI Growth Playbook content inline
+// (real value in the email body, no external asset required) and notifies the
+// founder with a correctly-labeled "guide lead" notification.
+export async function notifyNewLeadMagnetLead(
+  name: string | undefined,
+  email: string,
+  guideSlug: string
+): Promise<void> {
+  const firstName = name?.trim() ? name.trim().split(/\s+/)[0] : "there";
+  const point = (n: string, title: string, text: string) => `
+    <tr>
+      <td style="padding:14px 0;border-bottom:1px solid #f3f4f6;">
+        <p style="margin:0 0 4px;font-size:15px;font-weight:700;color:#111827;">${n}. ${title}</p>
+        <p style="margin:0;font-size:14px;color:#374151;line-height:1.7;">${text}</p>
+      </td>
+    </tr>`;
+
+  const guideBody = `
+    <h2 style="margin:0 0 12px;font-size:22px;font-weight:800;color:#111827;">Your AI Growth Playbook 🚀</h2>
+    <p style="margin:0 0 24px;font-size:15px;color:#374151;line-height:1.7;">
+      Hi ${firstName} — here's your playbook, exactly as promised. No fluff. These are the highest-leverage moves we use at Elevate360 to grow a brand with AI.
+    </p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
+      ${point("1", "Start where the busywork is", "List every repeatable task you do weekly. The top 3 by time spent are your first automations — usually content drafting, customer replies, and research.")}
+      ${point("2", "Build a reusable prompt library", "Write one strong prompt per recurring task and save it. Reuse beats reinventing. Keep prompts specific: role, goal, format, constraints, example.")}
+      ${point("3", "Automate the boring 80%", "Use AI to draft, summarize, and triage — then you edit. You stay the decision-maker; AI removes the blank page and the grunt work.")}
+      ${point("4", "Ship a 30-day rollout", "Week 1: pick one workflow. Week 2: build + test the prompt. Week 3: connect it to a tool you already use. Week 4: measure time saved and double down.")}
+      ${point("5", "Use tools you'll actually keep", "Pick one model for writing/strategy and one for fast automation. Don't collect tools — depth in two beats dabbling in ten.")}
+    </table>
+    <p style="margin:0 0 24px;font-size:15px;color:#374151;line-height:1.7;">
+      Want this tailored to your brand with a concrete plan you can act on this week?
+    </p>
+    <table cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
+      <tr><td style="border-radius:999px;background:${BRAND_GOLD};">
+        <a href="https://www.elevate360official.com/strategy-session" style="display:inline-block;padding:12px 28px;font-size:15px;font-weight:700;color:${BRAND_NAVY};text-decoration:none;">Book a 1:1 Strategy Session →</a>
+      </td></tr>
+    </table>
+    <p style="margin:0;font-size:13px;color:#9ca3af;">— Oladele &amp; the Elevate360 Team</p>`;
+
+  const adminBody = `
+    <h2 style="margin:0 0 8px;font-size:20px;font-weight:700;color:#111827;">New Guide Lead</h2>
+    <p style="margin:0 0 24px;font-size:14px;color:#6b7280;">Someone requested the free guide (<strong>${guideSlug}</strong>).</p>
+    <div style="padding:20px;background:#f9fafb;border-radius:12px;border:1px solid #e5e7eb;">
+      ${name?.trim() ? `<p style="margin:0 0 12px;font-size:14px;color:#111827;"><strong>Name:</strong> ${name.trim()}</p>` : ""}
+      <p style="margin:0;font-size:14px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">Lead Email</p>
+      <a href="mailto:${email}" style="margin:6px 0 0;display:block;font-size:18px;color:${BRAND_GOLD};font-weight:700;text-decoration:none;">${email}</a>
+    </div>`;
+
+  await Promise.all([
+    sendEmail(email, "Your AI Growth Playbook 🚀", baseTemplate("Free Guide", guideBody)),
+    CREATOR_EMAIL
+      ? sendEmail(CREATOR_EMAIL, `📘 New guide lead: ${email}`, baseTemplate("Guide Lead", adminBody))
+      : Promise.resolve(),
+  ]);
+}
+
 export interface DigestStats {
   pageViewsTotal: number;
   pageViews7d: number;

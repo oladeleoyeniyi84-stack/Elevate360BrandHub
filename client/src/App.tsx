@@ -34,6 +34,7 @@ import KnowledgeCenter from "@/pages/KnowledgeCenter";
 import ArticleDetail from "@/pages/ArticleDetail";
 import AboutFounder from "@/pages/AboutFounder";
 import StrategySession from "@/pages/StrategySession";
+import Guide from "@/pages/Guide";
 import PressKit from "@/pages/PressKit";
 import CheckoutSuccess from "@/pages/CheckoutSuccess";
 import Pricing from "@/pages/Pricing";
@@ -321,6 +322,7 @@ function Router() {
 
       <Route path="/about-founder" component={AboutFounder} />
       <Route path="/strategy-session" component={StrategySession} />
+      <Route path="/guide" component={Guide} />
 
       <Route path="/press-kit">
         <>

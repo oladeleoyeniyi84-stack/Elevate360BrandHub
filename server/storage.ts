@@ -5,6 +5,7 @@ import {
   type User, type InsertUser,
   type ContactMessage, type InsertContactMessage,
   type NewsletterSubscriber, type InsertNewsletterSubscriber,
+  type LeadMagnetLead, type InsertLeadMagnetLead,
   type ChatConversation, type ChatMessage,
   type Testimonial, type InsertTestimonial,
   type BlogPost, type InsertBlogPost, type UpdateBlogPost,
@@ -44,7 +45,7 @@ import {
   type ExperimentAssignment, type ExperimentEvent,
   type PersonalizationSegment, type InsertPersonalizationSegment,
   type PersonalizationProfile, type PersonalizationRule, type InsertPersonalizationRule,
-  users, contactMessages, newsletterSubscribers, chatConversations, clickEvents, pageViews, testimonials, blogPosts, contentDrafts, authorityItems, marketplaceProducts, knowledgeDocuments, consultations, bookings, orders, digestReports, offerMappingOverrides, auditLogs, automationSettings,
+  users, contactMessages, newsletterSubscribers, leadMagnetLeads, chatConversations, clickEvents, pageViews, testimonials, blogPosts, contentDrafts, authorityItems, marketplaceProducts, knowledgeDocuments, consultations, bookings, orders, digestReports, offerMappingOverrides, auditLogs, automationSettings,
   automationJobs, automationJobLogs, revenueRecoveryActions, contentOpportunities, autonomousAlerts,
   growthExperiments, sourcePerformanceSnapshots, funnelLeakReports, offerPerformanceSnapshots,
   executionPolicies, appliedChanges, executionQueue, rollbackEvents,
@@ -123,6 +124,8 @@ export interface IStorage {
   replyContactMessage(id: number): Promise<ContactMessage | undefined>;
   createNewsletterSubscriber(subscriber: InsertNewsletterSubscriber): Promise<NewsletterSubscriber>;
   getNewsletterSubscribers(): Promise<NewsletterSubscriber[]>;
+  createLeadMagnetLead(lead: InsertLeadMagnetLead): Promise<LeadMagnetLead>;
+  getLeadMagnetLeads(): Promise<LeadMagnetLead[]>;
   getOrCreateChatSession(sessionId: string): Promise<ChatConversation>;
   appendChatMessage(sessionId: string, message: ChatMessage): Promise<void>;
   updateChatLead(sessionId: string, name?: string, email?: string): Promise<void>;
@@ -645,6 +648,15 @@ export class DatabaseStorage implements IStorage {
 
   async getNewsletterSubscribers(): Promise<NewsletterSubscriber[]> {
     return db.select().from(newsletterSubscribers);
+  }
+
+  async createLeadMagnetLead(lead: InsertLeadMagnetLead): Promise<LeadMagnetLead> {
+    const [created] = await db.insert(leadMagnetLeads).values(lead).returning();
+    return created;
+  }
+
+  async getLeadMagnetLeads(): Promise<LeadMagnetLead[]> {
+    return db.select().from(leadMagnetLeads).orderBy(desc(leadMagnetLeads.createdAt));
   }
 
   async getOrCreateChatSession(sessionId: string): Promise<ChatConversation> {

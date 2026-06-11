@@ -5,6 +5,7 @@ import { storage } from "./storage";
 import {
   insertContactMessageSchema,
   insertNewsletterSubscriberSchema,
+  insertLeadMagnetLeadSchema,
   chatRequestSchema,
   insertTestimonialSchema,
   insertBlogPostSchema,
@@ -41,7 +42,7 @@ import {
 import { insertCognitiveMemorySchema } from "@shared/schema";
 import { generateContentDraft } from "./ai/contentFactory";
 import { generateAndSaveDigest } from "./ai/digestGenerator";
-import { notifyNewContact, notifyNewLead, notifyNewSubscriber, sendContactReply, sendDigestEmail, notifyNewBooking } from "./email";
+import { notifyNewContact, notifyNewLead, notifyNewSubscriber, notifyNewLeadMagnetLead, sendContactReply, sendDigestEmail, notifyNewBooking } from "./email";
 import { generateSitemap } from "./sitemap";
 import { z } from "zod";
 import { WebhookHandlers } from "./webhookHandlers";
@@ -270,6 +271,22 @@ export async function registerRoutes(
         res.status(409).json({ message: "This email is already subscribed!" });
       } else {
         res.status(500).json({ message: "Failed to subscribe. Please try again." });
+      }
+    }
+  });
+
+  // Phase 71.1 — Lead Magnet capture (free guide opt-in). Public, no login.
+  app.post("/api/lead-magnet", rateLimit(5, 60), botGuard, async (req, res) => {
+    try {
+      const data = insertLeadMagnetLeadSchema.parse(req.body);
+      const lead = await storage.createLeadMagnetLead(data);
+      res.status(201).json({ id: lead.id, email: lead.email, guideSlug: lead.guideSlug });
+      notifyNewLeadMagnetLead(data.name, lead.email, lead.guideSlug).catch(() => {});
+    } catch (error) {
+      if (error instanceof ZodError) {
+        res.status(400).json({ message: fromZodError(error).message });
+      } else {
+        res.status(500).json({ message: "Failed to send the guide. Please try again." });
       }
     }
   });
