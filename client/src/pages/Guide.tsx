@@ -127,10 +127,10 @@ export default function Guide() {
                   style={{ background: "rgba(244,166,42,0.15)" }}>
                   <MailCheck className="h-7 w-7" style={{ color: "#F4A62A" }} />
                 </span>
-                <h2 className="text-2xl font-heading font-bold text-white mb-2">Check your email</h2>
+                <h2 className="text-2xl font-heading font-bold text-white mb-2">Request Received</h2>
                 <p className="text-white/60 leading-relaxed mb-6">
-                  Your AI Growth Playbook is on its way. If you don't see it in a few minutes,
-                  check your spam folder.
+                  Your free guide access is on its way — check your email for the AI Growth Playbook.
+                  If you don't see it in a few minutes, check your spam folder.
                 </p>
                 <Link href="/strategy-session" data-testid="button-guide-strategy-cta"
                   className="btn-primary px-6 py-3 rounded-full text-sm font-semibold inline-flex items-center gap-2">
@@ -174,7 +174,7 @@ export default function Guide() {
                 <button type="submit" disabled={loading} data-testid="button-guide-submit"
                   className="btn-primary w-full px-6 py-3 rounded-full text-base font-semibold inline-flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
                   {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}
-                  {loading ? "Sending your guide..." : "Send Me the Playbook"}
+                  {loading ? "Getting your access..." : "Get Free Guide Access"}
                 </button>
                 {error && (
                   <p className="text-red-400 text-sm" data-testid="text-guide-error">{error}</p>
