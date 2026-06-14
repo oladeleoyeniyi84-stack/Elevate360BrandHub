@@ -276,19 +276,34 @@ export async function registerRoutes(
   });
 
   // Phase 71.1 — Lead Magnet capture (free guide opt-in). Public, no login.
+  // Lead capture must NEVER be blocked by email delivery: validate, save the lead,
+  // then fire the guide/admin email fire-and-forget (errors logged, never thrown,
+  // never awaited before responding). Email failure can never produce a 500.
   app.post("/api/lead-magnet", rateLimit(5, 60), botGuard, async (req, res) => {
+    let data;
     try {
-      const data = insertLeadMagnetLeadSchema.parse(req.body);
-      const lead = await storage.createLeadMagnetLead(data);
-      res.status(201).json({ id: lead.id, email: lead.email, guideSlug: lead.guideSlug });
-      notifyNewLeadMagnetLead(data.name, lead.email, lead.guideSlug).catch(() => {});
+      data = insertLeadMagnetLeadSchema.parse(req.body);
     } catch (error) {
       if (error instanceof ZodError) {
-        res.status(400).json({ message: fromZodError(error).message });
-      } else {
-        res.status(500).json({ message: "Failed to send the guide. Please try again." });
+        return res.status(400).json({ message: fromZodError(error).message });
       }
+      return res.status(400).json({ message: "Invalid lead-magnet request." });
     }
+
+    let lead;
+    try {
+      lead = await storage.createLeadMagnetLead(data);
+    } catch (error) {
+      console.error("[lead-magnet] failed to save lead:", error);
+      return res.status(500).json({ message: "Could not save your request. Please try again." });
+    }
+
+    // Fire-and-forget: a Resend/email failure must never block or fail lead capture.
+    notifyNewLeadMagnetLead(data.name, lead.email, lead.guideSlug).catch((err) =>
+      console.error("[lead-magnet] guide email delivery failed:", err),
+    );
+
+    return res.status(201).json({ id: lead.id, email: lead.email, guideSlug: lead.guideSlug });
   });
 
   app.post("/api/chat", rateLimit(15, 60), botGuard, async (req, res) => {
