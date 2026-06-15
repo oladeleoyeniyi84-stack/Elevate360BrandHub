@@ -6,11 +6,12 @@ async function main() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS lead_magnet_leads (
       id SERIAL PRIMARY KEY,
-      name TEXT,
+      first_name TEXT,
       email TEXT NOT NULL,
-      guide_slug VARCHAR(120) NOT NULL DEFAULT 'ai-growth-playbook',
       source VARCHAR(80) NOT NULL DEFAULT 'guide-page',
-      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+      lead_score INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+      updated_at TIMESTAMP DEFAULT NOW() NOT NULL
     );
     CREATE INDEX IF NOT EXISTS lead_magnet_leads_email_idx ON lead_magnet_leads (email);
     CREATE INDEX IF NOT EXISTS lead_magnet_leads_created_at_idx ON lead_magnet_leads (created_at);

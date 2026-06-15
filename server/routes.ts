@@ -276,13 +276,26 @@ export async function registerRoutes(
   });
 
   // Phase 71.1 — Lead Magnet capture (free guide opt-in). Public, no login.
-  // Lead capture must NEVER be blocked by email delivery: validate, save the lead,
-  // then fire the guide/admin email fire-and-forget (errors logged, never thrown,
-  // never awaited before responding). Email failure can never produce a 500.
+  // Matches the production lead_magnet_leads schema (first_name / email / source).
+  // Lead capture must NEVER be blocked by email delivery: normalize input, save the
+  // lead, then fire the guide/admin email fire-and-forget (errors logged, never
+  // thrown, never awaited before responding). Email failure can never produce a 500.
   app.post("/api/lead-magnet", rateLimit(5, 60), botGuard, async (req, res) => {
+    // Accept either `name` (legacy client) or `firstName`, normalize to firstName.
+    const firstNameInput =
+      typeof req.body?.firstName === "string"
+        ? req.body.firstName
+        : typeof req.body?.name === "string"
+          ? req.body.name
+          : undefined;
+
     let data;
     try {
-      data = insertLeadMagnetLeadSchema.parse(req.body);
+      data = insertLeadMagnetLeadSchema.parse({
+        firstName: firstNameInput,
+        email: req.body?.email,
+        source: req.body?.source,
+      });
     } catch (error) {
       if (error instanceof ZodError) {
         return res.status(400).json({ message: fromZodError(error).message });
@@ -299,11 +312,11 @@ export async function registerRoutes(
     }
 
     // Fire-and-forget: a Resend/email failure must never block or fail lead capture.
-    notifyNewLeadMagnetLead(data.name, lead.email, lead.guideSlug).catch((err) =>
+    notifyNewLeadMagnetLead(data.firstName, lead.email, "ai-growth-guide").catch((err) =>
       console.error("[lead-magnet] guide email delivery failed:", err),
     );
 
-    return res.status(201).json({ id: lead.id, email: lead.email, guideSlug: lead.guideSlug });
+    return res.status(201).json({ id: lead.id, email: lead.email, source: lead.source });
   });
 
   app.post("/api/chat", rateLimit(15, 60), botGuard, async (req, res) => {

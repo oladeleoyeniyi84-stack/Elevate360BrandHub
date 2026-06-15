@@ -80,11 +80,12 @@ export const newsletterSubscribers = pgTable("newsletter_subscribers", {
 // Phase 71.1 — Lead Magnet capture (free guide opt-ins). Public, no auth.
 export const leadMagnetLeads = pgTable("lead_magnet_leads", {
   id: serial("id").primaryKey(),
-  name: text("name"),
+  firstName: text("first_name"),
   email: text("email").notNull(),
-  guideSlug: varchar("guide_slug", { length: 120 }).default("ai-growth-playbook").notNull(),
   source: varchar("source", { length: 80 }).default("guide-page").notNull(),
+  leadScore: integer("lead_score").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const chatConversations = pgTable("chat_conversations", {
@@ -196,13 +197,13 @@ export const insertNewsletterSubscriberSchema = createInsertSchema(newsletterSub
 });
 
 export const insertLeadMagnetLeadSchema = createInsertSchema(leadMagnetLeads, {
-  name: z.string().max(200).optional(),
+  firstName: z.string().max(200).optional(),
   email: z.string().email("Please enter a valid email address"),
-  guideSlug: z.string().max(120).optional(),
+  source: z.string().max(80).optional(),
 }).pick({
-  name: true,
+  firstName: true,
   email: true,
-  guideSlug: true,
+  source: true,
 });
 export type InsertLeadMagnetLead = z.infer<typeof insertLeadMagnetLeadSchema>;
 export type LeadMagnetLead = typeof leadMagnetLeads.$inferSelect;

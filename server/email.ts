@@ -225,7 +225,7 @@ export async function notifyNewSubscriber(email: string): Promise<void> {
 export async function notifyNewLeadMagnetLead(
   name: string | undefined,
   email: string,
-  guideSlug: string
+  guideTitle: string
 ): Promise<void> {
   const firstName = name?.trim() ? name.trim().split(/\s+/)[0] : "there";
   const point = (n: string, title: string, text: string) => `
@@ -260,7 +260,7 @@ export async function notifyNewLeadMagnetLead(
 
   const adminBody = `
     <h2 style="margin:0 0 8px;font-size:20px;font-weight:700;color:#111827;">New Guide Lead</h2>
-    <p style="margin:0 0 24px;font-size:14px;color:#6b7280;">Someone requested the free guide (<strong>${guideSlug}</strong>).</p>
+    <p style="margin:0 0 24px;font-size:14px;color:#6b7280;">Someone requested the free guide (<strong>${guideTitle}</strong>).</p>
     <div style="padding:20px;background:#f9fafb;border-radius:12px;border:1px solid #e5e7eb;">
       ${name?.trim() ? `<p style="margin:0 0 12px;font-size:14px;color:#111827;"><strong>Name:</strong> ${name.trim()}</p>` : ""}
       <p style="margin:0;font-size:14px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">Lead Email</p>
