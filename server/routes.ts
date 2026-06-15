@@ -303,9 +303,40 @@ export async function registerRoutes(
       return res.status(400).json({ message: "Invalid lead-magnet request." });
     }
 
+    // Idempotent capture: a repeat opt-in must NOT 500 on the unique-email
+    // constraint. Look up the email first; if it exists, refresh its source
+    // (and updated_at) when changed and return 200 existing. Otherwise insert
+    // and return 201. A duplicate-key from a concurrent insert (race) is caught
+    // below and resolved by re-fetching the existing row.
     let lead;
+    let existing = false;
     try {
-      lead = await storage.createLeadMagnetLead(data);
+      const found = await storage.getLeadMagnetLeadByEmail(data.email);
+      if (found) {
+        existing = true;
+        lead =
+          data.source && data.source !== found.source
+            ? await storage.updateLeadMagnetLeadSource(found.id, data.source)
+            : found;
+      } else {
+        try {
+          lead = await storage.createLeadMagnetLead(data);
+        } catch (insertError) {
+          // 23505 = unique_violation: another request inserted the same email
+          // between our lookup and insert. Treat as existing rather than 500.
+          if ((insertError as { code?: string })?.code === "23505") {
+            const raced = await storage.getLeadMagnetLeadByEmail(data.email);
+            if (!raced) throw insertError;
+            existing = true;
+            lead =
+              data.source && data.source !== raced.source
+                ? await storage.updateLeadMagnetLeadSource(raced.id, data.source)
+                : raced;
+          } else {
+            throw insertError;
+          }
+        }
+      }
     } catch (error) {
       console.error("[lead-magnet] failed to save lead:", error);
       return res.status(500).json({ message: "Could not save your request. Please try again." });
@@ -316,7 +347,9 @@ export async function registerRoutes(
       console.error("[lead-magnet] guide email delivery failed:", err),
     );
 
-    return res.status(201).json({ id: lead.id, email: lead.email, source: lead.source });
+    return res
+      .status(existing ? 200 : 201)
+      .json({ id: lead.id, email: lead.email, source: lead.source, existing });
   });
 
   app.post("/api/chat", rateLimit(15, 60), botGuard, async (req, res) => {

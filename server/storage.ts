@@ -125,6 +125,8 @@ export interface IStorage {
   createNewsletterSubscriber(subscriber: InsertNewsletterSubscriber): Promise<NewsletterSubscriber>;
   getNewsletterSubscribers(): Promise<NewsletterSubscriber[]>;
   createLeadMagnetLead(lead: InsertLeadMagnetLead): Promise<LeadMagnetLead>;
+  getLeadMagnetLeadByEmail(email: string): Promise<LeadMagnetLead | undefined>;
+  updateLeadMagnetLeadSource(id: number, source: string): Promise<LeadMagnetLead>;
   getLeadMagnetLeads(): Promise<LeadMagnetLead[]>;
   getOrCreateChatSession(sessionId: string): Promise<ChatConversation>;
   appendChatMessage(sessionId: string, message: ChatMessage): Promise<void>;
@@ -653,6 +655,24 @@ export class DatabaseStorage implements IStorage {
   async createLeadMagnetLead(lead: InsertLeadMagnetLead): Promise<LeadMagnetLead> {
     const [created] = await db.insert(leadMagnetLeads).values(lead).returning();
     return created;
+  }
+
+  async getLeadMagnetLeadByEmail(email: string): Promise<LeadMagnetLead | undefined> {
+    const [found] = await db
+      .select()
+      .from(leadMagnetLeads)
+      .where(eq(leadMagnetLeads.email, email))
+      .limit(1);
+    return found;
+  }
+
+  async updateLeadMagnetLeadSource(id: number, source: string): Promise<LeadMagnetLead> {
+    const [updated] = await db
+      .update(leadMagnetLeads)
+      .set({ source, updatedAt: new Date() })
+      .where(eq(leadMagnetLeads.id, id))
+      .returning();
+    return updated;
   }
 
   async getLeadMagnetLeads(): Promise<LeadMagnetLead[]> {

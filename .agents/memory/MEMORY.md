@@ -2,4 +2,5 @@
 - [Stripe single webhook](stripe-single-webhook.md) — one Stripe endpoint per signing secret; route all events through the single /api/stripe/webhook, no second endpoint on a shared secret.
 - [Session regenerate prod failures](session-regenerate-prod.md) — express-session regenerate() DELETE can 500 only in prod; degrade to save() fallback, keep fixation-safe happy path.
 - [Billing tier validation before write](billing-tier-validation.md) — webhook sync must validate resolved tier (isValidTier) before any DB write; unknown tier logs+returns, never throws (500→Stripe retry loop) or writes a partial sub row.
+- [lead_magnet_leads dev/prod schema drift](lead-magnet-schema-drift.md) — prod enforces UNIQUE email NOT declared in schema.ts (dev index non-unique); handle opt-ins idempotently (check-by-email + catch 23505), don't trust dev table to match prod.
 - [Resend dev sandbox](resend-dev-sandbox.md) — Resend 403 to real recipients in dev is EXPECTED (sandbox: only verified owner addr); not a code bug. Admin emails succeed; sends are fire-and-forget.
