@@ -231,6 +231,13 @@ export async function registerRoutes(
   const { customerBillingRouter, handleBillingEvent } = await import("./routes/customerBilling");
   app.use(customerBillingRouter);
 
+  // AI content generation (DeepSeek) — founder/admin only. Mounted inside
+  // registerRoutes, which runs before serveStatic / the SPA catch-all in
+  // index.ts, so unauthenticated calls hit requireDashboardAuth and get 401
+  // JSON rather than the HTML fallback.
+  const { aiContentRouter } = await import("./routes/aiContent");
+  app.use("/api/ai/content", aiContentRouter);
+
   app.get("/sitemap.xml", async (_req, res) => {
     try {
       const posts = await storage.getBlogPosts(true);

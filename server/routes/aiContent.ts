@@ -1,0 +1,79 @@
+// AI content generation route (DeepSeek-backed).
+//
+// Founder/admin only — every request is PIN-gated via requireDashboardAuth, so
+// an unauthenticated call returns 401 JSON (never the SPA HTML fallback),
+// provided this router is mounted before serveStatic in registerRoutes.
+
+import { Router } from "express";
+import { z } from "zod";
+import { fromZodError } from "zod-validation-error";
+import { requireDashboardAuth } from "../routes";
+import { deepseekChat, isDeepseekConfigured, type DeepseekMessage } from "../services/deepseek";
+
+// max_tokens budget per content type — keeps generations bounded and cost-aware.
+// The request `type` selects the ceiling; longer formats get a larger budget.
+const MAX_TOKENS_BY_TYPE = {
+  headline: 80,
+  social: 400,
+  summary: 600,
+  email: 1200,
+  blog: 2000,
+} as const;
+
+type ContentType = keyof typeof MAX_TOKENS_BY_TYPE;
+
+const SYSTEM_PROMPTS: Record<ContentType, string> = {
+  headline: "You are an expert copywriter for the Elevate360 brand. Write punchy, high-converting headlines.",
+  social: "You are a social media manager for the Elevate360 brand. Write engaging, on-brand social posts.",
+  summary: "You are a sharp editor. Summarize the provided material clearly and concisely.",
+  email: "You are an email marketing specialist for the Elevate360 brand. Write clear, persuasive emails.",
+  blog: "You are a content writer for the Elevate360 brand. Write well-structured, informative blog content.",
+};
+
+const requestSchema = z.object({
+  type: z.enum(["headline", "social", "summary", "email", "blog"]),
+  prompt: z.string().min(1, "prompt is required").max(8000),
+  system: z.string().max(4000).optional(),
+  temperature: z.number().min(0).max(2).optional(),
+});
+
+export const aiContentRouter = Router();
+
+// Router-level auth: ANY method/path under /api/ai/content requires the
+// dashboard PIN, so unauthenticated requests always get 401 JSON.
+aiContentRouter.use(requireDashboardAuth);
+
+aiContentRouter.post("/", async (req, res) => {
+  const parsed = requestSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: fromZodError(parsed.error).message });
+  }
+
+  if (!isDeepseekConfigured()) {
+    return res.status(503).json({ message: "AI content service is not configured." });
+  }
+
+  const { type, prompt, system, temperature } = parsed.data;
+  const maxTokens = MAX_TOKENS_BY_TYPE[type];
+
+  const messages: DeepseekMessage[] = [
+    { role: "system", content: system?.trim() || SYSTEM_PROMPTS[type] },
+    { role: "user", content: prompt },
+  ];
+
+  try {
+    const result = await deepseekChat({ messages, maxTokens, temperature });
+    return res.json({
+      type,
+      model: result.model,
+      maxTokens,
+      latencyMs: result.latencyMs,
+      content: result.content,
+    });
+  } catch (err) {
+    // Summary-only log — never leak raw provider errors/keys/prompts.
+    const reason = err instanceof Error ? err.message.split("\n")[0] : "unknown";
+    console.error("[ai-content] generation failed:", reason);
+    return res.status(502).json({ message: "AI content generation failed. Please try again." });
+  }
+});
