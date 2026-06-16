@@ -7,7 +7,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { fromZodError } from "zod-validation-error";
-import { requireDashboardAuth } from "../routes";
+import { requireDashboardAuth, rateLimit } from "../routes";
 import { deepseekChat, isDeepseekConfigured, type DeepseekMessage } from "../services/deepseek";
 
 // max_tokens budget per content type — keeps generations bounded and cost-aware.
@@ -43,7 +43,10 @@ export const aiContentRouter = Router();
 // dashboard PIN, so unauthenticated requests always get 401 JSON.
 aiContentRouter.use(requireDashboardAuth);
 
-aiContentRouter.post("/", async (req, res) => {
+// Rate limit: 20 requests / 15 min per IP, applied AFTER requireDashboardAuth
+// (router-level) so only authenticated callers consume the budget. Exceeding the
+// limit returns 429 JSON from the shared rateLimit middleware.
+aiContentRouter.post("/", rateLimit(20, 900), async (req, res) => {
   const parsed = requestSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ message: fromZodError(parsed.error).message });

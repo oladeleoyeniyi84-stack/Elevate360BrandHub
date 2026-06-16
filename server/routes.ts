@@ -165,7 +165,7 @@ function getClientIp(req: any): string {
 
 // ─── Phase 45: In-memory rate limiter ────────────────────────────────────────
 const rateLimitStore: Record<string, { count: number; resetAt: number }> = {};
-function rateLimit(maxReq: number, windowSec: number) {
+export function rateLimit(maxReq: number, windowSec: number) {
   return (req: any, res: any, next: any) => {
     const ip = getClientIp(req);
     const key = `${req.path}::${ip}`;
