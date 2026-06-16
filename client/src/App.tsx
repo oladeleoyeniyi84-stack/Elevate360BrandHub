@@ -23,6 +23,7 @@ import FounderIntelligence from "@/pages/FounderIntelligence";
 import RevenueIntelligence from "@/pages/RevenueIntelligence";
 import GrowthAutomation from "@/pages/GrowthAutomation";
 import CognitiveOS from "@/pages/CognitiveOS";
+import AiContentStudio from "@/pages/AiContentStudio";
 import ContentFactory from "@/pages/ContentFactory";
 import OrchestratorCenter from "@/pages/OrchestratorCenter";
 import CommandGrid from "@/pages/CommandGrid";
@@ -300,6 +301,17 @@ function Router() {
             path="/cognitive-os"
           />
           <CognitiveOS />
+        </>
+      </Route>
+
+      <Route path="/admin/ai-content">
+        <>
+          <SEO
+            title="AI Content Studio | Elevate360Official"
+            description="Founder-only AI Content Studio — generate social posts, emails, blog drafts, summaries, and headlines, powered by DeepSeek for cost-efficient content generation."
+            path="/admin/ai-content"
+          />
+          <AiContentStudio />
         </>
       </Route>
 
