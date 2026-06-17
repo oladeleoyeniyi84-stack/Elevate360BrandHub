@@ -9,6 +9,7 @@ import { z } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { requireDashboardAuth, rateLimit } from "../routes";
 import { deepseekChat, isDeepseekConfigured, type DeepseekMessage } from "../services/deepseek";
+import { ELEVATE360_SYSTEM_PROMPT, OLADELE_FOUNDER_VOICE_PROMPT } from "../config/brandVoice";
 
 // max_tokens budget per content type — keeps generations bounded and cost-aware.
 // The request `type` selects the ceiling; longer formats get a larger budget.
@@ -35,6 +36,11 @@ const requestSchema = z.object({
   prompt: z.string().min(1, "prompt is required").max(8000),
   system: z.string().max(4000).optional(),
   temperature: z.number().min(0).max(2).optional(),
+  platform: z
+    .enum(["instagram", "facebook", "linkedin", "x", "tiktok", "youtube", "podcast", "email", "blog"])
+    .optional(),
+  useBrandVoice: z.boolean().optional().default(true),
+  founderVoice: z.boolean().optional().default(false),
 });
 
 export const aiContentRouter = Router();
@@ -56,11 +62,25 @@ aiContentRouter.post("/", rateLimit(20, 900), async (req, res) => {
     return res.status(503).json({ message: "AI content service is not configured." });
   }
 
-  const { type, prompt, system, temperature } = parsed.data;
+  const { type, prompt, system, temperature, platform, useBrandVoice, founderVoice } = parsed.data;
   const maxTokens = MAX_TOKENS_BY_TYPE[type];
 
+  // Layered system prompt. The per-type SYSTEM_PROMPTS baseline is ALWAYS the
+  // foundation; brand voice, founder voice, a platform directive, and any custom
+  // instruction are stacked on top (in that order) when present. SYSTEM_PROMPTS
+  // is never replaced — brand voice layers on top of the content-type prompt.
+  const systemParts: string[] = [SYSTEM_PROMPTS[type]];
+  if (useBrandVoice) systemParts.push(ELEVATE360_SYSTEM_PROMPT);
+  if (founderVoice) systemParts.push(OLADELE_FOUNDER_VOICE_PROMPT);
+  if (platform) {
+    systemParts.push(
+      `Target platform: ${platform}. Tailor the format, length, and tone to what performs best on ${platform}.`,
+    );
+  }
+  if (system?.trim()) systemParts.push(system.trim());
+
   const messages: DeepseekMessage[] = [
-    { role: "system", content: system?.trim() || SYSTEM_PROMPTS[type] },
+    { role: "system", content: systemParts.join("\n\n") },
     { role: "user", content: prompt },
   ];
 

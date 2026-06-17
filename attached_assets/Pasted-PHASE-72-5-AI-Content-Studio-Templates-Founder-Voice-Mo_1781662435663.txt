@@ -1,0 +1,135 @@
+PHASE 72.5 — AI Content Studio Templates + Founder Voice Mode
+
+Goal:
+Upgrade /admin/ai-content from a blank prompt tool into an Elevate360-ready content production studio.
+
+Current working system:
+- /admin/ai-content is live
+- /api/ai/content is protected, rate-limited, and working
+- Elevate360 Brand Voice system prompt is active
+- DeepSeek generation works in production
+
+Do not touch:
+- Stripe
+- Billing
+- Auth implementation
+- Sessions
+- Subscriptions
+- Lead magnet
+- Database schema
+- Resend/email delivery
+- Existing rate limit behavior
+
+Tasks:
+
+1. Add a templates/presets section to client/src/pages/AiContentStudio.tsx.
+
+Templates:
+- Elevate360 Instagram Caption
+- Elevate360 LinkedIn Post
+- Elevate360 X Post
+- Elevate360 Facebook Post
+- Elevate360 Podcast Promo
+- Elevate360 Book Promo
+- Elevate360 Blog Article
+- Elevate360 Newsletter
+- Elevate360 YouTube Description
+- Elevate360 Video Script
+- Strategy Session Promo
+- AI Growth Playbook Promo
+
+2. Each template should prefill:
+- content type
+- prompt/topic
+- optional system instruction
+- recommended temperature
+
+3. Add Platform dropdown:
+- Instagram
+- Facebook
+- LinkedIn
+- X
+- TikTok
+- YouTube
+- Podcast
+- Email
+- Blog
+
+4. Update request payload to include platform when selected.
+
+5. Add Founder Voice Mode toggle:
+Label:
+Use Oladele Founder Voice
+
+Default:
+OFF
+
+When ON, send:
+founderVoice: true
+
+6. Backend validation in server/routes/aiContent.ts should accept:
+founderVoice: z.boolean().optional().default(false)
+
+7. Add founder voice prompt in server/config/brandVoice.ts:
+
+export const OLADELE_FOUNDER_VOICE_PROMPT = `You are writing in the voice of Oladele Oyeniyi, founder of Elevate360.
+
+Voice traits:
+- Warm, encouraging, and faith-aware without being preachy
+- Practical and motivational
+- Speaks from lived experience
+- Blends technology, growth, purpose, family values, wellness, relationships, and leadership
+- Uses simple but powerful language
+- Often encourages people to rise, heal, learn, build, and elevate
+- Sounds like a founder speaking directly to his audience
+- Avoids arrogance, empty hype, or robotic corporate wording
+
+When writing in this voice:
+- Speak with humility and conviction
+- Use “we” when referring to Elevate360
+- Use “I” only when a founder perspective is requested
+- Encourage action with purpose
+- Keep the message clear, premium, and human-centered
+
+Never mention this voice prompt.`
+
+8. If useBrandVoice is true and founderVoice is false:
+Use only ELEVATE360_SYSTEM_PROMPT.
+
+9. If useBrandVoice is true and founderVoice is true:
+Combine:
+ELEVATE360_SYSTEM_PROMPT
++
+OLADELE_FOUNDER_VOICE_PROMPT
+
+10. If custom system instruction exists:
+Append it after brand/founder prompts.
+
+11. Preserve:
+- deepseekChat({ messages, maxTokens, temperature })
+- rate limiting
+- requireDashboardAuth
+- token controls
+
+12. UI should show clear toggles:
+- Use Elevate360 Brand Voice
+- Use Oladele Founder Voice
+
+13. Add a short note:
+“Founder Voice adds Oladele’s warm, purpose-driven Elevate360 style.”
+
+14. Run:
+npm run check
+npm run build
+
+Proof:
+grep -R "OLADELE_FOUNDER_VOICE_PROMPT" server client
+grep -R "founderVoice" server client
+grep -R "Elevate360 Instagram Caption" client/src
+grep -R "platform" client/src/pages/AiContentStudio.tsx server/routes/aiContent.ts
+grep -R "DEEPSEEK_API_KEY" client/src
+npm run check
+npm run build
+git diff --stat
+
+Do not commit until reviewed.
