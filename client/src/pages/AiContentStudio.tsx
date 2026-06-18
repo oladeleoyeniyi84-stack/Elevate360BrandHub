@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import {
   Sparkles, Eye, EyeOff, Loader2, Copy, Check, AlertTriangle, Wand2, LayoutTemplate,
+  Layers, RefreshCw, Save, History, Trash2, Bookmark,
 } from "lucide-react";
 
 const GOLD = "#F4A62A";
@@ -155,6 +156,66 @@ const TEMPLATES: Template[] = [
 
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
+// ----- localStorage-backed prompt library + generation history -----
+const LIB_KEY = "e360_studio_prompt_library";
+const HIST_KEY = "e360_studio_history";
+const HIST_MAX = 50;
+
+interface SavedPrompt {
+  id: string;
+  name: string;
+  type: ContentType;
+  platform: Platform;
+  prompt: string;
+  system: string;
+  temperature: number;
+  useBrandVoice: boolean;
+  founderVoice: boolean;
+}
+
+interface HistoryEntry {
+  id: string;
+  at: number;
+  type: ContentType;
+  platform: Platform;
+  prompt: string;
+  system: string;
+  temperature: number;
+  useBrandVoice: boolean;
+  founderVoice: boolean;
+  content: string;
+  model: string;
+}
+
+function loadJson<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function saveJson(key: string, value: unknown) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* ignore quota / serialization errors */
+  }
+}
+
+const newId = () =>
+  typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+const countWords = (s: string) => {
+  const t = s.trim();
+  return t ? t.split(/\s+/).length : 0;
+};
+
+const platformLabel = (value: string) => PLATFORMS.find((p) => p.value === value)?.label ?? "Auto / None";
+
 interface GenerateResponse {
   type: string;
   model: string;
@@ -163,10 +224,7 @@ interface GenerateResponse {
   content: string;
 }
 
-// Calls the founder-only, PIN-gated endpoint. Credentials are sent so the
-// dashboard session cookie authenticates the request. The DeepSeek API key
-// lives only on the server — it is never referenced or exposed client-side.
-async function generateContent(body: {
+interface GenBody {
   type: ContentType;
   prompt: string;
   system?: string;
@@ -174,7 +232,12 @@ async function generateContent(body: {
   platform?: string;
   useBrandVoice: boolean;
   founderVoice: boolean;
-}): Promise<GenerateResponse> {
+}
+
+// Calls the founder-only, PIN-gated endpoint. Credentials are sent so the
+// dashboard session cookie authenticates the request. The DeepSeek API key
+// lives only on the server — it is never referenced or exposed client-side.
+async function generateContent(body: GenBody): Promise<GenerateResponse> {
   const res = await fetch("/api/ai/content", {
     method: "POST",
     credentials: "include",
@@ -263,6 +326,7 @@ function PinGate({ onAuth }: { onAuth: () => void }) {
             />
             <button
               type="button"
+              data-testid="button-toggle-pin-visibility"
               aria-label={showPin ? "Hide PIN" : "Show PIN"}
               onClick={() => setShowPin((v) => !v)}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70"
@@ -288,48 +352,148 @@ function Studio() {
   const [temperature, setTemperature] = useState(0.7);
   const [useBrandVoice, setUseBrandVoice] = useState(true);
   const [founderVoice, setFounderVoice] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [saveName, setSaveName] = useState("");
+  const [lastRun, setLastRun] = useState<{ count: number; body: GenBody } | null>(null);
+
+  const [promptLibrary, setPromptLibrary] = useState<SavedPrompt[]>(() => loadJson<SavedPrompt[]>(LIB_KEY, []));
+  const [history, setHistory] = useState<HistoryEntry[]>(() => loadJson<HistoryEntry[]>(HIST_KEY, []));
 
   const mutation = useMutation({
-    mutationFn: generateContent,
-    onSuccess: () => setCopied(false),
+    mutationFn: async ({ count, body }: { count: number; body: GenBody }): Promise<GenerateResponse[]> => {
+      const n = Math.max(1, count);
+      const settled = await Promise.allSettled(Array.from({ length: n }, () => generateContent(body)));
+      const ok = settled
+        .filter((s): s is PromiseFulfilledResult<GenerateResponse> => s.status === "fulfilled")
+        .map((s) => s.value);
+      if (ok.length === 0) {
+        const rejected = settled.find((s) => s.status === "rejected") as PromiseRejectedResult | undefined;
+        throw rejected?.reason ?? new Error("Generation failed.");
+      }
+      return ok;
+    },
+    onSuccess: (data, variables) => {
+      setCopiedIndex(null);
+      const entries: HistoryEntry[] = data.map((r) => ({
+        id: newId(),
+        at: Date.now(),
+        type: variables.body.type,
+        platform: (variables.body.platform ?? "") as Platform,
+        prompt: variables.body.prompt,
+        system: variables.body.system ?? "",
+        temperature: variables.body.temperature ?? 0.7,
+        useBrandVoice: variables.body.useBrandVoice,
+        founderVoice: variables.body.founderVoice,
+        content: r.content,
+        model: r.model,
+      }));
+      setHistory((prev) => {
+        const next = [...entries, ...prev].slice(0, HIST_MAX);
+        saveJson(HIST_KEY, next);
+        return next;
+      });
+    },
   });
 
-  const result = mutation.data;
+  const results = mutation.data ?? [];
   const canSubmit = prompt.trim().length > 0 && !mutation.isPending;
 
-  const applyTemplate = (t: Template) => {
-    setType(t.type);
-    setPlatform(t.platform);
-    setPrompt(t.prompt);
-    setSystem(t.system ?? "");
-    setTemperature(t.temperature);
-    mutation.reset();
+  const buildBody = (): GenBody => ({
+    type,
+    prompt: prompt.trim(),
+    system: system.trim() || undefined,
+    temperature,
+    platform: platform || undefined,
+    useBrandVoice,
+    founderVoice,
+  });
+
+  const run = (count: number) => {
+    if (prompt.trim().length === 0 || mutation.isPending) return;
+    const payload = { count, body: buildBody() };
+    setLastRun(payload);
+    mutation.mutate(payload);
   };
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canSubmit) return;
-    mutation.mutate({
+    run(1);
+  };
+
+  const regenerate = () => {
+    if (!lastRun || mutation.isPending) return;
+    mutation.mutate(lastRun);
+  };
+
+  const copyOutput = async (content: string, index: number) => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopiedIndex(index);
+      setTimeout(() => setCopiedIndex((cur) => (cur === index ? null : cur)), 2000);
+    } catch {
+      setCopiedIndex(null);
+    }
+  };
+
+  const savePrompt = () => {
+    if (prompt.trim().length === 0) return;
+    const name = saveName.trim() || prompt.trim().slice(0, 50) || "Untitled prompt";
+    const entry: SavedPrompt = {
+      id: newId(),
+      name,
       type,
+      platform,
       prompt: prompt.trim(),
-      system: system.trim() || undefined,
+      system: system.trim(),
       temperature,
-      platform: platform || undefined,
       useBrandVoice,
       founderVoice,
+    };
+    setPromptLibrary((prev) => {
+      const next = [entry, ...prev];
+      saveJson(LIB_KEY, next);
+      return next;
+    });
+    setSaveName("");
+  };
+
+  const applySettings = (s: {
+    type: ContentType; platform: Platform; prompt: string; system: string;
+    temperature: number; useBrandVoice: boolean; founderVoice: boolean;
+  }) => {
+    setType(s.type);
+    setPlatform(s.platform);
+    setPrompt(s.prompt);
+    setSystem(s.system);
+    setTemperature(s.temperature);
+    setUseBrandVoice(s.useBrandVoice);
+    setFounderVoice(s.founderVoice);
+  };
+
+  const deletePrompt = (id: string) => {
+    setPromptLibrary((prev) => {
+      const next = prev.filter((p) => p.id !== id);
+      saveJson(LIB_KEY, next);
+      return next;
     });
   };
 
-  const copyOutput = async () => {
-    if (!result?.content) return;
-    try {
-      await navigator.clipboard.writeText(result.content);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      setCopied(false);
-    }
+  const clearHistory = () => {
+    setHistory([]);
+    saveJson(HIST_KEY, []);
+  };
+
+  const applyTemplate = (t: Template) => {
+    applySettings({
+      type: t.type,
+      platform: t.platform,
+      prompt: t.prompt,
+      system: t.system ?? "",
+      temperature: t.temperature,
+      useBrandVoice,
+      founderVoice,
+    });
+    mutation.reset();
   };
 
   return (
@@ -426,6 +590,11 @@ function Studio() {
                 rows={6}
                 className="w-full bg-white/6 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-[#F4A62A]/50 resize-y"
               />
+              <div className="flex justify-end mt-1">
+                <span data-testid="text-prompt-count" className="text-white/30 text-[10px] tabular-nums">
+                  {countWords(prompt)} words · {prompt.length} chars
+                </span>
+              </div>
             </div>
 
             <div>
@@ -487,50 +656,82 @@ function Studio() {
               </div>
             </div>
 
-            <button
-              type="submit"
-              data-testid="button-generate"
-              disabled={!canSubmit}
-              className="btn-primary w-full py-3 flex items-center justify-center gap-2 disabled:opacity-50"
-            >
-              {mutation.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" /> Generating…
-                </>
-              ) : (
-                <>
-                  <Wand2 className="h-4 w-4" /> Generate content
-                </>
-              )}
-            </button>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="submit"
+                data-testid="button-generate"
+                disabled={!canSubmit}
+                className="btn-primary py-3 flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {mutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> Generating…
+                  </>
+                ) : (
+                  <>
+                    <Wand2 className="h-4 w-4" /> Generate
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                data-testid="button-generate-variations"
+                onClick={() => run(3)}
+                disabled={!canSubmit}
+                className="btn-secondary py-3 flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                <Layers className="h-4 w-4" /> 3 variations
+              </button>
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <input
+                data-testid="input-save-name"
+                value={saveName}
+                onChange={(e) => setSaveName(e.target.value)}
+                placeholder="Name this prompt (optional)"
+                className="flex-1 bg-white/6 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#F4A62A]/50"
+              />
+              <button
+                type="button"
+                data-testid="button-save-prompt"
+                onClick={savePrompt}
+                disabled={prompt.trim().length === 0}
+                className="btn-secondary text-sm px-3 py-2 flex items-center gap-1.5 disabled:opacity-40"
+              >
+                <Save className="h-4 w-4" /> Save
+              </button>
+            </div>
           </form>
 
           {/* Output panel */}
-          <div className="lux-card flex flex-col">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-white font-semibold text-sm">Generated content</h2>
-              {result?.content && (
-                <button
-                  type="button"
-                  data-testid="button-copy"
-                  onClick={copyOutput}
-                  className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5"
-                >
-                  {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                  {copied ? "Copied" : "Copy"}
-                </button>
-              )}
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-white font-semibold text-sm">
+                Generated content{results.length > 1 ? ` · ${results.length} variations` : ""}
+              </h2>
+              <button
+                type="button"
+                data-testid="button-regenerate"
+                onClick={regenerate}
+                disabled={!lastRun || mutation.isPending}
+                className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5 disabled:opacity-40"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${mutation.isPending ? "animate-spin" : ""}`} /> Regenerate
+              </button>
             </div>
 
             {mutation.isPending && (
-              <div data-testid="status-loading" className="flex-1 flex flex-col items-center justify-center text-white/50 py-16 gap-3">
+              <div data-testid="status-loading" className="lux-card flex flex-col items-center justify-center text-white/50 py-16 gap-3">
                 <Loader2 className="h-7 w-7 animate-spin text-[#F4A62A]" />
-                <p className="text-sm">Generating your {type}…</p>
+                <p className="text-sm">
+                  Generating {lastRun && lastRun.count > 1 ? `${lastRun.count} variations` : `your ${type}`}…
+                </p>
               </div>
             )}
 
             {mutation.isError && !mutation.isPending && (
-              <div data-testid="status-error" className="flex-1 flex flex-col items-center justify-center py-16 gap-3 text-center">
+              <div data-testid="status-error" className="lux-card flex flex-col items-center justify-center py-16 gap-3 text-center">
                 <AlertTriangle className="h-7 w-7 text-red-400" />
                 <p className="text-red-400 text-sm max-w-xs">
                   {(mutation.error as Error)?.message ?? "Something went wrong. Please try again."}
@@ -538,26 +739,151 @@ function Studio() {
               </div>
             )}
 
-            {!mutation.isPending && !mutation.isError && result?.content && (
-              <div className="flex-1 flex flex-col">
-                <pre
-                  data-testid="text-output"
-                  className="flex-1 whitespace-pre-wrap break-words text-white/90 text-sm leading-relaxed font-sans bg-black/20 border border-white/10 rounded-xl p-4 overflow-auto"
-                >
-                  {result.content}
-                </pre>
-                <div data-testid="status-success" className="flex flex-wrap gap-x-4 gap-y-1 text-white/40 text-[11px] mt-3">
-                  <span>Model: <span className="text-white/60">{result.model}</span></span>
-                  <span>Max tokens: <span className="text-white/60">{result.maxTokens}</span></span>
-                  <span>Latency: <span className="text-white/60">{result.latencyMs}ms</span></span>
+            {!mutation.isPending && !mutation.isError && results.length > 0 &&
+              results.map((r, i) => (
+                <div key={i} className="lux-card flex flex-col" data-testid={`card-output-${i}`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-white/70 font-semibold text-xs uppercase tracking-wide">
+                      {results.length > 1 ? `Variation ${i + 1}` : "Result"}
+                    </h3>
+                    <button
+                      type="button"
+                      data-testid={`button-copy-${i}`}
+                      onClick={() => copyOutput(r.content, i)}
+                      className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5"
+                    >
+                      {copiedIndex === i ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                      {copiedIndex === i ? "Copied" : "Copy"}
+                    </button>
+                  </div>
+                  <pre
+                    data-testid={`text-output-${i}`}
+                    className="whitespace-pre-wrap break-words text-white/90 text-sm leading-relaxed font-sans bg-black/20 border border-white/10 rounded-xl p-4 overflow-auto max-h-[28rem]"
+                  >
+                    {r.content}
+                  </pre>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-white/40 text-[11px] mt-3">
+                    <span data-testid={`text-output-count-${i}`} className="text-white/50">
+                      {countWords(r.content)} words · {r.content.length} chars
+                    </span>
+                    <span>Model: <span className="text-white/60">{r.model}</span></span>
+                    <span>Max tokens: <span className="text-white/60">{r.maxTokens}</span></span>
+                    <span>Latency: <span className="text-white/60">{r.latencyMs}ms</span></span>
+                  </div>
                 </div>
+              ))}
+
+            {!mutation.isPending && !mutation.isError && results.length === 0 && (
+              <div data-testid="status-empty" className="lux-card flex flex-col items-center justify-center text-white/30 py-16 gap-3 text-center">
+                <Sparkles className="h-7 w-7" />
+                <p className="text-sm max-w-xs">Pick a template or write a prompt, then generate — your content will appear here.</p>
               </div>
             )}
+          </div>
+        </div>
 
-            {!mutation.isPending && !mutation.isError && !result?.content && (
-              <div data-testid="status-empty" className="flex-1 flex flex-col items-center justify-center text-white/30 py-16 gap-3 text-center">
-                <Sparkles className="h-7 w-7" />
-                <p className="text-sm max-w-xs">Pick a template or write a prompt, then hit generate — your content will appear here.</p>
+        {/* Prompt library + generation history */}
+        <div className="grid md:grid-cols-2 gap-6 mt-6">
+          <div className="lux-card flex flex-col" data-testid="panel-prompt-library">
+            <div className="flex items-center gap-2 mb-3">
+              <Bookmark className="h-4 w-4 text-[#F4A62A]" />
+              <h2 className="text-white font-semibold text-sm">Prompt Library</h2>
+              <span className="text-white/40 text-xs">({promptLibrary.length})</span>
+            </div>
+            {promptLibrary.length === 0 ? (
+              <p data-testid="text-library-empty" className="text-white/30 text-sm py-6 text-center">
+                No saved prompts yet. Save one with the button above to reuse it later.
+              </p>
+            ) : (
+              <div className="space-y-2 max-h-80 overflow-auto pr-1">
+                {promptLibrary.map((p) => (
+                  <div key={p.id} className="rounded-xl border border-white/10 bg-white/[0.03] p-3" data-testid={`row-prompt-${p.id}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-white text-sm font-medium truncate" data-testid={`text-prompt-name-${p.id}`}>{p.name}</p>
+                        <p className="text-white/40 text-[11px] mt-0.5">
+                          {CONTENT_TYPES.find((c) => c.value === p.type)?.label ?? p.type} · {platformLabel(p.platform)} · temp {p.temperature.toFixed(1)}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          data-testid={`button-load-prompt-${p.id}`}
+                          onClick={() => applySettings({ type: p.type, platform: p.platform, prompt: p.prompt, system: p.system, temperature: p.temperature, useBrandVoice: p.useBrandVoice, founderVoice: p.founderVoice })}
+                          className="btn-secondary text-[11px] px-2.5 py-1"
+                        >
+                          Load
+                        </button>
+                        <button
+                          type="button"
+                          data-testid={`button-delete-prompt-${p.id}`}
+                          aria-label="Delete saved prompt"
+                          onClick={() => deletePrompt(p.id)}
+                          className="text-white/40 hover:text-red-400 p-1"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="lux-card flex flex-col" data-testid="panel-history">
+            <div className="flex items-center gap-2 mb-3">
+              <History className="h-4 w-4 text-[#F4A62A]" />
+              <h2 className="text-white font-semibold text-sm">History</h2>
+              <span className="text-white/40 text-xs">({history.length})</span>
+              {history.length > 0 && (
+                <button
+                  type="button"
+                  data-testid="button-clear-history"
+                  onClick={clearHistory}
+                  className="ml-auto text-white/40 hover:text-red-400 text-[11px] flex items-center gap-1"
+                >
+                  <Trash2 className="h-3.5 w-3.5" /> Clear
+                </button>
+              )}
+            </div>
+            {history.length === 0 ? (
+              <p data-testid="text-history-empty" className="text-white/30 text-sm py-6 text-center">
+                No generations yet. Your generated content will be saved here.
+              </p>
+            ) : (
+              <div className="space-y-2 max-h-80 overflow-auto pr-1">
+                {history.map((h) => (
+                  <div key={h.id} className="rounded-xl border border-white/10 bg-white/[0.03] p-3" data-testid={`row-history-${h.id}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-white/40 text-[11px]">
+                        {CONTENT_TYPES.find((c) => c.value === h.type)?.label ?? h.type} · {platformLabel(h.platform)} · {new Date(h.at).toLocaleString()}
+                      </p>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          data-testid={`button-load-history-${h.id}`}
+                          onClick={() => applySettings({ type: h.type, platform: h.platform, prompt: h.prompt, system: h.system, temperature: h.temperature, useBrandVoice: h.useBrandVoice, founderVoice: h.founderVoice })}
+                          className="btn-secondary text-[11px] px-2.5 py-1"
+                        >
+                          Load
+                        </button>
+                        <button
+                          type="button"
+                          data-testid={`button-copy-history-${h.id}`}
+                          aria-label="Copy generated content"
+                          onClick={() => navigator.clipboard.writeText(h.content).catch(() => {})}
+                          className="text-white/40 hover:text-white/80 p-1"
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-white/70 text-xs mt-1.5 line-clamp-3 whitespace-pre-wrap" data-testid={`text-history-content-${h.id}`}>
+                      {h.content}
+                    </p>
+                  </div>
+                ))}
               </div>
             )}
           </div>
