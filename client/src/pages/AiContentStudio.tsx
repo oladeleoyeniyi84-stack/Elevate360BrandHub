@@ -3,6 +3,7 @@ import { useMutation } from "@tanstack/react-query";
 import {
   Sparkles, Eye, EyeOff, Loader2, Copy, Check, AlertTriangle, Wand2, LayoutTemplate,
   Layers, RefreshCw, Save, History, Trash2, Bookmark,
+  Download, Image as ImageIcon, Video as VideoIcon, Package as PackageIcon,
 } from "lucide-react";
 
 const GOLD = "#F4A62A";
@@ -216,6 +217,94 @@ const countWords = (s: string) => {
 
 const platformLabel = (value: string) => PLATFORMS.find((p) => p.value === value)?.label ?? "Auto / None";
 
+// ----- Export & distribution helpers (Phase 72.7, fully client-side) -----
+
+interface ExportSection {
+  heading: string;
+  body: string;
+}
+
+// System instructions for the auxiliary image/video prompt generators. These
+// reuse the EXISTING DeepSeek endpoint (no backend change). Brand/founder voice
+// are intentionally left off so the result is a clean, tool-ready prompt.
+const IMAGE_PROMPT_SYSTEM =
+  "You are an expert visual art director. Read the content provided and write ONE vivid, ready-to-use image-generation prompt (for tools like Midjourney or DALL·E) that visually captures its core theme and mood for the Elevate360 brand. Describe subject, setting, style, mood, lighting, composition, and color palette in a single rich paragraph. Output ONLY the image prompt — no preamble, labels, or quotation marks.";
+
+const VIDEO_PROMPT_SYSTEM =
+  "You are an expert video creative director. Read the content provided and write ONE concise, ready-to-use video-generation prompt (for tools like Runway, Sora, or Veo) that brings its core theme to life for the Elevate360 brand. Describe the scene, key shots, camera motion, pacing, mood, lighting, and overall style. Output ONLY the video prompt — no preamble, labels, or quotation marks.";
+
+function fileBase(label: string) {
+  const slug =
+    label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 40) || "elevate360-content";
+  return `${slug}-${new Date().toISOString().slice(0, 10)}`;
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function sectionsToText(title: string, sections: ExportSection[]) {
+  const parts = [title, "=".repeat(title.length)];
+  for (const s of sections) {
+    parts.push("", s.heading, "-".repeat(s.heading.length), "", s.body);
+  }
+  return `${parts.join("\n")}\n`;
+}
+
+function exportTxt(base: string, title: string, sections: ExportSection[]) {
+  downloadBlob(new Blob([sectionsToText(title, sections)], { type: "text/plain;charset=utf-8" }), `${base}.txt`);
+}
+
+// docx + jspdf are dynamically imported so they only load when the founder
+// actually exports — keeping them out of the initial bundle.
+async function exportDocx(base: string, title: string, sections: ExportSection[]) {
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import("docx");
+  const children: InstanceType<typeof Paragraph>[] = [new Paragraph({ text: title, heading: HeadingLevel.TITLE })];
+  for (const s of sections) {
+    children.push(new Paragraph({ text: s.heading, heading: HeadingLevel.HEADING_2 }));
+    for (const line of s.body.split("\n")) {
+      children.push(new Paragraph({ children: [new TextRun(line)] }));
+    }
+  }
+  const blob = await Packer.toBlob(new Document({ sections: [{ children }] }));
+  downloadBlob(blob, `${base}.docx`);
+}
+
+async function exportPdf(base: string, title: string, sections: ExportSection[]) {
+  const { jsPDF } = await import("jspdf");
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  const margin = 48;
+  const maxWidth = doc.internal.pageSize.getWidth() - margin * 2;
+  const pageHeight = doc.internal.pageSize.getHeight();
+  let y = margin;
+  const writeBlock = (text: string, size: number, bold: boolean, gap: number) => {
+    doc.setFont("helvetica", bold ? "bold" : "normal");
+    doc.setFontSize(size);
+    for (const line of doc.splitTextToSize(text || " ", maxWidth)) {
+      if (y > pageHeight - margin) {
+        doc.addPage();
+        y = margin;
+      }
+      doc.text(line, margin, y);
+      y += size * 1.4;
+    }
+    y += gap;
+  };
+  writeBlock(title, 18, true, 12);
+  for (const s of sections) {
+    writeBlock(s.heading, 13, true, 4);
+    writeBlock(s.body, 11, false, 12);
+  }
+  doc.save(`${base}.pdf`);
+}
+
 interface GenerateResponse {
   type: string;
   model: string;
@@ -255,6 +344,18 @@ async function generateContent(body: GenBody): Promise<GenerateResponse> {
   }
   return data as GenerateResponse;
 }
+
+// Builds the request body for image/video prompt generation. Reuses the
+// "summary" budget on the existing endpoint; brand/founder voice off for a
+// clean, tool-ready prompt.
+const promptGenBody = (content: string, instruction: string): GenBody => ({
+  type: "summary",
+  prompt: `${content}\n\n---\nUsing the content above, produce the requested prompt now.`,
+  system: instruction,
+  temperature: 0.7,
+  useBrandVoice: false,
+  founderVoice: false,
+});
 
 function Toggle({
   checked, onChange, label, testId,
@@ -344,6 +445,72 @@ function PinGate({ onAuth }: { onAuth: () => void }) {
   );
 }
 
+function ExportButtons({
+  idPrefix, onExport, disabled,
+}: { idPrefix: string; onExport: (fmt: "txt" | "docx" | "pdf") => void; disabled?: boolean }) {
+  return (
+    <div className="flex items-center gap-1">
+      {(["txt", "docx", "pdf"] as const).map((f) => (
+        <button
+          key={f}
+          type="button"
+          data-testid={`button-${idPrefix}-${f}`}
+          onClick={() => onExport(f)}
+          disabled={disabled}
+          className="btn-secondary text-[10px] uppercase tracking-wide px-2 py-1 disabled:opacity-40"
+        >
+          {f}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function PackageSection({
+  title, testId, value, loading, copiedKey, onCopy,
+}: {
+  title: string;
+  testId: string;
+  value: string;
+  loading: boolean;
+  copiedKey: string | null;
+  onCopy: (text: string, key: string) => void;
+}) {
+  const key = `pkg-${testId}`;
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3 flex flex-col" data-testid={`package-${testId}`}>
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-white/70 font-semibold text-[11px] uppercase tracking-wide">{title}</h3>
+        {value && !loading && (
+          <button
+            type="button"
+            data-testid={`button-copy-package-${testId}`}
+            onClick={() => onCopy(value, key)}
+            className="text-white/40 hover:text-white/80"
+            aria-label={`Copy ${title}`}
+          >
+            {copiedKey === key ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+          </button>
+        )}
+      </div>
+      {loading ? (
+        <div className="flex items-center gap-2 text-white/40 text-xs py-6 justify-center">
+          <Loader2 className="h-4 w-4 animate-spin text-[#F4A62A]" /> Generating…
+        </div>
+      ) : value ? (
+        <pre
+          data-testid={`text-package-${testId}`}
+          className="whitespace-pre-wrap break-words text-white/85 text-xs leading-relaxed font-sans overflow-auto max-h-60"
+        >
+          {value}
+        </pre>
+      ) : (
+        <p className="text-white/30 text-xs py-6 text-center">Not generated yet.</p>
+      )}
+    </div>
+  );
+}
+
 function Studio() {
   const [type, setType] = useState<ContentType>("social");
   const [platform, setPlatform] = useState<Platform>("");
@@ -355,6 +522,15 @@ function Studio() {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [saveName, setSaveName] = useState("");
   const [lastRun, setLastRun] = useState<{ count: number; body: GenBody } | null>(null);
+  const [pkg, setPkg] = useState<{ content: string; imagePrompt: string; videoPrompt: string }>({
+    content: "", imagePrompt: "", videoPrompt: "",
+  });
+  const [pkgOpen, setPkgOpen] = useState(false);
+  const [imgLoading, setImgLoading] = useState(false);
+  const [vidLoading, setVidLoading] = useState(false);
+  const [pkgError, setPkgError] = useState<string | null>(null);
+  const [exportBusy, setExportBusy] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const [promptLibrary, setPromptLibrary] = useState<SavedPrompt[]>(() => loadJson<SavedPrompt[]>(LIB_KEY, []));
   const [history, setHistory] = useState<HistoryEntry[]>(() => loadJson<HistoryEntry[]>(HIST_KEY, []));
@@ -433,6 +609,131 @@ function Studio() {
     } catch {
       setCopiedIndex(null);
     }
+  };
+
+  const flashCopied = (key: string) => {
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey((c) => (c === key ? null : c)), 2000);
+  };
+
+  const copyText = async (text: string, key: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      flashCopied(key);
+    } catch {
+      /* clipboard unavailable */
+    }
+  };
+
+  const variationSections = (): ExportSection[] =>
+    results.map((r, i) => ({ heading: results.length > 1 ? `Variation ${i + 1}` : "Content", body: r.content }));
+
+  const copyAllVariations = () => {
+    if (results.length === 0) return;
+    const text = results
+      .map((r, i) => `${results.length > 1 ? `Variation ${i + 1}` : "Content"}\n\n${r.content}`)
+      .join("\n\n----------\n\n");
+    void copyText(text, "all");
+  };
+
+  // Guards the async docx/pdf export so a failure never escapes as an unhandled
+  // rejection and the busy flag always clears.
+  const withExport = async (fn: () => void | Promise<void>) => {
+    setExportBusy(true);
+    try {
+      await fn();
+    } catch {
+      /* export generation failed — leave UI usable */
+    } finally {
+      setExportBusy(false);
+    }
+  };
+
+  const runExport = (fmt: "txt" | "docx" | "pdf", base: string, title: string, sections: ExportSection[]) =>
+    void withExport(() =>
+      fmt === "txt"
+        ? exportTxt(base, title, sections)
+        : fmt === "docx"
+          ? exportDocx(base, title, sections)
+          : exportPdf(base, title, sections),
+    );
+
+  const exportAll = (fmt: "txt" | "docx" | "pdf") => {
+    if (results.length === 0) return;
+    runExport(fmt, fileBase(lastRun?.body.prompt ?? prompt ?? "elevate360-content"), "Elevate360 Content", variationSections());
+  };
+
+  const exportVariation = (content: string, index: number, fmt: "txt" | "docx" | "pdf") => {
+    const title = results.length > 1 ? `Elevate360 Content — Variation ${index + 1}` : "Elevate360 Content";
+    runExport(fmt, fileBase(`${lastRun?.body.prompt ?? prompt}-v${index + 1}`), title, [{ heading: "Content", body: content }]);
+  };
+
+  const genImagePrompt = async (content: string) => {
+    setPkgOpen(true);
+    setPkg((p) => ({ ...p, content }));
+    setPkgError(null);
+    setImgLoading(true);
+    try {
+      const r = await generateContent(promptGenBody(content, IMAGE_PROMPT_SYSTEM));
+      setPkg((p) => ({ ...p, content, imagePrompt: r.content }));
+    } catch (e) {
+      setPkgError((e as Error)?.message ?? "Failed to generate image prompt.");
+    } finally {
+      setImgLoading(false);
+    }
+  };
+
+  const genVideoPrompt = async (content: string) => {
+    setPkgOpen(true);
+    setPkg((p) => ({ ...p, content }));
+    setPkgError(null);
+    setVidLoading(true);
+    try {
+      const r = await generateContent(promptGenBody(content, VIDEO_PROMPT_SYSTEM));
+      setPkg((p) => ({ ...p, content, videoPrompt: r.content }));
+    } catch (e) {
+      setPkgError((e as Error)?.message ?? "Failed to generate video prompt.");
+    } finally {
+      setVidLoading(false);
+    }
+  };
+
+  // Content Package = the source content + an image prompt + a video prompt.
+  // Both prompts are generated in parallel via the existing DeepSeek endpoint.
+  const genPackage = async (content: string) => {
+    setPkgOpen(true);
+    setPkg({ content, imagePrompt: "", videoPrompt: "" });
+    setPkgError(null);
+    setImgLoading(true);
+    setVidLoading(true);
+    const [img, vid] = await Promise.allSettled([
+      generateContent(promptGenBody(content, IMAGE_PROMPT_SYSTEM)),
+      generateContent(promptGenBody(content, VIDEO_PROMPT_SYSTEM)),
+    ]);
+    setImgLoading(false);
+    setVidLoading(false);
+    setPkg({
+      content,
+      imagePrompt: img.status === "fulfilled" ? img.value.content : "",
+      videoPrompt: vid.status === "fulfilled" ? vid.value.content : "",
+    });
+    if (img.status === "rejected" && vid.status === "rejected") {
+      setPkgError("Failed to generate the content package. Please try again.");
+    }
+  };
+
+  const packageSections = (): ExportSection[] => {
+    const s: ExportSection[] = [];
+    if (pkg.content) s.push({ heading: "Content", body: pkg.content });
+    if (pkg.imagePrompt) s.push({ heading: "Image Prompt", body: pkg.imagePrompt });
+    if (pkg.videoPrompt) s.push({ heading: "Video Prompt", body: pkg.videoPrompt });
+    return s;
+  };
+
+  const exportPackage = (fmt: "txt" | "docx" | "pdf") => {
+    const sections = packageSections();
+    if (sections.length === 0) return;
+    runExport(fmt, fileBase("content-package"), "Elevate360 Content Package", sections);
   };
 
   const savePrompt = () => {
@@ -706,19 +1007,40 @@ function Studio() {
 
           {/* Output panel */}
           <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
               <h2 className="text-white font-semibold text-sm">
                 Generated content{results.length > 1 ? ` · ${results.length} variations` : ""}
               </h2>
-              <button
-                type="button"
-                data-testid="button-regenerate"
-                onClick={regenerate}
-                disabled={!lastRun || mutation.isPending}
-                className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5 disabled:opacity-40"
-              >
-                <RefreshCw className={`h-3.5 w-3.5 ${mutation.isPending ? "animate-spin" : ""}`} /> Regenerate
-              </button>
+              <div className="flex items-center gap-2 flex-wrap">
+                {results.length > 0 && (
+                  <>
+                    <button
+                      type="button"
+                      data-testid="button-copy-all"
+                      onClick={copyAllVariations}
+                      className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5"
+                    >
+                      {copiedKey === "all" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                      {copiedKey === "all" ? "Copied" : "Copy all"}
+                    </button>
+                    <div className="flex items-center gap-1.5" data-testid="group-download-all">
+                      <span className="text-white/40 text-[10px] flex items-center gap-1">
+                        <Download className="h-3 w-3" /> All
+                      </span>
+                      <ExportButtons idPrefix="download-all" onExport={exportAll} disabled={exportBusy} />
+                    </div>
+                  </>
+                )}
+                <button
+                  type="button"
+                  data-testid="button-regenerate"
+                  onClick={regenerate}
+                  disabled={!lastRun || mutation.isPending}
+                  className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5 disabled:opacity-40"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${mutation.isPending ? "animate-spin" : ""}`} /> Regenerate
+                </button>
+              </div>
             </div>
 
             {mutation.isPending && (
@@ -770,6 +1092,44 @@ function Studio() {
                     <span>Max tokens: <span className="text-white/60">{r.maxTokens}</span></span>
                     <span>Latency: <span className="text-white/60">{r.latencyMs}ms</span></span>
                   </div>
+                  <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-white/10">
+                    <span className="text-white/40 text-[10px] flex items-center gap-1">
+                      <Download className="h-3 w-3" /> Export
+                    </span>
+                    <ExportButtons
+                      idPrefix={`output-${i}`}
+                      onExport={(fmt) => exportVariation(r.content, i, fmt)}
+                      disabled={exportBusy}
+                    />
+                    <span className="w-px h-4 bg-white/10 mx-1" />
+                    <button
+                      type="button"
+                      data-testid={`button-image-prompt-${i}`}
+                      onClick={() => genImagePrompt(r.content)}
+                      disabled={imgLoading || vidLoading}
+                      className="btn-secondary text-[10px] px-2 py-1 flex items-center gap-1 disabled:opacity-40"
+                    >
+                      <ImageIcon className="h-3 w-3" /> Image prompt
+                    </button>
+                    <button
+                      type="button"
+                      data-testid={`button-video-prompt-${i}`}
+                      onClick={() => genVideoPrompt(r.content)}
+                      disabled={imgLoading || vidLoading}
+                      className="btn-secondary text-[10px] px-2 py-1 flex items-center gap-1 disabled:opacity-40"
+                    >
+                      <VideoIcon className="h-3 w-3" /> Video prompt
+                    </button>
+                    <button
+                      type="button"
+                      data-testid={`button-package-${i}`}
+                      onClick={() => genPackage(r.content)}
+                      disabled={imgLoading || vidLoading}
+                      className="btn-primary text-[10px] px-2.5 py-1 flex items-center gap-1 disabled:opacity-40"
+                    >
+                      <PackageIcon className="h-3 w-3" /> Package
+                    </button>
+                  </div>
                 </div>
               ))}
 
@@ -781,6 +1141,46 @@ function Studio() {
             )}
           </div>
         </div>
+
+        {/* Content package: content + image prompt + video prompt */}
+        {pkgOpen && (
+          <div className="lux-card mt-6" data-testid="panel-package">
+            <div className="flex items-center justify-between gap-2 flex-wrap mb-4">
+              <div className="flex items-center gap-2">
+                <PackageIcon className="h-4 w-4 text-[#F4A62A]" />
+                <h2 className="text-white font-semibold text-sm">Content Package</h2>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-white/40 text-[10px] flex items-center gap-1">
+                  <Download className="h-3 w-3" /> Export package
+                </span>
+                <ExportButtons
+                  idPrefix="package"
+                  onExport={exportPackage}
+                  disabled={exportBusy || packageSections().length === 0}
+                />
+                <button
+                  type="button"
+                  data-testid="button-close-package"
+                  onClick={() => setPkgOpen(false)}
+                  className="text-white/40 hover:text-white/80 text-[11px] px-2 py-1"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+
+            {pkgError && (
+              <p data-testid="text-package-error" className="text-red-400 text-sm mb-3">{pkgError}</p>
+            )}
+
+            <div className="grid md:grid-cols-3 gap-4">
+              <PackageSection title="Content" testId="content" value={pkg.content} loading={false} copiedKey={copiedKey} onCopy={copyText} />
+              <PackageSection title="Image Prompt" testId="image" value={pkg.imagePrompt} loading={imgLoading} copiedKey={copiedKey} onCopy={copyText} />
+              <PackageSection title="Video Prompt" testId="video" value={pkg.videoPrompt} loading={vidLoading} copiedKey={copiedKey} onCopy={copyText} />
+            </div>
+          </div>
+        )}
 
         {/* Prompt library + generation history */}
         <div className="grid md:grid-cols-2 gap-6 mt-6">

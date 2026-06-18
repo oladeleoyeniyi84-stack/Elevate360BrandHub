@@ -4,3 +4,4 @@
 - [Billing tier validation before write](billing-tier-validation.md) — webhook sync must validate resolved tier (isValidTier) before any DB write; unknown tier logs+returns, never throws (500→Stripe retry loop) or writes a partial sub row.
 - [lead_magnet_leads dev/prod schema drift](lead-magnet-schema-drift.md) — prod enforces UNIQUE email NOT declared in schema.ts (dev index non-unique); handle opt-ins idempotently (check-by-email + catch 23505), don't trust dev table to match prod.
 - [Resend dev sandbox](resend-dev-sandbox.md) — Resend 403 to real recipients in dev is EXPECTED (sandbox: only verified owner addr); not a code bug. Admin emails succeed; sends are fire-and-forget.
+- [Revert one file in protected git sandbox](git-restore-protected-sandbox.md) — git checkout/restore/rm blocked; use `git show HEAD:path > path` to undo single-file drift; never rm .git/index.lock.
