@@ -4,6 +4,7 @@ import {
   Sparkles, Eye, EyeOff, Loader2, Copy, Check, AlertTriangle, Wand2, LayoutTemplate,
   Layers, RefreshCw, Save, History, Trash2, Bookmark,
   Download, Image as ImageIcon, Video as VideoIcon, Package as PackageIcon,
+  Newspaper, ExternalLink, Send,
 } from "lucide-react";
 
 const GOLD = "#F4A62A";
@@ -357,6 +358,100 @@ const promptGenBody = (content: string, instruction: string): GenBody => ({
   founderVoice: false,
 });
 
+// ----- Blog publishing (reuses the existing PIN-gated /api/dashboard/posts) -----
+const BLOG_DEFAULT_CATEGORY = "AI & Business Growth";
+
+interface BlogDraftForm {
+  title: string;
+  slug: string;
+  excerpt: string;
+  category: string;
+  body: string;
+}
+
+interface BlogPostResult {
+  id: number;
+  slug: string;
+  title: string;
+  published: boolean;
+}
+
+// Title = first non-empty line, stripped of markdown heading/bold/list marks.
+function deriveBlogTitle(content: string): string {
+  for (const raw of content.split(/\r?\n/)) {
+    const line = raw
+      .replace(/^#{1,6}\s*/, "")
+      .replace(/^[>*+\-]\s*/, "")
+      .replace(/\*\*|__|`/g, "")
+      .trim();
+    if (line) return line.slice(0, 120);
+  }
+  return "Untitled Post";
+}
+
+// Excerpt = first paragraph that isn't the title, stripped + truncated.
+function deriveBlogExcerpt(content: string, title: string): string {
+  const blocks = content
+    .split(/\r?\n\s*\r?\n/)
+    .map((b) =>
+      b.replace(/^#{1,6}\s*/, "").replace(/\*\*|__|`/g, "").replace(/\s+/g, " ").trim(),
+    )
+    .filter(Boolean);
+  for (const b of blocks) {
+    if (b.toLowerCase() === title.toLowerCase()) continue;
+    return b.slice(0, 280);
+  }
+  return (blocks[0] ?? title).slice(0, 280);
+}
+
+// Shared fetch for the PIN-gated dashboard blog API. Sends the session cookie
+// and mirrors generateContent's 401 handling. No secrets are read client-side.
+async function dashJson(url: string, init?: RequestInit): Promise<any> {
+  const res = await fetch(url, { credentials: "include", ...init });
+  if (res.status === 401) {
+    sessionStorage.removeItem("e360_dashboard_auth");
+    window.location.reload();
+    throw new Error("Unauthorized");
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data?.error ?? data?.message ?? `Request failed (${res.status})`);
+  }
+  return data;
+}
+
+async function fetchBlogSlugs(): Promise<Set<string>> {
+  const posts = (await dashJson("/api/dashboard/posts")) as Array<{ slug: string }>;
+  return new Set((posts ?? []).map((p) => p.slug));
+}
+
+// Appends -1, -2, … until the slug is free (server enforces a UNIQUE slug).
+function ensureUniqueSlug(base: string, taken: Set<string>): string {
+  const root = base || "post";
+  if (!taken.has(root)) return root;
+  let n = 1;
+  while (n < 1000 && taken.has(`${root}-${n}`)) n++;
+  return `${root}-${n}`;
+}
+
+async function createBlogDraftPost(form: BlogDraftForm): Promise<BlogPostResult> {
+  return dashJson("/api/dashboard/posts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      title: form.title.trim().slice(0, 300),
+      slug: form.slug,
+      excerpt: form.excerpt.trim().slice(0, 500),
+      body: form.body,
+      category: (form.category.trim() || BLOG_DEFAULT_CATEGORY).slice(0, 60),
+    }),
+  }) as Promise<BlogPostResult>;
+}
+
+async function publishBlogPost(id: number): Promise<BlogPostResult> {
+  return dashJson(`/api/dashboard/posts/${id}/publish`, { method: "PATCH" }) as Promise<BlogPostResult>;
+}
+
 function Toggle({
   checked, onChange, label, testId,
 }: { checked: boolean; onChange: (v: boolean) => void; label: string; testId: string }) {
@@ -531,6 +626,17 @@ function Studio() {
   const [pkgError, setPkgError] = useState<string | null>(null);
   const [exportBusy, setExportBusy] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  const [blogOpen, setBlogOpen] = useState(false);
+  const [blogForm, setBlogForm] = useState<BlogDraftForm>({
+    title: "", slug: "", excerpt: "", category: BLOG_DEFAULT_CATEGORY, body: "",
+  });
+  const [slugEdited, setSlugEdited] = useState(false);
+  const [blogPublishing, setBlogPublishing] = useState(false);
+  const [blogError, setBlogError] = useState<string | null>(null);
+  const [blogPublished, setBlogPublished] = useState<
+    { slug: string; title: string; published: boolean } | null
+  >(null);
 
   const [promptLibrary, setPromptLibrary] = useState<SavedPrompt[]>(() => loadJson<SavedPrompt[]>(LIB_KEY, []));
   const [history, setHistory] = useState<HistoryEntry[]>(() => loadJson<HistoryEntry[]>(HIST_KEY, []));
@@ -734,6 +840,72 @@ function Studio() {
     const sections = packageSections();
     if (sections.length === 0) return;
     runExport(fmt, fileBase("content-package"), "Elevate360 Content Package", sections);
+  };
+
+  const openBlogReview = (content: string) => {
+    const title = deriveBlogTitle(content);
+    setBlogForm({
+      title,
+      slug: slugify(title),
+      excerpt: deriveBlogExcerpt(content, title),
+      category: BLOG_DEFAULT_CATEGORY,
+      body: content,
+    });
+    setSlugEdited(false);
+    setBlogError(null);
+    setBlogPublished(null);
+    setBlogOpen(true);
+  };
+
+  const onBlogTitleChange = (v: string) => {
+    setBlogForm((f) => ({ ...f, title: v, slug: slugEdited ? f.slug : slugify(v) }));
+  };
+
+  const onBlogSlugChange = (v: string) => {
+    setSlugEdited(true);
+    setBlogForm((f) => ({ ...f, slug: slugify(v) }));
+  };
+
+  // Reuses the existing PIN-gated endpoints: create (published=false) then,
+  // when publishing, PATCH /publish to toggle it live. Slug collisions are
+  // resolved client-side by suffixing before the create call.
+  const saveOrPublishBlog = async (publish: boolean) => {
+    const title = blogForm.title.trim();
+    if (!title) { setBlogError("A title is required."); return; }
+    if (!blogForm.body.trim()) { setBlogError("There is no content to publish."); return; }
+    setBlogPublishing(true);
+    setBlogError(null);
+    try {
+      const taken = await fetchBlogSlugs();
+      // Cap the base under the 200-char schema limit so suffixes can't overflow.
+      const baseSlug =
+        (slugify(blogForm.slug) || slugify(title) || "post").slice(0, 180).replace(/-+$/, "") || "post";
+      const slug = ensureUniqueSlug(baseSlug, taken);
+      const payload: BlogDraftForm = {
+        ...blogForm,
+        title,
+        excerpt: blogForm.excerpt.trim() || title,
+        slug,
+      };
+      let created: BlogPostResult;
+      try {
+        created = await createBlogDraftPost(payload);
+      } catch (firstErr) {
+        // A concurrent insert may have claimed the slug. Recompute against fresh
+        // slugs and retry once; if the slug is unchanged the failure was not a
+        // collision, so surface the original error rather than masking it.
+        const fresh = await fetchBlogSlugs();
+        const retrySlug = ensureUniqueSlug(baseSlug, fresh);
+        if (retrySlug === slug) throw firstErr;
+        created = await createBlogDraftPost({ ...payload, slug: retrySlug });
+      }
+      const finalPost = publish ? await publishBlogPost(created.id) : created;
+      setBlogPublished({ slug: finalPost.slug, title: finalPost.title, published: finalPost.published });
+    } catch (e) {
+      setBlogError((e as Error)?.message ?? "Could not save the post. Please try again.");
+    } finally {
+      setBlogPublishing(false);
+    }
   };
 
   const savePrompt = () => {
@@ -1129,6 +1301,16 @@ function Studio() {
                     >
                       <PackageIcon className="h-3 w-3" /> Package
                     </button>
+                    {r.type === "blog" && (
+                      <button
+                        type="button"
+                        data-testid={`button-blog-draft-${i}`}
+                        onClick={() => openBlogReview(r.content)}
+                        className="btn-primary text-[10px] px-2.5 py-1 flex items-center gap-1"
+                      >
+                        <Newspaper className="h-3 w-3" /> Save as Blog Draft
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -1179,6 +1361,144 @@ function Studio() {
               <PackageSection title="Image Prompt" testId="image" value={pkg.imagePrompt} loading={imgLoading} copiedKey={copiedKey} onCopy={copyText} />
               <PackageSection title="Video Prompt" testId="video" value={pkg.videoPrompt} loading={vidLoading} copiedKey={copiedKey} onCopy={copyText} />
             </div>
+          </div>
+        )}
+
+        {/* Publish blog draft: review + edit, then publish live to /blog */}
+        {blogOpen && (
+          <div className="lux-card mt-6" data-testid="panel-blog-publish">
+            <div className="flex items-center justify-between gap-2 flex-wrap mb-4">
+              <div className="flex items-center gap-2">
+                <Newspaper className="h-4 w-4 text-[#F4A62A]" />
+                <h2 className="text-white font-semibold text-sm">Publish to Blog</h2>
+              </div>
+              <button
+                type="button"
+                data-testid="button-close-blog"
+                onClick={() => setBlogOpen(false)}
+                className="text-white/40 hover:text-white/80 text-[11px] px-2 py-1"
+              >
+                Close
+              </button>
+            </div>
+
+            {blogPublished ? (
+              <div
+                data-testid="status-blog-published"
+                className="flex flex-col items-start gap-3 bg-[#F4A62A]/10 border border-[#F4A62A]/30 rounded-xl p-4"
+              >
+                <div className="flex items-center gap-2 text-[#F4A62A] font-semibold text-sm">
+                  <Check className="h-4 w-4" />
+                  {blogPublished.published ? "Published to your blog!" : "Saved as a draft."}
+                </div>
+                <p className="text-white/70 text-sm">
+                  {blogPublished.published ? (
+                    <>“{blogPublished.title}” is now live on your blog.</>
+                  ) : (
+                    <>“{blogPublished.title}” is saved as an unpublished draft — manage it under Dashboard → Blog.</>
+                  )}
+                </p>
+                {blogPublished.published && (
+                  <a
+                    href={`/blog/${blogPublished.slug}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-testid="link-view-post"
+                    className="btn-primary text-xs px-4 py-2 flex items-center gap-1.5"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" /> View Post
+                  </a>
+                )}
+                <button
+                  type="button"
+                  data-testid="button-blog-done"
+                  onClick={() => setBlogOpen(false)}
+                  className="text-white/40 hover:text-white/70 text-xs"
+                >
+                  Done
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4">
+                {blogError && (
+                  <p data-testid="text-blog-error" className="text-red-400 text-sm">{blogError}</p>
+                )}
+                <div className="grid md:grid-cols-2 gap-4">
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-white/60 text-xs">Title</span>
+                    <input
+                      data-testid="input-blog-title"
+                      value={blogForm.title}
+                      onChange={(e) => onBlogTitleChange(e.target.value)}
+                      maxLength={300}
+                      className="w-full bg-black/20 border border-white/10 rounded-xl px-3 py-2 text-sm text-white/90 focus:border-[#F4A62A]/50 outline-none"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-white/60 text-xs">
+                      Slug <span className="text-white/30">/blog/{blogForm.slug || "…"}</span>
+                    </span>
+                    <input
+                      data-testid="input-blog-slug"
+                      value={blogForm.slug}
+                      onChange={(e) => onBlogSlugChange(e.target.value)}
+                      maxLength={200}
+                      className="w-full bg-black/20 border border-white/10 rounded-xl px-3 py-2 text-sm text-white/90 focus:border-[#F4A62A]/50 outline-none font-mono"
+                    />
+                  </label>
+                </div>
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-white/60 text-xs">
+                    Excerpt <span className="text-white/30">({blogForm.excerpt.length}/500)</span>
+                  </span>
+                  <textarea
+                    data-testid="input-blog-excerpt"
+                    value={blogForm.excerpt}
+                    onChange={(e) => setBlogForm((f) => ({ ...f, excerpt: e.target.value.slice(0, 500) }))}
+                    rows={2}
+                    className="w-full bg-black/20 border border-white/10 rounded-xl px-3 py-2 text-sm text-white/90 focus:border-[#F4A62A]/50 outline-none resize-y"
+                  />
+                </label>
+                <label className="flex flex-col gap-1.5 md:max-w-xs">
+                  <span className="text-white/60 text-xs">Category</span>
+                  <input
+                    data-testid="input-blog-category"
+                    value={blogForm.category}
+                    onChange={(e) => setBlogForm((f) => ({ ...f, category: e.target.value.slice(0, 60) }))}
+                    maxLength={60}
+                    className="w-full bg-black/20 border border-white/10 rounded-xl px-3 py-2 text-sm text-white/90 focus:border-[#F4A62A]/50 outline-none"
+                  />
+                </label>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-white/60 text-xs">Content preview</span>
+                  <pre
+                    data-testid="text-blog-body-preview"
+                    className="whitespace-pre-wrap break-words text-white/70 text-xs leading-relaxed font-sans bg-black/20 border border-white/10 rounded-xl p-3 overflow-auto max-h-48"
+                  >{blogForm.body}</pre>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap pt-1">
+                  <button
+                    type="button"
+                    data-testid="button-blog-publish"
+                    onClick={() => saveOrPublishBlog(true)}
+                    disabled={blogPublishing || !blogForm.title.trim()}
+                    className="btn-primary text-sm px-4 py-2 flex items-center gap-1.5 disabled:opacity-40"
+                  >
+                    {blogPublishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    {blogPublishing ? "Publishing…" : "Publish to Blog"}
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="button-blog-save-draft"
+                    onClick={() => saveOrPublishBlog(false)}
+                    disabled={blogPublishing || !blogForm.title.trim()}
+                    className="btn-secondary text-sm px-4 py-2 flex items-center gap-1.5 disabled:opacity-40"
+                  >
+                    <Save className="h-4 w-4" /> Save as Draft
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
