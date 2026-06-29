@@ -460,7 +460,7 @@ export const campaigns = pgTable("campaigns", {
   blogPostId: integer("blog_post_id"),
   blogSlug: text("blog_slug"),
   topic: text("topic").notNull().default(""),
-  status: text("status").notNull().default("draft"), // draft | active | archived
+  status: text("status").notNull().default("draft"), // draft | generating | ready_for_review | approved | published | archived
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -490,10 +490,25 @@ export const updateCampaignAssetSchema = z.object({
   status: z.enum(["empty", "generated", "edited"]).optional(),
 }).strict();
 
+// Campaign lifecycle states (Phase 4.1). Stored as plain text (no DB enum), so
+// expanding this list never requires a migration.
+export const CAMPAIGN_STATUSES = [
+  "draft", "generating", "ready_for_review", "approved", "published", "archived",
+] as const;
+export type CampaignStatus = (typeof CAMPAIGN_STATUSES)[number];
+
+export const updateCampaignSchema = z.object({
+  status: z.enum(CAMPAIGN_STATUSES).optional(),
+  title: z.string().min(1).max(300).optional(),
+}).strict().refine((d) => d.status !== undefined || d.title !== undefined, {
+  message: "Provide a status or title to update.",
+});
+
 export type Campaign = typeof campaigns.$inferSelect;
 export type CampaignAsset = typeof campaignAssets.$inferSelect;
 export type CreateCampaignInput = z.infer<typeof createCampaignSchema>;
 export type UpdateCampaignAssetInput = z.infer<typeof updateCampaignAssetSchema>;
+export type UpdateCampaignInput = z.infer<typeof updateCampaignSchema>;
 export type CampaignWithAssets = Campaign & { assets: CampaignAsset[] };
 
 // Founder Authority Layer — media features, milestones, credentials, awards

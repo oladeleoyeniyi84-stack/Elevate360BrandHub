@@ -96,6 +96,7 @@ import {
   campaigns, campaignAssets, CAMPAIGN_ASSET_KEYS,
   type Campaign, type CampaignAsset, type CampaignWithAssets,
   type CreateCampaignInput, type UpdateCampaignAssetInput, type CampaignAssetKey,
+  type UpdateCampaignInput,
 } from "@shared/schema";
 import type { CognitiveSignal } from "@shared/types/cognitive";
 import { db } from "./db";
@@ -182,9 +183,11 @@ export interface IStorage {
   toggleBlogPostPublished(id: number): Promise<BlogPost | undefined>;
   // Phase 72 — Content Distribution Engine (Campaigns)
   createCampaignFromBlog(input: CreateCampaignInput): Promise<CampaignWithAssets>;
-  listCampaigns(): Promise<Campaign[]>;
+  listCampaigns(): Promise<CampaignWithAssets[]>;
   getCampaign(id: number): Promise<CampaignWithAssets | undefined>;
+  updateCampaign(id: number, updates: UpdateCampaignInput): Promise<Campaign | undefined>;
   updateCampaignAsset(campaignId: number, assetKey: CampaignAssetKey, updates: UpdateCampaignAssetInput): Promise<CampaignAsset | undefined>;
+  duplicateCampaign(id: number): Promise<CampaignWithAssets | undefined>;
   deleteCampaign(id: number): Promise<void>;
   // Phase 35 — Knowledge Base
   getKnowledgeDocs(publishedOnly?: boolean): Promise<KnowledgeDocument[]>;
@@ -1023,8 +1026,51 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
-  async listCampaigns(): Promise<Campaign[]> {
-    return db.select().from(campaigns).orderBy(desc(campaigns.createdAt));
+  async listCampaigns(): Promise<CampaignWithAssets[]> {
+    const list = await db.select().from(campaigns).orderBy(desc(campaigns.createdAt));
+    if (list.length === 0) return [];
+    const ids = list.map((c) => c.id);
+    const allAssets = await db.select().from(campaignAssets)
+      .where(inArray(campaignAssets.campaignId, ids))
+      .orderBy(asc(campaignAssets.id));
+    const byCampaign = new Map<number, CampaignAsset[]>();
+    for (const a of allAssets) {
+      const arr = byCampaign.get(a.campaignId);
+      if (arr) arr.push(a);
+      else byCampaign.set(a.campaignId, [a]);
+    }
+    return list.map((c) => ({ ...c, assets: byCampaign.get(c.id) ?? [] }));
+  }
+
+  async updateCampaign(id: number, updates: UpdateCampaignInput): Promise<Campaign | undefined> {
+    const set: Partial<typeof campaigns.$inferInsert> = { updatedAt: new Date() };
+    if (updates.status !== undefined) set.status = updates.status;
+    if (updates.title !== undefined) set.title = updates.title;
+    const [row] = await db.update(campaigns).set(set).where(eq(campaigns.id, id)).returning();
+    return row;
+  }
+
+  async duplicateCampaign(id: number): Promise<CampaignWithAssets | undefined> {
+    return db.transaction(async (tx) => {
+      const [source] = await tx.select().from(campaigns).where(eq(campaigns.id, id));
+      if (!source) return undefined;
+      const srcAssets = await tx.select().from(campaignAssets)
+        .where(eq(campaignAssets.campaignId, id))
+        .orderBy(asc(campaignAssets.id));
+      const [copy] = await tx.insert(campaigns).values({
+        title: `Copy of ${source.title}`.slice(0, 300),
+        source: source.source,
+        blogPostId: source.blogPostId,
+        blogSlug: source.blogSlug,
+        topic: source.topic,
+        status: "draft",
+      }).returning();
+      const rows = srcAssets.length > 0
+        ? srcAssets.map((a) => ({ campaignId: copy.id, assetKey: a.assetKey, content: a.content, status: a.status }))
+        : CAMPAIGN_ASSET_KEYS.map((assetKey) => ({ campaignId: copy.id, assetKey, content: "", status: "empty" as string }));
+      const assets = await tx.insert(campaignAssets).values(rows).returning();
+      return { ...copy, assets };
+    });
   }
 
   async getCampaign(id: number): Promise<CampaignWithAssets | undefined> {

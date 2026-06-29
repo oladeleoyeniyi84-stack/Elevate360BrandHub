@@ -16,6 +16,7 @@ import { storage } from "../storage";
 import {
   createCampaignSchema,
   updateCampaignAssetSchema,
+  updateCampaignSchema,
   CAMPAIGN_ASSET_KEYS,
   type CampaignAssetKey,
 } from "@shared/schema";
@@ -60,6 +61,39 @@ campaignsRouter.get("/:id", async (req, res) => {
     res.json(campaign);
   } catch {
     res.status(500).json({ message: "Failed to load campaign." });
+  }
+});
+
+campaignsRouter.patch("/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ message: "Invalid campaign id." });
+  }
+  try {
+    const updates = updateCampaignSchema.parse(req.body);
+    const row = await storage.updateCampaign(id, updates);
+    if (!row) return res.status(404).json({ message: "Campaign not found." });
+    res.json(row);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      res.status(400).json({ message: fromZodError(error).message });
+    } else {
+      res.status(500).json({ message: "Failed to update campaign." });
+    }
+  }
+});
+
+campaignsRouter.post("/:id/duplicate", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ message: "Invalid campaign id." });
+  }
+  try {
+    const campaign = await storage.duplicateCampaign(id);
+    if (!campaign) return res.status(404).json({ message: "Campaign not found." });
+    res.status(201).json(campaign);
+  } catch {
+    res.status(500).json({ message: "Failed to duplicate campaign." });
   }
 });
 

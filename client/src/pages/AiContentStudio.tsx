@@ -6,6 +6,7 @@ import {
   Download, Image as ImageIcon, Video as VideoIcon, Package as PackageIcon,
   Newspaper, ExternalLink, Send,
   Megaphone, FolderOpen, ArrowLeft, Gauge, Rocket, Lightbulb,
+  Archive, CheckCircle2, Files, ArrowDownUp, Filter, ClipboardList,
 } from "lucide-react";
 
 const GOLD = "#F4A62A";
@@ -487,6 +488,44 @@ interface CampaignDetailData extends CampaignRow {
   assets: CampaignAssetRow[];
 }
 
+// ----- Campaign lifecycle (Phase 4.1) -----
+const CAMPAIGN_STATUSES = [
+  "draft", "generating", "ready_for_review", "approved", "published", "archived",
+] as const;
+type CampaignStatus = (typeof CAMPAIGN_STATUSES)[number];
+
+const STATUS_META: Record<string, { label: string; badge: string; dot: string }> = {
+  draft:            { label: "Draft",           badge: "bg-white/10 text-white/70 border-white/15",          dot: "bg-white/40" },
+  generating:       { label: "Generating",      badge: "bg-blue-500/15 text-blue-300 border-blue-400/30",    dot: "bg-blue-400" },
+  ready_for_review: { label: "Ready for Review", badge: "bg-[#F4A62A]/15 text-[#F4A62A] border-[#F4A62A]/40", dot: "bg-[#F4A62A]" },
+  approved:         { label: "Approved",         badge: "bg-teal-500/15 text-teal-300 border-teal-400/30",    dot: "bg-teal-400" },
+  published:        { label: "Published",        badge: "bg-green-500/15 text-green-300 border-green-400/30",  dot: "bg-green-400" },
+  archived:         { label: "Archived",         badge: "bg-white/[0.04] text-white/40 border-white/10",      dot: "bg-white/25" },
+};
+const statusMeta = (s: string) => STATUS_META[s] ?? STATUS_META.draft;
+
+function StatusBadge({ status, testId }: { status: string; testId?: string }) {
+  const m = statusMeta(status);
+  return (
+    <span data-testid={testId} className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[11px] font-medium ${m.badge}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${m.dot}`} />
+      {m.label}
+    </span>
+  );
+}
+
+type AssetLike = { assetKey: string; content: string };
+function campaignProgress(assets: AssetLike[]): { done: number; total: number; pct: number } {
+  const total = CAMPAIGN_ASSET_KEYS.length;
+  const has = new Map(assets.map((a) => [a.assetKey, a.content]));
+  const done = CAMPAIGN_ASSET_KEYS.filter((k) => (has.get(k) ?? "").trim().length > 0).length;
+  return { done, total, pct: Math.round((done / total) * 100) };
+}
+function scoreFromAssets(assets: AssetLike[]): CampaignScore {
+  const map = new Map(assets.map((a) => [a.assetKey, a.content]));
+  return scoreCampaign((k) => map.get(k) ?? "");
+}
+
 const ASSET_META: Record<CampaignAssetKey, { label: string; ext: string; file: string }> = {
   blog: { label: "Blog Post", ext: "md", file: "blog-post" },
   linkedin: { label: "LinkedIn", ext: "txt", file: "linkedin" },
@@ -549,8 +588,20 @@ function assetGenBody(key: CampaignAssetKey, topic: string, blog: string): GenBo
   }
 }
 
-async function apiListCampaigns(): Promise<CampaignRow[]> {
-  return dashJson("/api/admin/campaigns") as Promise<CampaignRow[]>;
+async function apiListCampaigns(): Promise<CampaignDetailData[]> {
+  return dashJson("/api/admin/campaigns") as Promise<CampaignDetailData[]>;
+}
+async function apiUpdateCampaign(
+  id: number, updates: { status?: CampaignStatus; title?: string },
+): Promise<CampaignRow> {
+  return dashJson(`/api/admin/campaigns/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(updates),
+  }) as Promise<CampaignRow>;
+}
+async function apiDuplicateCampaign(id: number): Promise<CampaignDetailData> {
+  return dashJson(`/api/admin/campaigns/${id}/duplicate`, { method: "POST" }) as Promise<CampaignDetailData>;
 }
 async function apiGetCampaign(id: number): Promise<CampaignDetailData> {
   return dashJson(`/api/admin/campaigns/${id}`) as Promise<CampaignDetailData>;
@@ -1899,6 +1950,8 @@ function CampaignDetail({ id, onBack }: { id: number; onBack: () => void }) {
   const [genAll, setGenAll] = useState<{ done: number; total: number } | null>(null);
   const [zipBusy, setZipBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [status, setStatus] = useState<string>("draft");
+  const [statusBusy, setStatusBusy] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -1906,6 +1959,7 @@ function CampaignDetail({ id, onBack }: { id: number; onBack: () => void }) {
     try {
       const d = await apiGetCampaign(id);
       setData(d);
+      setStatus(d.status);
       const map: Record<string, { content: string; status: string }> = {};
       for (const a of d.assets) map[a.assetKey] = { content: a.content, status: a.status };
       for (const k of CAMPAIGN_ASSET_KEYS) if (!map[k]) map[k] = { content: "", status: "empty" };
@@ -1982,16 +2036,32 @@ function CampaignDetail({ id, onBack }: { id: number; onBack: () => void }) {
     }
   };
 
+  const changeStatus = async (next: CampaignStatus) => {
+    setStatusBusy(true);
+    setError(null);
+    try {
+      const updated = await apiUpdateCampaign(id, { status: next });
+      setStatus(updated.status);
+      setData((d) => (d ? { ...d, status: updated.status, updatedAt: updated.updatedAt } : d));
+    } catch (e) {
+      setError((e as Error)?.message ?? "Failed to update status.");
+    } finally {
+      setStatusBusy(false);
+    }
+  };
+
   const generateEverything = async () => {
     if (!getContent("blog").trim()) {
       setError("Add blog content first — the other assets are repurposed from it.");
       setActiveKey("blog");
       return;
     }
+    const wasUnstarted = status === "draft" || status === "generating";
     const targets = CAMPAIGN_ASSET_KEYS.filter((k) => k !== "blog");
     setError(null);
     setNotice(null);
     setGenAll({ done: 0, total: targets.length });
+    if (status === "draft") await changeStatus("generating");
     let failures = 0;
     for (let i = 0; i < targets.length; i++) {
       const k = targets[i];
@@ -2008,6 +2078,7 @@ function CampaignDetail({ id, onBack }: { id: number; onBack: () => void }) {
     }
     setBusyKey(null);
     setGenAll(null);
+    if (wasUnstarted && failures === 0) await changeStatus("ready_for_review");
     setNotice(failures === 0 ? "All assets generated." : `Generated with ${failures} skipped — retry those individually.`);
   };
 
@@ -2092,7 +2163,11 @@ function CampaignDetail({ id, onBack }: { id: number; onBack: () => void }) {
           <ArrowLeft className="h-3.5 w-3.5" /> Campaigns
         </button>
         <div className="flex-1 min-w-0">
-          <h1 className="text-lg font-bold text-white truncate" data-testid="text-detail-title">{data.title}</h1>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-lg font-bold text-white truncate" data-testid="text-detail-title">{data.title}</h1>
+            <StatusBadge status={status} testId="badge-detail-status" />
+            {statusBusy && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#F4A62A]" />}
+          </div>
           {data.blogSlug && (
             <a href={`/blog/${data.blogSlug}`} target="_blank" rel="noopener noreferrer" className="text-[#F4A62A] hover:underline text-xs flex items-center gap-1 w-fit" data-testid="link-detail-blog">
               <ExternalLink className="h-3 w-3" /> /blog/{data.blogSlug}
@@ -2118,6 +2193,72 @@ function CampaignDetail({ id, onBack }: { id: number; onBack: () => void }) {
           <ScoreBar label="Conversion" value={score.conversion} testId="score-conversion" />
         </div>
       </div>
+
+      {(() => {
+        const missing = CAMPAIGN_ASSET_KEYS.filter((k) => !getContent(k).trim());
+        const recs = missionControl(data.title, getContent("blog"), getContent("blog").slice(0, 160));
+        const next = (() => {
+          if (blogEmpty) return { label: "Add blog content", run: () => setActiveKey("blog"), testId: "button-next-add-blog" };
+          if (missing.length > 0) return { label: "Generate Everything", run: generateEverything, testId: "button-next-generate" };
+          if (status === "draft" || status === "generating" || status === "ready_for_review")
+            return { label: "Approve campaign", run: () => changeStatus("approved"), testId: "button-next-approve" };
+          if (status === "approved") return { label: "Mark as published", run: () => changeStatus("published"), testId: "button-next-publish" };
+          return { label: "Download campaign", run: downloadZip, testId: "button-next-download" };
+        })();
+        return (
+          <div className="lux-card mb-5" data-testid="card-mission-control">
+            <div className="flex items-center gap-2 mb-4">
+              <Rocket className="h-4 w-4 text-[#F4A62A]" />
+              <h2 className="text-white font-semibold text-sm">Mission Control</h2>
+            </div>
+            <div className="grid md:grid-cols-2 gap-5">
+              <div>
+                <div className="flex items-center gap-1.5 mb-2 text-white/80 text-xs font-semibold uppercase tracking-wide">
+                  <Lightbulb className="h-3.5 w-3.5 text-[#F4A62A]" /> AI Recommendations
+                </div>
+                <ul className="space-y-1.5" data-testid="list-recommendations">
+                  {recs.slice(0, 5).map((r, i) => (
+                    <li key={i} className="flex items-start gap-2 text-xs">
+                      {r.kind === "good"
+                        ? <CheckCircle2 className="h-3.5 w-3.5 text-green-400 mt-0.5 shrink-0" />
+                        : <AlertTriangle className="h-3.5 w-3.5 text-[#F4A62A] mt-0.5 shrink-0" />}
+                      <span className={r.kind === "good" ? "text-white/60" : "text-white/80"}>{r.text}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="flex flex-col gap-4">
+                <div>
+                  <div className="flex items-center gap-1.5 mb-2 text-white/80 text-xs font-semibold uppercase tracking-wide">
+                    <ClipboardList className="h-3.5 w-3.5 text-[#F4A62A]" /> Missing Assets
+                  </div>
+                  {missing.length === 0 ? (
+                    <p className="text-green-400 text-xs flex items-center gap-1.5" data-testid="text-no-missing-assets">
+                      <CheckCircle2 className="h-3.5 w-3.5" /> All {CAMPAIGN_ASSET_KEYS.length} assets generated.
+                    </p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5" data-testid="list-missing-assets">
+                      {missing.map((k) => (
+                        <button key={k} type="button" onClick={() => setActiveKey(k)} data-testid={`chip-missing-${k}`}
+                          className="px-2 py-0.5 rounded-full border border-white/15 bg-white/5 text-white/70 text-[11px] hover:border-[#F4A62A]/50 hover:text-white transition-colors">
+                          {ASSET_META[k].label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="mt-auto">
+                  <div className="text-white/80 text-xs font-semibold uppercase tracking-wide mb-2">Suggested Next Action</div>
+                  <button type="button" data-testid={next.testId} onClick={next.run} disabled={!!genAll || !!busyKey || statusBusy}
+                    className="btn-primary text-sm px-4 py-2 flex items-center gap-1.5 disabled:opacity-40">
+                    <Rocket className="h-4 w-4" /> {next.label}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="flex items-center gap-2 flex-wrap mb-5">
         <button type="button" data-testid="button-generate-everything" onClick={generateEverything} disabled={!!genAll || !!busyKey || blogEmpty} className="btn-primary text-sm px-4 py-2 flex items-center gap-1.5 disabled:opacity-40">
@@ -2190,12 +2331,23 @@ function CampaignDetail({ id, onBack }: { id: number; onBack: () => void }) {
   );
 }
 
+type SortKey = "newest" | "oldest" | "score" | "updated";
+const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+  { key: "newest", label: "Newest" },
+  { key: "oldest", label: "Oldest" },
+  { key: "score", label: "Highest Campaign Score" },
+  { key: "updated", label: "Recently Updated" },
+];
+
 function CampaignsView({ initialOpenId, onConsumed }: { initialOpenId: number | null; onConsumed: () => void }) {
-  const [rows, setRows] = useState<CampaignRow[]>([]);
+  const [rows, setRows] = useState<CampaignDetailData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(initialOpenId);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [filter, setFilter] = useState<"all" | CampaignStatus>("all");
+  const [sort, setSort] = useState<SortKey>("newest");
 
   const load = async () => {
     setLoading(true);
@@ -2218,9 +2370,66 @@ function CampaignsView({ initialOpenId, onConsumed }: { initialOpenId: number | 
     finally { setDeletingId(null); }
   };
 
+  const setStatus = async (cid: number, next: CampaignStatus) => {
+    setBusyId(cid);
+    setError(null);
+    try {
+      const updated = await apiUpdateCampaign(cid, { status: next });
+      setRows((r) => r.map((x) => (x.id === cid ? { ...x, status: updated.status, updatedAt: updated.updatedAt } : x)));
+    } catch (e) {
+      setError((e as Error)?.message ?? "Failed to update campaign.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const duplicate = async (cid: number) => {
+    setBusyId(cid);
+    setError(null);
+    try {
+      const copy = await apiDuplicateCampaign(cid);
+      setRows((r) => [copy, ...r]);
+    } catch (e) {
+      setError((e as Error)?.message ?? "Failed to duplicate campaign.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const counts = useMemo(() => ({
+    total: rows.length,
+    draft: rows.filter((r) => r.status === "draft").length,
+    ready_for_review: rows.filter((r) => r.status === "ready_for_review").length,
+    published: rows.filter((r) => r.status === "published").length,
+    archived: rows.filter((r) => r.status === "archived").length,
+  }), [rows]);
+
+  const visible = useMemo(() => {
+    const f = filter === "all" ? rows : rows.filter((r) => r.status === filter);
+    const sorted = [...f];
+    sorted.sort((a, b) => {
+      switch (sort) {
+        case "oldest": return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        case "updated": return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+        case "score": return scoreFromAssets(b.assets).overall - scoreFromAssets(a.assets).overall;
+        case "newest":
+        default: return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+    });
+    return sorted;
+  }, [rows, filter, sort]);
+
   if (selectedId != null) {
     return <CampaignDetail id={selectedId} onBack={() => { setSelectedId(null); load(); }} />;
   }
+
+  const summaryCards: { key: "all" | CampaignStatus; label: string; value: number }[] = [
+    { key: "all", label: "Total", value: counts.total },
+    { key: "draft", label: "Drafts", value: counts.draft },
+    { key: "ready_for_review", label: "Ready for Review", value: counts.ready_for_review },
+    { key: "published", label: "Published", value: counts.published },
+    { key: "archived", label: "Archived", value: counts.archived },
+  ];
 
   return (
     <div data-testid="view-campaigns">
@@ -2239,6 +2448,57 @@ function CampaignsView({ initialOpenId, onConsumed }: { initialOpenId: number | 
 
       {error && <p data-testid="text-campaigns-error" className="text-red-400 text-sm mb-4">{error}</p>}
 
+      {!loading && rows.length > 0 && (
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-5">
+            {summaryCards.map((card) => (
+              <button
+                key={card.key}
+                type="button"
+                data-testid={`card-summary-${card.key}`}
+                onClick={() => setFilter(card.key)}
+                className={`lux-card text-left py-3 transition-colors ${filter === card.key ? "border-[#F4A62A]/60" : "hover:border-white/20"}`}
+              >
+                <div className="text-2xl font-bold text-white" data-testid={`text-summary-value-${card.key}`}>{card.value}</div>
+                <div className="text-white/50 text-[11px] uppercase tracking-wide mt-0.5">{card.label}</div>
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-3 mb-5 flex-wrap">
+            <div className="flex items-center gap-1.5 flex-wrap" data-testid="filters-campaign-status">
+              <span className="text-white/40 text-xs flex items-center gap-1"><Filter className="h-3.5 w-3.5" /></span>
+              {(["all", ...CAMPAIGN_STATUSES] as const).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  data-testid={`filter-${s}`}
+                  onClick={() => setFilter(s)}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors ${
+                    filter === s ? "bg-[#F4A62A] text-black border-[#F4A62A]" : "bg-white/[0.04] text-white/60 border-white/10 hover:text-white"
+                  }`}
+                >
+                  {s === "all" ? "All" : statusMeta(s).label}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-1.5 ml-auto">
+              <ArrowDownUp className="h-3.5 w-3.5 text-white/40" />
+              <select
+                data-testid="select-campaign-sort"
+                value={sort}
+                onChange={(e) => setSort(e.target.value as SortKey)}
+                className="bg-white/[0.06] border border-white/10 rounded-lg text-white/80 text-xs px-2.5 py-1.5 focus:outline-none focus:border-[#F4A62A]/50"
+              >
+                {SORT_OPTIONS.map((o) => (
+                  <option key={o.key} value={o.key} className="bg-[#0b1220]">{o.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </>
+      )}
+
       {loading ? (
         <div className="flex items-center gap-2 text-white/40 text-sm py-16 justify-center">
           <Loader2 className="h-5 w-5 animate-spin text-[#F4A62A]" /> Loading campaigns…
@@ -2249,30 +2509,74 @@ function CampaignsView({ initialOpenId, onConsumed }: { initialOpenId: number | 
           <p className="text-white/60 text-sm">No campaigns yet.</p>
           <p className="text-white/40 text-xs mt-1">Generate a blog draft in the Content Studio and hit “Publish to Blog” to spin one up.</p>
         </div>
+      ) : visible.length === 0 ? (
+        <div className="lux-card text-center py-16" data-testid="text-campaigns-filtered-empty">
+          <Filter className="h-8 w-8 text-white/20 mx-auto mb-3" />
+          <p className="text-white/60 text-sm">No campaigns match this filter.</p>
+        </div>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {rows.map((c) => (
-            <div key={c.id} data-testid={`card-campaign-${c.id}`} className="lux-card flex flex-col gap-3">
-              <div className="flex items-start gap-2">
-                <h2 className="text-white font-semibold text-sm leading-snug line-clamp-2 flex-1" data-testid={`text-campaign-title-${c.id}`}>{c.title}</h2>
-                <button type="button" aria-label="Delete campaign" data-testid={`button-delete-campaign-${c.id}`} onClick={() => remove(c.id)} disabled={deletingId === c.id} className="text-white/40 hover:text-red-400 p-1 disabled:opacity-40">
-                  {deletingId === c.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+          {visible.map((c) => {
+            const prog = campaignProgress(c.assets);
+            const cardScore = scoreFromAssets(c.assets).overall;
+            const cardBusy = busyId === c.id;
+            return (
+              <div key={c.id} data-testid={`card-campaign-${c.id}`} className="lux-card flex flex-col gap-3">
+                <div className="flex items-start gap-2">
+                  <h2 className="text-white font-semibold text-sm leading-snug line-clamp-2 flex-1" data-testid={`text-campaign-title-${c.id}`}>{c.title}</h2>
+                  <span className="text-white/70 text-xs font-bold shrink-0" title="Campaign score" data-testid={`text-campaign-score-${c.id}`}>{cardScore}</span>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <StatusBadge status={c.status} testId={`badge-campaign-status-${c.id}`} />
+                  <span className="text-white/40 text-[11px]">{new Date(c.createdAt).toLocaleDateString()}</span>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between text-[11px] text-white/50 mb-1">
+                    <span>Assets</span>
+                    <span data-testid={`text-campaign-progress-${c.id}`}>{prog.done}/{prog.total}</span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${prog.pct}%`, background: GOLD }} />
+                  </div>
+                </div>
+
+                {c.blogSlug && (
+                  <a href={`/blog/${c.blogSlug}`} target="_blank" rel="noopener noreferrer" data-testid={`link-campaign-blog-${c.id}`} className="text-[#F4A62A] hover:underline text-xs flex items-center gap-1 w-fit">
+                    <ExternalLink className="h-3 w-3" /> View source blog
+                  </a>
+                )}
+
+                <button type="button" data-testid={`button-open-campaign-${c.id}`} onClick={() => setSelectedId(c.id)} className="btn-primary text-xs px-4 py-2 flex items-center justify-center gap-1.5 mt-auto">
+                  <FolderOpen className="h-3.5 w-3.5" /> Open Campaign
                 </button>
+
+                <div className="flex items-center gap-1 flex-wrap border-t border-white/10 pt-2.5">
+                  {(c.status === "ready_for_review" || c.status === "draft" || c.status === "generating") && (
+                    <button type="button" data-testid={`button-approve-campaign-${c.id}`} onClick={() => setStatus(c.id, "approved")} disabled={cardBusy} className="btn-secondary text-[11px] px-2 py-1 flex items-center gap-1 disabled:opacity-40">
+                      <CheckCircle2 className="h-3 w-3" /> Approve
+                    </button>
+                  )}
+                  {(c.status === "approved" || c.status === "ready_for_review") && (
+                    <button type="button" data-testid={`button-publish-campaign-${c.id}`} onClick={() => setStatus(c.id, "published")} disabled={cardBusy} className="btn-secondary text-[11px] px-2 py-1 flex items-center gap-1 disabled:opacity-40">
+                      <Send className="h-3 w-3" /> Publish
+                    </button>
+                  )}
+                  <button type="button" data-testid={`button-duplicate-campaign-${c.id}`} onClick={() => duplicate(c.id)} disabled={cardBusy} className="btn-secondary text-[11px] px-2 py-1 flex items-center gap-1 disabled:opacity-40">
+                    {cardBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Files className="h-3 w-3" />} Duplicate
+                  </button>
+                  {c.status !== "archived" && (
+                    <button type="button" data-testid={`button-archive-campaign-${c.id}`} onClick={() => setStatus(c.id, "archived")} disabled={cardBusy} className="btn-secondary text-[11px] px-2 py-1 flex items-center gap-1 disabled:opacity-40">
+                      <Archive className="h-3 w-3" /> Archive
+                    </button>
+                  )}
+                  <button type="button" aria-label="Delete campaign" data-testid={`button-delete-campaign-${c.id}`} onClick={() => remove(c.id)} disabled={deletingId === c.id} className="text-white/40 hover:text-red-400 p-1 ml-auto disabled:opacity-40">
+                    {deletingId === c.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-2 text-white/40 text-[11px]">
-                <span className="px-2 py-0.5 rounded-full bg-white/[0.06] border border-white/10">{c.source}</span>
-                <span>{new Date(c.createdAt).toLocaleDateString()}</span>
-              </div>
-              {c.blogSlug && (
-                <a href={`/blog/${c.blogSlug}`} target="_blank" rel="noopener noreferrer" data-testid={`link-campaign-blog-${c.id}`} className="text-[#F4A62A] hover:underline text-xs flex items-center gap-1 w-fit">
-                  <ExternalLink className="h-3 w-3" /> View source blog
-                </a>
-              )}
-              <button type="button" data-testid={`button-open-campaign-${c.id}`} onClick={() => setSelectedId(c.id)} className="btn-primary text-xs px-4 py-2 flex items-center justify-center gap-1.5 mt-auto">
-                <FolderOpen className="h-3.5 w-3.5" /> Open Campaign
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
