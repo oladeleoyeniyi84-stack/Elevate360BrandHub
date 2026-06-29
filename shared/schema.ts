@@ -445,6 +445,57 @@ export type InsertContentDraft = z.infer<typeof insertContentDraftSchema>;
 export type UpdateContentDraft = z.infer<typeof updateContentDraftSchema>;
 export type ContentDraft = typeof contentDrafts.$inferSelect;
 
+// Phase 72 — Content Distribution Engine (Campaigns).
+// One published blog fans out into platform-specific assets. Founder-only.
+export const CAMPAIGN_ASSET_KEYS = [
+  "blog", "linkedin", "facebook", "instagram", "x", "newsletter",
+  "email", "podcast", "youtube", "imagePrompt", "videoPrompt", "seo",
+] as const;
+export type CampaignAssetKey = (typeof CAMPAIGN_ASSET_KEYS)[number];
+
+export const campaigns = pgTable("campaigns", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  source: text("source").notNull().default("blog"), // blog
+  blogPostId: integer("blog_post_id"),
+  blogSlug: text("blog_slug"),
+  topic: text("topic").notNull().default(""),
+  status: text("status").notNull().default("draft"), // draft | active | archived
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const campaignAssets = pgTable("campaign_assets", {
+  id: serial("id").primaryKey(),
+  campaignId: integer("campaign_id").notNull(),
+  assetKey: text("asset_key").notNull(),
+  content: text("content").notNull().default(""),
+  status: text("status").notNull().default("empty"), // empty | generated | edited
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (t) => ({
+  campaignAssetIdx: uniqueIndex("campaign_assets_campaign_asset_idx").on(t.campaignId, t.assetKey),
+  campaignIdx: index("campaign_assets_campaign_idx").on(t.campaignId),
+}));
+
+export const createCampaignSchema = z.object({
+  title: z.string().min(1).max(300),
+  blogPostId: z.number().int().positive().optional(),
+  blogSlug: z.string().max(200).optional(),
+  topic: z.string().max(300).optional(),
+  blogContent: z.string().max(100000).optional(),
+}).strict();
+
+export const updateCampaignAssetSchema = z.object({
+  content: z.string().max(100000),
+  status: z.enum(["empty", "generated", "edited"]).optional(),
+}).strict();
+
+export type Campaign = typeof campaigns.$inferSelect;
+export type CampaignAsset = typeof campaignAssets.$inferSelect;
+export type CreateCampaignInput = z.infer<typeof createCampaignSchema>;
+export type UpdateCampaignAssetInput = z.infer<typeof updateCampaignAssetSchema>;
+export type CampaignWithAssets = Campaign & { assets: CampaignAsset[] };
+
 // Founder Authority Layer — media features, milestones, credentials, awards
 export const authorityItems = pgTable("authority_items", {
   id: serial("id").primaryKey(),

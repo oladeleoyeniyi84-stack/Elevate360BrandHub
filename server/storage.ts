@@ -93,6 +93,9 @@ import {
   type CognitiveDecision, type InsertCognitiveDecision,
   type CognitiveBriefing, type InsertCognitiveBriefing,
   type CognitiveConflict, type InsertCognitiveConflict,
+  campaigns, campaignAssets, CAMPAIGN_ASSET_KEYS,
+  type Campaign, type CampaignAsset, type CampaignWithAssets,
+  type CreateCampaignInput, type UpdateCampaignAssetInput, type CampaignAssetKey,
 } from "@shared/schema";
 import type { CognitiveSignal } from "@shared/types/cognitive";
 import { db } from "./db";
@@ -177,6 +180,12 @@ export interface IStorage {
   updateBlogPost(id: number, updates: UpdateBlogPost): Promise<BlogPost | undefined>;
   deleteBlogPost(id: number): Promise<void>;
   toggleBlogPostPublished(id: number): Promise<BlogPost | undefined>;
+  // Phase 72 — Content Distribution Engine (Campaigns)
+  createCampaignFromBlog(input: CreateCampaignInput): Promise<CampaignWithAssets>;
+  listCampaigns(): Promise<Campaign[]>;
+  getCampaign(id: number): Promise<CampaignWithAssets | undefined>;
+  updateCampaignAsset(campaignId: number, assetKey: CampaignAssetKey, updates: UpdateCampaignAssetInput): Promise<CampaignAsset | undefined>;
+  deleteCampaign(id: number): Promise<void>;
   // Phase 35 — Knowledge Base
   getKnowledgeDocs(publishedOnly?: boolean): Promise<KnowledgeDocument[]>;
   getPublishedKnowledgeByIntent(intent?: string | null): Promise<KnowledgeDocument[]>;
@@ -990,6 +999,79 @@ export class DatabaseStorage implements IStorage {
       .where(eq(blogPosts.id, id))
       .returning();
     return updated;
+  }
+
+  // Phase 72 — Content Distribution Engine (Campaigns)
+  async createCampaignFromBlog(input: CreateCampaignInput): Promise<CampaignWithAssets> {
+    return db.transaction(async (tx) => {
+      const [campaign] = await tx.insert(campaigns).values({
+        title: input.title,
+        source: "blog",
+        blogPostId: input.blogPostId,
+        blogSlug: input.blogSlug,
+        topic: input.topic ?? "",
+      }).returning();
+      const blogContent = input.blogContent ?? "";
+      const rows = CAMPAIGN_ASSET_KEYS.map((assetKey) => ({
+        campaignId: campaign.id,
+        assetKey,
+        content: assetKey === "blog" ? blogContent : "",
+        status: (assetKey === "blog" && blogContent ? "generated" : "empty") as string,
+      }));
+      const assets = await tx.insert(campaignAssets).values(rows).returning();
+      return { ...campaign, assets };
+    });
+  }
+
+  async listCampaigns(): Promise<Campaign[]> {
+    return db.select().from(campaigns).orderBy(desc(campaigns.createdAt));
+  }
+
+  async getCampaign(id: number): Promise<CampaignWithAssets | undefined> {
+    const [campaign] = await db.select().from(campaigns).where(eq(campaigns.id, id));
+    if (!campaign) return undefined;
+    const assets = await db.select().from(campaignAssets)
+      .where(eq(campaignAssets.campaignId, id))
+      .orderBy(asc(campaignAssets.id));
+    return { ...campaign, assets };
+  }
+
+  async updateCampaignAsset(
+    campaignId: number,
+    assetKey: CampaignAssetKey,
+    updates: UpdateCampaignAssetInput,
+  ): Promise<CampaignAsset | undefined> {
+    return db.transaction(async (tx) => {
+      const [campaign] = await tx.select({ id: campaigns.id }).from(campaigns).where(eq(campaigns.id, campaignId));
+      if (!campaign) return undefined;
+      const now = new Date();
+      const [row] = await tx.insert(campaignAssets)
+        .values({
+          campaignId,
+          assetKey,
+          content: updates.content,
+          status: updates.status ?? "edited",
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: [campaignAssets.campaignId, campaignAssets.assetKey],
+          set: {
+            content: updates.content,
+            status: updates.status ?? "edited",
+            updatedAt: now,
+          },
+        })
+        .returning();
+      await tx.update(campaigns).set({ updatedAt: now }).where(eq(campaigns.id, campaignId));
+      return row;
+    });
+  }
+
+  async deleteCampaign(id: number): Promise<void> {
+    await db.transaction(async (tx) => {
+      await tx.delete(campaignAssets).where(eq(campaignAssets.campaignId, id));
+      await tx.delete(campaigns).where(eq(campaigns.id, id));
+    });
   }
 
   // Phase 35 — Knowledge Base

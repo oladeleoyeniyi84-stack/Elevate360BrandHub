@@ -238,6 +238,11 @@ export async function registerRoutes(
   const { aiContentRouter } = await import("./routes/aiContent");
   app.use("/api/ai/content", aiContentRouter);
 
+  // Phase 72 — Content Distribution Engine (Campaigns). Persistence only;
+  // content generation is orchestrated client-side against /api/ai/content.
+  const { campaignsRouter } = await import("./routes/campaigns");
+  app.use("/api/admin/campaigns", campaignsRouter);
+
   app.get("/sitemap.xml", async (_req, res) => {
     try {
       const posts = await storage.getBlogPosts(true);

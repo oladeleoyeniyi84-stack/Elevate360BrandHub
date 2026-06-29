@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import {
   Sparkles, Eye, EyeOff, Loader2, Copy, Check, AlertTriangle, Wand2, LayoutTemplate,
   Layers, RefreshCw, Save, History, Trash2, Bookmark,
   Download, Image as ImageIcon, Video as VideoIcon, Package as PackageIcon,
   Newspaper, ExternalLink, Send,
+  Megaphone, FolderOpen, ArrowLeft, Gauge, Rocket, Lightbulb,
 } from "lucide-react";
 
 const GOLD = "#F4A62A";
@@ -452,6 +453,202 @@ async function publishBlogPost(id: number): Promise<BlogPostResult> {
   return dashJson(`/api/dashboard/posts/${id}/publish`, { method: "PATCH" }) as Promise<BlogPostResult>;
 }
 
+// ===== Phase 72 — Content Distribution Engine (Campaigns) =====
+// Campaign persistence lives behind the PIN-gated /api/admin/campaigns router.
+// Content generation reuses the existing /api/ai/content endpoint via
+// generateContent() above — there is no separate AI surface for campaigns.
+
+const CAMPAIGN_ASSET_KEYS = [
+  "blog", "linkedin", "facebook", "instagram", "x", "newsletter",
+  "email", "podcast", "youtube", "imagePrompt", "videoPrompt", "seo",
+] as const;
+type CampaignAssetKey = (typeof CAMPAIGN_ASSET_KEYS)[number];
+
+interface CampaignRow {
+  id: number;
+  title: string;
+  source: string;
+  blogPostId: number | null;
+  blogSlug: string | null;
+  topic: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+interface CampaignAssetRow {
+  id: number;
+  campaignId: number;
+  assetKey: string;
+  content: string;
+  status: string;
+  updatedAt: string;
+}
+interface CampaignDetailData extends CampaignRow {
+  assets: CampaignAssetRow[];
+}
+
+const ASSET_META: Record<CampaignAssetKey, { label: string; ext: string; file: string }> = {
+  blog: { label: "Blog Post", ext: "md", file: "blog-post" },
+  linkedin: { label: "LinkedIn", ext: "txt", file: "linkedin" },
+  facebook: { label: "Facebook", ext: "txt", file: "facebook" },
+  instagram: { label: "Instagram", ext: "txt", file: "instagram" },
+  x: { label: "X / Twitter", ext: "txt", file: "x-twitter" },
+  newsletter: { label: "Newsletter", ext: "txt", file: "newsletter" },
+  email: { label: "Marketing Email", ext: "txt", file: "email" },
+  podcast: { label: "Podcast Script", ext: "txt", file: "podcast-script" },
+  youtube: { label: "YouTube", ext: "txt", file: "youtube" },
+  imagePrompt: { label: "Image Prompt", ext: "txt", file: "image-prompt" },
+  videoPrompt: { label: "Video Prompt", ext: "txt", file: "video-prompt" },
+  seo: { label: "SEO Pack", ext: "txt", file: "seo-pack" },
+};
+
+// Maps each campaign asset onto the existing /api/ai/content contract
+// (type: headline | social | summary | email | blog). The published blog is the
+// single source the other 11 assets are repurposed from.
+function assetGenBody(key: CampaignAssetKey, topic: string, blog: string): GenBody {
+  const src = blog.trim();
+  const repurpose = (task: string): GenBody => ({
+    type: "summary",
+    prompt: `${task}\n\n--- SOURCE BLOG CONTENT ---\n${src}`,
+    useBrandVoice: true,
+    founderVoice: false,
+    temperature: 0.7,
+  });
+  switch (key) {
+    case "blog":
+      return {
+        type: "blog",
+        prompt: `Write a complete, well-structured, on-brand Elevate360 blog post about: ${topic || "the subject of the reference content below"}.\n\n--- REFERENCE ---\n${src}`,
+        system: "You are Elevate360's content writer. Use a clear intro hook, well-organized headed sections, and a closing call to action.",
+        useBrandVoice: true,
+        founderVoice: false,
+        temperature: 0.7,
+      };
+    case "linkedin":
+      return { ...repurpose("Repurpose the source blog into a professional LinkedIn post. Strong first-line hook, 3-5 short insight lines, a reflective question, and 3-5 relevant hashtags."), type: "social", platform: "linkedin" };
+    case "facebook":
+      return { ...repurpose("Repurpose the source blog into a warm, community-oriented Facebook post. Conversational tone, clear value, a friendly call to action, and 2-3 hashtags."), type: "social", platform: "facebook", temperature: 0.8 };
+    case "instagram":
+      return { ...repurpose("Repurpose the source blog into an Instagram caption. Scroll-stopping first line, short readable value lines, 1-2 tasteful emojis, a clear call to action, and 5-8 relevant hashtags."), type: "social", platform: "instagram", temperature: 0.85 };
+    case "x":
+      return { ...repurpose("Repurpose the source blog into an X (Twitter) thread of 4-6 posts. Number each (1/, 2/ …). First post is a strong hook; final post has a call to action."), type: "social", platform: "x", temperature: 0.8 };
+    case "newsletter":
+      return { ...repurpose("Repurpose the source blog into an email newsletter edition. Include a subject line, a preheader, a personable intro, scannable key-takeaway sections, and a closing call to action."), type: "email", platform: "email" };
+    case "email":
+      return { ...repurpose("Repurpose the source blog into a concise marketing email. Include a subject line, a compelling opener, 2-3 benefit-driven paragraphs, and one clear call-to-action line."), type: "email", platform: "email" };
+    case "podcast":
+      return repurpose("Repurpose the source blog into a podcast episode script: a cold-open hook, a host intro, 3-4 talking-point segments in natural spoken phrasing, and an outro with a call to action.");
+    case "youtube":
+      return repurpose("Repurpose the source blog into a YouTube package: 3 title options, a 150-200 word description with timestamp placeholders, 8-12 tags, and a short spoken intro script.");
+    case "imagePrompt":
+      return { ...repurpose("Write a single, detailed, tool-ready image-generation prompt (Midjourney/DALL-E style) that visually represents the source blog. One paragraph covering subject, style, mood, lighting, composition, and color. Output only the prompt."), useBrandVoice: false };
+    case "videoPrompt":
+      return { ...repurpose("Write a single, detailed, tool-ready video-generation prompt (Sora/Runway style) for the source blog. Cover scene, motion, camera, mood, pacing, and color. Output only the prompt."), useBrandVoice: false };
+    case "seo":
+      return { ...repurpose("Produce an SEO metadata pack for the source blog. Label each section: SEO Title (<=60 chars), Meta Description (<=155 chars), Focus Keywords (8-12, comma-separated), URL Slug Suggestions (3), Internal Link Anchors (5)."), useBrandVoice: false };
+  }
+}
+
+async function apiListCampaigns(): Promise<CampaignRow[]> {
+  return dashJson("/api/admin/campaigns") as Promise<CampaignRow[]>;
+}
+async function apiGetCampaign(id: number): Promise<CampaignDetailData> {
+  return dashJson(`/api/admin/campaigns/${id}`) as Promise<CampaignDetailData>;
+}
+async function apiCreateCampaign(input: {
+  title: string; blogPostId?: number; blogSlug?: string; topic?: string; blogContent?: string;
+}): Promise<CampaignDetailData> {
+  return dashJson("/api/admin/campaigns", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  }) as Promise<CampaignDetailData>;
+}
+async function apiUpdateAsset(
+  id: number, key: CampaignAssetKey, content: string, status?: "generated" | "edited",
+): Promise<CampaignAssetRow> {
+  return dashJson(`/api/admin/campaigns/${id}/assets/${key}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content, status }),
+  }) as Promise<CampaignAssetRow>;
+}
+async function apiDeleteCampaign(id: number): Promise<void> {
+  await dashJson(`/api/admin/campaigns/${id}`, { method: "DELETE" });
+}
+
+// ----- Deterministic, client-side scoring (no AI) -----
+const clampScore = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
+const wordCount = (s: string) => (s.trim().match(/\S+/g) ?? []).length;
+const CTA_RE = /\b(learn more|get started|sign ?up|subscribe|download|contact|book|join|shop|buy|order|visit|discover|explore|register|claim|today|right now|click|dm|comment|share|follow|link in bio)\b/i;
+const BRAND_RE = /\b(elevate ?360|elevate the world|one product at a time)\b/i;
+const HEADING_RE = /(^|\n)\s*(#{1,3}\s|\d+\.\s|[-*]\s)/;
+
+interface CampaignScore {
+  seo: number; brandVoice: number; readability: number; cta: number; conversion: number; overall: number;
+}
+function scoreCampaign(get: (k: CampaignAssetKey) => string): CampaignScore {
+  const blog = get("blog");
+  const blogWords = wordCount(blog);
+  const all = CAMPAIGN_ASSET_KEYS.map(get);
+  const generated = all.filter((c) => c.trim().length > 0).length;
+  const coverage = generated / CAMPAIGN_ASSET_KEYS.length;
+
+  const seoText = get("seo");
+  let seo = 0;
+  seo += seoText.trim() ? 40 : 0;
+  seo += /keyword/i.test(seoText) ? 12 : 0;
+  seo += /description/i.test(seoText) ? 10 : 0;
+  seo += blogWords >= 600 ? 25 : blogWords >= 300 ? 15 : blogWords > 0 ? 8 : 0;
+  seo += HEADING_RE.test(blog) ? 13 : 0;
+
+  const brandHits = all.filter((c) => BRAND_RE.test(c)).length;
+  const brandVoice = clampScore(30 + brandHits * 11 + (BRAND_RE.test(blog) ? 15 : 0));
+
+  let readability = 55;
+  if (blogWords > 0) {
+    const sentences = (blog.match(/[.!?]+/g) ?? []).length || 1;
+    const avg = blogWords / sentences;
+    readability = clampScore(100 - Math.abs(avg - 16) * 4);
+  }
+
+  const ctaAssets: CampaignAssetKey[] = ["linkedin", "facebook", "instagram", "x", "newsletter", "email", "youtube"];
+  const present = ctaAssets.filter((k) => get(k).trim().length > 0);
+  const ctaHits = present.filter((k) => CTA_RE.test(get(k))).length;
+  const cta = clampScore((ctaHits / (present.length || 1)) * 100);
+
+  const hasEmail = get("email").trim().length > 0 || get("newsletter").trim().length > 0;
+  const conversion = clampScore(coverage * 50 + cta * 0.3 + (hasEmail ? 20 : 0));
+
+  const overall = clampScore(seo * 0.25 + brandVoice * 0.2 + readability * 0.2 + cta * 0.15 + conversion * 0.2);
+  return { seo: clampScore(seo), brandVoice, readability, cta, conversion, overall };
+}
+
+interface MissionRec { kind: "good" | "warn"; text: string; }
+function missionControl(title: string, body: string, excerpt: string): MissionRec[] {
+  const words = wordCount(body);
+  const recs: MissionRec[] = [];
+  recs.push(words >= 600
+    ? { kind: "good", text: `Strong length — ${words} words is solid for SEO.` }
+    : { kind: "warn", text: `Only ${words} words. Aim for 600+ to rank better in search.` });
+  recs.push(HEADING_RE.test(body)
+    ? { kind: "good", text: "Headings or lists detected — good structure." }
+    : { kind: "warn", text: "Add section headings or lists to improve structure and SEO." });
+  recs.push(CTA_RE.test(body)
+    ? { kind: "good", text: "A call-to-action is present." }
+    : { kind: "warn", text: "No clear call-to-action found — add one to drive conversions." });
+  recs.push(title.trim().length > 0 && title.length <= 60
+    ? { kind: "good", text: `Title length (${title.length}) is search-friendly.` }
+    : { kind: "warn", text: `Keep the title under 60 characters for clean search snippets (now ${title.length}).` });
+  recs.push(BRAND_RE.test(body)
+    ? { kind: "good", text: "On-brand: Elevate360 voice detected." }
+    : { kind: "warn", text: "Mention the Elevate360 brand to reinforce voice." });
+  recs.push(excerpt.trim().length >= 50
+    ? { kind: "good", text: "Excerpt is a good length for previews and meta description." }
+    : { kind: "warn", text: "Write a 50-160 character excerpt — it doubles as your meta description." });
+  return recs;
+}
+
 function Toggle({
   checked, onChange, label, testId,
 }: { checked: boolean; onChange: (v: boolean) => void; label: string; testId: string }) {
@@ -606,7 +803,7 @@ function PackageSection({
   );
 }
 
-function Studio() {
+function Studio({ onOpenCampaign }: { onOpenCampaign?: (id: number) => void }) {
   const [type, setType] = useState<ContentType>("social");
   const [platform, setPlatform] = useState<Platform>("");
   const [prompt, setPrompt] = useState("");
@@ -637,6 +834,9 @@ function Studio() {
   const [blogPublished, setBlogPublished] = useState<
     { slug: string; title: string; published: boolean } | null
   >(null);
+  const [campaignCreating, setCampaignCreating] = useState(false);
+  const [createdCampaignId, setCreatedCampaignId] = useState<number | null>(null);
+  const [campaignWarn, setCampaignWarn] = useState<string | null>(null);
 
   const [promptLibrary, setPromptLibrary] = useState<SavedPrompt[]>(() => loadJson<SavedPrompt[]>(LIB_KEY, []));
   const [history, setHistory] = useState<HistoryEntry[]>(() => loadJson<HistoryEntry[]>(HIST_KEY, []));
@@ -854,6 +1054,9 @@ function Studio() {
     setSlugEdited(false);
     setBlogError(null);
     setBlogPublished(null);
+    setCampaignCreating(false);
+    setCreatedCampaignId(null);
+    setCampaignWarn(null);
     setBlogOpen(true);
   };
 
@@ -901,6 +1104,23 @@ function Studio() {
       }
       const finalPost = publish ? await publishBlogPost(created.id) : created;
       setBlogPublished({ slug: finalPost.slug, title: finalPost.title, published: finalPost.published });
+      // Phase 72: after a successful PUBLISH, auto-create a Campaign from the
+      // live post. Non-blocking — a failure never affects the publish result.
+      if (publish && finalPost.published) {
+        setCampaignWarn(null);
+        setCreatedCampaignId(null);
+        setCampaignCreating(true);
+        apiCreateCampaign({
+          title: finalPost.title,
+          blogPostId: finalPost.id,
+          blogSlug: finalPost.slug,
+          topic: finalPost.title,
+          blogContent: payload.body,
+        })
+          .then((c) => setCreatedCampaignId(c.id))
+          .catch(() => setCampaignWarn("Couldn’t auto-create the campaign — open the Campaigns tab to retry."))
+          .finally(() => setCampaignCreating(false));
+      }
     } catch (e) {
       setBlogError((e as Error)?.message ?? "Could not save the post. Please try again.");
     } finally {
@@ -1409,6 +1629,26 @@ function Studio() {
                     <ExternalLink className="h-3.5 w-3.5" /> View Post
                   </a>
                 )}
+                {blogPublished.published && (
+                  <div className="w-full" data-testid="block-campaign-link">
+                    {campaignCreating ? (
+                      <p className="text-white/60 text-xs flex items-center gap-1.5" data-testid="status-campaign-creating">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-[#F4A62A]" /> Building your campaign…
+                      </p>
+                    ) : createdCampaignId != null ? (
+                      <button
+                        type="button"
+                        data-testid="button-open-created-campaign"
+                        onClick={() => onOpenCampaign?.(createdCampaignId)}
+                        className="btn-secondary text-xs px-4 py-2 flex items-center gap-1.5"
+                      >
+                        <Megaphone className="h-3.5 w-3.5" /> Open Campaign
+                      </button>
+                    ) : campaignWarn ? (
+                      <p className="text-amber-400/80 text-xs" data-testid="text-campaign-warn">{campaignWarn}</p>
+                    ) : null}
+                  </div>
+                )}
                 <button
                   type="button"
                   data-testid="button-blog-done"
@@ -1475,6 +1715,24 @@ function Studio() {
                     data-testid="text-blog-body-preview"
                     className="whitespace-pre-wrap break-words text-white/70 text-xs leading-relaxed font-sans bg-black/20 border border-white/10 rounded-xl p-3 overflow-auto max-h-48"
                   >{blogForm.body}</pre>
+                </div>
+                {/* Mission Control — display-only pre-publish recommendations */}
+                <div className="rounded-xl border border-[#F4A62A]/20 bg-[#F4A62A]/[0.05] p-3" data-testid="panel-mission-control">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Lightbulb className="h-4 w-4 text-[#F4A62A]" />
+                    <h3 className="text-white font-semibold text-xs uppercase tracking-wide">Mission Control</h3>
+                    <span className="text-white/40 text-[11px]">— review before publishing</span>
+                  </div>
+                  <ul className="space-y-1.5">
+                    {missionControl(blogForm.title, blogForm.body, blogForm.excerpt).map((r, i) => (
+                      <li key={i} data-testid={`rec-mission-${i}`} className="flex items-start gap-2 text-xs">
+                        {r.kind === "good"
+                          ? <Check className="h-3.5 w-3.5 text-green-400 shrink-0 mt-0.5" />
+                          : <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0 mt-0.5" />}
+                        <span className="text-white/70">{r.text}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap pt-1">
                   <button
@@ -1613,8 +1871,446 @@ function Studio() {
   );
 }
 
+function ScoreBar({ label, value, testId }: { label: string; value: number; testId: string }) {
+  const color = value >= 75 ? "#22c55e" : value >= 50 ? GOLD : "#ef4444";
+  return (
+    <div data-testid={testId}>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-white/60 text-[11px] uppercase tracking-wide">{label}</span>
+        <span className="text-white/90 text-xs font-semibold" data-testid={`${testId}-value`}>{value}</span>
+      </div>
+      <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+        <div className="h-full rounded-full" style={{ width: `${value}%`, background: color }} />
+      </div>
+    </div>
+  );
+}
+
+function CampaignDetail({ id, onBack }: { id: number; onBack: () => void }) {
+  const [data, setData] = useState<CampaignDetailData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [assets, setAssets] = useState<Record<string, { content: string; status: string }>>({});
+  const [dirty, setDirty] = useState<Set<string>>(new Set());
+  const [activeKey, setActiveKey] = useState<CampaignAssetKey>("blog");
+  const [busyKey, setBusyKey] = useState<CampaignAssetKey | null>(null);
+  const [savingKey, setSavingKey] = useState<CampaignAssetKey | null>(null);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [genAll, setGenAll] = useState<{ done: number; total: number } | null>(null);
+  const [zipBusy, setZipBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const d = await apiGetCampaign(id);
+      setData(d);
+      const map: Record<string, { content: string; status: string }> = {};
+      for (const a of d.assets) map[a.assetKey] = { content: a.content, status: a.status };
+      for (const k of CAMPAIGN_ASSET_KEYS) if (!map[k]) map[k] = { content: "", status: "empty" };
+      setAssets(map);
+      setDirty(new Set());
+    } catch (e) {
+      setError((e as Error)?.message ?? "Failed to load campaign.");
+    } finally {
+      setLoading(false);
+    }
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [id]);
+
+  const getContent = (k: CampaignAssetKey) => assets[k]?.content ?? "";
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const score = useMemo(() => scoreCampaign(getContent), [assets]);
+
+  const setContent = (k: CampaignAssetKey, content: string) => {
+    setAssets((m) => ({ ...m, [k]: { content, status: m[k]?.status === "empty" ? "edited" : (m[k]?.status ?? "edited") } }));
+    setDirty((d) => new Set(d).add(k));
+  };
+
+  const persist = async (k: CampaignAssetKey, content: string, status: "generated" | "edited") => {
+    const row = await apiUpdateAsset(id, k, content, status);
+    setAssets((m) => ({ ...m, [k]: { content: row.content, status: row.status } }));
+    setDirty((d) => { const n = new Set(d); n.delete(k); return n; });
+  };
+
+  const saveAsset = async (k: CampaignAssetKey) => {
+    setSavingKey(k);
+    setNotice(null);
+    try { await persist(k, getContent(k), "edited"); }
+    catch (e) { setError((e as Error)?.message ?? "Failed to save."); }
+    finally { setSavingKey(null); }
+  };
+
+  // Generation reuses /api/ai/content. On rate-limit (429) we back off and
+  // retry briefly so "Generate Everything" survives the 20-req/15-min limit.
+  const genOnce = async (k: CampaignAssetKey): Promise<string> => {
+    const topic = data?.topic || data?.title || "";
+    const body = assetGenBody(k, topic, getContent("blog"));
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const res = await generateContent(body);
+        return res.content;
+      } catch (e) {
+        const msg = (e as Error)?.message ?? "";
+        if (attempt < 2 && /rate|429|too many|limit/i.test(msg)) {
+          await new Promise((r) => setTimeout(r, 4000 * (attempt + 1)));
+          continue;
+        }
+        throw e;
+      }
+    }
+  };
+
+  const generateAsset = async (k: CampaignAssetKey) => {
+    if (k !== "blog" && !getContent("blog").trim()) {
+      setError("Add blog content first — the other assets are repurposed from it.");
+      setActiveKey("blog");
+      return;
+    }
+    setBusyKey(k);
+    setError(null);
+    setNotice(null);
+    try {
+      const content = await genOnce(k);
+      await persist(k, content, "generated");
+    } catch (e) {
+      setError((e as Error)?.message ?? "Generation failed.");
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
+  const generateEverything = async () => {
+    if (!getContent("blog").trim()) {
+      setError("Add blog content first — the other assets are repurposed from it.");
+      setActiveKey("blog");
+      return;
+    }
+    const targets = CAMPAIGN_ASSET_KEYS.filter((k) => k !== "blog");
+    setError(null);
+    setNotice(null);
+    setGenAll({ done: 0, total: targets.length });
+    let failures = 0;
+    for (let i = 0; i < targets.length; i++) {
+      const k = targets[i];
+      setBusyKey(k);
+      setActiveKey(k);
+      try {
+        const content = await genOnce(k);
+        await persist(k, content, "generated");
+      } catch {
+        failures++;
+      }
+      setGenAll({ done: i + 1, total: targets.length });
+      if (i < targets.length - 1) await new Promise((r) => setTimeout(r, 700));
+    }
+    setBusyKey(null);
+    setGenAll(null);
+    setNotice(failures === 0 ? "All assets generated." : `Generated with ${failures} skipped — retry those individually.`);
+  };
+
+  const copyAsset = async (k: CampaignAssetKey) => {
+    try {
+      await navigator.clipboard.writeText(getContent(k));
+      setCopiedKey(k);
+      setTimeout(() => setCopiedKey((c) => (c === k ? null : c)), 2000);
+    } catch { /* clipboard unavailable */ }
+  };
+
+  const downloadAsset = (k: CampaignAssetKey) => {
+    const meta = ASSET_META[k];
+    const base = `${slugify(data?.title ?? "campaign")}-${meta.file}`;
+    downloadBlob(new Blob([getContent(k)], { type: "text/plain;charset=utf-8" }), `${base}.${meta.ext}`);
+  };
+
+  const downloadZip = async () => {
+    setZipBusy(true);
+    setError(null);
+    try {
+      const JSZip = (await import("jszip")).default;
+      const zip = new JSZip();
+      const folderName = slugify(data?.title ?? "campaign") || "campaign";
+      const folder = zip.folder(folderName) ?? zip;
+      for (const k of CAMPAIGN_ASSET_KEYS) {
+        const content = getContent(k);
+        if (!content.trim()) continue;
+        const meta = ASSET_META[k];
+        folder.file(`${meta.file}.${meta.ext}`, content);
+      }
+      const summary = [
+        data?.title ?? "Campaign",
+        "",
+        `Source blog: ${data?.blogSlug ? `/blog/${data.blogSlug}` : "—"}`,
+        `Generated: ${new Date().toLocaleString()}`,
+        "",
+        "Campaign Score",
+        "--------------",
+        `Overall:      ${score.overall}`,
+        `SEO:          ${score.seo}`,
+        `Brand Voice:  ${score.brandVoice}`,
+        `Readability:  ${score.readability}`,
+        `CTA:          ${score.cta}`,
+        `Conversion:   ${score.conversion}`,
+      ].join("\n");
+      folder.file("campaign-summary.txt", summary);
+      const blob = await zip.generateAsync({ type: "blob" });
+      downloadBlob(blob, `${folderName}-campaign.zip`);
+    } catch (e) {
+      setError((e as Error)?.message ?? "Failed to build the ZIP.");
+    } finally {
+      setZipBusy(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 text-white/40 text-sm py-16 justify-center" data-testid="status-campaign-loading">
+        <Loader2 className="h-5 w-5 animate-spin text-[#F4A62A]" /> Loading campaign…
+      </div>
+    );
+  }
+  if (!data) {
+    return (
+      <div data-testid="view-campaign-detail">
+        <button type="button" data-testid="button-back-campaigns" onClick={onBack} className="btn-secondary text-xs px-3 py-2 flex items-center gap-1.5 mb-4">
+          <ArrowLeft className="h-3.5 w-3.5" /> Back
+        </button>
+        <p className="text-red-400 text-sm" data-testid="text-campaign-error">{error ?? "Campaign not found."}</p>
+      </div>
+    );
+  }
+
+  const active = assets[activeKey] ?? { content: "", status: "empty" };
+  const blogEmpty = !getContent("blog").trim();
+
+  return (
+    <div data-testid="view-campaign-detail">
+      <div className="flex items-center gap-3 mb-5 flex-wrap">
+        <button type="button" data-testid="button-back-campaigns" onClick={onBack} className="btn-secondary text-xs px-3 py-2 flex items-center gap-1.5">
+          <ArrowLeft className="h-3.5 w-3.5" /> Campaigns
+        </button>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-lg font-bold text-white truncate" data-testid="text-detail-title">{data.title}</h1>
+          {data.blogSlug && (
+            <a href={`/blog/${data.blogSlug}`} target="_blank" rel="noopener noreferrer" className="text-[#F4A62A] hover:underline text-xs flex items-center gap-1 w-fit" data-testid="link-detail-blog">
+              <ExternalLink className="h-3 w-3" /> /blog/{data.blogSlug}
+            </a>
+          )}
+        </div>
+      </div>
+
+      {error && <p data-testid="text-campaign-error" className="text-red-400 text-sm mb-3">{error}</p>}
+      {notice && <p data-testid="text-campaign-notice" className="text-[#F4A62A] text-sm mb-3">{notice}</p>}
+
+      <div className="lux-card mb-5" data-testid="card-campaign-score">
+        <div className="flex items-center gap-2 mb-4">
+          <Gauge className="h-4 w-4 text-[#F4A62A]" />
+          <h2 className="text-white font-semibold text-sm">Campaign Score</h2>
+          <span className="ml-auto text-2xl font-bold text-white" data-testid="text-score-overall">{score.overall}</span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+          <ScoreBar label="SEO" value={score.seo} testId="score-seo" />
+          <ScoreBar label="Brand Voice" value={score.brandVoice} testId="score-brand" />
+          <ScoreBar label="Readability" value={score.readability} testId="score-readability" />
+          <ScoreBar label="CTA" value={score.cta} testId="score-cta" />
+          <ScoreBar label="Conversion" value={score.conversion} testId="score-conversion" />
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 flex-wrap mb-5">
+        <button type="button" data-testid="button-generate-everything" onClick={generateEverything} disabled={!!genAll || !!busyKey || blogEmpty} className="btn-primary text-sm px-4 py-2 flex items-center gap-1.5 disabled:opacity-40">
+          {genAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
+          {genAll ? `Generating ${genAll.done}/${genAll.total}…` : "Generate Everything"}
+        </button>
+        <button type="button" data-testid="button-download-campaign" onClick={downloadZip} disabled={zipBusy} className="btn-secondary text-sm px-4 py-2 flex items-center gap-1.5 disabled:opacity-40">
+          {zipBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <PackageIcon className="h-4 w-4" />}
+          Download Campaign
+        </button>
+        {blogEmpty && <span className="text-white/40 text-xs">Add blog content to enable generation.</span>}
+      </div>
+
+      <div className="grid md:grid-cols-[200px_1fr] gap-5">
+        <div className="flex md:flex-col gap-1.5 overflow-x-auto md:overflow-visible pb-1 md:pb-0" data-testid="list-asset-tabs">
+          {CAMPAIGN_ASSET_KEYS.map((k) => {
+            const st = assets[k]?.status ?? "empty";
+            const dot = st === "empty" ? "bg-white/20" : st === "generated" ? "bg-[#F4A62A]" : "bg-green-400";
+            return (
+              <button
+                key={k}
+                type="button"
+                data-testid={`tab-asset-${k}`}
+                onClick={() => setActiveKey(k)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-left text-xs shrink-0 transition-colors ${activeKey === k ? "bg-[#F4A62A]/15 border border-[#F4A62A]/40 text-white" : "bg-white/[0.03] border border-white/10 text-white/70 hover:text-white"}`}
+              >
+                <span className={`h-1.5 w-1.5 rounded-full ${dot} ${busyKey === k ? "animate-pulse" : ""}`} />
+                {ASSET_META[k].label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="lux-card flex flex-col" data-testid={`editor-asset-${activeKey}`}>
+          <div className="flex items-center gap-2 mb-3 flex-wrap">
+            <h3 className="text-white font-semibold text-sm">{ASSET_META[activeKey].label}</h3>
+            <span className="text-white/40 text-[11px] px-2 py-0.5 rounded-full bg-white/[0.06] border border-white/10" data-testid="text-asset-status">{active.status}</span>
+            {dirty.has(activeKey) && <span className="text-[#F4A62A] text-[11px]" data-testid="text-asset-dirty">unsaved</span>}
+            <div className="ml-auto flex items-center gap-1.5">
+              <button type="button" data-testid="button-asset-generate" onClick={() => generateAsset(activeKey)} disabled={busyKey === activeKey || !!genAll} className="btn-secondary text-[11px] px-2.5 py-1 flex items-center gap-1 disabled:opacity-40">
+                {busyKey === activeKey ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                {active.content.trim() ? "Regenerate" : "Generate"}
+              </button>
+              <button type="button" data-testid="button-asset-copy" onClick={() => copyAsset(activeKey)} disabled={!active.content.trim()} className="btn-secondary text-[11px] px-2.5 py-1 flex items-center gap-1 disabled:opacity-40">
+                {copiedKey === activeKey ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />} Copy
+              </button>
+              <button type="button" data-testid="button-asset-download" onClick={() => downloadAsset(activeKey)} disabled={!active.content.trim()} className="btn-secondary text-[11px] px-2.5 py-1 flex items-center gap-1 disabled:opacity-40">
+                <Download className="h-3 w-3" /> .{ASSET_META[activeKey].ext}
+              </button>
+            </div>
+          </div>
+          <textarea
+            data-testid="textarea-asset-content"
+            value={active.content}
+            onChange={(e) => setContent(activeKey, e.target.value)}
+            placeholder={busyKey === activeKey ? "Generating…" : "Empty — generate or write this asset."}
+            rows={16}
+            className="w-full bg-black/20 border border-white/10 rounded-xl px-3 py-2 text-sm text-white/90 focus:border-[#F4A62A]/50 outline-none resize-y font-sans leading-relaxed"
+          />
+          <div className="flex items-center gap-2 mt-3">
+            <button type="button" data-testid="button-asset-save" onClick={() => saveAsset(activeKey)} disabled={!dirty.has(activeKey) || savingKey === activeKey} className="btn-primary text-xs px-4 py-2 flex items-center gap-1.5 disabled:opacity-40">
+              {savingKey === activeKey ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              Save
+            </button>
+            <span className="text-white/30 text-[11px]" data-testid="text-asset-words">{wordCount(active.content)} words</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CampaignsView({ initialOpenId, onConsumed }: { initialOpenId: number | null; onConsumed: () => void }) {
+  const [rows, setRows] = useState<CampaignRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(initialOpenId);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try { setRows(await apiListCampaigns()); }
+    catch (e) { setError((e as Error)?.message ?? "Failed to load campaigns."); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (initialOpenId != null) { setSelectedId(initialOpenId); onConsumed(); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialOpenId]);
+
+  const remove = async (cid: number) => {
+    if (!window.confirm("Delete this campaign and all its assets? This cannot be undone.")) return;
+    setDeletingId(cid);
+    try { await apiDeleteCampaign(cid); setRows((r) => r.filter((x) => x.id !== cid)); }
+    catch (e) { setError((e as Error)?.message ?? "Failed to delete campaign."); }
+    finally { setDeletingId(null); }
+  };
+
+  if (selectedId != null) {
+    return <CampaignDetail id={selectedId} onBack={() => { setSelectedId(null); load(); }} />;
+  }
+
+  return (
+    <div data-testid="view-campaigns">
+      <header className="flex items-center gap-3 mb-6">
+        <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ background: GOLD }}>
+          <Megaphone className="h-6 w-6 text-black" />
+        </div>
+        <div className="flex-1">
+          <h1 className="text-xl font-bold text-white">Campaigns</h1>
+          <p className="text-white/50 text-xs">One blog → 12 channel-ready assets. Publish a blog to auto-create one.</p>
+        </div>
+        <button type="button" data-testid="button-refresh-campaigns" onClick={load} className="btn-secondary text-xs px-3 py-2 flex items-center gap-1.5">
+          <RefreshCw className="h-3.5 w-3.5" /> Refresh
+        </button>
+      </header>
+
+      {error && <p data-testid="text-campaigns-error" className="text-red-400 text-sm mb-4">{error}</p>}
+
+      {loading ? (
+        <div className="flex items-center gap-2 text-white/40 text-sm py-16 justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-[#F4A62A]" /> Loading campaigns…
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="lux-card text-center py-16" data-testid="text-campaigns-empty">
+          <Megaphone className="h-8 w-8 text-white/20 mx-auto mb-3" />
+          <p className="text-white/60 text-sm">No campaigns yet.</p>
+          <p className="text-white/40 text-xs mt-1">Generate a blog draft in the Content Studio and hit “Publish to Blog” to spin one up.</p>
+        </div>
+      ) : (
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {rows.map((c) => (
+            <div key={c.id} data-testid={`card-campaign-${c.id}`} className="lux-card flex flex-col gap-3">
+              <div className="flex items-start gap-2">
+                <h2 className="text-white font-semibold text-sm leading-snug line-clamp-2 flex-1" data-testid={`text-campaign-title-${c.id}`}>{c.title}</h2>
+                <button type="button" aria-label="Delete campaign" data-testid={`button-delete-campaign-${c.id}`} onClick={() => remove(c.id)} disabled={deletingId === c.id} className="text-white/40 hover:text-red-400 p-1 disabled:opacity-40">
+                  {deletingId === c.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                </button>
+              </div>
+              <div className="flex items-center gap-2 text-white/40 text-[11px]">
+                <span className="px-2 py-0.5 rounded-full bg-white/[0.06] border border-white/10">{c.source}</span>
+                <span>{new Date(c.createdAt).toLocaleDateString()}</span>
+              </div>
+              {c.blogSlug && (
+                <a href={`/blog/${c.blogSlug}`} target="_blank" rel="noopener noreferrer" data-testid={`link-campaign-blog-${c.id}`} className="text-[#F4A62A] hover:underline text-xs flex items-center gap-1 w-fit">
+                  <ExternalLink className="h-3 w-3" /> View source blog
+                </a>
+              )}
+              <button type="button" data-testid={`button-open-campaign-${c.id}`} onClick={() => setSelectedId(c.id)} className="btn-primary text-xs px-4 py-2 flex items-center justify-center gap-1.5 mt-auto">
+                <FolderOpen className="h-3.5 w-3.5" /> Open Campaign
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AiContentStudio() {
   const [authed, setAuthed] = useState(() => sessionStorage.getItem("e360_dashboard_auth") === "true");
+  const [tab, setTab] = useState<"studio" | "campaigns">("studio");
+  const [openCampaignId, setOpenCampaignId] = useState<number | null>(null);
   if (!authed) return <PinGate onAuth={() => setAuthed(true)} />;
-  return <Studio />;
+
+  const tabBtn = (key: "studio" | "campaigns", label: string, Icon: typeof Sparkles) => (
+    <button
+      type="button"
+      data-testid={`tab-${key}`}
+      onClick={() => setTab(key)}
+      className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-colors ${tab === key ? "bg-[#F4A62A] text-black" : "bg-white/[0.06] border border-white/10 text-white/70 hover:text-white"}`}
+    >
+      <Icon className="h-4 w-4" /> {label}
+    </button>
+  );
+
+  return (
+    <div className="min-h-screen" style={{ background: BG }}>
+      <div className="max-w-6xl mx-auto px-4 pt-6">
+        <div className="flex items-center gap-2" data-testid="tabs-content-studio">
+          {tabBtn("studio", "Content Studio", Sparkles)}
+          {tabBtn("campaigns", "Campaigns", Megaphone)}
+        </div>
+      </div>
+      {tab === "studio" ? (
+        <Studio onOpenCampaign={(cid) => { setOpenCampaignId(cid); setTab("campaigns"); }} />
+      ) : (
+        <div className="max-w-6xl mx-auto px-4 py-8">
+          <CampaignsView initialOpenId={openCampaignId} onConsumed={() => setOpenCampaignId(null)} />
+        </div>
+      )}
+    </div>
+  );
 }
