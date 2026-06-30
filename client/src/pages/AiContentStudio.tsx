@@ -348,12 +348,19 @@ async function generateContent(body: GenBody): Promise<GenerateResponse> {
   return data as GenerateResponse;
 }
 
+// Defensive cap on how much source content we prepend to a generation prompt.
+// The /api/ai/content endpoint caps the whole prompt at 32k chars; capping the
+// source here keeps every repurpose/blog prompt comfortably under that ceiling
+// (task/instruction text adds only a few hundred chars) so a long blog can
+// never silently 400 the request.
+const MAX_SOURCE_CHARS = 24000;
+
 // Builds the request body for image/video prompt generation. Reuses the
 // "summary" budget on the existing endpoint; brand/founder voice off for a
 // clean, tool-ready prompt.
 const promptGenBody = (content: string, instruction: string): GenBody => ({
   type: "summary",
-  prompt: `${content}\n\n---\nUsing the content above, produce the requested prompt now.`,
+  prompt: `${content.slice(0, MAX_SOURCE_CHARS)}\n\n---\nUsing the content above, produce the requested prompt now.`,
   system: instruction,
   temperature: 0.7,
   useBrandVoice: false,
@@ -545,7 +552,7 @@ const ASSET_META: Record<CampaignAssetKey, { label: string; ext: string; file: s
 // (type: headline | social | summary | email | blog). The published blog is the
 // single source the other 11 assets are repurposed from.
 function assetGenBody(key: CampaignAssetKey, topic: string, blog: string): GenBody {
-  const src = blog.trim();
+  const src = blog.trim().slice(0, MAX_SOURCE_CHARS);
   const repurpose = (task: string): GenBody => ({
     type: "summary",
     prompt: `${task}\n\n--- SOURCE BLOG CONTENT ---\n${src}`,
@@ -2056,13 +2063,20 @@ function CampaignDetail({ id, onBack }: { id: number; onBack: () => void }) {
       setActiveKey("blog");
       return;
     }
-    const wasUnstarted = status === "draft" || status === "generating";
     const targets = CAMPAIGN_ASSET_KEYS.filter((k) => k !== "blog");
+    // Snapshot which assets already have content BEFORE the run. persist() updates
+    // state asynchronously, so getContent() inside this closure stays stale — we
+    // track success/failure locally and combine with this snapshot to decide the
+    // final status accurately.
+    const initiallyPresent = new Set(
+      CAMPAIGN_ASSET_KEYS.filter((k) => getContent(k).trim().length > 0),
+    );
     setError(null);
     setNotice(null);
     setGenAll({ done: 0, total: targets.length });
     if (status === "draft") await changeStatus("generating");
-    let failures = 0;
+    const succeeded = new Set<CampaignAssetKey>();
+    const failed: { key: CampaignAssetKey; message: string }[] = [];
     for (let i = 0; i < targets.length; i++) {
       const k = targets[i];
       setBusyKey(k);
@@ -2070,16 +2084,39 @@ function CampaignDetail({ id, onBack }: { id: number; onBack: () => void }) {
       try {
         const content = await genOnce(k);
         await persist(k, content, "generated");
-      } catch {
-        failures++;
+        succeeded.add(k);
+      } catch (e) {
+        // Never swallow silently — record which asset failed and why so the
+        // founder sees actionable detail. Generation continues regardless.
+        failed.push({ key: k, message: (e as Error)?.message ?? "Generation failed." });
       }
       setGenAll({ done: i + 1, total: targets.length });
       if (i < targets.length - 1) await new Promise((r) => setTimeout(r, 700));
     }
     setBusyKey(null);
     setGenAll(null);
-    if (wasUnstarted && failures === 0) await changeStatus("ready_for_review");
-    setNotice(failures === 0 ? "All assets generated." : `Generated with ${failures} skipped — retry those individually.`);
+
+    // Every asset present = blog (already verified non-empty) + each of the 11
+    // either already had content or generated successfully this run.
+    const haveAllAssets = CAMPAIGN_ASSET_KEYS.every(
+      (k) => initiallyPresent.has(k) || succeeded.has(k),
+    );
+    // Auto-advance to review once the full set exists, unless the campaign has
+    // already moved past review (approved/published/archived stay put).
+    const reviewable = status === "draft" || status === "generating" || status === "ready_for_review";
+    if (haveAllAssets && reviewable && status !== "ready_for_review") {
+      await changeStatus("ready_for_review");
+    }
+
+    if (failed.length === 0) {
+      setNotice("All 12 assets generated and saved.");
+    } else {
+      const labels = failed.map((f) => ASSET_META[f.key]?.label ?? f.key).join(", ");
+      setError(
+        `${failed.length} asset${failed.length === 1 ? "" : "s"} failed: ${labels}. ` +
+          `Reason: ${failed[0].message} — retry the failed asset${failed.length === 1 ? "" : "s"} individually.`,
+      );
+    }
   };
 
   const copyAsset = async (k: CampaignAssetKey) => {

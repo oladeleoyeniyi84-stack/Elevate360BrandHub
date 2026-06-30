@@ -31,9 +31,17 @@ const SYSTEM_PROMPTS: Record<ContentType, string> = {
   blog: "You are a content writer for the Elevate360 brand. Write well-structured, informative blog content.",
 };
 
+// Prompt ceiling. The campaign "Generate Everything" flow repurposes the full
+// blog post into 11 other assets by prepending the entire blog (which alone can
+// approach ~8k chars at the blog max_tokens budget) to each repurpose prompt.
+// An 8k cap silently 400'd every repurpose call; 32k comfortably fits a full
+// blog source plus the task instruction while staying well within DeepSeek's
+// context window.
+const MAX_PROMPT_CHARS = 32000;
+
 const requestSchema = z.object({
   type: z.enum(["headline", "social", "summary", "email", "blog"]),
-  prompt: z.string().min(1, "prompt is required").max(8000),
+  prompt: z.string().min(1, "prompt is required").max(MAX_PROMPT_CHARS),
   system: z.string().max(4000).optional(),
   temperature: z.number().min(0).max(2).optional(),
   platform: z
@@ -49,10 +57,12 @@ export const aiContentRouter = Router();
 // dashboard PIN, so unauthenticated requests always get 401 JSON.
 aiContentRouter.use(requireDashboardAuth);
 
-// Rate limit: 20 requests / 15 min per IP, applied AFTER requireDashboardAuth
-// (router-level) so only authenticated callers consume the budget. Exceeding the
-// limit returns 429 JSON from the shared rateLimit middleware.
-aiContentRouter.post("/", rateLimit(20, 900), async (req, res) => {
+// Rate limit: 40 requests / 15 min per IP, applied AFTER requireDashboardAuth
+// (router-level) so only authenticated callers consume the budget. Sized for the
+// campaign "Generate Everything" batch (11 calls/run) so a founder can run it
+// and re-run/tweak within the window without tripping the limit. Exceeding it
+// returns 429 JSON from the shared rateLimit middleware.
+aiContentRouter.post("/", rateLimit(40, 900), async (req, res) => {
   const parsed = requestSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ message: fromZodError(parsed.error).message });
