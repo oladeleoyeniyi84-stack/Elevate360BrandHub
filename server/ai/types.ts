@@ -27,7 +27,7 @@ export interface ProviderCallOptions {
   maxTokens?: number;
   jsonMode?: boolean;
   model?: string;
-  reasoningEffort?: "none" | "low" | "medium" | "high" | "xhigh" | "max";
+  reasoningEffort?: "none" | "low" | "medium" | "high" | "xhigh";
   verbosity?: "low" | "medium" | "high";
 }
 
