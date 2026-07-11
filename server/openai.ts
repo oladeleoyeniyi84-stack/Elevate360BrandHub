@@ -21,11 +21,6 @@ export type ContentType =
   | "email_subject_lines"
   | "blog_intro";
 
-/**
- * Premium content types — HARD-LOCKED to OpenAI via providerOverride.
- * These will NEVER route to DeepSeek, regardless of AI_PREMIUM_PROVIDER env value.
- * Add new high-stakes creator-facing content types here.
- */
 const PREMIUM_OPENAI_CONTENT_TYPES = new Set<ContentType>(["newsletter"]);
 
 const CONTENT_TYPE_INSTRUCTIONS: Record<ContentType, string> = {
@@ -41,10 +36,7 @@ const CONTENT_TYPE_INSTRUCTIONS: Record<ContentType, string> = {
   blog_intro: "Write an engaging blog post introduction (150–200 words) with a hook, problem statement, and teaser of what the post will cover.",
 };
 
-export async function generateBrandCopy(
-  contentType: ContentType,
-  brief: string
-): Promise<string> {
+export async function generateBrandCopy(contentType: ContentType, brief: string): Promise<string> {
   const instruction = CONTENT_TYPE_INSTRUCTIONS[contentType];
   const messages = [
     { role: "system" as const, content: VOICE_PROMPT },
@@ -54,8 +46,6 @@ export async function generateBrandCopy(
     },
   ];
 
-  // Premium content types are HARD-LOCKED to OpenAI via providerOverride.
-  // Bulk content types route to DeepSeek via "content_generation" task.
   const isPremium = PREMIUM_OPENAI_CONTENT_TYPES.has(contentType);
   const task = isPremium ? "executive_copy" : "content_generation";
 
@@ -63,8 +53,11 @@ export async function generateBrandCopy(
     task,
     {
       messages,
+      model: VOICE_AGENT.model,
       maxTokens: VOICE_AGENT.maxTokens,
       temperature: VOICE_AGENT.temperature,
+      reasoningEffort: VOICE_AGENT.reasoningEffort,
+      verbosity: VOICE_AGENT.verbosity,
     },
     isPremium ? { providerOverride: "openai" } : {}
   );
@@ -72,10 +65,8 @@ export async function generateBrandCopy(
   return response.content || "Unable to generate content. Please try again.";
 }
 
-// Re-export from prompts.ts for backward compatibility with existing callers
 export const buildConciergeSystemPrompt = buildConciergePromptText;
 
-// Phase 42 — Follow-Up Draft Generator
 export async function generateFollowupDraft(lead: {
   leadName?: string | null;
   leadEmail?: string | null;
@@ -101,8 +92,11 @@ Write a short, warm, personal follow-up email. Rules:
 
   const response = await runTask("followup", {
     messages: [{ role: "user", content: prompt }],
+    model: FOLLOWUP_AGENT.model,
     maxTokens: FOLLOWUP_AGENT.maxTokens,
     temperature: FOLLOWUP_AGENT.temperature,
+    reasoningEffort: FOLLOWUP_AGENT.reasoningEffort,
+    verbosity: FOLLOWUP_AGENT.verbosity,
     jsonMode: true,
   });
 
@@ -130,22 +124,21 @@ export async function getConciergeReply(
   memoryContext?: string | null
 ): Promise<string> {
   const systemPrompt = buildConciergePromptText(knowledgeDocs, consultationTypes, recommendedOffer);
-  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-    { role: "system", content: systemPrompt },
+  const input: OpenAI.Responses.ResponseInput = [
     ...(memoryContext ? [{ role: "system" as const, content: memoryContext }] : []),
-    ...history.map((m) => ({
-      role: m.role as "user" | "assistant",
-      content: m.content,
-    })),
-    { role: "user", content: userMessage },
-  ];
+    ...history.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
+    { role: "user" as const, content: userMessage },
+  ] as any;
 
-  const response = await openai.chat.completions.create({
+  const response = await openai.responses.create({
     model: CONCIERGE_AGENT.model,
-    messages,
-    max_tokens: CONCIERGE_AGENT.maxTokens,
-    temperature: CONCIERGE_AGENT.temperature,
+    instructions: systemPrompt,
+    input,
+    max_output_tokens: CONCIERGE_AGENT.maxTokens,
+    reasoning: { effort: CONCIERGE_AGENT.reasoningEffort },
+    text: { verbosity: CONCIERGE_AGENT.verbosity },
+    store: false,
   });
 
-  return response.choices[0]?.message?.content ?? "I'm here to help! What would you like to know about Elevate360?";
+  return response.output_text || "I'm here to help! What would you like to know about Elevate360?";
 }

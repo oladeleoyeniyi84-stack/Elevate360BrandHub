@@ -46,30 +46,27 @@ const ROUTE_TARGETS: Record<Intent, string> = {
 const INTENT_SYSTEM_PROMPT = INTENT_PROMPT;
 const INTENT_AGENT = getAgent("intent_classifier");
 
-export async function classifyIntent(
-  history: ChatMessage[],
-  latestMessage: string
-): Promise<IntentResult> {
+export async function classifyIntent(history: ChatMessage[], latestMessage: string): Promise<IntentResult> {
   try {
     const conversationText = [
       ...history.map((m) => `${m.role.toUpperCase()}: ${m.content}`),
       `USER: ${latestMessage}`,
     ].join("\n");
 
-    const response = await openai.chat.completions.create({
+    const response = await openai.responses.create({
       model: INTENT_AGENT.model,
-      messages: [
-        { role: "system", content: INTENT_SYSTEM_PROMPT },
-        { role: "user", content: conversationText },
-      ],
-      max_tokens: INTENT_AGENT.maxTokens,
-      temperature: INTENT_AGENT.temperature,
-      response_format: { type: "json_object" },
+      instructions: `${INTENT_SYSTEM_PROMPT}\nReturn only a valid JSON object.`,
+      input: conversationText,
+      max_output_tokens: INTENT_AGENT.maxTokens,
+      reasoning: { effort: INTENT_AGENT.reasoningEffort },
+      text: {
+        verbosity: INTENT_AGENT.verbosity,
+        format: { type: "json_object" },
+      },
+      store: false,
     });
 
-    const raw = response.choices[0]?.message?.content ?? "{}";
-    const parsed = JSON.parse(raw);
-
+    const parsed = JSON.parse(response.output_text || "{}");
     const intent: Intent = parsed.intent ?? "unknown";
     const confidence = Math.min(100, Math.max(0, Number(parsed.confidence ?? 0)));
 

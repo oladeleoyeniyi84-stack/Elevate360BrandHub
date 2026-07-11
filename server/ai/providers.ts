@@ -12,26 +12,33 @@ export function getOpenAIClient(): OpenAI {
 export const openai = getOpenAIClient();
 
 export interface CallOptions {
-  model: string;
+  model?: string;
   messages: OpenAI.Chat.ChatCompletionMessageParam[];
   maxTokens?: number;
   temperature?: number;
   jsonMode?: boolean;
+  reasoningEffort?: "none" | "low" | "medium" | "high" | "xhigh" | "max";
+  verbosity?: "low" | "medium" | "high";
 }
 
 export async function callOpenAI(options: CallOptions, retries = 2): Promise<string> {
   const client = getOpenAIClient();
   let lastErr: unknown;
+
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const response = await client.chat.completions.create({
-        model: options.model,
-        messages: options.messages,
-        max_tokens: options.maxTokens,
-        temperature: options.temperature,
-        ...(options.jsonMode ? { response_format: { type: "json_object" } } : {}),
+      const response = await client.responses.create({
+        model: options.model ?? process.env.OPENAI_MODEL ?? "gpt-5.6-terra",
+        input: options.messages as any,
+        max_output_tokens: options.maxTokens,
+        reasoning: { effort: options.reasoningEffort ?? "low" },
+        text: {
+          verbosity: options.verbosity ?? "medium",
+          ...(options.jsonMode ? { format: { type: "json_object" as const } } : {}),
+        },
+        store: false,
       });
-      return response.choices[0]?.message?.content ?? "";
+      return response.output_text ?? "";
     } catch (err) {
       lastErr = err;
       if (attempt < retries) {
@@ -39,5 +46,6 @@ export async function callOpenAI(options: CallOptions, retries = 2): Promise<str
       }
     }
   }
+
   throw lastErr;
 }
