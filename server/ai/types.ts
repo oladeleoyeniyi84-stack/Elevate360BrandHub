@@ -27,6 +27,8 @@ export interface ProviderCallOptions {
   maxTokens?: number;
   jsonMode?: boolean;
   model?: string;
+  reasoningEffort?: "none" | "low" | "medium" | "high" | "xhigh" | "max";
+  verbosity?: "low" | "medium" | "high";
 }
 
 export interface ProviderResult {
