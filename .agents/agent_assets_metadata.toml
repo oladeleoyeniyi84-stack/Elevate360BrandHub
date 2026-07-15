@@ -36,3 +36,27 @@ id = "B6H3uteKZWuJu8p-c4SNX"
 uri = "file://docs/Elevate360_Executive_Handoff.md"
 type = "text"
 title = "Elevate360 Executive Handoff Document"
+
+[[outputs]]
+id = "Z9yoAXtR6qCMisp2VISgO"
+uri = "file://screenshots/sprint70_1_desktop.jpg"
+type = "image"
+title = "Desktop — New Hero (1440×900)"
+
+[[outputs]]
+id = "FbS2ly4M3XD04R1CBxzYD"
+uri = "file://screenshots/sprint70_1_desktop_whowehelp.jpg"
+type = "image"
+title = "Desktop — Who We Help Section"
+
+[[outputs]]
+id = "49O7udJScZQPlMz6MM9-w"
+uri = "file://screenshots/sprint70_1_mobile.jpg"
+type = "image"
+title = "Mobile — New Hero (390×844)"
+
+[[outputs]]
+id = "uzDC-bKm7xK9za5Y8944n"
+uri = "file://screenshots/sprint70_1_mobile_whowehelp.jpg"
+type = "image"
+title = "Mobile — Who We Help Section"

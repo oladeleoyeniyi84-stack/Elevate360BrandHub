@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ContactDialog } from "@/components/ContactDialog";
+import { WhoWeHelpSection } from "@/components/WhoWeHelpSection";
 import { NewsletterForm } from "@/components/NewsletterForm";
 import { ShareButton } from "@/components/ShareButton";
 import { FAQSection } from "@/components/FAQSection";
@@ -593,17 +594,16 @@ export default function Home() {
             </div>
 
             <h1 className="text-5xl md:text-7xl lg:text-8xl font-heading font-extrabold tracking-tight leading-tight animate-in fade-in slide-in-from-bottom-8 duration-700 delay-100">
-              Empowering Lives Through
+              Build Smarter. Grow Faster.
               <br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-[#ffe3a6] to-primary">
-                Technology & Words
+                Lead with AI.
               </span>
             </h1>
 
             <p className="text-lg md:text-xl text-white/70 max-w-2xl mx-auto leading-[1.9] animate-in fade-in slide-in-from-bottom-8 duration-700 delay-200 font-light mt-8">
-              Welcome to the official portfolio of Elevate360. Discover our suite of transformative
-              mobile applications and insightful Amazon publications designed to elevate your
-              everyday life.
+              Empowering lives through technology, artificial intelligence, education, and
+              digital innovation.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-300">
@@ -623,6 +623,9 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Sprint 70.1 — Who We Help (audience positioning) */}
+      <WhoWeHelpSection />
 
       {/* Founder Authority Section */}
       <section className="py-20 border-t border-white/10" style={{ background: "hsl(220 50% 7%)" }} data-testid="section-founder-authority">
