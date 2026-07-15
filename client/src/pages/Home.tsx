@@ -355,8 +355,8 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-background text-foreground font-sans safe-bottom luxury-bg">
       <SEO
-        title="Elevate360Official | Empowering Lives Through Technology & Words"
-        description="Explore Elevate360Official — a premium digital ecosystem of apps, books, music, art, and creative experiences by Oladele Oyeniyi designed to connect, heal, inspire, and elevate everyday life."
+        title="Elevate360Official | Build Smarter. Grow Faster. Create Greater Impact."
+        description="Elevate360Official empowers entrepreneurs, businesses, churches, nonprofits, healthcare providers, educators, and creators to grow through technology, artificial intelligence, education, and digital innovation."
         path="/"
       />
       <Helmet>
@@ -597,7 +597,7 @@ export default function Home() {
               Build Smarter. Grow Faster.
               <br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-[#ffe3a6] to-primary">
-                Lead with AI.
+                Create Greater Impact.
               </span>
             </h1>
 

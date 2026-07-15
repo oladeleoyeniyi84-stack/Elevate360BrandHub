@@ -41,22 +41,22 @@ title = "Elevate360 Executive Handoff Document"
 id = "Z9yoAXtR6qCMisp2VISgO"
 uri = "file://screenshots/sprint70_1_desktop.jpg"
 type = "image"
-title = "Desktop — New Hero (1440×900)"
+title = "Desktop hero — new headline (1440px)"
 
 [[outputs]]
 id = "FbS2ly4M3XD04R1CBxzYD"
 uri = "file://screenshots/sprint70_1_desktop_whowehelp.jpg"
 type = "image"
-title = "Desktop — Who We Help Section"
+title = "Desktop Who We Help — 7 cards (1440px)"
 
 [[outputs]]
 id = "49O7udJScZQPlMz6MM9-w"
 uri = "file://screenshots/sprint70_1_mobile.jpg"
 type = "image"
-title = "Mobile — New Hero (390×844)"
+title = "Mobile hero (390px)"
 
 [[outputs]]
 id = "uzDC-bKm7xK9za5Y8944n"
 uri = "file://screenshots/sprint70_1_mobile_whowehelp.jpg"
 type = "image"
-title = "Mobile — Who We Help Section"
+title = "Mobile Who We Help — 7 cards (390px)"

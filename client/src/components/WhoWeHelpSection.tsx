@@ -1,5 +1,14 @@
 import { Link } from "wouter";
-import { ArrowRight, Rocket, Palette, BookOpen, HeartHandshake } from "lucide-react";
+import {
+  ArrowRight,
+  Rocket,
+  Building2,
+  Church,
+  HeartHandshake,
+  Stethoscope,
+  GraduationCap,
+  Sparkles,
+} from "lucide-react";
 
 type Audience = {
   key: string;
@@ -14,45 +23,78 @@ type Audience = {
 
 const AUDIENCES: Audience[] = [
   {
-    key: "founders",
+    key: "entrepreneurs",
     icon: <Rocket className="h-6 w-6" aria-hidden="true" />,
     accent: "#F4A62A",
-    title: "Founders & Entrepreneurs",
+    title: "Entrepreneurs",
     description:
-      "AI-powered strategy, growth systems, and automation that turn bold ideas into real revenue.",
+      "AI-powered strategy, automation, and growth systems that turn bold ideas into sustainable revenue.",
     ctaLabel: "Book a Strategy Session",
     href: "/strategy-session",
     internal: true,
   },
   {
-    key: "creators",
-    icon: <Palette className="h-6 w-6" aria-hidden="true" />,
-    accent: "#a78bfa",
-    title: "Creators & Small Businesses",
-    description:
-      "Branding, digital products, and creative direction that help you stand out and scale with confidence.",
-    ctaLabel: "Explore Offers",
-    href: "#offers",
-  },
-  {
-    key: "learners",
-    icon: <BookOpen className="h-6 w-6" aria-hidden="true" />,
+    key: "smb",
+    icon: <Building2 className="h-6 w-6" aria-hidden="true" />,
     accent: "#38bdf8",
-    title: "Lifelong Learners & Readers",
+    title: "Small & Medium-Sized Businesses",
     description:
-      "Practical books, guides, and a knowledge center for growth in health, relationships, and everyday life.",
-    ctaLabel: "View Publications",
-    href: "#books",
+      "Practical digital tools and expert guidance to modernize operations, reach more customers, and grow with confidence.",
+    ctaLabel: "Book a Consultation",
+    href: "#book-session",
   },
   {
-    key: "families",
+    key: "churches",
+    icon: <Church className="h-6 w-6" aria-hidden="true" />,
+    accent: "#a78bfa",
+    title: "Churches & Faith Organizations",
+    description:
+      "Technology and media solutions that help you engage your congregation and extend your ministry's reach.",
+    ctaLabel: "Book a Session",
+    href: "#book-session",
+  },
+  {
+    key: "nonprofits",
     icon: <HeartHandshake className="h-6 w-6" aria-hidden="true" />,
     accent: "#22c55e",
-    title: "Individuals & Families",
+    title: "Nonprofits & Community Organizations",
     description:
-      "Purpose-built apps that strengthen relationships, support wellness, and inspire daily living.",
-    ctaLabel: "Explore Apps",
-    href: "#apps",
+      "Digital innovation that amplifies your mission, grows your community, and multiplies your impact.",
+    ctaLabel: "Book a Session",
+    href: "#book-session",
+  },
+  {
+    key: "healthcare",
+    icon: <Stethoscope className="h-6 w-6" aria-hidden="true" />,
+    accent: "#2dd4bf",
+    title: "Healthcare & Wellness Providers",
+    description:
+      "Wellness-focused apps and education that support healthier habits for the people you serve.",
+    ctaLabel: "Explore HealthWise",
+    href: "/apps/healthwise",
+    internal: true,
+  },
+  {
+    key: "educators",
+    icon: <GraduationCap className="h-6 w-6" aria-hidden="true" />,
+    accent: "#fb923c",
+    title: "Educators & Institutions",
+    description:
+      "Educational content, publications, and AI tools that make learning practical, engaging, and accessible.",
+    ctaLabel: "Visit the Knowledge Center",
+    href: "/knowledge",
+    internal: true,
+  },
+  {
+    key: "creators",
+    icon: <Sparkles className="h-6 w-6" aria-hidden="true" />,
+    accent: "#f472b6",
+    title: "Creators & Personal Brands",
+    description:
+      "Creative apps, branding, and content systems that help you build your audience and monetize your craft.",
+    ctaLabel: "Explore Video Crafter",
+    href: "/apps/video-crafter",
+    internal: true,
   },
 ];
 
@@ -65,7 +107,7 @@ export function WhoWeHelpSection() {
       data-testid="section-who-we-help"
     >
       <div className="container mx-auto px-4 md:px-6">
-        <div className="text-center max-w-2xl mx-auto mb-14 space-y-3 reveal">
+        <div className="text-center max-w-3xl mx-auto mb-14 space-y-3 reveal">
           <p className="text-xs font-bold tracking-widest text-primary uppercase">
             Who We Help
           </p>
@@ -73,21 +115,17 @@ export function WhoWeHelpSection() {
             id="who-we-help-heading"
             className="text-3xl md:text-5xl font-heading font-bold tracking-tight"
           >
-            Built for the People We Serve
+            Solutions Designed for People and Organizations Ready to Grow
           </h2>
-          <p className="text-muted-foreground text-lg">
-            One ecosystem — technology, AI, education, and creativity — designed
-            around the people it elevates.
-          </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="flex flex-wrap justify-center gap-5">
           {AUDIENCES.map((a, idx) => {
             const CardLink = a.internal ? Link : "a";
             return (
               <div
                 key={a.key}
-                className={`lux-card rounded-3xl p-7 flex flex-col gap-4 hover:-translate-y-1 transition-all duration-200 reveal reveal-delay-${(idx % 3) + 1}`}
+                className={`lux-card rounded-3xl p-7 flex flex-col gap-4 hover:-translate-y-1 transition-all duration-200 reveal reveal-delay-${(idx % 3) + 1} w-full sm:w-[calc(50%-0.625rem)] lg:w-[calc(33.333%-0.875rem)] max-w-md`}
                 style={{ borderTop: `2px solid ${a.accent}30` }}
                 data-testid={`card-audience-${a.key}`}
               >
