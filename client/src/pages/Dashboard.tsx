@@ -784,7 +784,7 @@ function Analytics({
       {/* KPI Row */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         {[
-          { label: "Page Views", value: pageViewData.length, sub: "all-time visits", color: "#fb923c" },
+          { label: "Page Views", value: pageViewData.length, sub: "last 90 days", color: "#fb923c" },
           { label: "Lead Capture Rate", value: `${captureRate}%`, sub: "of all chat sessions", color: "#22c55e" },
           { label: "Avg Messages/Chat", value: leads.length > 0 ? (leads.reduce((s, l) => s + ((l.messages as any[]).length), 0) / leads.length).toFixed(1) : "0", sub: "messages per session", color: "#F4A62A" },
           { label: "Newsletter Total", value: subscribers.length, sub: "all-time subscribers", color: "#38bdf8" },
@@ -891,7 +891,7 @@ function Analytics({
         <h3 className="text-sm font-semibold text-white/70 mb-5 flex items-center gap-2">
           <Eye className="h-4 w-4 text-[#fb923c]" />
           Page Views — Last 30 Days
-          <span className="ml-auto text-xs font-normal text-white/30">{pageViewData.length} total</span>
+          <span className="ml-auto text-xs font-normal text-white/30">{pageViewData.length} in last 90 days</span>
         </h3>
         {pageViewData.length === 0 ? (
           <p className="text-white/30 text-sm text-center py-6">No visits recorded yet — tracking starts automatically on each page load.</p>

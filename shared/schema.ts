@@ -337,7 +337,11 @@ export const pageViews = pgTable("page_views", {
   id: serial("id").primaryKey(),
   page: text("page").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (t) => [
+  // Bounded analytics reads filter/sort on created_at; created in prod via
+  // scripts/create_page_views_index.ts (idempotent), NOT db:push.
+  index("page_views_created_at_idx").on(t.createdAt),
+]);
 
 export const clickEvents = pgTable("click_events", {
   id: serial("id").primaryKey(),

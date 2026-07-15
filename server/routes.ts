@@ -554,7 +554,8 @@ export async function registerRoutes(
 
   app.get("/api/dashboard/visits", async (req, res) => {
     if (!isDashboardAuthed(req)) return res.status(401).json({ error: "Unauthorized" });
-    const views = await storage.getPageViews();
+    // Bounded to the last 90 days — the full table is unbounded in production.
+    const views = await storage.getPageViews(90);
     res.json(views);
   });
 
@@ -578,8 +579,8 @@ export async function registerRoutes(
       const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       const after7d = (d: Date | null | undefined) => d ? new Date(d) >= sevenDaysAgo : false;
 
-      const [pageViews, chats, contacts, subscribers, clickStats] = await Promise.all([
-        storage.getPageViews(),
+      const [visitTotals, chats, contacts, subscribers, clickStats] = await Promise.all([
+        storage.getVisitTotals(),
         storage.getAllChatConversations(),
         storage.getContactMessages(),
         storage.getNewsletterSubscribers(),
@@ -589,8 +590,8 @@ export async function registerRoutes(
       const leads = chats.filter((c) => !!c.leadEmail);
 
       const stats = {
-        pageViewsTotal: pageViews.length,
-        pageViews7d: pageViews.filter((v) => after7d(v.createdAt)).length,
+        pageViewsTotal: visitTotals.total,
+        pageViews7d: visitTotals.last7d,
         chatTotal: chats.length,
         chat7d: chats.filter((c) => after7d(c.createdAt)).length,
         leadsTotal: leads.length,

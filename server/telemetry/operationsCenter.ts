@@ -112,7 +112,7 @@ async function pingDatabase(): Promise<{ ok: boolean; latencyMs: number | null }
 }
 
 export async function buildOpsOverview(): Promise<OpsOverview> {
-  const [database, jobs, latestQa, latestRecovery, contacts, subscribers, visits] =
+  const [database, jobs, latestQa, latestRecovery, contacts, subscribers, visitTotals] =
     await Promise.all([
       pingDatabase(),
       storage.getAutomationJobs().catch(() => [] as AutomationJob[]),
@@ -120,7 +120,8 @@ export async function buildOpsOverview(): Promise<OpsOverview> {
       storage.getLatestRecoveryReport().catch(() => null),
       storage.getContactMessages().catch(() => []),
       storage.getNewsletterSubscribers().catch(() => []),
-      storage.getPageViews().catch(() => []),
+      // SQL COUNT — loading all page-view rows here caused prod OOM events.
+      storage.getVisitTotals().catch(() => ({ total: 0, last7d: 0, last24h: 0 })),
     ]);
 
   const aiStatus = getAIStatus();
@@ -237,7 +238,7 @@ export async function buildOpsOverview(): Promise<OpsOverview> {
     activity: {
       contactsLast24h: countLast24h(contacts as any),
       subscribersLast24h: countLast24h(subscribers as any),
-      visitsLast24h: countLast24h(visits as any),
+      visitsLast24h: visitTotals.last24h,
     },
   };
 }

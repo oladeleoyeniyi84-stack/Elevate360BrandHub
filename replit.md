@@ -119,6 +119,12 @@ Full-stack brand portfolio for **Elevate360Official** — mobile apps (Bondedlov
 - Frontend: `client/src/api/customer.ts` + `useCustomer`/`usePremiumStatus` hooks; `components/premium/{PremiumGate,UpgradeBanner,CreditMeter,SubscriptionCard,PlanComparison}.tsx`; pages `/pricing` (public) + `/account` (auth form + subscription mgmt); AIConcierge shows UpgradeBanner on 402. Brand GOLD #F4A62A.
 - No new REQUIRED env vars (checkout degrades to 503 in dev). Optional for live: `STRIPE_PRICE_STARTER`, `STRIPE_PRICE_PRO`, `PUBLIC_BASE_URL`.
 
+## Prod Memory Fix — Bounded Page-View Reads (July 2026)
+- Root cause of Render memory-limit event: `storage.getPageViews()` loaded the ENTIRE `page_views` table (grows with every visit) into Node memory from 5 call sites (dashboard visits endpoint, digest, growthEngine, operationsCenter, getGrowthSeoData).
+- Fix: `getPageViews(days = 90)` is now date-bounded + `LIMIT 50000` (DESC — newest kept if cap binds); new `getVisitTotals()` returns exact all-time/7d/24h counts via one SQL `count(*) FILTER` query. Digest + ops overview use SQL counts; growthEngine loads only `windowDays*2`. Dashboard labels updated to "last 90 days".
+- Index `page_views_created_at_idx` declared in schema + created via `scripts/create_page_views_index.ts` (idempotent — run against prod DB on next deploy, NOT db:push).
+- Known residuals (secondary, not yet bounded): `getAllChatConversations` (jsonb messages), `getContactMessages`, `getNewsletterSubscribers`, `getAllOrders` full-table loads in digest/growthEngine/opsCenter paths.
+
 ## Content Distribution Engine — Campaigns + Phase 4.1 Lifecycle
 - Founder-only (PIN-gated via `requireDashboardAuth`). One blog → 12 channel-ready assets (`CAMPAIGN_ASSET_KEYS`). Page `client/src/pages/AiContentStudio.tsx` (tabs Content Studio / Campaigns). Tables created via `scripts/create_phase72_tables.ts` (idempotent, NOT db:push) — `campaigns` (status text default 'draft') + campaign asset rows. Scoring + Mission Control recs are deterministic client-side (no AI): `scoreCampaign`/`missionControl`.
 - **Phase 4.1 lifecycle** (additive — generation + blog-publish flow unchanged): `CAMPAIGN_STATUSES` = draft|generating|ready_for_review|approved|published|archived (`shared/schema.ts`, + `CampaignStatus`, `updateCampaignSchema` strict `.refine` requires status OR title, `UpdateCampaignInput`). status column already existed — no migration.

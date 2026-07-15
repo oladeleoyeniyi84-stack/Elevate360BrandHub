@@ -207,7 +207,9 @@ export async function gatherGrowthContext(windowDays = 14): Promise<GrowthContex
   const prevSinceMs = sinceMs - windowDays * DAY_MS;
 
   const [visits, contacts, subs, chats, orders] = await Promise.all([
-    storage.getPageViews().catch(() => []),
+    // Only the current + previous comparison windows are needed — never the
+    // whole (unbounded) table.
+    storage.getPageViews(windowDays * 2).catch(() => []),
     storage.getContactMessages().catch(() => []),
     storage.getNewsletterSubscribers().catch(() => []),
     storage.getAllChatConversations().catch(() => []),

@@ -148,7 +148,8 @@ export interface IStorage {
   }): Promise<void>;
   markLeadConverted(sessionId: string): Promise<void>;
   recordPageView(page: string): Promise<void>;
-  getPageViews(): Promise<{ createdAt: Date; page: string }[]>;
+  getPageViews(days?: number): Promise<{ createdAt: Date; page: string }[]>;
+  getVisitTotals(): Promise<{ total: number; last7d: number; last24h: number }>;
   recordClick(product: string, label: string): Promise<void>;
   getClickStats(): Promise<{ product: string; label: string; count: number }[]>;
   getTestimonials(all?: boolean): Promise<Testimonial[]>;
@@ -791,9 +792,29 @@ export class DatabaseStorage implements IStorage {
     await db.insert(pageViews).values({ page });
   }
 
-  async getPageViews(): Promise<{ createdAt: Date; page: string }[]> {
+  // Bounded read — page-view rows from the last `days` only (default 90), with a
+  // hard row cap. The pageViews table grows without bound in production; loading
+  // it whole into Node memory caused out-of-memory events on the fixed-size prod
+  // instance. All-time totals come from getVisitTotals() (SQL COUNT) instead.
+  async getPageViews(days = 90): Promise<{ createdAt: Date; page: string }[]> {
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
     return db.select({ createdAt: pageViews.createdAt, page: pageViews.page })
-      .from(pageViews).orderBy(pageViews.createdAt);
+      .from(pageViews)
+      .where(gte(pageViews.createdAt, since))
+      .orderBy(desc(pageViews.createdAt))
+      .limit(50_000);
+  }
+
+  // All-time + windowed visit counts computed in SQL — never materializes rows.
+  async getVisitTotals(): Promise<{ total: number; last7d: number; last24h: number }> {
+    const [row] = await db
+      .select({
+        total: sql<number>`cast(count(*) as int)`,
+        last7d: sql<number>`cast(count(*) filter (where ${pageViews.createdAt} >= now() - interval '7 days') as int)`,
+        last24h: sql<number>`cast(count(*) filter (where ${pageViews.createdAt} >= now() - interval '24 hours') as int)`,
+      })
+      .from(pageViews);
+    return row ?? { total: 0, last7d: 0, last24h: 0 };
   }
 
   async recordClick(product: string, label: string): Promise<void> {
