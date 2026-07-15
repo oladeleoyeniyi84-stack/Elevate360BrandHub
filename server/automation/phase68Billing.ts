@@ -9,7 +9,11 @@ const RESET_INTERVAL_MS = 30 * 24 * 60 * 60 * 1000; // ~monthly
 // Reset each customer's AI credit balance to their plan allotment once their
 // monthly window has elapsed. Idempotent — only resets accounts that are due.
 export async function runMonthlyCreditReset(): Promise<{ summary: string }> {
-  const accounts = await storage.listAiCreditAccounts();
+  // Phase 69 — filtered batch: only load accounts whose reset window has
+  // elapsed instead of the whole table. The in-loop check stays as an
+  // idempotency guard. `dueAccounts` in the summary = accounts due for reset.
+  const cutoff = new Date(Date.now() - RESET_INTERVAL_MS);
+  const accounts = await storage.listAiCreditAccounts(cutoff);
   const now = Date.now();
   let reset = 0;
   for (const acct of accounts) {
@@ -19,7 +23,7 @@ export async function runMonthlyCreditReset(): Promise<{ summary: string }> {
       reset++;
     }
   }
-  return { summary: `accounts=${accounts.length} reset=${reset}` };
+  return { summary: `dueAccounts=${accounts.length} reset=${reset}` };
 }
 
 // Surface subscriptions that are in a churn-risk state (past_due / unpaid).

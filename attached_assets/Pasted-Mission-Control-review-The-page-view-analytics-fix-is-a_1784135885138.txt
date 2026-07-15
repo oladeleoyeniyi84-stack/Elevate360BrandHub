@@ -1,0 +1,45 @@
+Mission Control review:
+
+The page-view analytics fix is approved as a credible and important Phase 69 remediation. Replacing full-table application reads with bounded queries and SQL aggregation is correct.
+
+However, do not describe the production memory issue as fully fixed yet. We have corrected one verified high-risk source, but we have not yet demonstrated stable production RSS under repeated workloads.
+
+Proceed with the remaining full-table-load audit and safeguards for chat conversations, contacts, subscribers, orders, and every other growing table.
+
+Requirements:
+
+1. Search all server storage methods and route call sites for unbounded select operations.
+2. Classify each use as:
+   - count/aggregation,
+   - dashboard list,
+   - export,
+   - background processing,
+   - single-record lookup.
+3. Replace:
+   - counts with SQL COUNT/SUM/GROUP BY,
+   - dashboard lists with pagination or hard limits,
+   - background reads with filtered batches,
+   - exports with pagination or streaming where practical.
+4. Do not silently truncate workflows that legitimately require all records.
+5. Preserve current API contracts unless a paginated response is clearly required; report any contract change before implementing it.
+6. Add safe indexes for frequently filtered/sorted columns using the existing idempotent bootstrap pattern.
+7. Complete the rest of Phase 69:
+   - memory instrumentation,
+   - protected /api/dashboard/system/memory endpoint,
+   - active/running job metrics,
+   - duplicate timer and overlapping-job audit,
+   - AI session TTL and maximum-size verification,
+   - cache bounds,
+   - graceful shutdown verification.
+8. Create and run the Phase 69 repeated-load smoke test.
+9. Report:
+   - baseline RSS,
+   - peak RSS,
+   - post-test RSS,
+   - post-cleanup RSS,
+   - all unbounded reads found,
+   - all fixes made,
+   - remaining risks.
+10. Run npm run check and npm run build.
+
+Stop before deployment and provide the complete Phase 69 evidence report for Founder and Mission Control approval.

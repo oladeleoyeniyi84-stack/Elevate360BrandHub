@@ -11,6 +11,18 @@ interface MemoryEntry {
 const _store = new Map<string, MemoryEntry>();
 const TTL_MS = 30 * 60 * 1000;
 const EVICT_INTERVAL_MS = 5 * 60 * 1000;
+// Phase 69 — hard cap. TTL eviction alone lets a traffic burst hold thousands
+// of transcripts in memory for up to 30 minutes; cap the cache and evict the
+// least-recently-accessed sessions beyond it (DB remains source of truth).
+const MAX_SESSIONS = 500;
+
+function enforceSessionCap(): void {
+  if (_store.size <= MAX_SESSIONS) return;
+  const byAge = Array.from(_store.entries())
+    .sort((a, b) => a[1].lastAccessed - b[1].lastAccessed);
+  const excess = _store.size - MAX_SESSIONS;
+  for (let i = 0; i < excess; i++) _store.delete(byAge[i][0]);
+}
 
 const _evictTimer = setInterval(evictExpired, EVICT_INTERVAL_MS);
 if (typeof _evictTimer.unref === "function") _evictTimer.unref();
@@ -34,6 +46,7 @@ export async function getMemory(sessionId: string): Promise<ChatMessage[]> {
     const session = await storage.getChatSession(sessionId);
     const messages = (session?.messages as ChatMessage[]) ?? [];
     _store.set(sessionId, { messages, lastAccessed: Date.now() });
+    enforceSessionCap();
     return messages;
   } catch {
     return [];
@@ -52,6 +65,7 @@ export function setMemory(
     intent: meta?.intent ?? existing?.intent,
     score: meta?.score ?? existing?.score,
   });
+  enforceSessionCap();
 }
 
 export function invalidateMemory(sessionId: string): void {
@@ -61,12 +75,13 @@ export function invalidateMemory(sessionId: string): void {
 export function getMemoryStats(): {
   activeSessions: number;
   oldestEntryAgeMs: number | null;
+  maxSessions: number;
 } {
-  if (_store.size === 0) return { activeSessions: 0, oldestEntryAgeMs: null };
+  if (_store.size === 0) return { activeSessions: 0, oldestEntryAgeMs: null, maxSessions: MAX_SESSIONS };
   const now = Date.now();
   let oldest = now;
   _store.forEach((entry) => {
     if (entry.lastAccessed < oldest) oldest = entry.lastAccessed;
   });
-  return { activeSessions: _store.size, oldestEntryAgeMs: now - oldest };
+  return { activeSessions: _store.size, oldestEntryAgeMs: now - oldest, maxSessions: MAX_SESSIONS };
 }

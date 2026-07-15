@@ -90,11 +90,6 @@ export type TimeseriesPoint = {
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 
-function countLast24h<T extends { createdAt: Date }>(rows: T[]): number {
-  const cutoff = Date.now() - DAY_MS;
-  return rows.filter((r) => new Date(r.createdAt).getTime() >= cutoff).length;
-}
-
 function isStale(job: AutomationJob): boolean {
   if (!job.cadenceMinutes || job.cadenceMinutes >= 24 * 60) return false;
   if (!job.lastSucceededAt) return false;
@@ -112,14 +107,17 @@ async function pingDatabase(): Promise<{ ok: boolean; latencyMs: number | null }
 }
 
 export async function buildOpsOverview(): Promise<OpsOverview> {
-  const [database, jobs, latestQa, latestRecovery, contacts, subscribers, visitTotals] =
+  const [database, jobs, latestQa, latestRecovery, captureTotals, visitTotals] =
     await Promise.all([
       pingDatabase(),
       storage.getAutomationJobs().catch(() => [] as AutomationJob[]),
       storage.getLatestQaSentinelReport().catch(() => null),
       storage.getLatestRecoveryReport().catch(() => null),
-      storage.getContactMessages().catch(() => []),
-      storage.getNewsletterSubscribers().catch(() => []),
+      // Phase 69 — SQL COUNT; previously loaded whole contact/subscriber tables.
+      storage.getCaptureTotals().catch(() => ({
+        contacts: { total: 0, last7d: 0, last24h: 0, unreplied: 0 },
+        subscribers: { total: 0, last7d: 0, last24h: 0 },
+      })),
       // SQL COUNT — loading all page-view rows here caused prod OOM events.
       storage.getVisitTotals().catch(() => ({ total: 0, last7d: 0, last24h: 0 })),
     ]);
@@ -236,8 +234,8 @@ export async function buildOpsOverview(): Promise<OpsOverview> {
       upcoming: upcoming.slice(0, 5),
     },
     activity: {
-      contactsLast24h: countLast24h(contacts as any),
-      subscribersLast24h: countLast24h(subscribers as any),
+      contactsLast24h: captureTotals.contacts.last24h,
+      subscribersLast24h: captureTotals.subscribers.last24h,
       visitsLast24h: visitTotals.last24h,
     },
   };

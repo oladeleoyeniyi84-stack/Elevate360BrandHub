@@ -10,6 +10,27 @@ type JobConfig = {
 
 const timers = new Map<string, NodeJS.Timeout>();
 
+// Phase 69 — lightweight in-memory run counters for the memory endpoint.
+const runStats = new Map<string, { runs: number; failures: number; lastRunAt: string | null }>();
+
+function bumpRunStats(jobKey: string, failed: boolean) {
+  const s = runStats.get(jobKey) ?? { runs: 0, failures: 0, lastRunAt: null };
+  s.runs++;
+  if (failed) s.failures++;
+  s.lastRunAt = new Date().toISOString();
+  runStats.set(jobKey, s);
+}
+
+export function getJobRunnerStats(): {
+  registeredTimers: number;
+  jobs: Array<{ jobKey: string; runs: number; failures: number; lastRunAt: string | null }>;
+} {
+  return {
+    registeredTimers: timers.size,
+    jobs: Array.from(runStats.entries()).map(([jobKey, s]) => ({ jobKey, ...s })),
+  };
+}
+
 // Node.js setTimeout uses a 32-bit signed integer for the delay, so values
 // above ~24.8 days (2,147,483,647 ms) wrap to 1ms and fire immediately.
 // We cap each tick to 60 minutes and use in-memory nextRunAt tracking for
@@ -19,6 +40,16 @@ const MIN_DELAY_MS = 1_000; // never sleep less than 1s
 
 export async function registerRecurringJob(config: JobConfig, bootDelayMs = 60_000) {
   const cadenceMs = config.cadenceMinutes * 60_000;
+
+  // Phase 69 — duplicate-registration guard. Registering the same jobKey twice
+  // previously left the first timer chain running forever (timer leak +
+  // double execution). Clear any existing timer before scheduling a new one.
+  const existingTimer = timers.get(config.jobKey);
+  if (existingTimer) {
+    clearTimeout(existingTimer);
+    timers.delete(config.jobKey);
+    console.warn(`[jobRunner] duplicate registration for ${config.jobKey} — cleared previous timer`);
+  }
 
   // Read existing job record to preserve nextRunAt if it's still in the future.
   // This prevents all jobs from re-running on every server restart (autoscale lifecycle).
@@ -73,6 +104,7 @@ export async function registerRecurringJob(config: JobConfig, bootDelayMs = 60_0
       });
 
       console.log(`[jobRunner] ${config.jobKey} succeeded — ${result?.summary ?? "ok"}`);
+      bumpRunStats(config.jobKey, false);
     } catch (error: any) {
       const now = new Date();
       nextRunAt = Date.now() + cadenceMs;
@@ -96,6 +128,7 @@ export async function registerRecurringJob(config: JobConfig, bootDelayMs = 60_0
       });
 
       console.error(`[jobRunner] ${config.jobKey} failed —`, error?.message);
+      bumpRunStats(config.jobKey, true);
     }
   };
 

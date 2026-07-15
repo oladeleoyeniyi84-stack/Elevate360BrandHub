@@ -182,13 +182,15 @@ export function rateLimit(maxReq: number, windowSec: number) {
     next();
   };
 }
-// Purge stale buckets every 5 minutes to prevent unbounded memory growth
-setInterval(() => {
+// Purge stale buckets every 5 minutes to prevent unbounded memory growth.
+// Phase 69 — unref()'d so this timer never blocks graceful shutdown.
+const rateLimitPurgeTimer = setInterval(() => {
   const now = Date.now();
   for (const key of Object.keys(rateLimitStore)) {
     if (now > rateLimitStore[key].resetAt) delete rateLimitStore[key];
   }
 }, 5 * 60 * 1000);
+if (typeof rateLimitPurgeTimer.unref === "function") rateLimitPurgeTimer.unref();
 
 // ─── Bot Guard middleware ─────────────────────────────────────────────────────
 // Applied to all public-facing POST endpoints (newsletter, contact, chat).
@@ -497,8 +499,7 @@ export async function registerRoutes(
     const replySchema = z.object({ replyText: z.string().min(1).max(5000) });
     try {
       const { replyText } = replySchema.parse(req.body);
-      const contacts = await storage.getContactMessages();
-      const contact = contacts.find((c) => c.id === id);
+      const contact = await storage.getContactMessageById(id);
       if (!contact) return res.status(404).json({ message: "Contact not found" });
 
       await sendContactReply(contact.name, contact.email, replyText);
@@ -576,30 +577,27 @@ export async function registerRoutes(
     if (!isDashboardAuthed(req)) return res.status(401).json({ error: "Unauthorized" });
     try {
       const now = new Date();
-      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      const after7d = (d: Date | null | undefined) => d ? new Date(d) >= sevenDaysAgo : false;
 
-      const [visitTotals, chats, contacts, subscribers, clickStats] = await Promise.all([
+      // Phase 69 — exact SQL counts; previously loaded whole chat/contact/
+      // subscriber tables into memory just to count them.
+      const [visitTotals, chatTotals, captureTotals, clickStats] = await Promise.all([
         storage.getVisitTotals(),
-        storage.getAllChatConversations(),
-        storage.getContactMessages(),
-        storage.getNewsletterSubscribers(),
+        storage.getChatTotals(),
+        storage.getCaptureTotals(),
         storage.getClickStats(),
       ]);
-
-      const leads = chats.filter((c) => !!c.leadEmail);
 
       const stats = {
         pageViewsTotal: visitTotals.total,
         pageViews7d: visitTotals.last7d,
-        chatTotal: chats.length,
-        chat7d: chats.filter((c) => after7d(c.createdAt)).length,
-        leadsTotal: leads.length,
-        leads7d: leads.filter((l) => after7d(l.createdAt)).length,
-        contactsTotal: contacts.length,
-        contacts7d: contacts.filter((c) => after7d(c.createdAt)).length,
-        subscribersTotal: subscribers.length,
-        subscribers7d: subscribers.filter((s) => after7d(s.subscribedAt)).length,
+        chatTotal: chatTotals.total,
+        chat7d: chatTotals.last7d,
+        leadsTotal: chatTotals.leadsTotal,
+        leads7d: chatTotals.leads7d,
+        contactsTotal: captureTotals.contacts.total,
+        contacts7d: captureTotals.contacts.last7d,
+        subscribersTotal: captureTotals.subscribers.total,
+        subscribers7d: captureTotals.subscribers.last7d,
         topClicks: [...clickStats].sort((a, b) => b.count - a.count).slice(0, 5),
         generatedAt: now.toLocaleDateString("en-US", { weekday: "short", month: "long", day: "numeric", year: "numeric" }),
       };
@@ -3079,6 +3077,26 @@ export async function registerRoutes(
       res.json(summary);
     } catch (e: any) {
       res.status(500).json({ message: "Could not load system health." });
+    }
+  });
+
+  // Phase 69 — process memory + in-memory cache instrumentation (PIN-gated).
+  app.get("/api/dashboard/system/memory", async (req, res) => {
+    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+    try {
+      const [{ getMemoryReport }, { getMemoryStats }, { getJobRunnerStats }] = await Promise.all([
+        import("./telemetry/memoryMonitor"),
+        import("./ai/memory"),
+        import("./automation/jobRunner"),
+      ]);
+      res.json({
+        process: getMemoryReport(),
+        aiMemoryCache: getMemoryStats(),
+        jobRunner: getJobRunnerStats(),
+      });
+    } catch (e: any) {
+      console.error("[system/memory] error:", e.message);
+      res.status(500).json({ message: "Could not load memory report." });
     }
   });
 

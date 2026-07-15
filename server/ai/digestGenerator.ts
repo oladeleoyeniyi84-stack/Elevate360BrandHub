@@ -30,7 +30,9 @@ export async function buildDigestData(): Promise<DigestData> {
   const weekEnd = new Date(now);
   weekEnd.setHours(23, 59, 59, 999);
 
-  const allLeads = await storage.getAllChatConversations();
+  // Phase 69 — light rows (no transcripts); the digest only reads lead
+  // metadata + sessionSummary. Bounded to the 5000 most recently active.
+  const allLeads = await storage.getChatConversationsLite();
 
   const weekLeads = allLeads.filter(
     (l) => l.lastActivityAt && new Date(l.lastActivityAt) >= weekStart

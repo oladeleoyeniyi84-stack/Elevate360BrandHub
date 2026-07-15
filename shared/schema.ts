@@ -69,13 +69,20 @@ export const contactMessages = pgTable("contact_messages", {
   message: text("message").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   repliedAt: timestamp("replied_at"),
-});
+}, (t) => [
+  // Phase 69 — bounded reads order/filter on created_at; created in prod via
+  // scripts/create_phase69_indexes.ts (idempotent), NOT db:push.
+  index("contact_messages_created_at_idx").on(t.createdAt),
+]);
 
 export const newsletterSubscribers = pgTable("newsletter_subscribers", {
   id: serial("id").primaryKey(),
   email: text("email").notNull().unique(),
   subscribedAt: timestamp("subscribed_at").defaultNow().notNull(),
-});
+}, (t) => [
+  // Phase 69 — see scripts/create_phase69_indexes.ts.
+  index("newsletter_subscribers_subscribed_at_idx").on(t.subscribedAt),
+]);
 
 // Phase 71.1 — Lead Magnet capture (free guide opt-ins). Public, no auth.
 export const leadMagnetLeads = pgTable("lead_magnet_leads", {
@@ -86,7 +93,10 @@ export const leadMagnetLeads = pgTable("lead_magnet_leads", {
   leadScore: integer("lead_score").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (t) => [
+  // Phase 69 — see scripts/create_phase69_indexes.ts.
+  index("lead_magnet_leads_created_at_idx").on(t.createdAt),
+]);
 
 export const chatConversations = pgTable("chat_conversations", {
   id: serial("id").primaryKey(),
@@ -139,7 +149,11 @@ export const chatConversations = pgTable("chat_conversations", {
   // Phase 42 — Follow-Up Automation
   lastFollowupSentAt: timestamp("last_followup_sent_at"),
   followupCount: integer("followup_count").default(0).notNull(),
-});
+}, (t) => [
+  // Phase 69 — bounded/windowed reads order & filter on updated_at; created in
+  // prod via scripts/create_phase69_indexes.ts (idempotent), NOT db:push.
+  index("chat_conversations_updated_at_idx").on(t.updatedAt),
+]);
 
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
@@ -269,7 +283,10 @@ export const bookings = pgTable("bookings", {
   status: varchar("status", { length: 40 }).notNull().default("pending"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (t) => [
+  // Phase 69 — see scripts/create_phase69_indexes.ts.
+  index("bookings_created_at_idx").on(t.createdAt),
+]);
 
 export const insertBookingSchema = createInsertSchema(bookings, {
   clientName: z.string().min(1, "Name required").max(200),
@@ -304,7 +321,10 @@ export const orders = pgTable("orders", {
   // Phase 49 — Recovery tracking
   lastRecoveryEvaluatedAt: timestamp("last_recovery_evaluated_at"),
   recoveryStatus: varchar("recovery_status", { length: 30 }).default("none"),
-});
+}, (t) => [
+  // Phase 69 — bounded/windowed order reads; see scripts/create_phase69_indexes.ts.
+  index("orders_created_at_idx").on(t.createdAt),
+]);
 
 export type Order = typeof orders.$inferSelect;
 

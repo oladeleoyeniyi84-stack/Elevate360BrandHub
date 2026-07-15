@@ -100,7 +100,13 @@ import {
 } from "@shared/schema";
 import type { CognitiveSignal } from "@shared/types/cognitive";
 import { db } from "./db";
-import { and, asc, count, desc, eq, gte, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, getTableColumns, gte, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
+
+// Phase 69 — light chat row (excludes the fat `messages` jsonb column).
+// Analytics/digest/growth paths never need full transcripts; excluding
+// `messages` keeps whole-table aggregation reads memory-safe.
+const { messages: _chatMessagesCol, ...chatConversationLiteColumns } = getTableColumns(chatConversations);
+export type ChatConversationLite = Omit<ChatConversation, "messages">;
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -120,23 +126,30 @@ export interface IStorage {
   getAiCredits(userId: string): Promise<AiCredits | undefined>;
   consumeAiCredit(userId: string, cost: number): Promise<AiCredits | null>;
   setAiCreditAllotment(userId: string, monthlyAllotment: number, resetBalance: boolean): Promise<AiCredits>;
-  listAiCreditAccounts(): Promise<AiCredits[]>;
+  listAiCreditAccounts(dueBefore?: Date): Promise<AiCredits[]>;
   setPremiumFeatures(userId: string, featureKeys: string[], source: string): Promise<void>;
   getPremiumFeatures(userId: string): Promise<UserPremiumFeature[]>;
   createContactMessage(message: InsertContactMessage): Promise<ContactMessage>;
-  getContactMessages(): Promise<ContactMessage[]>;
+  getContactMessages(limit?: number): Promise<ContactMessage[]>;
+  getContactMessageById(id: number): Promise<ContactMessage | undefined>;
   replyContactMessage(id: number): Promise<ContactMessage | undefined>;
   createNewsletterSubscriber(subscriber: InsertNewsletterSubscriber): Promise<NewsletterSubscriber>;
-  getNewsletterSubscribers(): Promise<NewsletterSubscriber[]>;
+  getNewsletterSubscribers(limit?: number): Promise<NewsletterSubscriber[]>;
   createLeadMagnetLead(lead: InsertLeadMagnetLead): Promise<LeadMagnetLead>;
   getLeadMagnetLeadByEmail(email: string): Promise<LeadMagnetLead | undefined>;
   updateLeadMagnetLeadSource(id: number, source: string): Promise<LeadMagnetLead>;
-  getLeadMagnetLeads(): Promise<LeadMagnetLead[]>;
+  getLeadMagnetLeads(limit?: number): Promise<LeadMagnetLead[]>;
   getOrCreateChatSession(sessionId: string): Promise<ChatConversation>;
   appendChatMessage(sessionId: string, message: ChatMessage): Promise<void>;
   updateChatLead(sessionId: string, name?: string, email?: string): Promise<void>;
   getChatConversation(sessionId: string): Promise<ChatConversation | undefined>;
-  getAllChatConversations(temperature?: string): Promise<ChatConversation[]>;
+  getAllChatConversations(temperature?: string, limit?: number): Promise<ChatConversation[]>;
+  getChatConversationsLite(opts?: { limit?: number; since?: Date }): Promise<ChatConversationLite[]>;
+  getChatTotals(): Promise<{ total: number; last7d: number; leadsTotal: number; leads7d: number }>;
+  getCaptureTotals(): Promise<{
+    contacts: { total: number; last7d: number; last24h: number; unreplied: number };
+    subscribers: { total: number; last7d: number; last24h: number };
+  }>;
   updateChatIntelligence(sessionId: string, data: Partial<ChatConversation>): Promise<void>;
   getChatSession(sessionId: string): Promise<ChatConversation | undefined>;
   updateChatSummary(sessionId: string, data: {
@@ -210,7 +223,7 @@ export interface IStorage {
   seedDefaultConsultations(): Promise<void>;
   // Phase 36 — Bookings
   createBooking(data: InsertBooking): Promise<Booking>;
-  getAllBookings(): Promise<(Booking & { consultationTitle?: string })[]>;
+  getAllBookings(limit?: number): Promise<(Booking & { consultationTitle?: string })[]>;
   updateBookingStatus(id: number, status: string): Promise<Booking | undefined>;
   deleteBooking(id: number): Promise<void>;
   // Phase 37 — Orders
@@ -218,7 +231,8 @@ export interface IStorage {
   getOrderById(id: number): Promise<Order | undefined>;
   getOrderByStripeSession(stripeSessionId: string): Promise<Order | undefined>;
   updateOrderStatus(stripeSessionId: string, status: string, extra?: any): Promise<Order | undefined>;
-  getAllOrders(): Promise<Order[]>;
+  getAllOrders(limit?: number): Promise<Order[]>;
+  getOrdersSince(since: Date): Promise<Order[]>;
   getOrderStats(): Promise<{ total: number; paid: number; revenue: number; abandoned: number }>;
   // Phase 45 — Reliability & Audit Layer
   createAuditLog(entry: Omit<InsertAuditLog, "actorLabel"> & { actorLabel?: string }): Promise<AuditLog>;
@@ -245,7 +259,7 @@ export interface IStorage {
   }>;
   // Phase 42 — Follow-Up Automation
   markFollowupSent(sessionId: string, newDueDate: Date): Promise<void>;
-  getReminderQueue(): Promise<{ overdue: ChatConversation[]; silentHot: ChatConversation[] }>;
+  getReminderQueue(): Promise<{ overdue: ChatConversationLite[]; silentHot: ChatConversationLite[] }>;
   // Phase 41 — Conversion Analytics
   markOfferAccepted(sessionId: string, offerSlug: string, source: string): Promise<void>;
   getConversionFunnel(): Promise<{
@@ -616,7 +630,13 @@ export class DatabaseStorage implements IStorage {
     return row;
   }
 
-  async listAiCreditAccounts(): Promise<AiCredits[]> {
+  async listAiCreditAccounts(dueBefore?: Date): Promise<AiCredits[]> {
+    // Phase 69 — filtered batch: callers that only need accounts due for a
+    // monthly reset pass a cutoff so the whole table is never loaded.
+    if (dueBefore) {
+      return db.select().from(aiCredits)
+        .where(or(isNull(aiCredits.lastResetAt), lte(aiCredits.lastResetAt, dueBefore)));
+    }
     return db.select().from(aiCredits);
   }
 
@@ -643,8 +663,19 @@ export class DatabaseStorage implements IStorage {
     return contactMessage;
   }
 
-  async getContactMessages(): Promise<ContactMessage[]> {
-    return db.select().from(contactMessages).orderBy(contactMessages.createdAt);
+  async getContactMessages(limit = 1000): Promise<ContactMessage[]> {
+    // Phase 69 — bounded read: newest N rows, returned oldest-first to
+    // preserve the original ascending-createdAt ordering contract.
+    const rows = await db.select().from(contactMessages)
+      .orderBy(desc(contactMessages.createdAt))
+      .limit(limit);
+    return rows.reverse();
+  }
+
+  async getContactMessageById(id: number): Promise<ContactMessage | undefined> {
+    const [row] = await db.select().from(contactMessages)
+      .where(eq(contactMessages.id, id)).limit(1);
+    return row;
   }
 
   async replyContactMessage(id: number): Promise<ContactMessage | undefined> {
@@ -661,8 +692,12 @@ export class DatabaseStorage implements IStorage {
     return newsletterSubscriber;
   }
 
-  async getNewsletterSubscribers(): Promise<NewsletterSubscriber[]> {
-    return db.select().from(newsletterSubscribers);
+  async getNewsletterSubscribers(limit = 5000): Promise<NewsletterSubscriber[]> {
+    // Phase 69 — bounded read (newest first). Rows are tiny; 5000 covers the
+    // dashboard list use case without an unbounded full-table load.
+    return db.select().from(newsletterSubscribers)
+      .orderBy(desc(newsletterSubscribers.subscribedAt))
+      .limit(limit);
   }
 
   async createLeadMagnetLead(lead: InsertLeadMagnetLead): Promise<LeadMagnetLead> {
@@ -688,8 +723,10 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async getLeadMagnetLeads(): Promise<LeadMagnetLead[]> {
-    return db.select().from(leadMagnetLeads).orderBy(desc(leadMagnetLeads.createdAt));
+  async getLeadMagnetLeads(limit = 1000): Promise<LeadMagnetLead[]> {
+    return db.select().from(leadMagnetLeads)
+      .orderBy(desc(leadMagnetLeads.createdAt))
+      .limit(limit);
   }
 
   async getOrCreateChatSession(sessionId: string): Promise<ChatConversation> {
@@ -738,14 +775,69 @@ export class DatabaseStorage implements IStorage {
     return conversation;
   }
 
-  async getAllChatConversations(temperature?: string): Promise<ChatConversation[]> {
+  async getAllChatConversations(temperature?: string, limit = 500): Promise<ChatConversation[]> {
+    // Phase 69 — bounded read. Full rows (incl. transcripts) are only needed
+    // by the dashboard lead views; cap to the most recently active N.
     const query = db.select().from(chatConversations);
     if (temperature && temperature !== "all") {
       return query
         .where(eq(chatConversations.leadTemperature, temperature))
-        .orderBy(desc(chatConversations.updatedAt));
+        .orderBy(desc(chatConversations.updatedAt))
+        .limit(limit);
     }
-    return query.orderBy(desc(chatConversations.updatedAt));
+    return query.orderBy(desc(chatConversations.updatedAt)).limit(limit);
+  }
+
+  async getChatConversationsLite(opts?: { limit?: number; since?: Date }): Promise<ChatConversationLite[]> {
+    // Phase 69 — light rows for analytics/digest/growth: excludes the fat
+    // `messages` jsonb column. Optional `since` bounds by updatedAt (a
+    // conversation created in-window always has updatedAt >= createdAt).
+    const limit = opts?.limit ?? 5000;
+    if (opts?.since) {
+      return db.select(chatConversationLiteColumns).from(chatConversations)
+        .where(gte(chatConversations.updatedAt, opts.since))
+        .orderBy(desc(chatConversations.updatedAt))
+        .limit(limit);
+    }
+    return db.select(chatConversationLiteColumns).from(chatConversations)
+      .orderBy(desc(chatConversations.updatedAt))
+      .limit(limit);
+  }
+
+  async getChatTotals(): Promise<{ total: number; last7d: number; leadsTotal: number; leads7d: number }> {
+    // Phase 69 — exact all-time/windowed counts via SQL, never by loading rows.
+    const [row] = await db
+      .select({
+        total: sql<number>`cast(count(*) as int)`,
+        last7d: sql<number>`cast(count(*) filter (where ${chatConversations.createdAt} >= now() - interval '7 days') as int)`,
+        leadsTotal: sql<number>`cast(count(*) filter (where ${chatConversations.leadEmail} is not null and ${chatConversations.leadEmail} <> '') as int)`,
+        leads7d: sql<number>`cast(count(*) filter (where ${chatConversations.leadEmail} is not null and ${chatConversations.leadEmail} <> '' and ${chatConversations.createdAt} >= now() - interval '7 days') as int)`,
+      })
+      .from(chatConversations);
+    return row ?? { total: 0, last7d: 0, leadsTotal: 0, leads7d: 0 };
+  }
+
+  async getCaptureTotals(): Promise<{
+    contacts: { total: number; last7d: number; last24h: number; unreplied: number };
+    subscribers: { total: number; last7d: number; last24h: number };
+  }> {
+    const [[contactsRow], [subsRow]] = await Promise.all([
+      db.select({
+        total: sql<number>`cast(count(*) as int)`,
+        last7d: sql<number>`cast(count(*) filter (where ${contactMessages.createdAt} >= now() - interval '7 days') as int)`,
+        last24h: sql<number>`cast(count(*) filter (where ${contactMessages.createdAt} >= now() - interval '24 hours') as int)`,
+        unreplied: sql<number>`cast(count(*) filter (where ${contactMessages.repliedAt} is null) as int)`,
+      }).from(contactMessages),
+      db.select({
+        total: sql<number>`cast(count(*) as int)`,
+        last7d: sql<number>`cast(count(*) filter (where ${newsletterSubscribers.subscribedAt} >= now() - interval '7 days') as int)`,
+        last24h: sql<number>`cast(count(*) filter (where ${newsletterSubscribers.subscribedAt} >= now() - interval '24 hours') as int)`,
+      }).from(newsletterSubscribers),
+    ]);
+    return {
+      contacts: contactsRow ?? { total: 0, last7d: 0, last24h: 0, unreplied: 0 },
+      subscribers: subsRow ?? { total: 0, last7d: 0, last24h: 0 },
+    };
   }
 
   async updateChatIntelligence(sessionId: string, data: Partial<ChatConversation>): Promise<void> {
@@ -1314,8 +1406,8 @@ export class DatabaseStorage implements IStorage {
     return row;
   }
 
-  async getAllBookings(): Promise<(Booking & { consultationTitle?: string })[]> {
-    const rows = await db.select().from(bookings).orderBy(desc(bookings.createdAt));
+  async getAllBookings(limit = 500): Promise<(Booking & { consultationTitle?: string })[]> {
+    const rows = await db.select().from(bookings).orderBy(desc(bookings.createdAt)).limit(limit);
     const allConsultations = await db.select({ id: consultations.id, title: consultations.title }).from(consultations);
     const consultMap = Object.fromEntries(allConsultations.map((c) => [c.id, c.title]));
     return rows.map((b) => ({ ...b, consultationTitle: b.consultationId ? consultMap[b.consultationId] : undefined }));
@@ -1376,19 +1468,27 @@ export class DatabaseStorage implements IStorage {
     return row;
   }
 
-  async getAllOrders(): Promise<Order[]> {
-    return db.select().from(orders).orderBy(desc(orders.createdAt));
+  async getAllOrders(limit = 1000): Promise<Order[]> {
+    return db.select().from(orders).orderBy(desc(orders.createdAt)).limit(limit);
+  }
+
+  async getOrdersSince(since: Date): Promise<Order[]> {
+    return db.select().from(orders)
+      .where(gte(orders.createdAt, since))
+      .orderBy(desc(orders.createdAt));
   }
 
   async getOrderStats(): Promise<{ total: number; paid: number; revenue: number; abandoned: number }> {
-    const all = await db.select().from(orders);
-    const paid = all.filter((o) => o.status === "paid");
-    return {
-      total: all.length,
-      paid: paid.length,
-      revenue: paid.reduce((s, o) => s + (o.amountPaid ?? 0), 0),
-      abandoned: all.filter((o) => o.status === "initiated").length,
-    };
+    // Phase 69 — SQL aggregation; previously loaded the whole orders table.
+    const [row] = await db
+      .select({
+        total: sql<number>`cast(count(*) as int)`,
+        paid: sql<number>`cast(count(*) filter (where ${orders.status} = 'paid') as int)`,
+        revenue: sql<number>`cast(coalesce(sum(${orders.amountPaid}) filter (where ${orders.status} = 'paid'), 0) as int)`,
+        abandoned: sql<number>`cast(count(*) filter (where ${orders.status} = 'initiated') as int)`,
+      })
+      .from(orders);
+    return row ?? { total: 0, paid: 0, revenue: 0, abandoned: 0 };
   }
 
   // Phase 45 — Reliability & Audit Layer
@@ -1452,14 +1552,22 @@ export class DatabaseStorage implements IStorage {
     const paidStripeSessionIds = new Set(paidOrders.map((o) => o.sessionId).filter(Boolean));
     const wonSessions = allWonSessions.filter((w) => !paidStripeSessionIds.has(w.sessionId));
 
-    // Build session map for joining orders → intents
+    // Build session map for joining orders → intents.
+    // Phase 69 — only fetch the sessions actually referenced by paid orders
+    // instead of scanning the whole chat table.
     const sessionIntentMap: Record<string, string | null> = {};
     const sessionSourceMap: Record<string, string | null> = {};
-    const allSessions = await db.select({
-      sessionId: chatConversations.sessionId,
-      intent: chatConversations.intent,
-      acceptedOfferSource: chatConversations.acceptedOfferSource,
-    }).from(chatConversations);
+    const orderSessionIds = Array.from(
+      new Set(paidOrders.map((o) => o.sessionId).filter((x): x is string => !!x))
+    );
+    const allSessions = orderSessionIds.length > 0
+      ? await db.select({
+          sessionId: chatConversations.sessionId,
+          intent: chatConversations.intent,
+          acceptedOfferSource: chatConversations.acceptedOfferSource,
+        }).from(chatConversations)
+          .where(inArray(chatConversations.sessionId, orderSessionIds))
+      : [];
     for (const s of allSessions) {
       sessionIntentMap[s.sessionId] = s.intent;
       sessionSourceMap[s.sessionId] = s.acceptedOfferSource;
@@ -1679,28 +1787,30 @@ export class DatabaseStorage implements IStorage {
       .where(eq(chatConversations.sessionId, sessionId));
   }
 
-  async getReminderQueue(): Promise<{ overdue: ChatConversation[]; silentHot: ChatConversation[] }> {
+  async getReminderQueue(): Promise<{ overdue: ChatConversationLite[]; silentHot: ChatConversationLite[] }> {
     const now = new Date();
     const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
     // M04 fix — removed email-only filter so hot leads without a captured email still appear;
     // the UI already reads capturedEmail/leadEmail from each lead to decide which CTA to show.
-    const all = await db.select().from(chatConversations)
-      .orderBy(desc(chatConversations.leadScore));
+    // Phase 69 — filters pushed into SQL (previously loaded the whole table
+    // incl. transcripts); light columns only; top 200 by lead score each.
+    const openStage = sql`(${chatConversations.pipelineStage} is null or ${chatConversations.pipelineStage} not in ('won', 'lost', 'closed'))`;
 
-    const overdue = all.filter((s) =>
-      s.followupDueDate &&
-      new Date(s.followupDueDate) < now &&
-      !["won", "lost", "closed"].includes(s.pipelineStage ?? "")
-    );
-
-    const silentHot = all.filter((s) => {
-      const isHot = (s.leadScore ?? 0) >= 50;
-      const lastActivity = s.lastActivityAt ?? s.updatedAt;
-      const isSilent = lastActivity && new Date(lastActivity) < threeDaysAgo;
-      const notAlreadyOverdue = !(s.followupDueDate && new Date(s.followupDueDate) < now);
-      const notWon = !["won", "lost", "closed"].includes(s.pipelineStage ?? "");
-      return isHot && isSilent && notAlreadyOverdue && notWon;
-    });
+    const [overdue, silentHot] = await Promise.all([
+      db.select(chatConversationLiteColumns).from(chatConversations)
+        .where(sql`${chatConversations.followupDueDate} is not null
+          and ${chatConversations.followupDueDate} < ${now}
+          and ${openStage}`)
+        .orderBy(desc(chatConversations.leadScore))
+        .limit(200),
+      db.select(chatConversationLiteColumns).from(chatConversations)
+        .where(sql`coalesce(${chatConversations.leadScore}, 0) >= 50
+          and coalesce(${chatConversations.lastActivityAt}, ${chatConversations.updatedAt}) < ${threeDaysAgo}
+          and (${chatConversations.followupDueDate} is null or ${chatConversations.followupDueDate} >= ${now})
+          and ${openStage}`)
+        .orderBy(desc(chatConversations.leadScore))
+        .limit(200),
+    ]);
 
     return { overdue, silentHot };
   }
@@ -1713,15 +1823,28 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getConversionFunnel() {
-    const all = await db.select().from(chatConversations);
-    const allOrders = await db.select({ id: orders.id, status: orders.status }).from(orders);
-    const allBookings = await db.select({ id: bookings.id }).from(bookings);
-    const totalSessions = all.length;
-    const withIntent = all.filter((s) => s.intent).length;
-    const emailCaptured = all.filter((s) => s.capturedEmail || s.leadEmail).length;
-    const qualified = all.filter((s) => ["qualified", "booked", "won", "converted"].includes(s.pipelineStage)).length;
-    const booked = allBookings.length;
-    const paidOrders = allOrders.filter((o) => o.status === "paid").length;
+    // Phase 69 — SQL aggregation; previously loaded every chat row
+    // (incl. transcripts), every order, and every booking into memory.
+    const [[chatRow], [orderRow], [bookingRow]] = await Promise.all([
+      db.select({
+        totalSessions: sql<number>`cast(count(*) as int)`,
+        withIntent: sql<number>`cast(count(*) filter (where ${chatConversations.intent} is not null and ${chatConversations.intent} <> '') as int)`,
+        emailCaptured: sql<number>`cast(count(*) filter (where coalesce(${chatConversations.capturedEmail}, '') <> '' or coalesce(${chatConversations.leadEmail}, '') <> '') as int)`,
+        qualified: sql<number>`cast(count(*) filter (where ${chatConversations.pipelineStage} in ('qualified', 'booked', 'won', 'converted')) as int)`,
+      }).from(chatConversations),
+      db.select({
+        paidOrders: sql<number>`cast(count(*) filter (where ${orders.status} = 'paid') as int)`,
+      }).from(orders),
+      db.select({
+        booked: sql<number>`cast(count(*) as int)`,
+      }).from(bookings),
+    ]);
+    const totalSessions = chatRow?.totalSessions ?? 0;
+    const withIntent = chatRow?.withIntent ?? 0;
+    const emailCaptured = chatRow?.emailCaptured ?? 0;
+    const qualified = chatRow?.qualified ?? 0;
+    const booked = bookingRow?.booked ?? 0;
+    const paidOrders = orderRow?.paidOrders ?? 0;
     const r = (n: number) => (totalSessions ? Math.round((n / totalSessions) * 100) : 0);
     return {
       totalSessions, withIntent, emailCaptured, qualified, booked, paidOrders,
@@ -1737,8 +1860,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getConversionAnalytics() {
-    const all = await db.select().from(chatConversations);
-    const allBookings = await db.select().from(bookings);
+    // Phase 69 — light chat rows (no transcripts); bookings/consultations are
+    // small and bounded reads.
+    const all = await db.select(chatConversationLiteColumns).from(chatConversations)
+      .orderBy(desc(chatConversations.updatedAt)).limit(10000);
+    const allBookings = await db.select().from(bookings).orderBy(desc(bookings.createdAt)).limit(2000);
     const allConsultations = await db.select().from(consultations);
 
     // By intent
@@ -1805,7 +1931,9 @@ export class DatabaseStorage implements IStorage {
     const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-    const all = await db.select().from(chatConversations);
+    // Phase 69 — light chat rows (no transcripts); other reads are slim columns.
+    const all = await db.select(chatConversationLiteColumns).from(chatConversations)
+      .orderBy(desc(chatConversations.updatedAt)).limit(10000);
     const allBookings = await db.select({ id: bookings.id, status: bookings.status }).from(bookings);
     const allOrders = await db.select({ id: orders.id, status: orders.status, updatedAt: orders.updatedAt }).from(orders);
     const allContacts = await db.select({ id: contactMessages.id, repliedAt: contactMessages.repliedAt }).from(contactMessages);
@@ -1883,7 +2011,9 @@ export class DatabaseStorage implements IStorage {
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    const all = await db.select().from(chatConversations);
+    // Phase 69 — light chat rows (no transcripts).
+    const all = await db.select(chatConversationLiteColumns).from(chatConversations)
+      .orderBy(desc(chatConversations.updatedAt)).limit(10000);
 
     const qualifiedCount = all.filter((l) =>
       ["qualified", "booked", "won", "converted"].includes(l.pipelineStage)
@@ -1971,9 +2101,11 @@ export class DatabaseStorage implements IStorage {
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
+    // Phase 69 — light chat rows (no transcripts) + slim columns elsewhere.
     const [allLeads, allOrders, allSubscribers, allContacts, allBookings] = await Promise.all([
-      db.select().from(chatConversations),
-      db.select().from(orders),
+      db.select(chatConversationLiteColumns).from(chatConversations)
+        .orderBy(desc(chatConversations.updatedAt)).limit(10000),
+      db.select({ status: orders.status, amountPaid: orders.amountPaid }).from(orders),
       db.select({ id: newsletterSubscribers.id }).from(newsletterSubscribers),
       db.select({ id: contactMessages.id, repliedAt: contactMessages.repliedAt }).from(contactMessages),
       db.select({ id: bookings.id, status: bookings.status }).from(bookings),

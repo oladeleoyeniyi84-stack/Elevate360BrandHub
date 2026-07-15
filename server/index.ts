@@ -173,6 +173,10 @@ app.use((req, res, next) => {
 (async () => {
   await registerRoutes(httpServer, app);
 
+  // Phase 69 — start RSS/heap sampling (1/min ring buffer, unref'd timer).
+  const { startMemoryMonitor } = await import("./telemetry/memoryMonitor");
+  startMemoryMonitor();
+
   // Seed default consultation offerings if none exist
   const { storage } = await import("./storage");
   storage.seedDefaultConsultations().catch((e) => console.error("[seed] consultations:", e));
@@ -237,4 +241,39 @@ app.use((req, res, next) => {
       log(`serving on port ${port}`);
     },
   );
+
+  // Phase 69 — graceful shutdown. Stop accepting connections, cancel job
+  // timers, and close the session DB pool so in-flight work can finish and
+  // the process exits cleanly on deploy/restart instead of being SIGKILLed.
+  let shuttingDown = false;
+  const shutdown = (signal: string) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    log(`${signal} received — shutting down gracefully`, "shutdown");
+
+    // Hard deadline: force-exit if something hangs (unref'd so it never
+    // delays a clean exit).
+    const forceExit = setTimeout(() => {
+      console.error("[shutdown] timed out after 10s — forcing exit");
+      process.exit(1);
+    }, 10_000);
+    forceExit.unref();
+
+    void (async () => {
+      try {
+        const { stopAllAutomationJobs } = await import("./automation/jobRunner");
+        stopAllAutomationJobs();
+      } catch (e: any) {
+        console.error("[shutdown] stopping jobs failed:", e?.message);
+      }
+      httpServer.close(() => {
+        sessionPool.end().catch(() => undefined).finally(() => {
+          log("shutdown complete", "shutdown");
+          process.exit(0);
+        });
+      });
+    })();
+  };
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
 })();

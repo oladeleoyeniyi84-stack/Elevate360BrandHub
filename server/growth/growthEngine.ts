@@ -206,14 +206,17 @@ export async function gatherGrowthContext(windowDays = 14): Promise<GrowthContex
   const sinceMs = Date.now() - windowDays * DAY_MS;
   const prevSinceMs = sinceMs - windowDays * DAY_MS;
 
+  // Only the current + previous comparison windows are needed — never the
+  // whole (unbounded) table. Phase 69: chats use light rows (no transcripts)
+  // windowed by updatedAt (superset of the createdAt window); orders are
+  // date-bounded in SQL.
+  const windowStart = new Date(Date.now() - windowDays * 2 * DAY_MS);
   const [visits, contacts, subs, chats, orders] = await Promise.all([
-    // Only the current + previous comparison windows are needed — never the
-    // whole (unbounded) table.
     storage.getPageViews(windowDays * 2).catch(() => []),
     storage.getContactMessages().catch(() => []),
     storage.getNewsletterSubscribers().catch(() => []),
-    storage.getAllChatConversations().catch(() => []),
-    storage.getAllOrders().catch(() => []),
+    storage.getChatConversationsLite({ since: windowStart, limit: 20000 }).catch(() => []),
+    storage.getOrdersSince(windowStart).catch(() => []),
   ]);
 
   // ── Visits aggregation
