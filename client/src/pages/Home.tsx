@@ -41,6 +41,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ContactDialog } from "@/components/ContactDialog";
 import { WhoWeHelpSection } from "@/components/WhoWeHelpSection";
+import { LatestFromElevate360 } from "@/components/LatestFromElevate360";
 import { NewsletterForm } from "@/components/NewsletterForm";
 import { ShareButton } from "@/components/ShareButton";
 import { FAQSection } from "@/components/FAQSection";
@@ -1339,6 +1340,9 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Sprint 70.2 — Latest From Elevate360 (public feed: blog + offers + reviews) */}
+      <LatestFromElevate360 />
 
       {/* Featured Book Section - Healthwise */}
       <section className="py-16 border-t border-white/10">

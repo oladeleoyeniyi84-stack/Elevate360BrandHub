@@ -166,6 +166,7 @@ export interface IStorage {
   recordClick(product: string, label: string): Promise<void>;
   getClickStats(): Promise<{ product: string; label: string; count: number }[]>;
   getTestimonials(all?: boolean): Promise<Testimonial[]>;
+  getLatestApprovedTestimonials(limit?: number): Promise<Testimonial[]>;
   createTestimonial(t: InsertTestimonial): Promise<Testimonial>;
   deleteTestimonial(id: number): Promise<void>;
   toggleTestimonialApproval(id: number): Promise<Testimonial | undefined>;
@@ -189,6 +190,9 @@ export interface IStorage {
   deleteMarketplaceProduct(id: number): Promise<void>;
   setOrderFulfillment(stripeSessionId: string, fulfillmentStatus: string): Promise<Order | undefined>;
   getBlogPosts(publishedOnly?: boolean): Promise<BlogPost[]>;
+  getLatestPublishedBlogPosts(
+    limit?: number
+  ): Promise<Array<Pick<BlogPost, "id" | "title" | "slug" | "excerpt" | "category" | "createdAt">>>;
   getBlogPost(id: number): Promise<BlogPost | undefined>;
   getBlogPostBySlug(slug: string): Promise<BlogPost | undefined>;
   createBlogPost(post: InsertBlogPost): Promise<BlogPost>;
@@ -934,6 +938,15 @@ export class DatabaseStorage implements IStorage {
       .orderBy(testimonials.createdAt);
   }
 
+  // Sprint 70.2 — bounded newest-first read for the public homepage feed.
+  async getLatestApprovedTestimonials(limit = 3): Promise<Testimonial[]> {
+    const capped = Math.max(1, Math.min(limit, 12));
+    return db.select().from(testimonials)
+      .where(eq(testimonials.approved, true))
+      .orderBy(desc(testimonials.createdAt))
+      .limit(capped);
+  }
+
   async createTestimonial(t: InsertTestimonial): Promise<Testimonial> {
     const [row] = await db.insert(testimonials).values(t).returning();
     return row;
@@ -1078,6 +1091,25 @@ export class DatabaseStorage implements IStorage {
       return db.select().from(blogPosts).where(eq(blogPosts.published, true)).orderBy(blogPosts.createdAt);
     }
     return db.select().from(blogPosts).orderBy(blogPosts.createdAt);
+  }
+
+  // Sprint 70.2 — bounded, body-free projection for the public homepage feed
+  // (blog bodies are the only large column; the feed never loads them).
+  async getLatestPublishedBlogPosts(limit = 3) {
+    const capped = Math.max(1, Math.min(limit, 12));
+    return db
+      .select({
+        id: blogPosts.id,
+        title: blogPosts.title,
+        slug: blogPosts.slug,
+        excerpt: blogPosts.excerpt,
+        category: blogPosts.category,
+        createdAt: blogPosts.createdAt,
+      })
+      .from(blogPosts)
+      .where(eq(blogPosts.published, true))
+      .orderBy(desc(blogPosts.createdAt))
+      .limit(capped);
   }
 
   async getBlogPost(id: number): Promise<BlogPost | undefined> {

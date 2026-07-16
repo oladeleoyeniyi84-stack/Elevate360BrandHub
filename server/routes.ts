@@ -22,6 +22,7 @@ import {
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { getConciergeReply, generateBrandCopy, type ContentType } from "./openai";
+import { getHomepageFeed } from "./homepageFeed";
 import { runConcierge } from "./ai/router";
 import { getMemoryStats } from "./ai/memory";
 import { getAIStatus } from "./ai/modelRouter";
@@ -971,6 +972,19 @@ export async function registerRoutes(
   // Phase 37 — Public Offers (fetched directly from Stripe API; native SDK)
   app.get("/api/offers", async (_req, res) => {
     res.json(await listStripeOffers());
+  });
+
+  // Sprint 70.2 — Public homepage feed: bounded aggregation of latest published
+  // blog posts, active offers, and approved testimonials. Cached in-memory
+  // (single snapshot, 5-min TTL) with stale-serve fallback; never throws.
+  app.get("/api/homepage/feed", async (_req, res) => {
+    try {
+      const feed = await getHomepageFeed(listStripeOffers);
+      res.set("Cache-Control", "public, max-age=60");
+      res.json(feed);
+    } catch {
+      res.status(500).json({ error: "Feed temporarily unavailable" });
+    }
   });
 
   // Phase 37 — Create Stripe Checkout Session

@@ -60,3 +60,21 @@ id = "uzDC-bKm7xK9za5Y8944n"
 uri = "file://screenshots/sprint70_1_mobile_whowehelp.jpg"
 type = "image"
 title = "Mobile Who We Help — 7 cards (390px)"
+
+[[outputs]]
+id = "tPpK-M9EvukK8YAgGrBJP"
+uri = "file://screenshots/sprint70_2_desktop_latest.jpg"
+type = "image"
+title = "Latest From Elevate360 — Desktop (1440×900)"
+
+[[outputs]]
+id = "sLdZF8zCuGq4p5hQ13-LT"
+uri = "file://screenshots/sprint70_2_tablet_latest.jpg"
+type = "image"
+title = "Latest From Elevate360 — Tablet (768×1024)"
+
+[[outputs]]
+id = "qA9QfJJUBZEZl5pag-R9o"
+uri = "file://screenshots/sprint70_2_mobile_latest.jpg"
+type = "image"
+title = "Latest From Elevate360 — Mobile (390×844)"
