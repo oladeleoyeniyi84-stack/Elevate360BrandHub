@@ -232,6 +232,31 @@ export const chatRequestSchema = z.object({
   message: z.string().min(1).max(2000),
   leadName: z.string().optional(),
   leadEmail: z.string().email().optional(),
+  // Sprint 71.1 — context-aware concierge. Optional + additive: old clients
+  // keep working. The server only trusts `page` (path lookup against the
+  // shared config); title/section/product are accepted for payload
+  // compatibility but never injected into prompts.
+  sessionMode: z
+    .enum([
+      "default",
+      "brandStrategy",
+      "aiContent",
+      "creativeDirection",
+      "appProduct",
+      "collaboration",
+      "brandAudit",
+      "founderGrowth",
+    ])
+    .optional(),
+  pageContext: z
+    .object({
+      page: z.string().min(1).max(200),
+      pageTitle: z.string().max(200).optional(),
+      section: z.string().max(100).optional(),
+      product: z.string().max(100).optional(),
+      visitorType: z.enum(["anonymous", "customer"]).optional(),
+    })
+    .optional(),
 });
 
 // Phase 36 — Consultation Offerings

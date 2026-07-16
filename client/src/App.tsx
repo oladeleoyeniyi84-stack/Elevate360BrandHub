@@ -52,6 +52,17 @@ import { AnnouncementBanner } from "@/components/AnnouncementBanner";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import SEO from "@/components/SEO";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import { AIConcierge } from "@/components/AIConcierge";
+import { isConciergeHiddenRoute } from "@/config/conciergeContext";
+
+// Sprint 71.1 — the concierge is now sitewide (previously homepage-only) so
+// page-aware greetings/context work on every public page. Hidden on founder/
+// admin routes.
+function GlobalConcierge() {
+  const [location] = useLocation();
+  if (isConciergeHiddenRoute(location)) return null;
+  return <AIConcierge />;
+}
 
 function RouteTracker() {
   const [location] = useLocation();
@@ -406,6 +417,7 @@ function App() {
           <ScrollUtilities />
           <NewsletterPopup />
           <AnnouncementBanner />
+          <GlobalConcierge />
           <WhatsAppButton />
           <MobileBottomNav />
           <CookieBanner />

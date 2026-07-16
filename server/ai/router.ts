@@ -1,5 +1,6 @@
 import type { ChatMessage } from "@shared/schema";
 import { getConciergeReply, generateBrandCopy, generateFollowupDraft, type ContentType } from "../openai";
+import type { ConciergePageSignal } from "./prompts";
 import { getMemory, setMemory } from "./memory";
 
 export interface ConciergeInput {
@@ -15,6 +16,8 @@ export interface ConciergeInput {
   }[];
   recommendedOffer?: string | null;
   memoryContext?: string | null;
+  /** Sprint 71.1 — which page the visitor is on + selected conversation mode. */
+  pageSignal?: ConciergePageSignal | null;
 }
 
 export interface ConciergeOutput {
@@ -32,7 +35,8 @@ export async function runConcierge(input: ConciergeInput): Promise<ConciergeOutp
     input.knowledgeDocs,
     input.consultationTypes,
     input.recommendedOffer,
-    input.memoryContext
+    input.memoryContext,
+    input.pageSignal
   );
 
   const updatedMessages: ChatMessage[] = [

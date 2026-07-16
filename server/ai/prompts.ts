@@ -1,3 +1,5 @@
+import { getConciergePageContext, resolveConciergePagePath } from "@shared/conciergeContext";
+
 export const CONCIERGE_PROMPT = `You are the Elevate360 AI Concierge — a warm, intelligent, premium brand assistant for Elevate360Official. You represent the brand with energy, precision, and authenticity.
 
 ## About Elevate360Official
@@ -130,10 +132,69 @@ Conversion outcome guide:
 
 Return only valid JSON.`;
 
+// Sprint 71.1 — context-aware concierge. Only the page PATH comes from the
+// client; all knowledge/CTA/link text is looked up server-side in the shared
+// config (never trusts client-sent prompt text). Unknown pages contribute just
+// a sanitized path line.
+export interface ConciergePageSignal {
+  page: string;
+  sessionMode?: string | null;
+}
+
+function sanitizePagePath(raw: string): string {
+  return raw.replace(/[^a-zA-Z0-9/_-]/g, "").slice(0, 200);
+}
+
+const SESSION_MODE_LABELS: Record<string, string> = {
+  default: "general concierge",
+  brandStrategy: "brand strategy",
+  aiContent: "AI content",
+  creativeDirection: "creative direction",
+  appProduct: "app / product consultation",
+  collaboration: "collaboration / partnership",
+  brandAudit: "brand audit",
+  founderGrowth: "founder growth",
+};
+
+export function buildPageContextBlock(signal: ConciergePageSignal): string {
+  const entry = getConciergePageContext(signal.page);
+  const lines: string[] = ["\n\n## Current Page Context"];
+
+  if (entry) {
+    lines.push(
+      `The visitor is currently on the "${entry.pageTitle}" page (${resolveConciergePagePath(signal.page)}) in the ${entry.section} section of the website.`
+    );
+    if (entry.product) lines.push(`Product in focus: **${entry.product}**.`);
+    lines.push(`\n${entry.knowledge}`);
+    lines.push(`\nSuggested next step for this page: ${entry.suggestedCta}`);
+    if (entry.recommendedLinks.length > 0) {
+      lines.push(
+        `Relevant links you may share:\n${entry.recommendedLinks.map((l) => `- ${l.label}: ${l.url}`).join("\n")}`
+      );
+    }
+    lines.push(
+      "\nUse this context naturally — the visitor should never have to explain where they are or what they're looking at. Do not recite this context back verbatim."
+    );
+  } else {
+    const safePath = sanitizePagePath(signal.page);
+    if (safePath) {
+      lines.push(`The visitor is currently on the ${safePath} page of the website.`);
+    }
+  }
+
+  const modeLabel = signal.sessionMode ? SESSION_MODE_LABELS[signal.sessionMode] : undefined;
+  if (modeLabel && signal.sessionMode !== "default") {
+    lines.push(`Conversation mode selected by the visitor: ${modeLabel}.`);
+  }
+
+  return lines.length > 1 ? lines.join("\n") : "";
+}
+
 export function buildConciergePromptText(
   knowledgeDocs?: { title: string; category: string; content: string }[],
   consultationTypes?: { title: string; description: string; duration: number; price: number; currency: string }[],
-  recommendedOffer?: string | null
+  recommendedOffer?: string | null,
+  pageSignal?: ConciergePageSignal | null
 ): string {
   let prompt = CONCIERGE_PROMPT;
 
@@ -155,6 +216,12 @@ export function buildConciergePromptText(
 
   if (recommendedOffer) {
     prompt += `\n\n## Recommended Next Step for This Visitor\nBased on signals from this conversation, the AI scoring system recommends nudging toward: **${recommendedOffer}**.\nWhen it feels natural and relevant, guide the conversation toward this offer at https://www.elevate360official.com/#offers or the booking page. Never force it — only mention it when it genuinely fits the visitor's expressed needs.`;
+  }
+
+  // Sprint 71.1 — page context is the most volatile block; appended LAST so
+  // the large static prompt prefix above stays cacheable by the provider.
+  if (pageSignal?.page) {
+    prompt += buildPageContextBlock(pageSignal);
   }
 
   return prompt;

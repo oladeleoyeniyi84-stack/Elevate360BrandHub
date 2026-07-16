@@ -369,7 +369,8 @@ export async function registerRoutes(
 
   app.post("/api/chat", rateLimit(15, 60), botGuard, async (req, res) => {
     try {
-      const { sessionId, message, leadName, leadEmail } = chatRequestSchema.parse(req.body);
+      const { sessionId, message, leadName, leadEmail, sessionMode, pageContext } =
+        chatRequestSchema.parse(req.body);
 
       // Phase 68A — AI Concierge is the first live premium gate. Anonymous
       // visitors keep working unchanged; signed-in customers spend AI credits.
@@ -405,6 +406,9 @@ export async function registerRoutes(
         consultationTypes: activeConsultations,
         recommendedOffer: conversation.recommendedOffer,
         memoryContext,
+        // Sprint 71.1 — only the page PATH is forwarded; knowledge/CTA text is
+        // looked up server-side in shared/conciergeContext.ts (never client text).
+        pageSignal: pageContext ? { page: pageContext.page, sessionMode } : null,
       });
 
       await storage.appendChatMessage(sessionId, { role: "user", content: message });

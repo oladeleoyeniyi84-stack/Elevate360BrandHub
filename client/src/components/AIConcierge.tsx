@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { X, Send, Loader2, Calendar, CreditCard, ArrowRight } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { conciergeModes, type ConciergeModeKey } from "@/config/conciergeModes";
+import { buildConciergePagePayload, getConciergeGreeting } from "@/config/conciergeContext";
 import { UpgradeBanner } from "@/components/premium/UpgradeBanner";
 import { CreditMeter } from "@/components/premium/CreditMeter";
 import { useCustomer, usePremiumStatus } from "@/hooks/useCustomer";
@@ -72,19 +74,34 @@ export function AIConcierge() {
   const queryClient = useQueryClient();
   const { isAuthenticated } = useCustomer();
   const { data: premium } = usePremiumStatus(isAuthenticated);
+  const [location] = useLocation();
 
   const modeConfig = useMemo(() => conciergeModes[mode], [mode]);
 
-  const welcomeMessage = useMemo<Message>(
-    () => ({ role: "assistant", content: modeConfig.intro }),
-    [modeConfig]
-  );
+  // Sprint 71.1 — page-aware greeting: on known public pages the default mode
+  // greets with page-specific copy; explicit modes keep their own intros.
+  const pageGreeting = useMemo(() => getConciergeGreeting(location), [location]);
+  const activeGreeting =
+    mode === "default" && pageGreeting ? pageGreeting : modeConfig.intro;
+  const greetingRef = useRef(activeGreeting);
+  greetingRef.current = activeGreeting;
 
-  // Reset messages when mode changes
+  // Reset messages when mode changes (initial mount included). Reads the
+  // greeting via ref so navigation alone never re-runs this reset.
   useEffect(() => {
-    setMessages([welcomeMessage]);
+    setMessages([{ role: "assistant", content: greetingRef.current }]);
     setAction(null);
-  }, [welcomeMessage]);
+  }, [mode]);
+
+  // Navigation while the conversation hasn't started: refresh the greeting so
+  // it matches the page. Never rewrites an active conversation — per-turn
+  // pageContext already tells the server about navigation.
+  useEffect(() => {
+    if (mode !== "default" || !pageGreeting) return;
+    setMessages((prev) =>
+      prev.length <= 1 ? [{ role: "assistant", content: pageGreeting }] : prev
+    );
+  }, [pageGreeting, mode]);
 
   useEffect(() => {
     if (open) {
@@ -115,6 +132,8 @@ export function AIConcierge() {
           sessionId,
           message,
           sessionMode: mode,
+          // Sprint 71.1 — every request carries the visitor's page context.
+          pageContext: buildConciergePagePayload(location, isAuthenticated),
           ...(name && { leadName: name }),
           ...(email && { leadEmail: email }),
         }),
@@ -473,6 +492,7 @@ export function AIConcierge() {
             <button
               type="submit"
               data-testid="button-chat-send"
+              aria-label="Send message"
               disabled={!input.trim() || chatMutation.isPending}
               className="w-9 h-9 rounded-full bg-[#F4A62A] flex items-center justify-center text-black disabled:opacity-40 hover:bg-[#ffb84d] transition flex-shrink-0"
             >

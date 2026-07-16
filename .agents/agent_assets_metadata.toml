@@ -78,3 +78,33 @@ id = "qA9QfJJUBZEZl5pag-R9o"
 uri = "file://screenshots/sprint70_2_mobile_latest.jpg"
 type = "image"
 title = "Latest From Elevate360 — Mobile (390×844)"
+
+[[outputs]]
+id = "CdOOXMmUEsAUFYaohHOnj"
+uri = "file://screenshots/sprint71_1_home_desktop.jpg"
+type = "image"
+title = "Home — page-aware greeting (desktop)"
+
+[[outputs]]
+id = "j1VEDXVvh89kiT6e_oCOi"
+uri = "file://screenshots/sprint71_1_videocrafter_desktop.jpg"
+type = "image"
+title = "Video Crafter — product greeting (desktop)"
+
+[[outputs]]
+id = "2ojtvXyxm0C_o3MLs6wpF"
+uri = "file://screenshots/sprint71_1_strategy_desktop.jpg"
+type = "image"
+title = "Strategy Session — page greeting (desktop)"
+
+[[outputs]]
+id = "x8uylYEdtA1CInxI8idw4"
+uri = "file://screenshots/sprint71_1_videocrafter_mobile.jpg"
+type = "image"
+title = "Video Crafter — mobile layout (390px)"
+
+[[outputs]]
+id = "oehNBnKFD9JBUqe5pPyPB"
+uri = "file://screenshots/sprint71_1_full_diff.txt"
+type = "text"
+title = "Sprint 71.1 — exact git diff"

@@ -1,7 +1,7 @@
 import type OpenAI from "openai";
 import type { ChatMessage } from "@shared/schema";
 import { openai } from "./ai/providers";
-import { VOICE_PROMPT, buildConciergePromptText } from "./ai/prompts";
+import { VOICE_PROMPT, buildConciergePromptText, type ConciergePageSignal } from "./ai/prompts";
 import { getAgent } from "./ai/agents";
 import { runTask } from "./ai/modelRouter";
 
@@ -121,9 +121,10 @@ export async function getConciergeReply(
   knowledgeDocs?: { title: string; category: string; content: string }[],
   consultationTypes?: { title: string; description: string; duration: number; price: number; currency: string }[],
   recommendedOffer?: string | null,
-  memoryContext?: string | null
+  memoryContext?: string | null,
+  pageSignal?: ConciergePageSignal | null
 ): Promise<string> {
-  const systemPrompt = buildConciergePromptText(knowledgeDocs, consultationTypes, recommendedOffer);
+  const systemPrompt = buildConciergePromptText(knowledgeDocs, consultationTypes, recommendedOffer, pageSignal);
   const input: OpenAI.Responses.ResponseInput = [
     ...(memoryContext ? [{ role: "system" as const, content: memoryContext }] : []),
     ...history.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),

@@ -1,0 +1,202 @@
+Elevate360 Sprint 71.1
+AI Concierge 2.0
+Context-Aware Intelligence
+Command Hierarchy
+Oladele Oyeniyi
+Founder & CEO
+
+        │
+
+        ▼
+
+Mission Control (GPT-5.6)
+
+Strategic Architect
+
+        │
+
+        ▼
+
+Replit Agent
+
+Autonomous Software Engineer
+Objective
+
+Upgrade the existing AI Concierge into a context-aware AI assistant.
+
+The Concierge should understand:
+
+which page the visitor is viewing,
+which product they are exploring,
+which solution they may need,
+
+before the first response.
+
+This sprint does not include analytics, lead scoring, or enterprise routing. Those belong to later Sprint 71 phases.
+
+Phase 1 — Audit Existing Concierge
+
+Inspect the current implementation, including:
+
+AI Concierge component(s)
+Chat widget
+AI routing
+GPT-5.6 provider
+DeepSeek provider
+Session handling
+Existing prompts
+Existing API endpoints
+
+Document:
+
+message flow
+system prompt
+API contract
+routing logic
+
+Do not modify anything yet.
+
+Phase 2 — Page Context
+
+Automatically expose:
+
+Current URL
+
+Current route
+
+Product
+
+Section
+
+Page title
+
+Example payload:
+
+{
+  "page": "/apps/video-crafter",
+  "pageTitle": "Video Crafter",
+  "section": "Applications",
+  "visitorType": "anonymous"
+}
+
+This context should automatically accompany every AI request.
+
+Phase 3 — Context Knowledge
+
+Create a centralized configuration:
+
+client/src/config/conciergeContext.ts
+
+Example:
+
+/apps/video-crafter
+
+Greeting
+
+Knowledge
+
+Suggested CTA
+
+Recommended links
+
+Every public page should have its own context object.
+
+Avoid hardcoding page logic throughout the application.
+
+Phase 4 — Dynamic Greeting
+
+Generate greetings automatically.
+
+Examples:
+
+Home
+
+Welcome to Elevate360. I can help you discover AI solutions, digital tools, books, and growth strategies.
+
+Books
+
+Looking for your next read? I can recommend books based on your interests.
+
+Knowledge Center
+
+Ask me to summarize an article or recommend your next topic.
+
+Strategy Session
+
+I can answer questions before you schedule your consultation.
+
+Video Crafter
+
+Let's build your next AI-powered video together.
+
+BondedLove
+
+Looking for meaningful relationships? I can help you explore BondedLove.
+
+HealthWise
+
+Curious about HealthWise? I can explain how it works and who it's designed for.
+
+Phase 5 — Context Injection
+
+Extend the system prompt so it always includes:
+
+Current page
+
+Product
+
+Relevant product knowledge
+
+Relevant CTA
+
+Relevant recommendations
+
+The visitor should never have to explain where they are.
+
+Phase 6 — Preserve Existing Architecture
+
+Do not modify:
+
+GPT-5.6 routing
+DeepSeek routing
+AI Router
+Authentication
+Dashboard
+Content Studio
+Campaign Engine
+Blog publishing
+Mission Control
+Homepage
+Memory monitoring
+Phase 7 — Verification
+
+Run:
+
+npm run check
+npm run build
+
+Verify:
+
+Existing Concierge still works.
+Greeting changes by page.
+Context reaches the backend.
+Responses reference the correct product.
+Mobile layout remains correct.
+Architect review passes.
+Deliverables
+
+Provide:
+
+Architecture summary
+Files modified
+API changes
+Prompt changes
+Screenshots
+Mobile verification
+Accessibility verification
+TypeScript result
+Production build result
+Architect review
+Exact git diff
+
+Stop before commit.

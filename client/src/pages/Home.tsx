@@ -7,7 +7,6 @@ import { useScrollReveal } from "@/hooks/useScrollReveal";
 import { useCountUp } from "@/hooks/useCountUp";
 import { useTrackClick } from "@/hooks/useTrackClick";
 import { useTrackPageView } from "@/hooks/useTrackPageView";
-import { AIConcierge } from "@/components/AIConcierge";
 import { SessionPresenceCard } from "@/components/concierge/SessionPresenceCard";
 import { type ConciergeModeKey, SESSION_MODE_MAP } from "@/config/conciergeModes";
 import { SESSION_DETAILS, DEFAULT_SESSION_DETAIL } from "@/config/sessionDetails";
@@ -2319,7 +2318,6 @@ export default function Home() {
         </div>
       </footer>
 
-      <AIConcierge />
       <CommissionDialog open={commissionOpen} onClose={() => setCommissionOpen(false)} />
     </div>
   );
