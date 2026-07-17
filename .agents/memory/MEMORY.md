@@ -4,6 +4,7 @@
 - [Billing tier validation before write](billing-tier-validation.md) — webhook sync must validate resolved tier (isValidTier) before any DB write; unknown tier logs+returns, never throws (500→Stripe retry loop) or writes a partial sub row.
 - [lead_magnet_leads dev/prod schema drift](lead-magnet-schema-drift.md) — prod enforces UNIQUE email NOT declared in schema.ts (dev index non-unique); handle opt-ins idempotently (check-by-email + catch 23505), don't trust dev table to match prod.
 - [Resend dev sandbox](resend-dev-sandbox.md) — Resend 403 to real recipients in dev is EXPECTED (sandbox: only verified owner addr); not a code bug. Admin emails succeed; sends are fire-and-forget.
+- [SPA fallback false 200s](spa-fallback-false-200.md) — unregistered /api/* paths return 200 with index.html; API checks must assert JSON content-type, not just status.
 - [Headless screenshot workflow](headless-screenshot-workflow.md) — chromium+puppeteer-core recipe for sprint screenshots; replit.nix can't be deleted, uninstall leaves empty stub; cleanup order for a clean diff.
 - [Memory evidence testing](memory-evidence-testing.md) — prove RSS boundedness against the PROD build; dev tsx/vite inflates RSS ~4-5x and the plateau across passes is the signal, not absolute numbers.
 - [Unbounded table reads → prod OOM](unbounded-table-reads.md) — never full-load growing capture tables; date-bound + LIMIT rows, SQL COUNT for totals. Invisible in dev (tiny DB), OOMs prod.

@@ -403,6 +403,50 @@ export const insertClickEventSchema = createInsertSchema(clickEvents).pick({
 export type InsertClickEvent = z.infer<typeof insertClickEventSchema>;
 export type ClickEvent = typeof clickEvents.$inferSelect;
 
+// ─── Phase 72.1: Homepage analytics events ──────────────────────────────────
+// Closed event vocabulary — the collection endpoint rejects anything else (400).
+export const HOMEPAGE_ANALYTICS_EVENTS = [
+  "hero_view",
+  "hero_cta_click",
+  "section_view",
+  "app_card_click",
+  "book_card_click",
+  "art_studio_click",
+  "music_click",
+  "offer_card_click",
+  "feed_item_click",
+  "testimonial_view",
+  "newsletter_popup_view",
+  "newsletter_signup_click",
+  "booking_cta_click",
+  "concierge_open",
+  "social_link_click",
+] as const;
+export type HomepageAnalyticsEvent = (typeof HOMEPAGE_ANALYTICS_EVENTS)[number];
+
+// Serialized metadata larger than this is rejected with 413 (never stored).
+export const HOMEPAGE_ANALYTICS_METADATA_MAX_BYTES = 2048;
+
+export const homepageEvents = pgTable("homepage_events", {
+  id: serial("id").primaryKey(),
+  event: text("event").notNull(),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => [
+  // Summary KPIs filter on created_at; created in prod via
+  // scripts/create_phase72_1_tables.ts (idempotent), NOT db:push.
+  index("homepage_events_created_at_idx").on(t.createdAt),
+  index("homepage_events_event_idx").on(t.event),
+]);
+
+export const homepageAnalyticsRequestSchema = z.object({
+  event: z.enum(HOMEPAGE_ANALYTICS_EVENTS),
+  metadata: z.record(z.unknown()).optional(),
+}).strip();
+
+export type HomepageAnalyticsRequest = z.infer<typeof homepageAnalyticsRequestSchema>;
+export type HomepageEvent = typeof homepageEvents.$inferSelect;
+
 export const testimonials = pgTable("testimonials", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),

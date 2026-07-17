@@ -45,7 +45,7 @@ import {
   type ExperimentAssignment, type ExperimentEvent,
   type PersonalizationSegment, type InsertPersonalizationSegment,
   type PersonalizationProfile, type PersonalizationRule, type InsertPersonalizationRule,
-  users, contactMessages, newsletterSubscribers, leadMagnetLeads, chatConversations, clickEvents, pageViews, testimonials, blogPosts, contentDrafts, authorityItems, marketplaceProducts, knowledgeDocuments, consultations, bookings, orders, digestReports, offerMappingOverrides, auditLogs, automationSettings,
+  users, contactMessages, newsletterSubscribers, leadMagnetLeads, chatConversations, clickEvents, pageViews, homepageEvents, testimonials, blogPosts, contentDrafts, authorityItems, marketplaceProducts, knowledgeDocuments, consultations, bookings, orders, digestReports, offerMappingOverrides, auditLogs, automationSettings,
   automationJobs, automationJobLogs, revenueRecoveryActions, contentOpportunities, autonomousAlerts,
   growthExperiments, sourcePerformanceSnapshots, funnelLeakReports, offerPerformanceSnapshots,
   executionPolicies, appliedChanges, executionQueue, rollbackEvents,
@@ -165,6 +165,12 @@ export interface IStorage {
   getVisitTotals(): Promise<{ total: number; last7d: number; last24h: number }>;
   recordClick(product: string, label: string): Promise<void>;
   getClickStats(): Promise<{ product: string; label: string; count: number }[]>;
+  recordHomepageEvent(event: string, metadata?: Record<string, unknown> | null): Promise<void>;
+  getHomepageAnalyticsSummary(): Promise<{
+    totals: { allTime: number; last7d: number; last24h: number };
+    byEvent: { event: string; allTime: number; last7d: number; last24h: number }[];
+    generatedAt: string;
+  }>;
   getTestimonials(all?: boolean): Promise<Testimonial[]>;
   getLatestApprovedTestimonials(limit?: number): Promise<Testimonial[]>;
   createTestimonial(t: InsertTestimonial): Promise<Testimonial>;
@@ -927,6 +933,45 @@ export class DatabaseStorage implements IStorage {
       .from(clickEvents)
       .groupBy(clickEvents.product, clickEvents.label)
       .orderBy(sql`count(*) desc`);
+  }
+
+  // Phase 72.1 — homepage analytics. Event names are validated at the route
+  // (closed enum) before this is called; metadata is size-capped at the route.
+  async recordHomepageEvent(event: string, metadata?: Record<string, unknown> | null): Promise<void> {
+    await db.insert(homepageEvents).values({ event, metadata: metadata ?? null });
+  }
+
+  // KPI summary computed entirely in SQL (count(*) FILTER + GROUP BY) — never
+  // materializes rows, per the Phase 69 bounded-reads discipline.
+  async getHomepageAnalyticsSummary(): Promise<{
+    totals: { allTime: number; last7d: number; last24h: number };
+    byEvent: { event: string; allTime: number; last7d: number; last24h: number }[];
+    generatedAt: string;
+  }> {
+    const [totalsRow] = await db
+      .select({
+        allTime: sql<number>`cast(count(*) as int)`,
+        last7d: sql<number>`cast(count(*) filter (where ${homepageEvents.createdAt} >= now() - interval '7 days') as int)`,
+        last24h: sql<number>`cast(count(*) filter (where ${homepageEvents.createdAt} >= now() - interval '24 hours') as int)`,
+      })
+      .from(homepageEvents);
+
+    const byEvent = await db
+      .select({
+        event: homepageEvents.event,
+        allTime: sql<number>`cast(count(*) as int)`,
+        last7d: sql<number>`cast(count(*) filter (where ${homepageEvents.createdAt} >= now() - interval '7 days') as int)`,
+        last24h: sql<number>`cast(count(*) filter (where ${homepageEvents.createdAt} >= now() - interval '24 hours') as int)`,
+      })
+      .from(homepageEvents)
+      .groupBy(homepageEvents.event)
+      .orderBy(sql`count(*) desc`);
+
+    return {
+      totals: totalsRow ?? { allTime: 0, last7d: 0, last24h: 0 },
+      byEvent,
+      generatedAt: new Date().toISOString(),
+    };
   }
 
   async getTestimonials(all = false): Promise<Testimonial[]> {

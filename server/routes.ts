@@ -17,6 +17,8 @@ import {
   insertMarketplaceProductSchema,
   updateMarketplaceProductSchema,
   marketplaceCheckoutSchema,
+  homepageAnalyticsRequestSchema,
+  HOMEPAGE_ANALYTICS_METADATA_MAX_BYTES,
   type ChatMessage,
 } from "@shared/schema";
 import { ZodError } from "zod";
@@ -570,6 +572,42 @@ export async function registerRoutes(
     if (!product || !label) return res.status(400).json({ error: "Missing fields" });
     await storage.recordClick(String(product), String(label));
     res.json({ ok: true });
+  });
+
+  // ─── Phase 72.1: Homepage analytics ────────────────────────────────────────
+  // Public collection endpoint. Contract: valid event → 200 {"ok":true};
+  // unknown/missing event → 400; metadata > 2 KB serialized → 413.
+  app.post("/api/analytics/homepage", rateLimit(60, 60), async (req, res) => {
+    try {
+      const parsed = homepageAnalyticsRequestSchema.parse(req.body ?? {});
+      if (parsed.metadata !== undefined) {
+        const size = Buffer.byteLength(JSON.stringify(parsed.metadata), "utf8");
+        if (size > HOMEPAGE_ANALYTICS_METADATA_MAX_BYTES) {
+          return res.status(413).json({
+            error: `Metadata too large (${size} bytes, max ${HOMEPAGE_ANALYTICS_METADATA_MAX_BYTES})`,
+          });
+        }
+      }
+      await storage.recordHomepageEvent(parsed.event, parsed.metadata ?? null);
+      res.json({ ok: true });
+    } catch (err) {
+      if (err instanceof ZodError) {
+        return res.status(400).json({ error: fromZodError(err).message });
+      }
+      console.error("[analytics/homepage] failed:", err);
+      res.status(500).json({ error: "Failed to record event" });
+    }
+  });
+
+  // Founder-only KPI summary — 401 without valid PIN session/header.
+  app.get("/api/dashboard/analytics/homepage/summary", requireDashboardAuth, async (_req, res) => {
+    try {
+      const summary = await storage.getHomepageAnalyticsSummary();
+      res.json(summary);
+    } catch (err) {
+      console.error("[analytics/homepage/summary] failed:", err);
+      res.status(500).json({ error: "Failed to load homepage analytics summary" });
+    }
   });
 
   app.get("/api/dashboard/clicks", async (req, res) => {
