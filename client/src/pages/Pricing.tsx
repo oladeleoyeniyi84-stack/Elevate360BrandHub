@@ -1,4 +1,5 @@
 // Phase 68A — public pricing page.
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Loader2, ArrowLeft } from "lucide-react";
@@ -6,10 +7,16 @@ import SEO from "@/components/SEO";
 import { customerApi, type FeaturesResponse } from "@/api/customer";
 import { useCustomer, usePremiumStatus } from "@/hooks/useCustomer";
 import { PlanComparison } from "@/components/premium/PlanComparison";
+import { trackFunnelEvent } from "@/lib/funnelAnalytics";
 
 const GOLD = "#F4A62A";
 
 export default function Pricing() {
+  // Phase 72.2 — funnel analytics (fire-and-forget page view; additive only).
+  useEffect(() => {
+    trackFunnelEvent("pricing_view");
+  }, []);
+
   const { isAuthenticated } = useCustomer();
   const { data: status } = usePremiumStatus(isAuthenticated);
   const { data, isLoading } = useQuery<FeaturesResponse>({

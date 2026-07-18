@@ -447,6 +447,71 @@ export const homepageAnalyticsRequestSchema = z.object({
 export type HomepageAnalyticsRequest = z.infer<typeof homepageAnalyticsRequestSchema>;
 export type HomepageEvent = typeof homepageEvents.$inferSelect;
 
+// ─── Phase 72.2: Strategy Session funnel analytics ──────────────────────────
+// Closed event vocabulary for the full customer journey (homepage → strategy
+// page → pricing → plan → checkout → payment → booking). Unknown events → 400.
+export const STRATEGY_FUNNEL_EVENTS = [
+  "strategy_page_view",
+  "pricing_view",
+  "pricing_section_view",
+  "plan_selected",
+  "checkout_started",
+  "checkout_completed",
+  "checkout_failed",
+  "booking_widget_opened",
+  "booking_started",
+  "booking_completed",
+  "booking_cancelled",
+  "thank_you_view",
+  "consultation_rescheduled",
+  "consultation_cancelled",
+] as const;
+export type StrategyFunnelEvent = (typeof STRATEGY_FUNNEL_EVENTS)[number];
+
+export const STRATEGY_FUNNEL_METADATA_MAX_BYTES = 2048;
+
+export const strategyFunnelEvents = pgTable("strategy_funnel_events", {
+  id: serial("id").primaryKey(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  sessionId: text("session_id"),
+  visitorId: text("visitor_id"),
+  eventName: text("event_name").notNull(),
+  page: text("page"),
+  referrer: text("referrer"),
+  source: text("source"),
+  medium: text("medium"),
+  campaign: text("campaign"),
+  device: text("device"),
+  browser: text("browser"),
+  metadata: jsonb("metadata"),
+}, (t) => [
+  // KPI aggregates filter/group on these; created in prod via
+  // scripts/create_phase72_2_tables.ts (idempotent), NOT db:push.
+  index("strategy_funnel_events_created_at_idx").on(t.createdAt),
+  index("strategy_funnel_events_event_name_idx").on(t.eventName),
+  index("strategy_funnel_events_session_id_idx").on(t.sessionId),
+  index("strategy_funnel_events_visitor_id_idx").on(t.visitorId),
+]);
+
+const funnelAttr = z.string().trim().max(300).optional();
+
+export const funnelAnalyticsRequestSchema = z.object({
+  event: z.enum(STRATEGY_FUNNEL_EVENTS),
+  sessionId: funnelAttr,
+  visitorId: funnelAttr,
+  page: z.string().trim().max(600).optional(),
+  referrer: z.string().trim().max(600).optional(),
+  source: funnelAttr,
+  medium: funnelAttr,
+  campaign: funnelAttr,
+  device: funnelAttr,
+  browser: funnelAttr,
+  metadata: z.record(z.unknown()).optional(),
+}).strip();
+
+export type FunnelAnalyticsRequest = z.infer<typeof funnelAnalyticsRequestSchema>;
+export type StrategyFunnelEventRow = typeof strategyFunnelEvents.$inferSelect;
+
 export const testimonials = pgTable("testimonials", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),

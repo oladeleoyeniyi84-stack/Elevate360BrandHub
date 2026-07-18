@@ -1,0 +1,262 @@
+Mission
+
+Build a production-grade funnel analytics system that measures the complete customer journey from the first homepage visit through Strategy Session booking.
+
+This phase extends the certified Phase 72.1 homepage analytics foundation.
+
+Engineering Constraints
+
+Do NOT modify:
+
+Homepage Analytics (Phase 72.1)
+Existing authentication
+AI Concierge
+Stripe implementation
+Calendly integration
+Existing analytics tables
+
+Phase 72.2 must be additive.
+
+Deliverables
+1. Event Vocabulary
+
+Create a closed allowlist:
+
+strategy_page_view
+pricing_view
+pricing_section_view
+plan_selected
+checkout_started
+checkout_completed
+checkout_failed
+booking_widget_opened
+booking_started
+booking_completed
+booking_cancelled
+thank_you_view
+consultation_rescheduled
+consultation_cancelled
+
+Unknown events must return:
+
+400 Bad Request
+2. Database
+
+Create dedicated funnel tables.
+
+Example:
+
+strategy_funnel_events
+
+Include:
+
+id
+created_at
+session_id
+visitor_id
+event_name
+page
+referrer
+source
+medium
+campaign
+device
+browser
+metadata JSONB
+
+Create indexes on:
+
+created_at
+event_name
+session_id
+visitor_id
+3. Analytics Collection API
+
+Create
+
+POST /api/analytics/funnel
+
+Requirements
+
+60 requests/min/IP
+JSON only
+2 KB metadata limit
+event validation
+anonymous sessions
+return
+{
+  "ok": true
+}
+4. Dashboard API
+
+Create
+
+GET /api/dashboard/analytics/funnel
+
+Protected by
+
+requireDashboardAuth()
+
+Return SQL aggregates only.
+
+Never load all events into Node memory.
+
+5. SQL KPIs
+
+Compute
+
+Homepage →
+
+Strategy
+
+Strategy →
+
+Pricing
+
+Pricing →
+
+Plan
+
+Plan →
+
+Checkout
+
+Checkout →
+
+Payment
+
+Payment →
+
+Booking
+
+Overall Funnel
+
+Average completion time
+
+Top campaigns
+
+Top sources
+
+Top plans
+
+Daily funnel
+
+Weekly funnel
+
+Monthly funnel
+
+6. Dashboard UI
+
+Create a new dashboard page showing
+
+Funnel
+Visitors
+
+↓
+
+Strategy
+
+↓
+
+Pricing
+
+↓
+
+Plan
+
+↓
+
+Checkout
+
+↓
+
+Booked
+
+Display
+
+counts
+conversion %
+drop-off %
+7. Attribution
+
+Persist
+
+UTM Source
+Medium
+Campaign
+Referrer
+Landing Page
+Device
+Browser
+
+Reuse Phase 72.1 anonymous visitor strategy.
+
+8. Automated Contract Tests
+
+Create
+
+scripts/create_phase72_2_tables.ts
+
+scripts/phase72_2_api_tests.ts
+
+Tests must verify
+
+✓ valid events
+
+✓ invalid events
+
+✓ missing payload
+
+✓ oversized metadata
+
+✓ unauthorized dashboard
+
+✓ authenticated dashboard
+
+✓ SQL aggregates
+
+✓ SPA fallback protection
+
+9. Build Verification
+
+Before stopping
+
+Run
+
+npm run check
+
+npm run build
+
+Both must pass.
+
+10. Delivery Report
+
+Return ONLY
+
+Files Added
+Files Modified
+Database Objects
+API Endpoints
+Dashboard Components
+Test Results
+TypeScript
+
+PASS / FAIL
+
+Build
+
+PASS / FAIL
+
+Architect Review
+
+PASS / FAIL
+
+Stop.
+
+Do NOT commit.
+
+Do NOT push.
+
+Do NOT deploy.
+
+Mission Control review comes next.

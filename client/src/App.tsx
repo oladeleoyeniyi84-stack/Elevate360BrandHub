@@ -23,6 +23,7 @@ import FounderIntelligence from "@/pages/FounderIntelligence";
 import RevenueIntelligence from "@/pages/RevenueIntelligence";
 import GrowthAutomation from "@/pages/GrowthAutomation";
 import CognitiveOS from "@/pages/CognitiveOS";
+import FunnelAnalytics from "@/pages/FunnelAnalytics";
 import AiContentStudio from "@/pages/AiContentStudio";
 import ContentFactory from "@/pages/ContentFactory";
 import OrchestratorCenter from "@/pages/OrchestratorCenter";
@@ -312,6 +313,17 @@ function Router() {
             path="/cognitive-os"
           />
           <CognitiveOS />
+        </>
+      </Route>
+
+      <Route path="/funnel-analytics">
+        <>
+          <SEO
+            title="Funnel Analytics | Elevate360Official"
+            description="Founder-only funnel analytics — measure the customer journey from homepage visit to Strategy Session booking with stage conversions, attribution, and time-series KPIs."
+            path="/funnel-analytics"
+          />
+          <FunnelAnalytics />
         </>
       </Route>
 

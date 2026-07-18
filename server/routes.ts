@@ -19,6 +19,8 @@ import {
   marketplaceCheckoutSchema,
   homepageAnalyticsRequestSchema,
   HOMEPAGE_ANALYTICS_METADATA_MAX_BYTES,
+  funnelAnalyticsRequestSchema,
+  STRATEGY_FUNNEL_METADATA_MAX_BYTES,
   type ChatMessage,
 } from "@shared/schema";
 import { ZodError } from "zod";
@@ -607,6 +609,44 @@ export async function registerRoutes(
     } catch (err) {
       console.error("[analytics/homepage/summary] failed:", err);
       res.status(500).json({ error: "Failed to load homepage analytics summary" });
+    }
+  });
+
+  // ─── Phase 72.2: Strategy Session funnel analytics ─────────────────────────
+  // Public collection endpoint (anonymous sessions). Contract mirrors 72.1:
+  // valid event → 200 {"ok":true}; unknown/missing event → 400; metadata > 2 KB
+  // serialized → 413. Attribution fields (UTM/referrer/device/browser) are
+  // optional, length-capped strings persisted as-is.
+  app.post("/api/analytics/funnel", rateLimit(60, 60), async (req, res) => {
+    try {
+      const parsed = funnelAnalyticsRequestSchema.parse(req.body ?? {});
+      if (parsed.metadata !== undefined) {
+        const size = Buffer.byteLength(JSON.stringify(parsed.metadata), "utf8");
+        if (size > STRATEGY_FUNNEL_METADATA_MAX_BYTES) {
+          return res.status(413).json({
+            error: `Metadata too large (${size} bytes, max ${STRATEGY_FUNNEL_METADATA_MAX_BYTES})`,
+          });
+        }
+      }
+      await storage.recordFunnelEvent(parsed);
+      res.json({ ok: true });
+    } catch (err) {
+      if (err instanceof ZodError) {
+        return res.status(400).json({ error: fromZodError(err).message });
+      }
+      console.error("[analytics/funnel] failed:", err);
+      res.status(500).json({ error: "Failed to record event" });
+    }
+  });
+
+  // Founder-only funnel KPIs — SQL aggregates only, never row loads.
+  app.get("/api/dashboard/analytics/funnel", requireDashboardAuth, async (_req, res) => {
+    try {
+      const summary = await storage.getFunnelAnalyticsSummary();
+      res.json(summary);
+    } catch (err) {
+      console.error("[analytics/funnel/summary] failed:", err);
+      res.status(500).json({ error: "Failed to load funnel analytics" });
     }
   });
 

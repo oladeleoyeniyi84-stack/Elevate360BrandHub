@@ -45,7 +45,7 @@ import {
   type ExperimentAssignment, type ExperimentEvent,
   type PersonalizationSegment, type InsertPersonalizationSegment,
   type PersonalizationProfile, type PersonalizationRule, type InsertPersonalizationRule,
-  users, contactMessages, newsletterSubscribers, leadMagnetLeads, chatConversations, clickEvents, pageViews, homepageEvents, testimonials, blogPosts, contentDrafts, authorityItems, marketplaceProducts, knowledgeDocuments, consultations, bookings, orders, digestReports, offerMappingOverrides, auditLogs, automationSettings,
+  users, contactMessages, newsletterSubscribers, leadMagnetLeads, chatConversations, clickEvents, pageViews, homepageEvents, strategyFunnelEvents, type FunnelAnalyticsRequest, testimonials, blogPosts, contentDrafts, authorityItems, marketplaceProducts, knowledgeDocuments, consultations, bookings, orders, digestReports, offerMappingOverrides, auditLogs, automationSettings,
   automationJobs, automationJobLogs, revenueRecoveryActions, contentOpportunities, autonomousAlerts,
   growthExperiments, sourcePerformanceSnapshots, funnelLeakReports, offerPerformanceSnapshots,
   executionPolicies, appliedChanges, executionQueue, rollbackEvents,
@@ -99,6 +99,7 @@ import {
   type UpdateCampaignInput,
 } from "@shared/schema";
 import type { CognitiveSignal } from "@shared/types/cognitive";
+import type { FunnelAnalyticsSummary, FunnelStage, FunnelConversion, FunnelPeriodBucket, FunnelStageKey } from "@shared/types/funnel";
 import { db } from "./db";
 import { and, asc, count, desc, eq, getTableColumns, gte, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
 
@@ -171,6 +172,8 @@ export interface IStorage {
     byEvent: { event: string; allTime: number; last7d: number; last24h: number }[];
     generatedAt: string;
   }>;
+  recordFunnelEvent(input: FunnelAnalyticsRequest): Promise<void>;
+  getFunnelAnalyticsSummary(): Promise<FunnelAnalyticsSummary>;
   getTestimonials(all?: boolean): Promise<Testimonial[]>;
   getLatestApprovedTestimonials(limit?: number): Promise<Testimonial[]>;
   createTestimonial(t: InsertTestimonial): Promise<Testimonial>;
@@ -970,6 +973,198 @@ export class DatabaseStorage implements IStorage {
     return {
       totals: totalsRow ?? { allTime: 0, last7d: 0, last24h: 0 },
       byEvent,
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  // ── Phase 72.2 — Strategy Session funnel analytics ─────────────────────────
+
+  async recordFunnelEvent(input: FunnelAnalyticsRequest): Promise<void> {
+    await db.insert(strategyFunnelEvents).values({
+      eventName: input.event,
+      sessionId: input.sessionId ?? null,
+      visitorId: input.visitorId ?? null,
+      page: input.page ?? null,
+      referrer: input.referrer ?? null,
+      source: input.source ?? null,
+      medium: input.medium ?? null,
+      campaign: input.campaign ?? null,
+      device: input.device ?? null,
+      browser: input.browser ?? null,
+      metadata: input.metadata ?? null,
+    });
+  }
+
+  // Full funnel KPI summary computed entirely in SQL (count(*) FILTER, GROUP BY,
+  // date_trunc) — never materializes event rows in Node, per the Phase 69
+  // bounded-reads discipline. Stage counts are DISTINCT sessions; events sent
+  // without a sessionId each count as their own session (coalesce on row id).
+  async getFunnelAnalyticsSummary(): Promise<FunnelAnalyticsSummary> {
+    const sessionExpr = sql`coalesce(session_id, 'anon-' || id::text)`;
+    const stageFilter = (events: string[]) =>
+      sql`count(distinct ${sessionExpr}) filter (where event_name in (${sql.join(events.map((e) => sql`${e}`), sql`, `)}))`;
+
+    const STAGE_EVENTS: Record<Exclude<FunnelStageKey, "visitors">, string[]> = {
+      strategy: ["strategy_page_view"],
+      pricing: ["pricing_view", "pricing_section_view"],
+      plan: ["plan_selected"],
+      checkout: ["checkout_started"],
+      payment: ["checkout_completed"],
+      booked: ["booking_completed"],
+    };
+
+    // 1. Stage counts (one aggregate row) + homepage visitors from page_views.
+    const stagesRes = await db.execute(sql`
+      SELECT
+        ${stageFilter(STAGE_EVENTS.strategy)}::int AS strategy,
+        ${stageFilter(STAGE_EVENTS.pricing)}::int  AS pricing,
+        ${stageFilter(STAGE_EVENTS.plan)}::int     AS plan,
+        ${stageFilter(STAGE_EVENTS.checkout)}::int AS checkout,
+        ${stageFilter(STAGE_EVENTS.payment)}::int  AS payment,
+        ${stageFilter(STAGE_EVENTS.booked)}::int   AS booked
+      FROM strategy_funnel_events
+    `);
+    const stageRow: any = (stagesRes as any)?.rows?.[0] ?? {};
+
+    const visitorsRes = await db.execute(sql`
+      SELECT count(*)::int AS visitors FROM page_views WHERE page = '/'
+    `);
+    const visitors = Number((visitorsRes as any)?.rows?.[0]?.visitors ?? 0);
+
+    const stageCounts: Record<FunnelStageKey, number> = {
+      visitors,
+      strategy: Number(stageRow.strategy ?? 0),
+      pricing: Number(stageRow.pricing ?? 0),
+      plan: Number(stageRow.plan ?? 0),
+      checkout: Number(stageRow.checkout ?? 0),
+      payment: Number(stageRow.payment ?? 0),
+      booked: Number(stageRow.booked ?? 0),
+    };
+
+    const STAGE_LABELS: Record<FunnelStageKey, string> = {
+      visitors: "Homepage Visitors",
+      strategy: "Strategy Page",
+      pricing: "Pricing Viewed",
+      plan: "Plan Selected",
+      checkout: "Checkout Started",
+      payment: "Payment Completed",
+      booked: "Session Booked",
+    };
+    const ORDER: FunnelStageKey[] = ["visitors", "strategy", "pricing", "plan", "checkout", "payment", "booked"];
+    const stages: FunnelStage[] = ORDER.map((key) => ({ key, label: STAGE_LABELS[key], count: stageCounts[key] }));
+
+    const pct = (num: number, den: number): number | null =>
+      den > 0 ? Math.round((num / den) * 1000) / 10 : null;
+
+    const conversions: FunnelConversion[] = [];
+    for (let i = 0; i < ORDER.length - 1; i++) {
+      const from = ORDER[i];
+      const to = ORDER[i + 1];
+      const conversionPct = pct(stageCounts[to], stageCounts[from]);
+      conversions.push({
+        from,
+        to,
+        fromCount: stageCounts[from],
+        toCount: stageCounts[to],
+        conversionPct,
+        dropOffPct: conversionPct === null ? null : Math.round((100 - conversionPct) * 10) / 10,
+      });
+    }
+
+    // 2. Average completion time (first strategy view → booking completed).
+    const completionRes = await db.execute(sql`
+      SELECT round(avg(extract(epoch FROM (booked_at - started_at))) / 60.0, 1)::float AS avg_minutes
+      FROM (
+        SELECT session_id,
+               min(created_at) FILTER (WHERE event_name = 'strategy_page_view')  AS started_at,
+               min(created_at) FILTER (WHERE event_name = 'booking_completed')   AS booked_at
+        FROM strategy_funnel_events
+        WHERE session_id IS NOT NULL
+        GROUP BY session_id
+      ) t
+      WHERE started_at IS NOT NULL AND booked_at IS NOT NULL AND booked_at >= started_at
+    `);
+    const avgRaw = (completionRes as any)?.rows?.[0]?.avg_minutes;
+    const avgCompletionMinutes = avgRaw === null || avgRaw === undefined ? null : Number(avgRaw);
+
+    // 3. Top sources / campaigns / plans (bounded GROUP BY, top 10 each).
+    const topQuery = async (column: string): Promise<{ name: string; count: number }[]> => {
+      const res = await db.execute(sql`
+        SELECT ${sql.raw(column)} AS name, count(*)::int AS count
+        FROM strategy_funnel_events
+        WHERE ${sql.raw(column)} IS NOT NULL AND ${sql.raw(column)} <> ''
+        GROUP BY ${sql.raw(column)}
+        ORDER BY count(*) DESC
+        LIMIT 10
+      `);
+      const rows: any[] = (res as any)?.rows ?? [];
+      return rows.map((r) => ({ name: String(r.name), count: Number(r.count) || 0 }));
+    };
+    const topSources = await topQuery("source");
+    const topCampaigns = await topQuery("campaign");
+
+    const plansRes = await db.execute(sql`
+      SELECT metadata->>'plan' AS name, count(*)::int AS count
+      FROM strategy_funnel_events
+      WHERE event_name = 'plan_selected' AND metadata->>'plan' IS NOT NULL AND metadata->>'plan' <> ''
+      GROUP BY metadata->>'plan'
+      ORDER BY count(*) DESC
+      LIMIT 10
+    `);
+    const topPlans = ((plansRes as any)?.rows ?? []).map((r: any) => ({
+      name: String(r.name),
+      count: Number(r.count) || 0,
+    }));
+
+    // 4. Daily (30d) / weekly (12w) / monthly (12m) funnel series.
+    const periodQuery = async (trunc: "day" | "week" | "month", interval: string): Promise<FunnelPeriodBucket[]> => {
+      // trunc is a closed union (never user input) — inline it via sql.raw so
+      // SELECT and GROUP BY share the same expression (a parameterized $1 in
+      // both places is treated as two different expressions → 42803).
+      const truncExpr = sql.raw(`date_trunc('${trunc}', created_at)`);
+      const res = await db.execute(sql`
+        SELECT to_char(${truncExpr}, 'YYYY-MM-DD') AS bucket,
+          ${stageFilter(STAGE_EVENTS.strategy)}::int AS strategy,
+          ${stageFilter(STAGE_EVENTS.pricing)}::int  AS pricing,
+          ${stageFilter(STAGE_EVENTS.plan)}::int     AS plan,
+          ${stageFilter(STAGE_EVENTS.checkout)}::int AS checkout,
+          ${stageFilter(STAGE_EVENTS.payment)}::int  AS payment,
+          ${stageFilter(STAGE_EVENTS.booked)}::int   AS booked
+        FROM strategy_funnel_events
+        WHERE created_at >= now() - ${sql.raw(`interval '${interval}'`)}
+        GROUP BY ${truncExpr}
+        ORDER BY ${truncExpr}
+      `);
+      const rows: any[] = (res as any)?.rows ?? [];
+      return rows.map((r) => ({
+        bucket: String(r.bucket),
+        strategy: Number(r.strategy) || 0,
+        pricing: Number(r.pricing) || 0,
+        plan: Number(r.plan) || 0,
+        checkout: Number(r.checkout) || 0,
+        payment: Number(r.payment) || 0,
+        booked: Number(r.booked) || 0,
+      }));
+    };
+    const daily = await periodQuery("day", "30 days");
+    const weekly = await periodQuery("week", "12 weeks");
+    const monthly = await periodQuery("month", "12 months");
+
+    return {
+      stages,
+      conversions,
+      overall: {
+        visitors,
+        booked: stageCounts.booked,
+        conversionPct: pct(stageCounts.booked, visitors),
+      },
+      avgCompletionMinutes,
+      topSources,
+      topCampaigns,
+      topPlans,
+      daily,
+      weekly,
+      monthly,
       generatedAt: new Date().toISOString(),
     };
   }

@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { Helmet } from "react-helmet-async";
 import SEO from "@/components/SEO";
+import { trackFunnelEvent } from "@/lib/funnelAnalytics";
 import { ArrowRight, Check, Loader2, Rocket, Target, Sparkles, Zap, BrainCircuit } from "lucide-react";
 import brandLogo from "@assets/Elevate360_Brand_Logo_1772418122164.png";
 
@@ -29,7 +30,13 @@ export default function StrategySession() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Phase 72.2 — funnel analytics (fire-and-forget page view; additive only).
+  useEffect(() => {
+    trackFunnelEvent("strategy_page_view");
+  }, []);
+
   async function startCheckout() {
+    trackFunnelEvent("checkout_started");
     setLoading(true);
     setError(null);
     try {

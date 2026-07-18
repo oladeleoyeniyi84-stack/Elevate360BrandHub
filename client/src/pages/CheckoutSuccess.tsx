@@ -16,6 +16,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { trackFunnelEvent } from "@/lib/funnelAnalytics";
 
 const SUPPORT_EMAIL = "weareelevate360@gmail.com";
 
@@ -130,6 +131,16 @@ export default function CheckoutSuccess() {
     enabled: !!sessionId,
     retry: 1,
   });
+
+  // Phase 72.2 — funnel analytics (fire-and-forget; additive only). Gated on
+  // the strategy-session source so marketplace/order checkouts don't pollute
+  // the strategy funnel table.
+  useEffect(() => {
+    if (source === "strategy-session") {
+      trackFunnelEvent("checkout_completed");
+      trackFunnelEvent("thank_you_view");
+    }
+  }, [source]);
 
   // Phase 41 — mark offer accepted in AI Concierge pipeline
   useEffect(() => {
