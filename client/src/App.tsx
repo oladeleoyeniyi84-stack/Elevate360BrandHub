@@ -24,6 +24,7 @@ import RevenueIntelligence from "@/pages/RevenueIntelligence";
 import GrowthAutomation from "@/pages/GrowthAutomation";
 import CognitiveOS from "@/pages/CognitiveOS";
 import FunnelAnalytics from "@/pages/FunnelAnalytics";
+import RevenueAnalytics from "@/pages/RevenueAnalytics";
 import AiContentStudio from "@/pages/AiContentStudio";
 import ContentFactory from "@/pages/ContentFactory";
 import OrchestratorCenter from "@/pages/OrchestratorCenter";
@@ -324,6 +325,17 @@ function Router() {
             path="/funnel-analytics"
           />
           <FunnelAnalytics />
+        </>
+      </Route>
+
+      <Route path="/revenue-analytics">
+        <>
+          <SEO
+            title="Revenue Analytics | Elevate360Official"
+            description="Founder-only revenue intelligence — total and net revenue, source and attribution breakdowns, AI-assisted conversions, the economic funnel, and payment integrity diagnostics."
+            path="/revenue-analytics"
+          />
+          <RevenueAnalytics />
         </>
       </Route>
 

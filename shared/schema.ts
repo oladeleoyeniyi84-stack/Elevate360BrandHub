@@ -512,6 +512,175 @@ export const funnelAnalyticsRequestSchema = z.object({
 export type FunnelAnalyticsRequest = z.infer<typeof funnelAnalyticsRequestSchema>;
 export type StrategyFunnelEventRow = typeof strategyFunnelEvents.$inferSelect;
 
+// ─── Phase 72.3: Revenue Intelligence ────────────────────────────────────────
+// Closed revenue-source vocabulary. Unknown values → 400.
+export const REVENUE_SOURCES = [
+  "stripe_payment",
+  "strategy_session",
+  "digital_product",
+  "marketplace_sale",
+  "book_sale",
+  "music_revenue",
+  "affiliate",
+  "sponsorship",
+  "advertising",
+  "referral_fee",
+  "lead_generation",
+  "membership",
+  "donation",
+  "manual_adjustment",
+  "ai_assisted_conversion",
+] as const;
+export type RevenueSource = (typeof REVENUE_SOURCES)[number];
+
+// Closed revenue event vocabulary. Unknown values → 400.
+export const REVENUE_EVENT_TYPES = [
+  "revenue_recorded",
+  "payment_completed",
+  "payment_refunded",
+  "payment_failed",
+  "subscription_started",
+  "subscription_renewed",
+  "subscription_cancelled",
+  "affiliate_click",
+  "affiliate_conversion",
+  "ad_impression",
+  "ad_click",
+  "sponsored_content_view",
+  "lead_value_assigned",
+  "referral_conversion",
+  "donation_completed",
+  "ai_recommendation_clicked",
+  "ai_assisted_purchase",
+  "booking_value_assigned",
+  "opportunity_created",
+  "opportunity_won",
+  "opportunity_lost",
+] as const;
+export type RevenueEventType = (typeof REVENUE_EVENT_TYPES)[number];
+
+// Events the anonymous public client may submit (engagement signals only —
+// they never carry earned money; amountCents is forced to 0 server-side).
+// Every other event type carries economic authority and is accepted only from
+// trusted server code (Stripe webhook) or a dashboard-authenticated caller.
+export const CLIENT_REVENUE_EVENTS = [
+  "affiliate_click",
+  "ad_impression",
+  "ad_click",
+  "sponsored_content_view",
+  "ai_recommendation_clicked",
+] as const;
+export type ClientRevenueEvent = (typeof CLIENT_REVENUE_EVENTS)[number];
+
+// Events whose amounts count as EARNED revenue in KPI aggregation.
+export const REVENUE_EARNING_EVENTS = [
+  "revenue_recorded",
+  "payment_completed",
+  "subscription_started",
+  "subscription_renewed",
+  "affiliate_conversion",
+  "referral_conversion",
+  "donation_completed",
+  "ai_assisted_purchase",
+  "booking_value_assigned",
+] as const;
+
+export const ATTRIBUTION_MODELS = ["first_touch", "last_touch", "direct", "ai_assisted"] as const;
+export type AttributionModel = (typeof ATTRIBUTION_MODELS)[number];
+
+export const REVENUE_METADATA_MAX_BYTES = 2048;
+// Hard sanity ceiling for a single revenue event: $500,000.00.
+export const REVENUE_MAX_AMOUNT_CENTS = 50_000_000;
+
+export const revenueIntelligenceEvents = pgTable("revenue_intelligence_events", {
+  id: serial("id").primaryKey(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  occurredAt: timestamp("occurred_at").defaultNow().notNull(),
+  revenueSource: text("revenue_source").notNull(),
+  eventType: text("event_type").notNull(),
+  amountCents: integer("amount_cents").notNull().default(0),
+  currency: text("currency").notNull().default("USD"),
+  visitorId: text("visitor_id"),
+  sessionId: text("session_id"),
+  userId: text("user_id"),
+  leadId: text("lead_id"),
+  orderId: text("order_id"),
+  stripeSessionId: text("stripe_session_id"),
+  stripePaymentIntentId: text("stripe_payment_intent_id"),
+  productId: text("product_id"),
+  productName: text("product_name"),
+  planName: text("plan_name"),
+  page: text("page"),
+  landingPage: text("landing_page"),
+  referrer: text("referrer"),
+  utmSource: text("utm_source"),
+  utmMedium: text("utm_medium"),
+  utmCampaign: text("utm_campaign"),
+  device: text("device"),
+  browser: text("browser"),
+  country: text("country"),
+  aiAssisted: boolean("ai_assisted").notNull().default(false),
+  conciergeSessionId: text("concierge_session_id"),
+  attributionModel: text("attribution_model").notNull().default("last_touch"),
+  // Idempotency: trusted ingestion sets a deterministic key (e.g. Stripe
+  // session/refund identity); the partial unique index below makes duplicate
+  // inserts no-ops. NULL for client engagement events.
+  dedupeKey: text("dedupe_key"),
+  metadata: jsonb("metadata"),
+}, (t) => [
+  // Created in prod via scripts/create_phase72_3_tables.ts (idempotent), NOT db:push.
+  index("revenue_intel_created_at_idx").on(t.createdAt),
+  index("revenue_intel_occurred_at_idx").on(t.occurredAt),
+  index("revenue_intel_revenue_source_idx").on(t.revenueSource),
+  index("revenue_intel_event_type_idx").on(t.eventType),
+  index("revenue_intel_visitor_id_idx").on(t.visitorId),
+  index("revenue_intel_session_id_idx").on(t.sessionId),
+  index("revenue_intel_order_id_idx").on(t.orderId),
+  index("revenue_intel_stripe_session_id_idx").on(t.stripeSessionId),
+  index("revenue_intel_utm_source_idx").on(t.utmSource),
+  index("revenue_intel_utm_campaign_idx").on(t.utmCampaign),
+  index("revenue_intel_product_name_idx").on(t.productName),
+  uniqueIndex("revenue_intel_dedupe_key_uq").on(t.dedupeKey).where(sql`dedupe_key IS NOT NULL`),
+]);
+
+const revAttr = z.string().trim().max(300).optional();
+const revPath = z.string().trim().max(600).optional();
+
+export const revenueAnalyticsRequestSchema = z.object({
+  event: z.enum(REVENUE_EVENT_TYPES),
+  revenueSource: z.enum(REVENUE_SOURCES),
+  amountCents: z.number().int().min(0).max(REVENUE_MAX_AMOUNT_CENTS).optional(),
+  currency: z.string().trim().regex(/^[A-Za-z]{3}$/, "currency must be a 3-letter ISO code").optional(),
+  occurredAt: z.string().datetime().optional(),
+  sessionId: revAttr,
+  visitorId: revAttr,
+  userId: revAttr,
+  leadId: revAttr,
+  orderId: revAttr,
+  stripeSessionId: revAttr,
+  stripePaymentIntentId: revAttr,
+  productId: revAttr,
+  productName: revAttr,
+  planName: revAttr,
+  page: revPath,
+  landingPage: revPath,
+  referrer: revPath,
+  utmSource: revAttr,
+  utmMedium: revAttr,
+  utmCampaign: revAttr,
+  device: revAttr,
+  browser: revAttr,
+  country: revAttr,
+  aiAssisted: z.boolean().optional(),
+  conciergeSessionId: revAttr,
+  attributionModel: z.enum(ATTRIBUTION_MODELS).optional(),
+  dedupeKey: revAttr,
+  metadata: z.record(z.unknown()).optional(),
+}).strip();
+
+export type RevenueAnalyticsRequest = z.infer<typeof revenueAnalyticsRequestSchema>;
+export type RevenueIntelligenceEventRow = typeof revenueIntelligenceEvents.$inferSelect;
+
 export const testimonials = pgTable("testimonials", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),

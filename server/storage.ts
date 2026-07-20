@@ -45,7 +45,7 @@ import {
   type ExperimentAssignment, type ExperimentEvent,
   type PersonalizationSegment, type InsertPersonalizationSegment,
   type PersonalizationProfile, type PersonalizationRule, type InsertPersonalizationRule,
-  users, contactMessages, newsletterSubscribers, leadMagnetLeads, chatConversations, clickEvents, pageViews, homepageEvents, strategyFunnelEvents, type FunnelAnalyticsRequest, testimonials, blogPosts, contentDrafts, authorityItems, marketplaceProducts, knowledgeDocuments, consultations, bookings, orders, digestReports, offerMappingOverrides, auditLogs, automationSettings,
+  users, contactMessages, newsletterSubscribers, leadMagnetLeads, chatConversations, clickEvents, pageViews, homepageEvents, strategyFunnelEvents, type FunnelAnalyticsRequest, revenueIntelligenceEvents, type RevenueAnalyticsRequest, REVENUE_EARNING_EVENTS, testimonials, blogPosts, contentDrafts, authorityItems, marketplaceProducts, knowledgeDocuments, consultations, bookings, orders, digestReports, offerMappingOverrides, auditLogs, automationSettings,
   automationJobs, automationJobLogs, revenueRecoveryActions, contentOpportunities, autonomousAlerts,
   growthExperiments, sourcePerformanceSnapshots, funnelLeakReports, offerPerformanceSnapshots,
   executionPolicies, appliedChanges, executionQueue, rollbackEvents,
@@ -100,6 +100,7 @@ import {
 } from "@shared/schema";
 import type { CognitiveSignal } from "@shared/types/cognitive";
 import type { FunnelAnalyticsSummary, FunnelStage, FunnelConversion, FunnelPeriodBucket, FunnelStageKey } from "@shared/types/funnel";
+import type { RevenueIntelSummary, RevenueBreakdownItem, RevenueTrendBucket, RevenueFunnelStage } from "@shared/types/revenue";
 import { db } from "./db";
 import { and, asc, count, desc, eq, getTableColumns, gte, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
 
@@ -174,6 +175,8 @@ export interface IStorage {
   }>;
   recordFunnelEvent(input: FunnelAnalyticsRequest): Promise<void>;
   getFunnelAnalyticsSummary(): Promise<FunnelAnalyticsSummary>;
+  recordRevenueIntelEvent(input: RevenueAnalyticsRequest): Promise<{ inserted: boolean }>;
+  getRevenueIntelSummary(): Promise<RevenueIntelSummary>;
   getTestimonials(all?: boolean): Promise<Testimonial[]>;
   getLatestApprovedTestimonials(limit?: number): Promise<Testimonial[]>;
   createTestimonial(t: InsertTestimonial): Promise<Testimonial>;
@@ -1071,6 +1074,81 @@ export class DatabaseStorage implements IStorage {
       });
     }
 
+    // 1b. Phase 72.3 corrective work — normalized unique-journey funnel.
+    // Each visitor/session journey is reduced to its FURTHEST valid stage and
+    // counted cumulatively through every preceding stage, so normalized counts
+    // are monotonically non-increasing (a later stage can never exceed an
+    // earlier one) and conversions are structurally ≤ 100%.
+    const normRes = await db.execute(sql`
+      SELECT
+        count(*) FILTER (WHERE furthest >= 1)::int AS strategy,
+        count(*) FILTER (WHERE furthest >= 2)::int AS pricing,
+        count(*) FILTER (WHERE furthest >= 3)::int AS plan,
+        count(*) FILTER (WHERE furthest >= 4)::int AS checkout,
+        count(*) FILTER (WHERE furthest >= 5)::int AS payment,
+        count(*) FILTER (WHERE furthest >= 6)::int AS booked,
+        count(*) FILTER (WHERE furthest >= 2 AND NOT has_entry)::int AS out_of_order
+      FROM (
+        SELECT
+          max(CASE event_name
+            WHEN 'strategy_page_view'   THEN 1
+            WHEN 'pricing_view'         THEN 2
+            WHEN 'pricing_section_view' THEN 2
+            WHEN 'plan_selected'        THEN 3
+            WHEN 'checkout_started'     THEN 4
+            WHEN 'checkout_completed'   THEN 5
+            WHEN 'booking_completed'    THEN 6
+            ELSE 0 END) AS furthest,
+          bool_or(event_name = 'strategy_page_view') AS has_entry
+        FROM strategy_funnel_events
+        GROUP BY coalesce(session_id, 'anon-' || id::text)
+      ) journeys
+    `);
+    const normRow: any = (normRes as any)?.rows?.[0] ?? {};
+    const normalizedCounts: Record<FunnelStageKey, number> = {
+      visitors,
+      strategy: Number(normRow.strategy ?? 0),
+      pricing: Number(normRow.pricing ?? 0),
+      plan: Number(normRow.plan ?? 0),
+      checkout: Number(normRow.checkout ?? 0),
+      payment: Number(normRow.payment ?? 0),
+      booked: Number(normRow.booked ?? 0),
+    };
+    const outOfOrderSessions = Number(normRow.out_of_order ?? 0);
+
+    const dupRes = await db.execute(sql`
+      SELECT coalesce(sum(cnt - 1), 0)::int AS duplicates FROM (
+        SELECT count(*) AS cnt
+        FROM strategy_funnel_events
+        GROUP BY coalesce(session_id, 'anon-' || id::text), event_name
+        HAVING count(*) > 1
+      ) d
+    `);
+    const duplicateEvents = Number((dupRes as any)?.rows?.[0]?.duplicates ?? 0);
+
+    // Displayed percentages are hard-capped to the 0–100 range (the visitors →
+    // strategy edge crosses data sources, so the cap can bind there).
+    const pctCapped = (num: number, den: number): number | null =>
+      den > 0 ? Math.min(100, Math.max(0, Math.round((num / den) * 1000) / 10)) : null;
+
+    const normalizedStages: FunnelStage[] = ORDER.map((key) => ({
+      key, label: STAGE_LABELS[key], count: normalizedCounts[key],
+    }));
+    const normalizedConversions: FunnelConversion[] = [];
+    for (let i = 0; i < ORDER.length - 1; i++) {
+      const from = ORDER[i];
+      const to = ORDER[i + 1];
+      const conversionPct = pctCapped(normalizedCounts[to], normalizedCounts[from]);
+      normalizedConversions.push({
+        from,
+        to,
+        fromCount: normalizedCounts[from],
+        toCount: normalizedCounts[to],
+        conversionPct,
+        dropOffPct: conversionPct === null ? null : Math.min(100, Math.max(0, Math.round((100 - conversionPct) * 10) / 10)),
+      });
+    }
+
     // 2. Average completion time (first strategy view → booking completed).
     const completionRes = await db.execute(sql`
       SELECT round(avg(extract(epoch FROM (booked_at - started_at))) / 60.0, 1)::float AS avg_minutes
@@ -1153,10 +1231,13 @@ export class DatabaseStorage implements IStorage {
     return {
       stages,
       conversions,
+      normalizedStages,
+      normalizedConversions,
+      diagnostics: { outOfOrderSessions, duplicateEvents },
       overall: {
         visitors,
-        booked: stageCounts.booked,
-        conversionPct: pct(stageCounts.booked, visitors),
+        booked: normalizedCounts.booked,
+        conversionPct: pctCapped(normalizedCounts.booked, visitors),
       },
       avgCompletionMinutes,
       topSources,
@@ -1165,6 +1246,264 @@ export class DatabaseStorage implements IStorage {
       daily,
       weekly,
       monthly,
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  // ─── Phase 72.3: Revenue Intelligence ──────────────────────────────────────
+  // Idempotent insert: trusted callers set (or we derive) a deterministic
+  // dedupe key; the partial unique index makes duplicate inserts no-ops so a
+  // retried Stripe webhook can never double-count revenue.
+  async recordRevenueIntelEvent(input: RevenueAnalyticsRequest): Promise<{ inserted: boolean }> {
+    const dedupeKey =
+      input.dedupeKey ??
+      (input.stripeSessionId && (input.event === "payment_completed" || input.event === "subscription_started")
+        ? `stripe:${input.event}:${input.stripeSessionId}`
+        : undefined);
+    const rows = await db.insert(revenueIntelligenceEvents).values({
+      eventType: input.event,
+      revenueSource: input.revenueSource,
+      amountCents: input.amountCents ?? 0,
+      currency: (input.currency ?? "USD").toUpperCase(),
+      ...(input.occurredAt ? { occurredAt: new Date(input.occurredAt) } : {}),
+      visitorId: input.visitorId ?? null,
+      sessionId: input.sessionId ?? null,
+      userId: input.userId ?? null,
+      leadId: input.leadId ?? null,
+      orderId: input.orderId ?? null,
+      stripeSessionId: input.stripeSessionId ?? null,
+      stripePaymentIntentId: input.stripePaymentIntentId ?? null,
+      productId: input.productId ?? null,
+      productName: input.productName ?? null,
+      planName: input.planName ?? null,
+      page: input.page ?? null,
+      landingPage: input.landingPage ?? null,
+      referrer: input.referrer ?? null,
+      utmSource: input.utmSource ?? null,
+      utmMedium: input.utmMedium ?? null,
+      utmCampaign: input.utmCampaign ?? null,
+      device: input.device ?? null,
+      browser: input.browser ?? null,
+      country: input.country ?? null,
+      aiAssisted: input.aiAssisted ?? false,
+      conciergeSessionId: input.conciergeSessionId ?? null,
+      attributionModel: input.attributionModel ?? "last_touch",
+      dedupeKey: dedupeKey ?? null,
+      metadata: input.metadata ?? null,
+    }).onConflictDoNothing().returning({ id: revenueIntelligenceEvents.id });
+    return { inserted: rows.length > 0 };
+  }
+
+  // Full revenue KPI summary computed entirely in SQL (count/sum FILTER,
+  // GROUP BY, date_trunc) — never materializes event rows in Node, per the
+  // Phase 69 bounded-reads discipline. All monetary math is integer cents.
+  async getRevenueIntelSummary(): Promise<RevenueIntelSummary> {
+    // Closed constant list (shared/schema.ts) — safe to inline via sql.raw.
+    const earnFilter = sql.raw(`event_type IN (${REVENUE_EARNING_EVENTS.map((e) => `'${e}'`).join(", ")})`);
+
+    // 1. One-pass KPI aggregates.
+    const kpiRes = await db.execute(sql`
+      SELECT
+        coalesce(sum(amount_cents) FILTER (WHERE ${earnFilter}), 0)::bigint AS total_cents,
+        coalesce(sum(amount_cents) FILTER (WHERE ${earnFilter} AND occurred_at >= date_trunc('day', now())), 0)::bigint AS today_cents,
+        coalesce(sum(amount_cents) FILTER (WHERE ${earnFilter} AND occurred_at >= now() - interval '7 days'), 0)::bigint AS last7_cents,
+        coalesce(sum(amount_cents) FILTER (WHERE ${earnFilter} AND occurred_at >= now() - interval '30 days'), 0)::bigint AS last30_cents,
+        coalesce(sum(amount_cents) FILTER (WHERE ${earnFilter} AND occurred_at >= date_trunc('month', now())), 0)::bigint AS month_cents,
+        coalesce(sum(amount_cents) FILTER (WHERE event_type = 'payment_completed'), 0)::bigint AS paid_cents,
+        count(*) FILTER (WHERE event_type = 'payment_completed')::int AS paid_orders,
+        count(distinct coalesce(stripe_session_id, 'row-' || id::text)) FILTER (WHERE event_type = 'payment_completed')::int AS paid_customers,
+        coalesce(sum(amount_cents) FILTER (WHERE event_type = 'payment_refunded'), 0)::bigint AS refund_cents,
+        count(*) FILTER (WHERE event_type = 'payment_refunded')::int AS refund_count,
+        count(*) FILTER (WHERE event_type = 'payment_failed')::int AS failed_count,
+        coalesce(sum(amount_cents) FILTER (WHERE ${earnFilter} AND ai_assisted), 0)::bigint AS ai_cents,
+        count(*) FILTER (WHERE ${earnFilter} AND ai_assisted)::int AS ai_count,
+        coalesce(sum(amount_cents) FILTER (WHERE event_type = 'opportunity_created'), 0)::bigint AS opp_created_cents,
+        coalesce(sum(amount_cents) FILTER (WHERE event_type = 'opportunity_won'), 0)::bigint AS opp_won_cents,
+        coalesce(sum(amount_cents) FILTER (WHERE event_type = 'opportunity_lost'), 0)::bigint AS opp_lost_cents,
+        count(*) FILTER (WHERE ${earnFilter} AND (utm_source IS NULL OR utm_source = '') AND (referrer IS NULL OR referrer = ''))::int AS missing_attr
+      FROM revenue_intelligence_events
+    `);
+    const k: any = (kpiRes as any)?.rows?.[0] ?? {};
+    const n = (v: unknown) => Number(v ?? 0);
+
+    const totalCents = n(k.total_cents);
+    const refundCents = n(k.refund_cents);
+    const paidOrders = n(k.paid_orders);
+    const paidCustomers = n(k.paid_customers);
+    const netCents = totalCents - refundCents;
+
+    // 2. Denominators from existing exact-count helpers (SQL COUNT, no row loads).
+    const visitTotals = await this.getVisitTotals();
+    const chatTotals = await this.getChatTotals();
+    const denomRes = await db.execute(sql`
+      SELECT
+        (SELECT count(*)::int FROM bookings) AS booking_count,
+        (SELECT count(distinct session_id)::int FROM strategy_funnel_events WHERE session_id IS NOT NULL) AS funnel_sessions
+    `);
+    const dRow: any = (denomRes as any)?.rows?.[0] ?? {};
+    const visitors = visitTotals.total;
+    const leads = chatTotals.leadsTotal;
+    const bookingCount = n(dRow.booking_count);
+    const funnelSessions = n(dRow.funnel_sessions);
+
+    const per = (cents: number, den: number): number | null => (den > 0 ? Math.round(cents / den) : null);
+    const pctCapped = (num: number, den: number): number | null =>
+      den > 0 ? Math.min(100, Math.max(0, Math.round((num / den) * 1000) / 10)) : null;
+
+    // 3. Breakdowns (earning events only; bounded GROUP BY, top 10 by revenue).
+    // Every expr below is an internal constant — safe to inline via sql.raw.
+    const breakdown = async (expr: string): Promise<RevenueBreakdownItem[]> => {
+      const res = await db.execute(sql`
+        SELECT ${sql.raw(expr)} AS name,
+               coalesce(sum(amount_cents), 0)::bigint AS total_cents,
+               count(*)::int AS count
+        FROM revenue_intelligence_events
+        WHERE ${earnFilter} AND ${sql.raw(expr)} IS NOT NULL AND ${sql.raw(expr)} <> ''
+        GROUP BY ${sql.raw(expr)}
+        ORDER BY sum(amount_cents) DESC NULLS LAST
+        LIMIT 10
+      `);
+      const rows: any[] = (res as any)?.rows ?? [];
+      return rows.map((r) => ({ name: String(r.name), totalCents: n(r.total_cents), count: n(r.count) }));
+    };
+    const bySource = await breakdown("revenue_source");
+    const byUtmSource = await breakdown("utm_source");
+    const byCampaign = await breakdown("utm_campaign");
+    const byPage = await breakdown("page");
+    const byOffer = await breakdown("coalesce(metadata->>'offer', product_name)");
+    const byProduct = await breakdown("product_name");
+    const byPlan = await breakdown("plan_name");
+    const byDevice = await breakdown("device");
+    const byBrowser = await breakdown("browser");
+
+    // 4. Daily (30d) / weekly (12w) / monthly (12m) trends. trunc unit is a
+    // closed union — inline via sql.raw so SELECT and GROUP BY share one
+    // expression (parameterized $1 in both → PG 42803).
+    const trend = async (trunc: "day" | "week" | "month", interval: string): Promise<RevenueTrendBucket[]> => {
+      const truncExpr = sql.raw(`date_trunc('${trunc}', occurred_at)`);
+      const res = await db.execute(sql`
+        SELECT to_char(${truncExpr}, 'YYYY-MM-DD') AS bucket,
+          coalesce(sum(amount_cents) FILTER (WHERE ${earnFilter}), 0)::bigint AS gross_cents,
+          coalesce(sum(amount_cents) FILTER (WHERE event_type = 'payment_refunded'), 0)::bigint AS refund_cents,
+          count(*) FILTER (WHERE event_type = 'payment_completed')::int AS payments
+        FROM revenue_intelligence_events
+        WHERE occurred_at >= now() - ${sql.raw(`interval '${interval}'`)}
+        GROUP BY ${truncExpr}
+        ORDER BY ${truncExpr}
+      `);
+      const rows: any[] = (res as any)?.rows ?? [];
+      return rows.map((r) => {
+        const gross = n(r.gross_cents);
+        const refund = n(r.refund_cents);
+        return { bucket: String(r.bucket), grossCents: gross, refundCents: refund, netCents: gross - refund, payments: n(r.payments) };
+      });
+    };
+    const daily = await trend("day", "30 days");
+    const weekly = await trend("week", "12 weeks");
+    const monthly = await trend("month", "12 months");
+
+    // 5. Economic funnel: visitors → leads → bookings → paid customers.
+    const funnelDefs: { key: RevenueFunnelStage["key"]; label: string; count: number }[] = [
+      { key: "visitors", label: "Visitors", count: visitors },
+      { key: "leads", label: "Leads", count: leads },
+      { key: "bookings", label: "Bookings", count: bookingCount },
+      { key: "paid", label: "Paid Customers", count: paidCustomers },
+    ];
+    const revenueFunnel: RevenueFunnelStage[] = funnelDefs.map((s, i) => {
+      if (i === 0) return { ...s, conversionPct: null, dropOffPct: null };
+      const conversionPct = pctCapped(s.count, funnelDefs[i - 1].count);
+      return {
+        ...s,
+        conversionPct,
+        dropOffPct: conversionPct === null ? null : Math.min(100, Math.max(0, Math.round((100 - conversionPct) * 10) / 10)),
+      };
+    });
+
+    // 6. Integrity diagnostics.
+    const diagRes = await db.execute(sql`
+      SELECT
+        (SELECT count(*)::int FROM (
+          SELECT stripe_session_id FROM revenue_intelligence_events
+          WHERE event_type = 'payment_completed' AND stripe_session_id IS NOT NULL
+          GROUP BY stripe_session_id HAVING count(*) > 1
+        ) dup) AS duplicate_payment_groups,
+        (SELECT count(*)::int FROM orders o
+          WHERE o.status = 'paid' AND o.stripe_session_id IS NOT NULL
+            AND NOT EXISTS (
+              SELECT 1 FROM revenue_intelligence_events r
+              WHERE r.event_type = 'payment_completed'
+                AND r.stripe_session_id = o.stripe_session_id
+            )) AS unmatched_paid_orders,
+        (SELECT count(*)::int FROM (
+          SELECT
+            max(CASE event_name
+              WHEN 'strategy_page_view'   THEN 1
+              WHEN 'pricing_view'         THEN 2
+              WHEN 'pricing_section_view' THEN 2
+              WHEN 'plan_selected'        THEN 3
+              WHEN 'checkout_started'     THEN 4
+              WHEN 'checkout_completed'   THEN 5
+              WHEN 'booking_completed'    THEN 6
+              ELSE 0 END) AS furthest,
+            bool_or(event_name = 'strategy_page_view') AS has_entry
+          FROM strategy_funnel_events
+          GROUP BY coalesce(session_id, 'anon-' || id::text)
+        ) j WHERE furthest >= 2 AND NOT has_entry) AS out_of_order_sessions
+    `);
+    const diagRow: any = (diagRes as any)?.rows?.[0] ?? {};
+
+    return {
+      kpis: {
+        totalRevenueCents: totalCents,
+        revenueTodayCents: n(k.today_cents),
+        revenueLast7dCents: n(k.last7_cents),
+        revenueLast30dCents: n(k.last30_cents),
+        revenueThisMonthCents: n(k.month_cents),
+        averageOrderValueCents: paidOrders > 0 ? Math.round(n(k.paid_cents) / paidOrders) : null,
+        paidOrderCount: paidOrders,
+        refundTotalCents: refundCents,
+        netRevenueCents: netCents,
+        revenuePerVisitorCents: per(totalCents, visitors),
+        revenuePerSessionCents: per(totalCents, funnelSessions),
+        revenuePerLeadCents: per(totalCents, leads),
+        visitorToRevenuePct: pctCapped(paidCustomers, visitors),
+        leadToRevenuePct: pctCapped(paidCustomers, leads),
+        bookingToRevenuePct: pctCapped(paidCustomers, bookingCount),
+        aiAssistedRevenueCents: n(k.ai_cents),
+        aiAssistedConversionCount: n(k.ai_count),
+        pendingPipelineCents: Math.max(0, n(k.opp_created_cents) - n(k.opp_won_cents) - n(k.opp_lost_cents)),
+        wonOpportunityCents: n(k.opp_won_cents),
+        lostOpportunityCents: n(k.opp_lost_cents),
+      },
+      bySource,
+      byUtmSource,
+      byCampaign,
+      byPage,
+      byOffer,
+      byProduct,
+      byPlan,
+      byDevice,
+      byBrowser,
+      daily,
+      weekly,
+      monthly,
+      revenueFunnel,
+      revenueFunnelNetCents: netCents,
+      diagnostics: {
+        duplicatePaymentGroups: n(diagRow.duplicate_payment_groups),
+        unmatchedPaidOrders: n(diagRow.unmatched_paid_orders),
+        outOfOrderFunnelSessions: n(diagRow.out_of_order_sessions),
+        missingAttributionCount: n(k.missing_attr),
+        failedPaymentCount: n(k.failed_count),
+        refundCount: n(k.refund_count),
+        refundTotalCents: refundCents,
+      },
+      attributionNote:
+        "Attribution limitations: client events carry first-touch session attribution (UTM/referrer captured once per browser session); " +
+        "server-recorded Stripe revenue uses last-touch identifiers available on the checkout session and may lack UTM data (counted under missing attribution). " +
+        "Revenue per session uses tracked funnel sessions as the denominator; visitors are all-time homepage page views. " +
+        "Bookings completed on Calendly are not linked to browser sessions, so booking-to-revenue conversion approximates via paid-customer counts. " +
+        "Pending pipeline is opportunity_created minus won/lost values, floored at zero.",
       generatedAt: new Date().toISOString(),
     };
   }

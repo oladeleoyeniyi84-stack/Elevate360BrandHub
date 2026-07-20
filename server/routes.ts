@@ -21,6 +21,11 @@ import {
   HOMEPAGE_ANALYTICS_METADATA_MAX_BYTES,
   funnelAnalyticsRequestSchema,
   STRATEGY_FUNNEL_METADATA_MAX_BYTES,
+  revenueAnalyticsRequestSchema,
+  REVENUE_METADATA_MAX_BYTES,
+  REVENUE_MAX_AMOUNT_CENTS,
+  CLIENT_REVENUE_EVENTS,
+  type RevenueAnalyticsRequest,
   type ChatMessage,
 } from "@shared/schema";
 import { ZodError } from "zod";
@@ -650,6 +655,63 @@ export async function registerRoutes(
     }
   });
 
+  // ─── Phase 72.3: Revenue Intelligence ───────────────────────────────────────
+  // Trust boundary: anonymous callers may only submit CLIENT_REVENUE_EVENTS
+  // (engagement signals) and NEVER carry money — amountCents is forced to 0 and
+  // every economic/identity field (dedupeKey, occurredAt, order/Stripe/user/lead
+  // ids) is stripped. All other event types carry economic authority and
+  // require dashboard auth (session or x-dashboard-pin) → 403 otherwise.
+  // Stripe remains the money authority; server-side webhook recording below.
+  app.post("/api/analytics/revenue", rateLimit(60, 60), async (req, res) => {
+    try {
+      const parsed = revenueAnalyticsRequestSchema.parse(req.body ?? {});
+      const trusted = isDashboardAuthed(req);
+      if (!trusted && !(CLIENT_REVENUE_EVENTS as readonly string[]).includes(parsed.event)) {
+        return res.status(403).json({ error: "This event type requires authentication" });
+      }
+      if (parsed.metadata !== undefined) {
+        const size = Buffer.byteLength(JSON.stringify(parsed.metadata), "utf8");
+        if (size > REVENUE_METADATA_MAX_BYTES) {
+          return res.status(413).json({
+            error: `Metadata too large (${size} bytes, max ${REVENUE_METADATA_MAX_BYTES})`,
+          });
+        }
+      }
+      const input: RevenueAnalyticsRequest = trusted
+        ? parsed
+        : {
+            ...parsed,
+            amountCents: 0,
+            dedupeKey: undefined,
+            occurredAt: undefined,
+            orderId: undefined,
+            stripeSessionId: undefined,
+            stripePaymentIntentId: undefined,
+            userId: undefined,
+            leadId: undefined,
+          };
+      await storage.recordRevenueIntelEvent(input);
+      res.json({ ok: true });
+    } catch (err) {
+      if (err instanceof ZodError) {
+        return res.status(400).json({ error: fromZodError(err).message });
+      }
+      console.error("[analytics/revenue] failed:", err);
+      res.status(500).json({ error: "Failed to record event" });
+    }
+  });
+
+  // Founder-only revenue KPIs — SQL aggregates only, never row loads.
+  app.get("/api/dashboard/analytics/revenue", requireDashboardAuth, async (_req, res) => {
+    try {
+      const summary = await storage.getRevenueIntelSummary();
+      res.json(summary);
+    } catch (err) {
+      console.error("[analytics/revenue/summary] failed:", err);
+      res.status(500).json({ error: "Failed to load revenue analytics" });
+    }
+  });
+
   app.get("/api/dashboard/clicks", async (req, res) => {
     if (!isDashboardAuthed(req)) return res.status(401).json({ error: "Unauthorized" });
     const stats = await storage.getClickStats();
@@ -1027,6 +1089,95 @@ export async function registerRoutes(
             const productName = session.metadata?.productName ?? session.line_items?.data?.[0]?.description ?? "stripe-checkout";
             storage.markOfferAccepted(sessionChatId, productName, "stripe").catch(() => {});
           }
+          // Phase 72.3 — record revenue intelligence event AFTER fulfillment.
+          // Fire-and-forget: analytics must never break order fulfillment.
+          // Idempotent via dedupe key stripe:payment_completed:{sessionId}
+          // (derived in storage), so Stripe webhook retries can't double-count.
+          {
+            const isStrategy =
+              session.metadata?.source === "strategy-session" ||
+              session.metadata?.offer === "ai-growth-strategy-session";
+            const revenueSource = isStrategy
+              ? "strategy_session"
+              : session.metadata?.marketplaceSlug
+                ? "marketplace_sale"
+                : "stripe_payment";
+            const conciergeId = typeof session.metadata?.sessionId === "string" ? session.metadata.sessionId : undefined;
+            // Subscription-mode checkouts (Phase 68A billing) are recurring
+            // signups, not one-time payments — record them as
+            // subscription_started/membership so paidOrderCount and AOV
+            // reflect one-time sales only. Both event types get an automatic
+            // stripe:{event}:{sessionId} dedupe key in storage.
+            const isSubscription = session.mode === "subscription";
+            storage.recordRevenueIntelEvent({
+              event: isSubscription ? "subscription_started" : "payment_completed",
+              revenueSource: isSubscription ? "membership" : revenueSource,
+              amountCents: Math.min(Math.max(Number(session.amount_total ?? 0), 0), REVENUE_MAX_AMOUNT_CENTS),
+              currency: typeof session.currency === "string" && /^[A-Za-z]{3}$/.test(session.currency) ? session.currency : "USD",
+              stripeSessionId: session.id,
+              stripePaymentIntentId: typeof session.payment_intent === "string" ? session.payment_intent : undefined,
+              productName: session.metadata?.productName ?? undefined,
+              planName: session.metadata?.plan ?? undefined,
+              aiAssisted: Boolean(conciergeId),
+              conciergeSessionId: conciergeId,
+              attributionModel: conciergeId ? "ai_assisted" : "last_touch",
+              metadata: session.metadata?.marketplaceSlug
+                ? { marketplaceSlug: session.metadata.marketplaceSlug }
+                : session.metadata?.offer
+                  ? { offer: session.metadata.offer }
+                  : undefined,
+            }).catch((e: any) => console.error("[revenue-intel] payment_completed record failed:", e?.message));
+          }
+        }
+      }
+
+      // Phase 72.3 — refund + failed-payment revenue events (additive; these
+      // handlers are inert unless charge.refunded / payment_intent.payment_failed
+      // are enabled on the Stripe webhook endpoint). Fire-and-forget + deduped.
+      if (event.type === "charge.refunded") {
+        const charge: any = event.data?.object;
+        const currency = typeof charge?.currency === "string" && /^[A-Za-z]{3}$/.test(charge.currency) ? charge.currency : "USD";
+        const paymentIntentId = typeof charge?.payment_intent === "string" ? charge.payment_intent : undefined;
+        const refunds: any[] = Array.isArray(charge?.refunds?.data) ? charge.refunds.data : [];
+        if (refunds.length > 0) {
+          // Per-refund rows keyed by the stable refund id: a second partial
+          // refund re-delivers earlier refunds in the list, but their dedupe
+          // keys make the inserts no-ops — only the NEW refund's delta lands.
+          for (const r of refunds) {
+            if (!r?.id) continue;
+            storage.recordRevenueIntelEvent({
+              event: "payment_refunded",
+              revenueSource: "stripe_payment",
+              amountCents: Math.min(Math.max(Number(r.amount ?? 0), 0), REVENUE_MAX_AMOUNT_CENTS),
+              currency,
+              stripePaymentIntentId: paymentIntentId,
+              dedupeKey: `stripe:refund:${r.id}`,
+            }).catch((e: any) => console.error("[revenue-intel] payment_refunded record failed:", e?.message));
+          }
+        } else if (charge?.id) {
+          // Newer Stripe API versions omit charge.refunds by default. Record
+          // the cumulative amount ONCE per charge (never over-counts; a later
+          // second partial refund is under-counted — documented limitation).
+          storage.recordRevenueIntelEvent({
+            event: "payment_refunded",
+            revenueSource: "stripe_payment",
+            amountCents: Math.min(Math.max(Number(charge?.amount_refunded ?? 0), 0), REVENUE_MAX_AMOUNT_CENTS),
+            currency,
+            stripePaymentIntentId: paymentIntentId,
+            dedupeKey: `stripe:refund:${charge.id}`,
+          }).catch((e: any) => console.error("[revenue-intel] payment_refunded record failed:", e?.message));
+        }
+      }
+      if (event.type === "payment_intent.payment_failed") {
+        const pi: any = event.data?.object;
+        if (pi?.id) {
+          storage.recordRevenueIntelEvent({
+            event: "payment_failed",
+            revenueSource: "stripe_payment",
+            amountCents: 0,
+            stripePaymentIntentId: pi.id,
+            dedupeKey: `stripe:payment_failed:${event.id}`,
+          }).catch((e: any) => console.error("[revenue-intel] payment_failed record failed:", e?.message));
         }
       }
       // Phase 68A — dispatch subscription events to the billing handler.

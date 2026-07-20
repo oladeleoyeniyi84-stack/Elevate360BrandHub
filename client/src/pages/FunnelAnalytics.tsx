@@ -156,6 +156,9 @@ function PeriodTable({ buckets }: { buckets: FunnelPeriodBucket[] }) {
 
 function Console() {
   const [periodTab, setPeriodTab] = useState<PeriodTab>("daily");
+  // Phase 72.3 — normalized unique-journey funnel is the default view; the raw
+  // event view (later stages CAN exceed earlier ones) stays available for debugging.
+  const [funnelView, setFunnelView] = useState<"normalized" | "raw">("normalized");
   const query = useQuery<FunnelAnalyticsSummary>({
     queryKey: ["/api/dashboard/analytics/funnel"],
     queryFn: async () => {
@@ -182,8 +185,10 @@ function Console() {
   }
 
   const data = query.data;
-  const maxCount = Math.max(...data.stages.map((s) => s.count), 1);
-  const conversionByTo = new Map(data.conversions.map((c) => [c.to, c]));
+  const viewStages = funnelView === "normalized" ? data.normalizedStages : data.stages;
+  const viewConversions = funnelView === "normalized" ? data.normalizedConversions : data.conversions;
+  const maxCount = Math.max(...viewStages.map((s) => s.count), 1);
+  const conversionByTo = new Map(viewConversions.map((c) => [c.to, c]));
 
   return (
     <div className="min-h-screen" style={{ background: BG }}>
@@ -209,8 +214,34 @@ function Console() {
 
         <div className="grid lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-0.5">
-            <h2 className="text-white/70 text-sm font-bold uppercase tracking-wide mb-3">Customer Journey</h2>
-            {data.stages.map((stage, i) => {
+            <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+              <h2 className="text-white/70 text-sm font-bold uppercase tracking-wide">Customer Journey</h2>
+              <div className="flex gap-2">
+                {(["normalized", "raw"] as const).map((v) => (
+                  <button
+                    key={v}
+                    onClick={() => setFunnelView(v)}
+                    data-testid={`tab-funnel-view-${v}`}
+                    className={`px-3 py-1 rounded-lg text-xs font-semibold capitalize transition ${
+                      funnelView === v ? "text-black" : "text-white/60 bg-white/5 hover:bg-white/10"
+                    }`}
+                    style={funnelView === v ? { background: GOLD } : undefined}
+                  >
+                    {v === "normalized" ? "Unique journeys" : "Raw events"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {funnelView === "normalized" ? (
+              <p className="text-white/35 text-xs mb-2">
+                Each visitor counted once at their furthest stage (cumulative) — conversions are capped at 100%.
+              </p>
+            ) : (
+              <p className="text-white/35 text-xs mb-2">
+                Raw distinct-session event counts — later stages can exceed earlier ones (diagnostic view).
+              </p>
+            )}
+            {viewStages.map((stage, i) => {
               const conv = conversionByTo.get(stage.key);
               return (
                 <FunnelStageBar
@@ -232,6 +263,24 @@ function Console() {
             <TopList title="Top Sources" icon={Globe} items={data.topSources} emptyText="No UTM sources captured yet." />
             <TopList title="Top Campaigns" icon={Megaphone} items={data.topCampaigns} emptyText="No campaigns captured yet." />
             <TopList title="Top Plans" icon={Layers} items={data.topPlans} emptyText="No plan selections yet." />
+            <div className="lux-card" data-testid="card-funnel-diagnostics">
+              <div className="flex items-center gap-2 text-white/60 text-sm font-semibold mb-3">
+                <TrendingDown className="h-4 w-4 text-[#F4A62A]" /> Data Integrity
+              </div>
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-white/75">Out-of-order sessions</span>
+                  <span className="text-white font-bold" data-testid="text-funnel-out-of-order">{data.diagnostics.outOfOrderSessions.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/75">Duplicate events</span>
+                  <span className="text-white font-bold" data-testid="text-funnel-duplicates">{data.diagnostics.duplicateEvents.toLocaleString()}</span>
+                </div>
+              </div>
+              <p className="text-white/30 text-xs mt-3">
+                Sessions that skipped the strategy page entry, and repeated identical events within one session. Both are excluded from normalized conversion math.
+              </p>
+            </div>
           </div>
         </div>
 

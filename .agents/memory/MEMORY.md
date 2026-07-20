@@ -4,6 +4,7 @@
 - [Billing tier validation before write](billing-tier-validation.md) — webhook sync must validate resolved tier (isValidTier) before any DB write; unknown tier logs+returns, never throws (500→Stripe retry loop) or writes a partial sub row.
 - [lead_magnet_leads dev/prod schema drift](lead-magnet-schema-drift.md) — prod enforces UNIQUE email NOT declared in schema.ts (dev index non-unique); handle opt-ins idempotently (check-by-email + catch 23505), don't trust dev table to match prod.
 - [Resend dev sandbox](resend-dev-sandbox.md) — Resend 403 to real recipients in dev is EXPECTED (sandbox: only verified owner addr); not a code bug. Admin emails succeed; sends are fire-and-forget.
+- [Stripe refund/checkout webhook accuracy](stripe-refund-webhook-accuracy.md) — amount_refunded is cumulative (record per-refund deltas by refund.id); checkout.session.completed needs a mode==="subscription" branch.
 - [PG parameterized GROUP BY](pg-parameterized-groupby.md) — `date_trunc($1,col)` in SELECT+GROUP BY = two different exprs → 42803; inline closed-union units via sql.raw and reuse one fragment.
 - [SPA fallback false 200s](spa-fallback-false-200.md) — unregistered /api/* paths return 200 with index.html; API checks must assert JSON content-type, not just status.
 - [Headless screenshot workflow](headless-screenshot-workflow.md) — chromium+puppeteer-core recipe for sprint screenshots; replit.nix can't be deleted, uninstall leaves empty stub; cleanup order for a clean diff.

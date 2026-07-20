@@ -42,9 +42,28 @@ export interface FunnelPeriodBucket {
   booked: number;
 }
 
+// Phase 72.3 corrective work — funnel integrity diagnostics.
+export interface FunnelDiagnostics {
+  /** Sessions that reached a later stage without any strategy_page_view entry event. */
+  outOfOrderSessions: number;
+  /** Extra repeats of the same event within the same session (sum of count−1 per session+event group). */
+  duplicateEvents: number;
+}
+
 export interface FunnelAnalyticsSummary {
+  /** RAW distinct-session counts per stage event (diagnostic view — later stages CAN exceed earlier ones). */
   stages: FunnelStage[];
+  /** Conversions computed from raw stage counts (diagnostic view — may exceed 100%). */
   conversions: FunnelConversion[];
+  /**
+   * Normalized unique-journey funnel (Phase 72.3): each visitor/session is
+   * assigned its furthest valid stage and counted cumulatively through every
+   * preceding stage, so counts are monotonically non-increasing.
+   */
+  normalizedStages: FunnelStage[];
+  /** Conversions from normalized counts; percentages capped to 0–100. */
+  normalizedConversions: FunnelConversion[];
+  diagnostics: FunnelDiagnostics;
   overall: {
     visitors: number;
     booked: number;

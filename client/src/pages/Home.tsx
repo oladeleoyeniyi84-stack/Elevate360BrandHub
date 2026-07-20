@@ -6,6 +6,7 @@ import SEO from "@/components/SEO";
 import { useScrollReveal } from "@/hooks/useScrollReveal";
 import { useCountUp } from "@/hooks/useCountUp";
 import { useTrackClick } from "@/hooks/useTrackClick";
+import { trackRevenueEvent } from "@/lib/revenueAnalytics";
 import { useTrackPageView } from "@/hooks/useTrackPageView";
 import { SessionPresenceCard } from "@/components/concierge/SessionPresenceCard";
 import { type ConciergeModeKey, SESSION_MODE_MAP } from "@/config/conciergeModes";
@@ -1100,7 +1101,10 @@ export default function Home() {
                     href="https://www.etsy.com/shop/Elevate360Official?sort_order=date_desc"
                     target="_blank"
                     rel="noopener noreferrer"
-                    onClick={() => trackClick("art", "Etsy Art Studio")}
+                    onClick={() => {
+                      trackClick("art", "Etsy Art Studio");
+                      trackRevenueEvent("affiliate_click", "marketplace_sale", { productName: "Etsy Art Studio" });
+                    }}
                     data-testid="link-etsy-shop"
                     className="btn-primary shadow-lg hover:shadow-xl"
                   >
@@ -1302,6 +1306,7 @@ export default function Home() {
                   href="https://www.amazon.com/stores/Oladele-Oyeniyi/author/B0GCMSCWPV?ref=ap_rdr&shoppingPortalEnabled=true&ccs_id=6b61ffb3-1a86-4ecc-a3b9-bcb63f0525ae"
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={() => trackRevenueEvent("affiliate_click", "book_sale", { productName: "Amazon Author Central" })}
                   data-testid="link-amazon-author-central"
                   className="btn-primary"
                 >

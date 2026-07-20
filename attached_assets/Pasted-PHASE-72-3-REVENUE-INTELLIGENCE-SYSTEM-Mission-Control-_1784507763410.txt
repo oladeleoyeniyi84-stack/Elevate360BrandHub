@@ -1,0 +1,530 @@
+PHASE 72.3 — REVENUE INTELLIGENCE SYSTEM
+
+Mission Control authorization:
+
+Build a production-grade Revenue Intelligence System on top of the certified Phase 72.1 Homepage Analytics and Phase 72.2 Funnel Analytics foundations.
+
+This phase must be additive, production-safe, SQL-first, and fully compatible with the existing Elevate360Official architecture.
+
+Do not commit, push, or deploy.
+
+==================================================
+A. ENGINEERING AUTHORITY
+==================================================
+
+Follow this sequence:
+
+1. Build — Replit Agent
+2. Review — Founder + Mission Control
+3. Commit & Push — Replit Shell
+4. Deploy — Render
+5. Verify — Render Shell
+6. Close Phase — Mission Control
+
+Stop after the Build delivery report.
+
+==================================================
+B. PRIMARY OBJECTIVE
+==================================================
+
+Create a founder-only Revenue Intelligence System that answers:
+
+- How much revenue does each page generate?
+- How much revenue does each visitor generate?
+- Which acquisition sources produce the most revenue?
+- Which campaigns convert best?
+- Which offers, products, plans, and services generate revenue?
+- Which AI Concierge interactions lead to revenue?
+- Which funnel stages lose the most economic value?
+- What is revenue per visitor?
+- What is revenue per session?
+- What is revenue per lead?
+- What is visitor-to-revenue conversion?
+- What is lead-to-revenue conversion?
+- What is booking-to-revenue conversion?
+- What is average order value?
+- What is projected revenue from pending opportunities?
+- What revenue is attributable to direct sales, Stripe, affiliates, sponsorships, ads, leads, referrals, marketplace activity, and AI-assisted conversions?
+
+==================================================
+C. REQUIRED CORRECTIVE WORK
+==================================================
+
+Correct the Phase 72.2 funnel integrity issue.
+
+Current raw stage counts can produce:
+
+- conversion percentages above 100%
+- negative drop-off percentages
+- later-stage counts greater than earlier-stage counts
+
+Implement normalized funnel progression using unique visitor/session journeys.
+
+Requirements:
+
+1. Keep raw event counts available for diagnostics.
+2. Calculate funnel conversion from normalized unique journeys.
+3. Determine the furthest valid stage reached per visitor/session.
+4. Count that journey cumulatively through preceding stages.
+5. Cap displayed conversion percentages between 0% and 100%.
+6. Cap displayed drop-off percentages between 0% and 100%.
+7. Add an out-of-order event count.
+8. Add duplicate-event diagnostics.
+9. Add automated tests proving:
+   - no conversion percentage exceeds 100%
+   - no drop-off percentage is negative
+   - later-stage normalized counts never exceed earlier-stage counts
+
+Do not delete or rewrite Phase 72.2 raw event history.
+
+==================================================
+D. REVENUE SOURCES
+==================================================
+
+Support a closed revenue-source vocabulary such as:
+
+- stripe_payment
+- strategy_session
+- digital_product
+- marketplace_sale
+- book_sale
+- music_revenue
+- affiliate
+- sponsorship
+- advertising
+- referral_fee
+- lead_generation
+- membership
+- donation
+- manual_adjustment
+- ai_assisted_conversion
+
+Unknown revenue-source values must be rejected.
+
+==================================================
+E. DATABASE
+==================================================
+
+Create dedicated additive database objects.
+
+Suggested table:
+
+revenue_intelligence_events
+
+Include fields such as:
+
+- id
+- created_at
+- occurred_at
+- revenue_source
+- event_type
+- amount_cents
+- currency
+- visitor_id
+- session_id
+- user_id, nullable
+- lead_id, nullable
+- order_id, nullable
+- stripe_session_id, nullable
+- stripe_payment_intent_id, nullable
+- product_id, nullable
+- product_name, nullable
+- plan_name, nullable
+- page
+- landing_page
+- referrer
+- utm_source
+- utm_medium
+- utm_campaign
+- device
+- browser
+- country, nullable
+- ai_assisted boolean
+- concierge_session_id, nullable
+- attribution_model
+- metadata jsonb
+
+Create appropriate indexes, including:
+
+- created_at
+- occurred_at
+- revenue_source
+- event_type
+- visitor_id
+- session_id
+- order_id
+- stripe_session_id
+- utm_source
+- utm_campaign
+- product_name
+
+Use existing identifiers where available.
+
+Do not duplicate sensitive payment data.
+
+Do not store card data.
+
+==================================================
+F. REVENUE EVENT TYPES
+==================================================
+
+Create a closed event vocabulary such as:
+
+- revenue_recorded
+- payment_completed
+- payment_refunded
+- payment_failed
+- subscription_started
+- subscription_renewed
+- subscription_cancelled
+- affiliate_click
+- affiliate_conversion
+- ad_impression
+- ad_click
+- sponsored_content_view
+- lead_value_assigned
+- referral_conversion
+- donation_completed
+- ai_recommendation_clicked
+- ai_assisted_purchase
+- booking_value_assigned
+- opportunity_created
+- opportunity_won
+- opportunity_lost
+
+Unknown event names must return HTTP 400.
+
+==================================================
+G. COLLECTION API
+==================================================
+
+Create:
+
+POST /api/analytics/revenue
+
+Requirements:
+
+- public only where necessary
+- server-generated events preferred for payment and sensitive revenue events
+- 60 requests per minute per IP for public client events
+- JSON only
+- closed event vocabulary
+- closed revenue-source vocabulary
+- amount validation
+- currency validation
+- metadata maximum 2 KB
+- extra keys stripped
+- return {"ok":true}
+- do not trust client-submitted payment completion values without server verification
+- Stripe-derived revenue must come from verified server-side payment/webhook data
+
+Separate trusted server revenue ingestion from untrusted client engagement events when necessary.
+
+==================================================
+H. STRIPE AND EXISTING REVENUE INTEGRATION
+==================================================
+
+Audit existing Stripe checkout, webhook, order, booking, marketplace, and payment code.
+
+Integrate revenue intelligence additively.
+
+Requirements:
+
+- preserve existing payment fulfillment
+- preserve webhook idempotency
+- do not create duplicate revenue records
+- identify revenue by Stripe session/payment intent/order ID
+- correctly represent refunds
+- correctly represent failed payments
+- do not count initiated checkout as earned revenue
+- do not count pending bookings as paid revenue unless payment is confirmed
+- use idempotent inserts or unique constraints where appropriate
+
+==================================================
+I. ATTRIBUTION
+==================================================
+
+Support:
+
+- first-touch attribution
+- last-touch attribution
+- direct attribution
+- AI-assisted attribution
+- campaign attribution
+- source/medium attribution
+- page attribution
+- offer attribution
+
+For Phase 72.3, implement at least:
+
+1. First-touch source
+2. Last-touch source
+3. Revenue-producing page
+4. Revenue-producing offer/product
+5. AI-assisted flag
+6. Visitor/session linkage
+
+Clearly document attribution limitations.
+
+==================================================
+J. SQL-FIRST KPIs
+==================================================
+
+Create SQL-only aggregate queries.
+
+Do not load complete datasets into Node memory.
+
+Required KPIs:
+
+- total revenue
+- revenue today
+- revenue last 7 days
+- revenue last 30 days
+- revenue this month
+- average order value
+- paid order count
+- refund total
+- net revenue
+- revenue per visitor
+- revenue per session
+- revenue per lead
+- visitor-to-revenue conversion
+- lead-to-revenue conversion
+- booking-to-revenue conversion
+- AI-assisted revenue
+- AI-assisted conversion count
+- revenue by source
+- revenue by campaign
+- revenue by page
+- revenue by offer
+- revenue by product
+- revenue by plan
+- revenue by device
+- revenue by browser
+- daily revenue trend
+- weekly revenue trend
+- monthly revenue trend
+- pending pipeline value
+- won opportunity value
+- lost opportunity value
+
+Use indexed SQL aggregation.
+
+Follow Phase 69 memory discipline.
+
+==================================================
+K. DASHBOARD API
+==================================================
+
+Create:
+
+GET /api/dashboard/analytics/revenue
+
+Protect it with the existing founder/dashboard authentication middleware.
+
+Unauthenticated requests must return HTTP 401.
+
+Return a typed KPI response.
+
+Do not expose sensitive customer or payment information.
+
+==================================================
+L. DASHBOARD UI
+==================================================
+
+Create a founder-only page:
+
+/revenue-intelligence
+
+Add a navigation entry from the existing /dashboard interface.
+
+Recommended sections:
+
+1. Executive KPI cards
+   - Total Revenue
+   - Net Revenue
+   - Revenue Per Visitor
+   - Average Order Value
+   - AI-Assisted Revenue
+   - Pending Pipeline
+
+2. Revenue Trend
+   - Daily
+   - Weekly
+   - Monthly
+
+3. Revenue Sources
+   - Stripe
+   - Strategy Sessions
+   - Marketplace
+   - Digital Products
+   - Affiliate
+   - Sponsorship
+   - Advertising
+   - Leads
+   - Referrals
+   - AI-Assisted
+
+4. Attribution
+   - Top sources
+   - Top campaigns
+   - Top pages
+   - Top offers
+   - Top products
+   - Top plans
+
+5. Revenue Funnel
+   - Visitors
+   - Leads
+   - Bookings
+   - Paid Customers
+   - Revenue
+   - normalized conversion and economic drop-off
+
+6. Integrity and Diagnostics
+   - duplicate revenue events
+   - unmatched orders
+   - out-of-order funnel events
+   - missing attribution
+   - failed payments
+   - refund totals
+
+Use the existing Elevate360 founder dashboard visual system.
+
+==================================================
+M. MONETIZATION OPPORTUNITY TRACKING
+==================================================
+
+Add analytics-ready support for non-purchase monetization opportunities:
+
+- affiliate clicks
+- affiliate conversions
+- ad impressions
+- ad clicks
+- sponsored content views
+- lead value assignment
+- referral conversions
+- donation conversions
+- AI recommendation clicks
+
+Do not integrate third-party ad networks without explicit approval.
+
+Do not insert disruptive ads across the production website.
+
+This phase builds the intelligence and tracking foundation first.
+
+==================================================
+N. CLIENT INSTRUMENTATION
+==================================================
+
+Instrument only the pages and actions necessary for this phase.
+
+Potential events:
+
+- affiliate_click
+- ad_impression
+- ad_click
+- sponsored_content_view
+- ai_recommendation_clicked
+
+Use fire-and-forget tracking.
+
+Reuse the Phase 72.1 and 72.2 anonymous visitor/session identifiers.
+
+Avoid duplicate tracking.
+
+Do not slow page rendering.
+
+==================================================
+O. TESTS
+==================================================
+
+Create:
+
+scripts/create_phase72_3_tables.ts
+scripts/phase72_3_api_tests.ts
+
+Required contract tests:
+
+1. valid revenue event
+2. valid minimal event
+3. invalid revenue source → 400
+4. invalid event name → 400
+5. missing event → 400
+6. invalid amount → 400
+7. invalid currency → 400
+8. oversized metadata → 413
+9. extra keys stripped
+10. unauthenticated dashboard → 401
+11. authenticated dashboard → 200
+12. KPI response shape
+13. recorded revenue reflected in totals
+14. refunds reflected in net revenue
+15. revenue source reflected in source breakdown
+16. campaign attribution reflected
+17. product/plan reflected
+18. AI-assisted revenue reflected
+19. duplicate payment does not duplicate revenue
+20. no SPA fallback on API routes
+21. normalized funnel conversions never exceed 100%
+22. normalized drop-off never becomes negative
+23. normalized later-stage counts never exceed earlier-stage counts
+
+Use isolated test identifiers so test records are recognizable.
+
+==================================================
+P. BUILD VERIFICATION
+==================================================
+
+Before stopping, run:
+
+npm run check
+npm run build
+
+Run the Phase 72.3 test suite locally.
+
+Confirm the dashboard renders.
+
+Perform an architect review.
+
+==================================================
+Q. DELIVERY REPORT
+==================================================
+
+Return only:
+
+Files Added
+
+Files Modified
+
+Database Objects
+
+API Endpoints
+
+Revenue Sources Supported
+
+Attribution Models
+
+Dashboard Components
+
+Funnel Integrity Fixes
+
+Test Results
+
+TypeScript: PASS / FAIL
+
+Build: PASS / FAIL
+
+Architect Review: PASS / FAIL
+
+Production Migration Command
+
+Production Verification Command
+
+Risks / Deferred Items
+
+Stop.
+
+Do not commit.
+Do not push.
+Do not deploy.
