@@ -3,6 +3,7 @@ import { Link, useParams } from "wouter";
 import { Helmet } from "react-helmet-async";
 import SEO from "@/components/SEO";
 import { ARTICLES, getArticle, getRelatedArticles } from "@/data/articles";
+import { useContentEngagement } from "@/hooks/useContentEngagement";
 import { ArrowLeft, ArrowRight, Clock, Download, Rocket, Sparkles, Tag, Target } from "lucide-react";
 import brandLogo from "@assets/Elevate360_Brand_Logo_1772418122164.png";
 
@@ -42,6 +43,10 @@ export default function ArticleDetail() {
   const params = useParams<{ slug: string }>();
   const slug = params.slug ?? "";
   const article = getArticle(slug);
+
+  // Phase 72.4 — content engagement signals for the Authority Index. Runs
+  // before the not-found early return (hooks rules); null slug is a no-op.
+  useContentEngagement(article ? `knowledge/${article.slug}` : null, "knowledge");
   const related = getRelatedArticles(slug);
 
   if (!article) {

@@ -25,6 +25,8 @@ import {
   REVENUE_METADATA_MAX_BYTES,
   REVENUE_MAX_AMOUNT_CENTS,
   CLIENT_REVENUE_EVENTS,
+  searchIntelRequestSchema,
+  SEARCH_INTEL_METADATA_MAX_BYTES,
   type RevenueAnalyticsRequest,
   type ChatMessage,
 } from "@shared/schema";
@@ -709,6 +711,46 @@ export async function registerRoutes(
     } catch (err) {
       console.error("[analytics/revenue/summary] failed:", err);
       res.status(500).json({ error: "Failed to load revenue analytics" });
+    }
+  });
+
+  // ─── Phase 72.4: Search Intelligence & Authority Platform ──────────────────
+  // Public collection endpoint (anonymous sessions) — contract mirrors 72.1–72.3:
+  // valid event → 200 {"ok":true}; unknown event/source → 400; metadata > 2 KB
+  // serialized → 413. All five events are engagement signals: they carry no
+  // money and no authority values (the Authority Index is computed server-side
+  // only), and idempotency keys are derived in storage — a client can never set
+  // or squat a dedupe key (the field is not even part of the request schema).
+  app.post("/api/analytics/search", rateLimit(60, 60), async (req, res) => {
+    try {
+      const parsed = searchIntelRequestSchema.parse(req.body ?? {});
+      if (parsed.metadata !== undefined) {
+        const size = Buffer.byteLength(JSON.stringify(parsed.metadata), "utf8");
+        if (size > SEARCH_INTEL_METADATA_MAX_BYTES) {
+          return res.status(413).json({
+            error: `Metadata too large (${size} bytes, max ${SEARCH_INTEL_METADATA_MAX_BYTES})`,
+          });
+        }
+      }
+      await storage.recordSearchIntelEvent(parsed);
+      res.json({ ok: true });
+    } catch (err) {
+      if (err instanceof ZodError) {
+        return res.status(400).json({ error: fromZodError(err).message });
+      }
+      console.error("[analytics/search] failed:", err);
+      res.status(500).json({ error: "Failed to record event" });
+    }
+  });
+
+  // Founder-only search & authority KPIs — SQL aggregates only, never row loads.
+  app.get("/api/dashboard/analytics/search", requireDashboardAuth, async (_req, res) => {
+    try {
+      const summary = await storage.getSearchIntelSummary();
+      res.json(summary);
+    } catch (err) {
+      console.error("[analytics/search/summary] failed:", err);
+      res.status(500).json({ error: "Failed to load search intelligence" });
     }
   });
 

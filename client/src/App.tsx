@@ -25,6 +25,7 @@ import GrowthAutomation from "@/pages/GrowthAutomation";
 import CognitiveOS from "@/pages/CognitiveOS";
 import FunnelAnalytics from "@/pages/FunnelAnalytics";
 import RevenueAnalytics from "@/pages/RevenueAnalytics";
+import SearchIntelligence from "@/pages/SearchIntelligence";
 import AiContentStudio from "@/pages/AiContentStudio";
 import ContentFactory from "@/pages/ContentFactory";
 import OrchestratorCenter from "@/pages/OrchestratorCenter";
@@ -56,6 +57,7 @@ import SEO from "@/components/SEO";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { AIConcierge } from "@/components/AIConcierge";
 import { isConciergeHiddenRoute } from "@/config/conciergeContext";
+import { trackSearchLanding } from "@/lib/searchIntelligence";
 
 // Sprint 71.1 — the concierge is now sitewide (previously homepage-only) so
 // page-aware greetings/context work on every public page. Hidden on founder/
@@ -77,6 +79,16 @@ function RouteTracker() {
     }).catch(() => {});
   }, [location]);
 
+  return null;
+}
+
+// Phase 72.4 — one-shot per-session search landing classification. Guarded by
+// a session flag client-side AND a server-derived dedupe key, so remounts and
+// reloads can never double-count a session's entry.
+function SearchLandingTracker() {
+  useEffect(() => {
+    trackSearchLanding();
+  }, []);
   return null;
 }
 
@@ -339,6 +351,17 @@ function Router() {
         </>
       </Route>
 
+      <Route path="/search-intelligence">
+        <>
+          <SEO
+            title="Search Intelligence | Elevate360Official"
+            description="Founder-only search intelligence — organic and AI-assistant landing attribution, content authority scoring, cross-funnel outcomes, and engagement diagnostics."
+            path="/search-intelligence"
+          />
+          <SearchIntelligence />
+        </>
+      </Route>
+
       <Route path="/admin/ai-content">
         <>
           <SEO
@@ -438,6 +461,7 @@ function App() {
             <Router />
           </ErrorBoundary>
           <RouteTracker />
+          <SearchLandingTracker />
           <ScrollUtilities />
           <NewsletterPopup />
           <AnnouncementBanner />

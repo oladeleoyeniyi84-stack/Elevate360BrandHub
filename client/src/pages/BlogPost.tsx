@@ -4,6 +4,9 @@ import { Link, useParams } from "wouter";
 import { Helmet } from "react-helmet-async";
 import type { BlogPost } from "@shared/schema";
 import SEO from "@/components/SEO";
+import { ShareButton } from "@/components/ShareButton";
+import { useContentEngagement } from "@/hooks/useContentEngagement";
+import { trackContentShare } from "@/lib/searchIntelligence";
 import { ArrowLeft, Calendar, Tag } from "lucide-react";
 import brandLogo from "@assets/Elevate360_Brand_Logo_1772418122164.png";
 
@@ -52,6 +55,10 @@ export default function BlogPostPage() {
     },
     enabled: !!slug,
   });
+
+  // Phase 72.4 — content engagement signals (view/read/complete) for the
+  // Authority Index; null slug while loading is a no-op.
+  useContentEngagement(post?.slug ? `blog/${post.slug}` : null, "blog");
 
   const seoTitle = post?.title
     ? `${post.title} | Elevate360Official`
@@ -131,7 +138,16 @@ export default function BlogPostPage() {
                   <ArrowLeft className="h-4 w-4" />
                   All posts
                 </Link>
-                <p className="text-white/25 text-xs">Elevate360Official</p>
+                <div className="flex items-center gap-4">
+                  {post?.slug && (
+                    // Phase 72.4 — share intent feeds the Authority Index
+                    // (capture-phase so ShareButton's own handler is untouched).
+                    <div onClickCapture={() => trackContentShare(`blog/${post.slug}`, "blog")}>
+                      <ShareButton url={`${window.location.origin}/blog/${post.slug}`} title={post.title} />
+                    </div>
+                  )}
+                  <p className="text-white/25 text-xs">Elevate360Official</p>
+                </div>
               </div>
             </>
           )}

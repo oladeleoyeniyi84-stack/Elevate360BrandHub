@@ -45,7 +45,7 @@ import {
   type ExperimentAssignment, type ExperimentEvent,
   type PersonalizationSegment, type InsertPersonalizationSegment,
   type PersonalizationProfile, type PersonalizationRule, type InsertPersonalizationRule,
-  users, contactMessages, newsletterSubscribers, leadMagnetLeads, chatConversations, clickEvents, pageViews, homepageEvents, strategyFunnelEvents, type FunnelAnalyticsRequest, revenueIntelligenceEvents, type RevenueAnalyticsRequest, REVENUE_EARNING_EVENTS, testimonials, blogPosts, contentDrafts, authorityItems, marketplaceProducts, knowledgeDocuments, consultations, bookings, orders, digestReports, offerMappingOverrides, auditLogs, automationSettings,
+  users, contactMessages, newsletterSubscribers, leadMagnetLeads, chatConversations, clickEvents, pageViews, homepageEvents, strategyFunnelEvents, type FunnelAnalyticsRequest, revenueIntelligenceEvents, type RevenueAnalyticsRequest, REVENUE_EARNING_EVENTS, searchIntelligenceEvents, type SearchIntelRequest, SEARCH_TRAFFIC_SOURCES, ORGANIC_SEARCH_SOURCES, testimonials, blogPosts, contentDrafts, authorityItems, marketplaceProducts, knowledgeDocuments, consultations, bookings, orders, digestReports, offerMappingOverrides, auditLogs, automationSettings,
   automationJobs, automationJobLogs, revenueRecoveryActions, contentOpportunities, autonomousAlerts,
   growthExperiments, sourcePerformanceSnapshots, funnelLeakReports, offerPerformanceSnapshots,
   executionPolicies, appliedChanges, executionQueue, rollbackEvents,
@@ -101,6 +101,7 @@ import {
 import type { CognitiveSignal } from "@shared/types/cognitive";
 import type { FunnelAnalyticsSummary, FunnelStage, FunnelConversion, FunnelPeriodBucket, FunnelStageKey } from "@shared/types/funnel";
 import type { RevenueIntelSummary, RevenueBreakdownItem, RevenueTrendBucket, RevenueFunnelStage } from "@shared/types/revenue";
+import type { SearchIntelSummary, TrafficSourceBreakdownItem, SearchTopItem, ContentAuthorityItem, SearchTrendBucket } from "@shared/types/searchIntel";
 import { db } from "./db";
 import { and, asc, count, desc, eq, getTableColumns, gte, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
 
@@ -177,6 +178,8 @@ export interface IStorage {
   getFunnelAnalyticsSummary(): Promise<FunnelAnalyticsSummary>;
   recordRevenueIntelEvent(input: RevenueAnalyticsRequest): Promise<{ inserted: boolean }>;
   getRevenueIntelSummary(): Promise<RevenueIntelSummary>;
+  recordSearchIntelEvent(input: SearchIntelRequest): Promise<{ inserted: boolean }>;
+  getSearchIntelSummary(): Promise<SearchIntelSummary>;
   getTestimonials(all?: boolean): Promise<Testimonial[]>;
   getLatestApprovedTestimonials(limit?: number): Promise<Testimonial[]>;
   createTestimonial(t: InsertTestimonial): Promise<Testimonial>;
@@ -1504,6 +1507,361 @@ export class DatabaseStorage implements IStorage {
         "Revenue per session uses tracked funnel sessions as the denominator; visitors are all-time homepage page views. " +
         "Bookings completed on Calendly are not linked to browser sessions, so booking-to-revenue conversion approximates via paid-customer counts. " +
         "Pending pipeline is opportunity_created minus won/lost values, floored at zero.",
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  // ─── Phase 72.4: Search Intelligence & Authority Platform ─────────────────
+  // Idempotent insert with SERVER-DERIVED dedupe keys only (clients can never
+  // set or squat them): one search_landing per session, one view/read/complete
+  // per session+content, one share per session+content+channel. The partial
+  // unique index makes duplicate inserts no-ops. "anon" is the tracker's
+  // storage-blocked fallback — skipped for dedupe (a shared key would collide
+  // across unrelated storage-blocked visitors).
+  async recordSearchIntelEvent(input: SearchIntelRequest): Promise<{ inserted: boolean }> {
+    // Normalize identities at ingestion: zod trims, but an empty string must
+    // never reach the DB — '' would act as ONE shared "real" session across
+    // unrelated visitors, contaminating dedupe and cross-phase joins.
+    const sessionId = input.sessionId?.trim() ? input.sessionId.trim() : null;
+    const visitorId = input.visitorId?.trim() ? input.visitorId.trim() : null;
+    const sid = sessionId && sessionId !== "anon" ? sessionId : null;
+    let dedupeKey: string | null = null;
+    if (sid) {
+      if (input.event === "search_landing") {
+        dedupeKey = `sil:landing:${sid}`;
+      } else if (input.contentSlug) {
+        dedupeKey = input.event === "content_share"
+          ? `sil:share:${sid}:${input.contentSlug}:${input.shareChannel ?? "any"}`
+          : `sil:${input.event}:${sid}:${input.contentSlug}`;
+      }
+    }
+    const rows = await db.insert(searchIntelligenceEvents).values({
+      eventName: input.event,
+      trafficSource: input.trafficSource ?? null,
+      referrerHost: input.referrerHost ? input.referrerHost.toLowerCase() : null,
+      landingPath: input.landingPath ?? null,
+      contentSlug: input.contentSlug ?? null,
+      contentType: input.contentType ?? null,
+      readPercent: input.readPercent ?? null,
+      dwellSeconds: input.dwellSeconds ?? null,
+      shareChannel: input.shareChannel ?? null,
+      sessionId,
+      visitorId,
+      page: input.page ?? null,
+      utmSource: input.utmSource ?? null,
+      utmMedium: input.utmMedium ?? null,
+      utmCampaign: input.utmCampaign ?? null,
+      device: input.device ?? null,
+      browser: input.browser ?? null,
+      dedupeKey,
+      metadata: input.metadata ?? null,
+    }).onConflictDoNothing().returning({ id: searchIntelligenceEvents.id });
+    return { inserted: rows.length > 0 };
+  }
+
+  // Full search & authority summary computed entirely in SQL (count FILTER,
+  // GROUP BY, date_trunc, window max) — never materializes event rows in Node,
+  // per the Phase 69 bounded-reads discipline. Cross-phase joins (72.2 funnel,
+  // 72.3 revenue) are by browser session id; monetary math is integer cents.
+  async getSearchIntelSummary(): Promise<SearchIntelSummary> {
+    const n = (v: unknown) => Number(v ?? 0);
+    const pctCapped = (num: number, den: number): number | null =>
+      den > 0 ? Math.min(100, Math.max(0, Math.round((num / den) * 1000) / 10)) : null;
+    // Closed constant lists (shared/schema.ts) — safe to inline via sql.raw.
+    const organicFilter = sql.raw(`traffic_source IN (${ORGANIC_SEARCH_SOURCES.map((s) => `'${s}'`).join(", ")})`);
+    const earnFilter = sql.raw(`event_type IN (${REVENUE_EARNING_EVENTS.map((e) => `'${e}'`).join(", ")})`);
+    // One anonymous "session" per row for storage-blocked visitors — never
+    // merge unrelated 'anon' visitors into a single session.
+    const sessExpr = sql.raw(`(CASE WHEN session_id IS NULL OR session_id IN ('anon', '') THEN 'row-' || id::text ELSE session_id END)`);
+
+    // 1. One-pass landing/engagement counters.
+    const kpiRes = await db.execute(sql`
+      SELECT
+        count(*) FILTER (WHERE event_name = 'search_landing' AND created_at >= date_trunc('day', now()))::int AS landings_today,
+        count(*) FILTER (WHERE event_name = 'search_landing' AND created_at >= now() - interval '7 days')::int AS landings_7d,
+        count(*) FILTER (WHERE event_name = 'search_landing' AND created_at >= now() - interval '30 days')::int AS landings_30d,
+        count(*) FILTER (WHERE event_name = 'search_landing' AND (session_id IS NULL OR session_id IN ('anon', '')))::int AS landings_without_session,
+        count(*) FILTER (WHERE event_name = 'content_view')::int AS content_views,
+        count(*) FILTER (WHERE event_name = 'content_read')::int AS content_reads,
+        count(*) FILTER (WHERE event_name = 'content_complete')::int AS content_completes,
+        count(*) FILTER (WHERE event_name = 'content_share')::int AS content_shares
+      FROM search_intelligence_events
+    `);
+    const k: any = (kpiRes as any)?.rows?.[0] ?? {};
+
+    // 2. Avg max scroll depth per viewing session+content pair (pairs with no
+    // measured depth count as 0 — milestones only fire at ≥50%).
+    const depthRes = await db.execute(sql`
+      SELECT round(avg(coalesce(max_pct, 0)))::int AS avg_read
+      FROM (
+        SELECT max(read_percent) AS max_pct
+        FROM search_intelligence_events
+        WHERE content_slug IS NOT NULL
+          AND event_name IN ('content_view', 'content_read', 'content_complete')
+        GROUP BY content_slug, ${sessExpr}
+      ) m
+    `);
+    const avgReadRaw = (depthRes as any)?.rows?.[0]?.avg_read;
+
+    // 3. Per-source sessions + cross-phase outcomes — the single source of
+    // truth for source KPIs. Dedupe guarantees ≤1 landing per real session.
+    const srcRes = await db.execute(sql`
+      WITH landing_sessions AS (
+        SELECT session_id, min(traffic_source) AS traffic_source
+        FROM search_intelligence_events
+        WHERE event_name = 'search_landing' AND session_id IS NOT NULL AND session_id NOT IN ('anon', '')
+        GROUP BY session_id
+      ),
+      funnel_sessions AS (
+        SELECT DISTINCT session_id FROM strategy_funnel_events WHERE session_id IS NOT NULL
+      ),
+      revenue_by_session AS (
+        SELECT session_id, coalesce(sum(amount_cents) FILTER (WHERE ${earnFilter}), 0)::bigint AS earn_cents
+        FROM revenue_intelligence_events
+        WHERE session_id IS NOT NULL
+        GROUP BY session_id
+      )
+      SELECT ls.traffic_source AS source,
+             count(*)::int AS sessions,
+             count(f.session_id)::int AS funnel_sessions,
+             count(r.session_id)::int AS revenue_sessions,
+             coalesce(sum(r.earn_cents), 0)::bigint AS revenue_cents
+      FROM landing_sessions ls
+      LEFT JOIN funnel_sessions f ON f.session_id = ls.session_id
+      LEFT JOIN revenue_by_session r ON r.session_id = ls.session_id
+      GROUP BY ls.traffic_source
+    `);
+    const srcRows: any[] = (srcRes as any)?.rows ?? [];
+    const srcMap = new Map<string, { sessions: number; funnel: number; revenue: number; cents: number }>();
+    for (const r of srcRows) {
+      srcMap.set(String(r.source), {
+        sessions: n(r.sessions),
+        funnel: n(r.funnel_sessions),
+        revenue: n(r.revenue_sessions),
+        cents: n(r.revenue_cents),
+      });
+    }
+    const attributedSessions = Array.from(srcMap.values()).reduce((a, r) => a + r.sessions, 0);
+    const sources: TrafficSourceBreakdownItem[] = SEARCH_TRAFFIC_SOURCES.map((s) => {
+      const r = srcMap.get(s);
+      return {
+        source: s,
+        sessions: r?.sessions ?? 0,
+        sharePct: pctCapped(r?.sessions ?? 0, attributedSessions),
+        funnelSessions: r?.funnel ?? 0,
+        revenueSessions: r?.revenue ?? 0,
+        attributedRevenueCents: r?.cents ?? 0,
+      };
+    });
+    const organicSet = new Set<string>(ORGANIC_SEARCH_SOURCES as readonly string[]);
+    const organicSessions = sources.filter((s) => organicSet.has(s.source)).reduce((a, s) => a + s.sessions, 0);
+    const sessionsOf = (src: string) => srcMap.get(src)?.sessions ?? 0;
+    const searchToFunnelSessions = sources.reduce((a, s) => a + s.funnelSessions, 0);
+    const searchToRevenueSessions = sources.reduce((a, s) => a + s.revenueSessions, 0);
+    const attributedRevenueCents = sources.reduce((a, s) => a + s.attributedRevenueCents, 0);
+
+    // 4. Bounded top-10 lists. Every expr is an internal constant → sql.raw.
+    const topList = async (expr: string): Promise<SearchTopItem[]> => {
+      const res = await db.execute(sql`
+        SELECT ${sql.raw(expr)} AS name, count(*)::int AS count
+        FROM search_intelligence_events
+        WHERE event_name = 'search_landing' AND ${sql.raw(expr)} IS NOT NULL AND ${sql.raw(expr)} <> ''
+        GROUP BY ${sql.raw(expr)}
+        ORDER BY count(*) DESC
+        LIMIT 10
+      `);
+      const rows: any[] = (res as any)?.rows ?? [];
+      return rows.map((r) => ({ name: String(r.name), count: n(r.count) }));
+    };
+    const topReferrerHosts = await topList("referrer_host");
+    const topLandingPaths = await topList("landing_path");
+    const topCampaigns = await topList("utm_campaign");
+
+    // 5. Content Authority Index — transparent first-party engagement score
+    // (reach/depth/completion/amplification), capped 0–100, computed fully in
+    // SQL. This is NOT third-party domain authority.
+    const authRes = await db.execute(sql`
+      WITH per_session AS (
+        SELECT content_slug,
+               max(content_type) AS content_type,
+               bool_or(event_name = 'content_view') AS viewed,
+               bool_or(event_name = 'content_read') AS did_read,
+               bool_or(event_name = 'content_complete') AS completed,
+               count(*) FILTER (WHERE event_name = 'content_share')::int AS shares,
+               coalesce(max(read_percent), 0) AS max_pct
+        FROM search_intelligence_events
+        WHERE content_slug IS NOT NULL
+        GROUP BY content_slug, ${sessExpr}
+      ),
+      per_content AS (
+        SELECT content_slug,
+               max(content_type) AS content_type,
+               count(*) FILTER (WHERE viewed)::int AS views,
+               count(*) FILTER (WHERE did_read)::int AS reads,
+               count(*) FILTER (WHERE completed)::int AS completes,
+               coalesce(sum(shares), 0)::int AS shares,
+               coalesce(round(avg(max_pct) FILTER (WHERE viewed)), 0)::int AS avg_pct
+        FROM per_session
+        GROUP BY content_slug
+      )
+      SELECT content_slug, content_type, views, reads, completes, shares, avg_pct,
+        least(100, greatest(0, round(100 * (
+            0.25 * coalesce(ln((1 + views)::numeric) / nullif(ln((1 + max(views) OVER ())::numeric), 0), 0)
+          + 0.35 * (avg_pct::numeric / 100.0)
+          + 0.25 * coalesce(completes::numeric / nullif(views, 0), 0)
+          + 0.15 * coalesce(ln((1 + shares)::numeric) / nullif(ln((1 + max(shares) OVER ())::numeric), 0), 0)
+        ))))::int AS authority_index
+      FROM per_content
+      ORDER BY authority_index DESC, views DESC, content_slug ASC
+      LIMIT 20
+    `);
+    const authRows: any[] = (authRes as any)?.rows ?? [];
+    const contentAuthority: ContentAuthorityItem[] = authRows.map((r) => {
+      const views = n(r.views);
+      return {
+        slug: String(r.content_slug),
+        contentType: r.content_type ? String(r.content_type) : null,
+        views,
+        reads: n(r.reads),
+        completes: n(r.completes),
+        shares: n(r.shares),
+        avgReadPercent: views > 0 ? n(r.avg_pct) : null,
+        completionRatePct: pctCapped(n(r.completes), views),
+        authorityIndex: n(r.authority_index),
+      };
+    });
+
+    // 6. Daily (30d) / weekly (12w) / monthly (12m) trends. trunc unit is a
+    // closed union — inline via sql.raw so SELECT and GROUP BY share one
+    // expression (parameterized $1 in both → PG 42803).
+    const trend = async (trunc: "day" | "week" | "month", interval: string): Promise<SearchTrendBucket[]> => {
+      const truncExpr = sql.raw(`date_trunc('${trunc}', created_at)`);
+      const res = await db.execute(sql`
+        SELECT to_char(${truncExpr}, 'YYYY-MM-DD') AS bucket,
+          count(*) FILTER (WHERE event_name = 'search_landing')::int AS landings,
+          count(*) FILTER (WHERE event_name = 'search_landing' AND ${organicFilter})::int AS organic,
+          count(*) FILTER (WHERE event_name = 'search_landing' AND traffic_source = 'ai_assistant')::int AS ai,
+          count(*) FILTER (WHERE event_name = 'content_view')::int AS content_views
+        FROM search_intelligence_events
+        WHERE created_at >= now() - ${sql.raw(`interval '${interval}'`)}
+        GROUP BY ${truncExpr}
+        ORDER BY ${truncExpr}
+      `);
+      const rows: any[] = (res as any)?.rows ?? [];
+      return rows.map((r) => ({
+        bucket: String(r.bucket),
+        landings: n(r.landings),
+        organic: n(r.organic),
+        aiAssistant: n(r.ai),
+        contentViews: n(r.content_views),
+      }));
+    };
+    const daily = await trend("day", "30 days");
+    const weekly = await trend("week", "12 weeks");
+    const monthly = await trend("month", "12 months");
+
+    // 7. Content footprint (published catalog vs tracked engagement).
+    const footRes = await db.execute(sql`
+      SELECT
+        (SELECT count(*)::int FROM blog_posts WHERE published) AS published_posts,
+        (SELECT count(distinct content_slug)::int FROM search_intelligence_events WHERE content_slug IS NOT NULL) AS tracked_content,
+        (SELECT count(*)::int FROM blog_posts b
+          WHERE b.published AND NOT EXISTS (
+            SELECT 1 FROM search_intelligence_events s
+            WHERE s.event_name = 'content_view' AND s.content_slug = 'blog/' || b.slug
+          )) AS never_viewed
+    `);
+    const f: any = (footRes as any)?.rows?.[0] ?? {};
+
+    // 8. Integrity + integration-coverage diagnostics.
+    const diagRes = await db.execute(sql`
+      SELECT
+        (SELECT count(*)::int FROM (
+          SELECT session_id FROM search_intelligence_events
+          WHERE event_name = 'search_landing' AND session_id IS NOT NULL AND session_id NOT IN ('anon', '')
+          GROUP BY session_id HAVING count(*) > 1
+        ) d) AS duplicate_landing_groups,
+        (SELECT count(distinct c.session_id)::int FROM search_intelligence_events c
+          WHERE c.content_slug IS NOT NULL AND c.session_id IS NOT NULL AND c.session_id NOT IN ('anon', '')
+            AND NOT EXISTS (
+              SELECT 1 FROM search_intelligence_events l
+              WHERE l.event_name = 'search_landing' AND l.session_id = c.session_id
+            )) AS content_no_landing,
+        (SELECT count(distinct referrer_host)::int FROM search_intelligence_events
+          WHERE traffic_source = 'referral' AND referrer_host IS NOT NULL) AS referral_hosts,
+        (SELECT count(distinct session_id)::int FROM strategy_funnel_events WHERE session_id IS NOT NULL) AS funnel_sessions_total,
+        (SELECT count(distinct fe.session_id)::int FROM strategy_funnel_events fe
+          WHERE fe.session_id IS NOT NULL AND EXISTS (
+            SELECT 1 FROM search_intelligence_events l
+            WHERE l.event_name = 'search_landing' AND l.session_id = fe.session_id
+          )) AS funnel_sessions_attributed,
+        (SELECT count(*)::int FROM revenue_intelligence_events) AS revenue_events_total,
+        (SELECT count(*)::int FROM revenue_intelligence_events WHERE session_id IS NOT NULL AND session_id <> '') AS revenue_events_with_session
+    `);
+    const d: any = (diagRes as any)?.rows?.[0] ?? {};
+
+    const contentViews = n(k.content_views);
+    const contentCompletes = n(k.content_completes);
+
+    return {
+      kpis: {
+        attributedSessions,
+        organicSessions,
+        aiAssistantSessions: sessionsOf("ai_assistant"),
+        socialSessions: sessionsOf("social"),
+        emailSessions: sessionsOf("email"),
+        paidSessions: sessionsOf("paid"),
+        referralSessions: sessionsOf("referral"),
+        directSessions: sessionsOf("direct"),
+        organicSharePct: pctCapped(organicSessions, attributedSessions),
+        aiSharePct: pctCapped(sessionsOf("ai_assistant"), attributedSessions),
+        landingsToday: n(k.landings_today),
+        landingsLast7d: n(k.landings_7d),
+        landingsLast30d: n(k.landings_30d),
+        contentViews,
+        contentReads: n(k.content_reads),
+        contentCompletes,
+        contentShares: n(k.content_shares),
+        avgReadPercent: avgReadRaw === null || avgReadRaw === undefined ? null : n(avgReadRaw),
+        contentCompletionRatePct: pctCapped(contentCompletes, contentViews),
+        searchToFunnelSessions,
+        searchToFunnelRatePct: pctCapped(searchToFunnelSessions, attributedSessions),
+        searchToRevenueSessions,
+        searchToRevenueRatePct: pctCapped(searchToRevenueSessions, attributedSessions),
+        attributedRevenueCents,
+      },
+      sources,
+      topReferrerHosts,
+      topLandingPaths,
+      topCampaigns,
+      contentAuthority,
+      authorityFormula:
+        "authorityIndex = round(100 × (0.25·reach + 0.35·depth + 0.25·completion + 0.15·amplification)); " +
+        "reach = ln(1+views)/ln(1+maxViews), depth = avgReadPercent/100, completion = completes/views, " +
+        "amplification = ln(1+shares)/ln(1+maxShares); capped 0–100. First-party engagement authority only.",
+      daily,
+      weekly,
+      monthly,
+      footprint: {
+        publishedBlogPosts: n(f.published_posts),
+        trackedContentPages: n(f.tracked_content),
+        publishedNeverViewed: n(f.never_viewed),
+      },
+      diagnostics: {
+        duplicateLandingGroups: n(d.duplicate_landing_groups),
+        landingsWithoutSession: n(k.landings_without_session),
+        contentSessionsWithoutLanding: n(d.content_no_landing),
+        referralHostCount: n(d.referral_hosts),
+        funnelJoinCoveragePct: pctCapped(n(d.funnel_sessions_attributed), n(d.funnel_sessions_total)),
+        revenueEventsWithSessionPct: pctCapped(n(d.revenue_events_with_session), n(d.revenue_events_total)),
+      },
+      attributionNote:
+        "Attribution limitations: landing classification is first-party and referrer/UTM-based — search engines never pass " +
+        "keyword-level queries in referrers (query data requires Google Search Console), many AI assistants strip referrers " +
+        "entirely (ai_assistant is an undercount), and bots/no-JS visits are invisible. The Authority Index is a transparent " +
+        "first-party engagement score — NOT third-party domain authority or backlink data. Revenue joins use browser session " +
+        "ids: server-recorded Stripe webhook events usually carry no session id, so search-attributed revenue is a lower " +
+        "bound (see revenue session coverage). Sessions predating Phase 72.4 have no landing events.",
       generatedAt: new Date().toISOString(),
     };
   }

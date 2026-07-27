@@ -80,6 +80,7 @@ const CONCIERGE_HIDDEN_ROUTE_PREFIXES = [
   "/cognitive-os",
   "/funnel-analytics",
   "/revenue-analytics",
+  "/search-intelligence",
 ];
 
 export function isConciergeHiddenRoute(path: string): boolean {

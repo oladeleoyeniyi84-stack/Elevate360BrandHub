@@ -681,6 +681,127 @@ export const revenueAnalyticsRequestSchema = z.object({
 export type RevenueAnalyticsRequest = z.infer<typeof revenueAnalyticsRequestSchema>;
 export type RevenueIntelligenceEventRow = typeof revenueIntelligenceEvents.$inferSelect;
 
+// ─── Phase 72.4: Search Intelligence & Authority Platform ───────────────────
+// Closed traffic-source vocabulary for first-party landing attribution
+// (classified client-side from referrer + UTM, validated here). Unknown → 400.
+export const SEARCH_TRAFFIC_SOURCES = [
+  "google",
+  "bing",
+  "duckduckgo",
+  "yahoo",
+  "yandex",
+  "other_search",
+  "ai_assistant",
+  "social",
+  "email",
+  "paid",
+  "referral",
+  "direct",
+] as const;
+export type SearchTrafficSource = (typeof SEARCH_TRAFFIC_SOURCES)[number];
+
+// Sources that count as ORGANIC search in KPI aggregation.
+export const ORGANIC_SEARCH_SOURCES = [
+  "google",
+  "bing",
+  "duckduckgo",
+  "yahoo",
+  "yandex",
+  "other_search",
+] as const;
+
+// Closed event vocabulary. ALL five are anonymous client engagement signals —
+// none carries money or authority values (the Authority Index is computed
+// server-side in SQL only, and idempotency keys are derived server-side).
+// Unknown events → 400.
+export const SEARCH_INTEL_EVENTS = [
+  "search_landing",
+  "content_view",
+  "content_read",
+  "content_complete",
+  "content_share",
+] as const;
+export type SearchIntelEvent = (typeof SEARCH_INTEL_EVENTS)[number];
+
+export const SEARCH_CONTENT_TYPES = ["blog", "knowledge", "page"] as const;
+export type SearchContentType = (typeof SEARCH_CONTENT_TYPES)[number];
+
+export const SEARCH_INTEL_METADATA_MAX_BYTES = 2048;
+export const SEARCH_INTEL_MAX_DWELL_SECONDS = 14400; // 4h sanity ceiling
+
+export const searchIntelligenceEvents = pgTable("search_intelligence_events", {
+  id: serial("id").primaryKey(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  eventName: text("event_name").notNull(),
+  trafficSource: text("traffic_source"),
+  referrerHost: text("referrer_host"),
+  landingPath: text("landing_path"),
+  contentSlug: text("content_slug"),
+  contentType: text("content_type"),
+  readPercent: integer("read_percent"),
+  dwellSeconds: integer("dwell_seconds"),
+  shareChannel: text("share_channel"),
+  sessionId: text("session_id"),
+  visitorId: text("visitor_id"),
+  page: text("page"),
+  utmSource: text("utm_source"),
+  utmMedium: text("utm_medium"),
+  utmCampaign: text("utm_campaign"),
+  device: text("device"),
+  browser: text("browser"),
+  // Idempotency: derived SERVER-SIDE only (never accepted from the client, so
+  // keys can never be squatted) — one landing per session, one
+  // view/read/complete per session+content. Partial unique index → no-ops.
+  dedupeKey: text("dedupe_key"),
+  metadata: jsonb("metadata"),
+}, (t) => [
+  // Created in prod via scripts/create_phase72_4_tables.ts (idempotent), NOT db:push.
+  index("search_intel_created_at_idx").on(t.createdAt),
+  index("search_intel_event_name_idx").on(t.eventName),
+  index("search_intel_traffic_source_idx").on(t.trafficSource),
+  index("search_intel_session_id_idx").on(t.sessionId),
+  index("search_intel_visitor_id_idx").on(t.visitorId),
+  index("search_intel_content_slug_idx").on(t.contentSlug),
+  index("search_intel_utm_campaign_idx").on(t.utmCampaign),
+  uniqueIndex("search_intel_dedupe_key_uq").on(t.dedupeKey).where(sql`dedupe_key IS NOT NULL`),
+]);
+
+const searchAttr = z.string().trim().max(300).optional();
+const searchPath = z.string().trim().max(600).optional();
+
+// NOTE: dedupeKey is intentionally NOT part of this schema — clients can never
+// set or squat idempotency keys; storage derives them deterministically.
+export const searchIntelRequestSchema = z.object({
+  event: z.enum(SEARCH_INTEL_EVENTS),
+  trafficSource: z.enum(SEARCH_TRAFFIC_SOURCES).optional(),
+  referrerHost: searchAttr,
+  landingPath: searchPath,
+  contentSlug: searchAttr,
+  contentType: z.enum(SEARCH_CONTENT_TYPES).optional(),
+  readPercent: z.number().int().min(0).max(100).optional(),
+  dwellSeconds: z.number().int().min(0).max(SEARCH_INTEL_MAX_DWELL_SECONDS).optional(),
+  shareChannel: searchAttr,
+  sessionId: searchAttr,
+  visitorId: searchAttr,
+  page: searchPath,
+  utmSource: searchAttr,
+  utmMedium: searchAttr,
+  utmCampaign: searchAttr,
+  device: searchAttr,
+  browser: searchAttr,
+  metadata: z.record(z.unknown()).optional(),
+}).strip().superRefine((val, ctx) => {
+  if (val.event === "search_landing" && !val.trafficSource) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["trafficSource"], message: "trafficSource is required for search_landing" });
+  }
+  if (val.event !== "search_landing" && !val.contentSlug) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["contentSlug"], message: `contentSlug is required for ${val.event}` });
+  }
+});
+
+export type SearchIntelRequest = z.infer<typeof searchIntelRequestSchema>;
+export type SearchIntelligenceEventRow = typeof searchIntelligenceEvents.$inferSelect;
+
 export const testimonials = pgTable("testimonials", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
