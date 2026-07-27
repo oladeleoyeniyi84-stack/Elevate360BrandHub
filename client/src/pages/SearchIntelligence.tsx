@@ -1,24 +1,18 @@
-// Phase 72.4 — Founder-only Search Intelligence & Authority Platform dashboard.
+// Phase 72.4R — Founder-only Search Intelligence & Authority Platform.
+// Tabbed console: the original first-party attribution view (Overview,
+// preserved verbatim) plus Search Console intelligence, SEO audits, Core Web
+// Vitals, organic revenue attribution, recommendations and sync controls.
+// One composed GET feeds every tab — dashboard reads never call Google.
+
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import {
-  Search, Bot, Users, Globe, Eye, EyeOff, BookOpen, CheckCircle2, DollarSign,
-  Link2, Megaphone, Award, Loader2, RefreshCw, Filter, FileText,
-} from "lucide-react";
-import type { SearchIntelSummary, SearchTrendBucket, ContentAuthorityItem, TrafficSourceBreakdownItem } from "@shared/types/searchIntel";
-
-const GOLD = "#F4A62A";
-const BG = "hsl(220 50% 8%)";
-
-const SOURCE_LABELS: Record<string, string> = {
-  google: "Google", bing: "Bing", duckduckgo: "DuckDuckGo", yahoo: "Yahoo",
-  yandex: "Yandex", other_search: "Other search", ai_assistant: "AI assistants",
-  social: "Social", email: "Email", paid: "Paid", referral: "Referral", direct: "Direct",
-};
-
-const fmtPct = (v: number | null | undefined) => (v === null || v === undefined ? "—" : `${v}%`);
-const fmtUsd = (cents: number) =>
-  (cents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" });
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Search, Eye, EyeOff, Loader2, RefreshCw } from "lucide-react";
+import type { SearchIntelDashboardPayload } from "@shared/types/searchIntel";
+import { GOLD, BG } from "@/components/searchIntel/shared";
+import { FirstPartyOverview } from "@/components/searchIntel/FirstPartyOverview";
+import { GscTotalsStrip, QueriesTab, LandingPagesTab } from "@/components/searchIntel/GscTabs";
+import { SeoHealthTab, StructuredDataTab, MetadataTab, SocialTab, IndexCoverageTab } from "@/components/searchIntel/SeoTabs";
+import { WebVitalsTab, OrganicRevenueTab, RecommendationsTab, SyncStatusTab } from "@/components/searchIntel/OpsTabs";
 
 function PinGate({ onAuth }: { onAuth: () => void }) {
   const [pin, setPin] = useState("");
@@ -64,144 +58,68 @@ function PinGate({ onAuth }: { onAuth: () => void }) {
   );
 }
 
-function Stat({ icon: Icon, label, value, testId }: { icon: any; label: string; value: string | number; testId: string }) {
-  return (
-    <div className="lux-card">
-      <div className="flex items-center gap-2 text-white/50 text-xs uppercase tracking-wide"><Icon className="h-4 w-4 text-[#F4A62A]" /> {label}</div>
-      <p className="text-2xl font-black text-white mt-2" data-testid={testId}>{value}</p>
-    </div>
-  );
-}
+const TABS = [
+  { id: "overview", label: "Overview" },
+  { id: "queries", label: "Queries" },
+  { id: "pages", label: "Landing Pages" },
+  { id: "seo-health", label: "SEO Health" },
+  { id: "structured", label: "Structured Data" },
+  { id: "metadata", label: "Metadata" },
+  { id: "social", label: "Social" },
+  { id: "indexing", label: "Index Coverage" },
+  { id: "vitals", label: "Web Vitals" },
+  { id: "organic-revenue", label: "Organic Revenue" },
+  { id: "recommendations", label: "Recommendations" },
+  { id: "sync", label: "Sync Status" },
+] as const;
 
-function TopList({ title, icon: Icon, items, emptyText }: {
-  title: string; icon: any; items: { name: string; count: number }[]; emptyText: string;
-}) {
-  return (
-    <div className="lux-card">
-      <div className="flex items-center gap-2 text-white/60 text-sm font-semibold mb-3"><Icon className="h-4 w-4 text-[#F4A62A]" /> {title}</div>
-      {items.length === 0 ? (
-        <p className="text-white/35 text-sm">{emptyText}</p>
-      ) : (
-        <div className="space-y-2">
-          {items.map((item, i) => (
-            <div key={item.name} className="flex items-center justify-between text-sm" data-testid={`row-${title.toLowerCase().replace(/\s+/g, "-")}-${i}`}>
-              <span className="text-white/75 truncate mr-3">{item.name}</span>
-              <span className="text-white font-bold">{item.count.toLocaleString()}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function SourceRow({ item, maxSessions }: { item: TrafficSourceBreakdownItem; maxSessions: number }) {
-  const width = maxSessions > 0 ? Math.max((item.sessions / maxSessions) * 100, item.sessions > 0 ? 3 : 0) : 0;
-  return (
-    <div data-testid={`row-source-${item.source}`}>
-      <div className="flex items-center justify-between text-sm mb-1">
-        <span className="text-white/75">{SOURCE_LABELS[item.source] ?? item.source}</span>
-        <span className="text-white/50 text-xs">
-          {item.funnelSessions > 0 && <span className="mr-3">funnel {item.funnelSessions}</span>}
-          {item.revenueSessions > 0 && <span className="mr-3">revenue {item.revenueSessions}</span>}
-          {item.attributedRevenueCents > 0 && <span className="mr-3 text-emerald-400">{fmtUsd(item.attributedRevenueCents)}</span>}
-          <span className="text-white font-bold text-sm">{item.sessions.toLocaleString()}</span>
-          <span className="ml-2">{fmtPct(item.sharePct)}</span>
-        </span>
-      </div>
-      <div className="h-2 rounded-full bg-white/5 overflow-hidden">
-        <div className="h-full rounded-full" style={{ width: `${width}%`, background: GOLD }} />
-      </div>
-    </div>
-  );
-}
-
-function AuthorityTable({ items }: { items: ContentAuthorityItem[] }) {
-  if (items.length === 0) {
-    return <p className="text-white/35 text-sm mt-3">No content engagement tracked yet — authority scores appear once posts and articles get views.</p>;
-  }
-  return (
-    <div className="overflow-x-auto mt-3">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-white/40 text-xs uppercase tracking-wide">
-            <th className="text-left py-2 pr-4">Content</th>
-            <th className="text-right py-2 px-2">Views</th>
-            <th className="text-right py-2 px-2">Depth</th>
-            <th className="text-right py-2 px-2">Compl.</th>
-            <th className="text-right py-2 px-2">Shares</th>
-            <th className="text-right py-2 pl-2">Authority</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((c) => (
-            <tr key={c.slug} className="border-t border-white/5 text-white/80" data-testid={`row-authority-${c.slug}`}>
-              <td className="py-2 pr-4">
-                <span className="text-white/85 break-all">{c.slug}</span>
-                {c.contentType && <span className="ml-2 text-[10px] uppercase tracking-wide text-white/35">{c.contentType}</span>}
-              </td>
-              <td className="text-right py-2 px-2">{c.views.toLocaleString()}</td>
-              <td className="text-right py-2 px-2">{fmtPct(c.avgReadPercent)}</td>
-              <td className="text-right py-2 px-2">{fmtPct(c.completionRatePct)}</td>
-              <td className="text-right py-2 px-2">{c.shares.toLocaleString()}</td>
-              <td className="text-right py-2 pl-2">
-                <div className="inline-flex items-center gap-2">
-                  <div className="w-16 h-1.5 rounded-full bg-white/10 overflow-hidden">
-                    <div className="h-full rounded-full" style={{ width: `${c.authorityIndex}%`, background: GOLD }} />
-                  </div>
-                  <span className="font-bold text-white w-7 text-right">{c.authorityIndex}</span>
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-type PeriodTab = "daily" | "weekly" | "monthly";
-
-function TrendTable({ buckets }: { buckets: SearchTrendBucket[] }) {
-  if (buckets.length === 0) return <p className="text-white/35 text-sm mt-3">No search activity in this period yet.</p>;
-  return (
-    <div className="overflow-x-auto mt-3">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-white/40 text-xs uppercase tracking-wide">
-            <th className="text-left py-2 pr-4">Period</th>
-            <th className="text-right py-2 px-2">Landings</th>
-            <th className="text-right py-2 px-2">Organic</th>
-            <th className="text-right py-2 px-2">AI</th>
-            <th className="text-right py-2 pl-2">Content views</th>
-          </tr>
-        </thead>
-        <tbody>
-          {buckets.map((b) => (
-            <tr key={b.bucket} className="border-t border-white/5 text-white/80" data-testid={`row-search-period-${b.bucket}`}>
-              <td className="py-2 pr-4 text-white/60">{b.bucket}</td>
-              <td className="text-right py-2 px-2 font-bold text-white">{b.landings}</td>
-              <td className="text-right py-2 px-2">{b.organic}</td>
-              <td className="text-right py-2 px-2">{b.aiAssistant}</td>
-              <td className="text-right py-2 pl-2">{b.contentViews}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
+type TabId = (typeof TABS)[number]["id"];
 
 function Console() {
-  const [periodTab, setPeriodTab] = useState<PeriodTab>("daily");
-  const query = useQuery<SearchIntelSummary>({
-    queryKey: ["/api/dashboard/analytics/search"],
+  const [activeTab, setActiveTab] = useState<TabId>("overview");
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  const query = useQuery<SearchIntelDashboardPayload>({
+    queryKey: ["/api/dashboard/search-intelligence"],
     queryFn: async () => {
-      const res = await fetch("/api/dashboard/analytics/search");
+      const res = await fetch("/api/dashboard/search-intelligence");
       if (!res.ok) throw new Error(`Failed to load search intelligence (${res.status})`);
       return res.json();
     },
   });
+
+  const runSync = async () => {
+    setSyncing(true); setSyncMessage(null); setSyncError(null);
+    try {
+      const res = await fetch("/api/dashboard/search-intelligence/sync", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scope: "all" }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setSyncError(body?.error ?? `Sync failed (${res.status})`);
+        return;
+      }
+      const parts: string[] = [];
+      if (body?.gsc) {
+        parts.push(body.gsc.status === "not_configured"
+          ? "Search Console: not configured (skipped)"
+          : `Search Console: ${body.gsc.status} · ${body.gsc.rows?.queries ?? 0} query rows`);
+      }
+      if (body?.audits) {
+        parts.push(`Audit: ${body.audits.status} · ${body.audits.pagesAudited ?? 0} pages · ${body.audits.issuesFound ?? 0} issues`);
+      }
+      setSyncMessage(parts.length > 0 ? parts.join(" — ") : "Sync completed.");
+      await queryClient.invalidateQueries({ queryKey: ["/api/dashboard/search-intelligence"] });
+    } catch {
+      setSyncError("Sync failed — network error.");
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   if (query.isLoading) {
     return (
@@ -219,21 +137,19 @@ function Console() {
     );
   }
 
-  const data = query.data;
-  const { kpis, diagnostics, footprint } = data;
-  const maxSessions = Math.max(...data.sources.map((s) => s.sessions), 0);
-  const periodBuckets = periodTab === "daily" ? data.daily : periodTab === "weekly" ? data.weekly : data.monthly;
+  const payload = query.data;
+  const recCount = payload.recommendations.length;
 
   return (
     <div className="min-h-screen py-10 px-4" style={{ background: BG }}>
-      <div className="max-w-6xl mx-auto space-y-8">
+      <div className="max-w-6xl mx-auto space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
             <h1 className="text-2xl md:text-3xl font-black text-white flex items-center gap-3">
               <Search className="h-7 w-7" style={{ color: GOLD }} /> Search Intelligence
             </h1>
             <p className="text-white/45 text-sm mt-1">
-              First-party search & content authority — organic and AI-assistant attribution joined to funnel and revenue outcomes.
+              First-party attribution · Search Console intelligence · SEO audits · Core Web Vitals · organic revenue.
             </p>
           </div>
           <button
@@ -245,117 +161,54 @@ function Console() {
           </button>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Stat icon={Users} label="Attributed sessions" value={kpis.attributedSessions.toLocaleString()} testId="stat-search-sessions" />
-          <Stat icon={Search} label="Organic share" value={fmtPct(kpis.organicSharePct)} testId="stat-search-organic-share" />
-          <Stat icon={Bot} label="AI assistant sessions" value={kpis.aiAssistantSessions.toLocaleString()} testId="stat-search-ai-sessions" />
-          <Stat icon={Globe} label="Landings · 30d" value={kpis.landingsLast30d.toLocaleString()} testId="stat-search-landings-30d" />
-          <Stat icon={Eye} label="Content views" value={kpis.contentViews.toLocaleString()} testId="stat-search-content-views" />
-          <Stat icon={BookOpen} label="Avg read depth" value={fmtPct(kpis.avgReadPercent)} testId="stat-search-read-depth" />
-          <Stat icon={CheckCircle2} label="Completion rate" value={fmtPct(kpis.contentCompletionRatePct)} testId="stat-search-completion" />
-          <Stat icon={DollarSign} label="Attributed revenue" value={fmtUsd(kpis.attributedRevenueCents)} testId="stat-search-revenue" />
-        </div>
-
-        <div className="grid lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-            <div className="lux-card">
-              <h2 className="text-white/70 text-sm font-bold uppercase tracking-wide mb-4">Traffic sources</h2>
-              {kpis.attributedSessions === 0 ? (
-                <p className="text-white/35 text-sm">No search landings captured yet — sessions appear as soon as visitors arrive.</p>
-              ) : (
-                <div className="space-y-3">
-                  {data.sources.map((s) => <SourceRow key={s.source} item={s} maxSessions={maxSessions} />)}
-                </div>
+        <div className="flex gap-2 flex-wrap">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setActiveTab(t.id)}
+              data-testid={`tab-si-${t.id}`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                activeTab === t.id ? "text-black" : "text-white/60 bg-white/5 hover:bg-white/10"
+              }`}
+              style={activeTab === t.id ? { background: GOLD } : undefined}
+            >
+              {t.label}
+              {t.id === "recommendations" && recCount > 0 && (
+                <span className={`ml-1.5 inline-block px-1.5 rounded-md text-[10px] font-black ${activeTab === t.id ? "bg-black/20 text-black" : "bg-[#F4A62A]/20 text-[#F4A62A]"}`}>
+                  {recCount}
+                </span>
               )}
-            </div>
+            </button>
+          ))}
+        </div>
 
-            <div className="lux-card">
-              <div className="flex items-center gap-2 mb-1">
-                <Award className="h-4 w-4 text-[#F4A62A]" />
-                <h2 className="text-white/70 text-sm font-bold uppercase tracking-wide">Content authority</h2>
-              </div>
-              <p className="text-white/35 text-xs">
-                First-party engagement authority (reach · depth · completion · amplification) — not third-party domain authority.
+        {activeTab === "overview" && (
+          <div className="space-y-8">
+            {payload.gscTotals ? (
+              <GscTotalsStrip payload={payload} />
+            ) : !payload.searchConsole.configured ? (
+              <p className="text-white/35 text-xs" data-testid="banner-gsc-not-configured">
+                Google Search Console is not connected — clicks, impressions and rankings activate via the Sync Status tab.
               </p>
-              <AuthorityTable items={data.contentAuthority} />
-            </div>
+            ) : null}
+            <FirstPartyOverview data={payload.firstParty} />
           </div>
+        )}
+        {activeTab === "queries" && <QueriesTab payload={payload} />}
+        {activeTab === "pages" && <LandingPagesTab payload={payload} />}
+        {activeTab === "seo-health" && <SeoHealthTab payload={payload} />}
+        {activeTab === "structured" && <StructuredDataTab payload={payload} />}
+        {activeTab === "metadata" && <MetadataTab payload={payload} />}
+        {activeTab === "social" && <SocialTab payload={payload} />}
+        {activeTab === "indexing" && <IndexCoverageTab payload={payload} />}
+        {activeTab === "vitals" && <WebVitalsTab payload={payload} />}
+        {activeTab === "organic-revenue" && <OrganicRevenueTab payload={payload} />}
+        {activeTab === "recommendations" && <RecommendationsTab payload={payload} />}
+        {activeTab === "sync" && (
+          <SyncStatusTab payload={payload} onSync={runSync} syncing={syncing} syncMessage={syncMessage} syncError={syncError} />
+        )}
 
-          <div className="space-y-4">
-            <h2 className="text-white/70 text-sm font-bold uppercase tracking-wide mb-3">Outcomes & attribution</h2>
-            <div className="lux-card">
-              <div className="flex items-center gap-2 text-white/60 text-sm font-semibold mb-3"><Filter className="h-4 w-4 text-[#F4A62A]" /> Search → Outcomes</div>
-              <div className="space-y-2 text-sm">
-                <div className="flex items-center justify-between" data-testid="row-search-to-funnel">
-                  <span className="text-white/75">Entered funnel</span>
-                  <span className="text-white font-bold">{kpis.searchToFunnelSessions.toLocaleString()} <span className="text-white/40 font-normal">({fmtPct(kpis.searchToFunnelRatePct)})</span></span>
-                </div>
-                <div className="flex items-center justify-between" data-testid="row-search-to-revenue">
-                  <span className="text-white/75">Revenue-engaged</span>
-                  <span className="text-white font-bold">{kpis.searchToRevenueSessions.toLocaleString()} <span className="text-white/40 font-normal">({fmtPct(kpis.searchToRevenueRatePct)})</span></span>
-                </div>
-                <div className="flex items-center justify-between" data-testid="row-search-attributed-revenue">
-                  <span className="text-white/75">Attributed revenue</span>
-                  <span className="text-emerald-400 font-bold">{fmtUsd(kpis.attributedRevenueCents)}</span>
-                </div>
-                <div className="flex items-center justify-between" data-testid="row-search-shares">
-                  <span className="text-white/75">Content shares</span>
-                  <span className="text-white font-bold">{kpis.contentShares.toLocaleString()}</span>
-                </div>
-              </div>
-            </div>
-            <TopList title="Referrer hosts" icon={Globe} items={data.topReferrerHosts} emptyText="No external referrers yet." />
-            <TopList title="Landing paths" icon={Link2} items={data.topLandingPaths} emptyText="No landing paths tracked yet." />
-            <TopList title="Campaigns" icon={Megaphone} items={data.topCampaigns} emptyText="No UTM campaigns seen yet." />
-            <div className="lux-card">
-              <div className="flex items-center gap-2 text-white/60 text-sm font-semibold mb-3"><FileText className="h-4 w-4 text-[#F4A62A]" /> Content footprint</div>
-              <div className="space-y-2 text-sm">
-                <div className="flex items-center justify-between"><span className="text-white/75">Published blog posts</span><span className="text-white font-bold" data-testid="text-footprint-published">{footprint.publishedBlogPosts}</span></div>
-                <div className="flex items-center justify-between"><span className="text-white/75">Tracked content pages</span><span className="text-white font-bold" data-testid="text-footprint-tracked">{footprint.trackedContentPages}</span></div>
-                <div className="flex items-center justify-between"><span className="text-white/75">Published, never viewed</span><span className={`font-bold ${footprint.publishedNeverViewed > 0 ? "text-amber-400" : "text-white"}`} data-testid="text-footprint-never-viewed">{footprint.publishedNeverViewed}</span></div>
-              </div>
-            </div>
-            <div className="lux-card">
-              <div className="flex items-center gap-2 text-white/60 text-sm font-semibold mb-3"><CheckCircle2 className="h-4 w-4 text-[#F4A62A]" /> Data integrity</div>
-              <div className="space-y-2 text-sm">
-                <div className="flex items-center justify-between"><span className="text-white/75">Duplicate landing groups</span><span className={`font-bold ${diagnostics.duplicateLandingGroups > 0 ? "text-red-400" : "text-emerald-400"}`} data-testid="text-diag-dup-landings">{diagnostics.duplicateLandingGroups}</span></div>
-                <div className="flex items-center justify-between"><span className="text-white/75">Landings w/o session</span><span className="text-white font-bold" data-testid="text-diag-no-session">{diagnostics.landingsWithoutSession}</span></div>
-                <div className="flex items-center justify-between"><span className="text-white/75">Content w/o landing</span><span className="text-white font-bold" data-testid="text-diag-content-no-landing">{diagnostics.contentSessionsWithoutLanding}</span></div>
-                <div className="flex items-center justify-between"><span className="text-white/75">Unclassified referral hosts</span><span className="text-white font-bold" data-testid="text-diag-referral-hosts">{diagnostics.referralHostCount}</span></div>
-                <div className="flex items-center justify-between"><span className="text-white/75">Funnel join coverage</span><span className="text-white font-bold" data-testid="text-diag-funnel-coverage">{fmtPct(diagnostics.funnelJoinCoveragePct)}</span></div>
-                <div className="flex items-center justify-between"><span className="text-white/75">Revenue events w/ session</span><span className="text-white font-bold" data-testid="text-diag-revenue-session">{fmtPct(diagnostics.revenueEventsWithSessionPct)}</span></div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="lux-card">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <h2 className="text-white/70 text-sm font-bold uppercase tracking-wide">Trends</h2>
-            <div className="flex gap-2">
-              {(["daily", "weekly", "monthly"] as const).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setPeriodTab(t)}
-                  data-testid={`tab-search-${t}`}
-                  className={`px-3 py-1 rounded-lg text-xs font-semibold capitalize transition ${
-                    periodTab === t ? "text-black" : "text-white/60 bg-white/5 hover:bg-white/10"
-                  }`}
-                  style={periodTab === t ? { background: GOLD } : undefined}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-          </div>
-          <TrendTable buckets={periodBuckets} />
-        </div>
-
-        <div className="lux-card space-y-3">
-          <p className="text-white/40 text-xs leading-relaxed"><span className="text-white/60 font-semibold">Authority formula:</span> {data.authorityFormula}</p>
-          <p className="text-white/40 text-xs leading-relaxed" data-testid="text-search-attribution-note"><span className="text-white/60 font-semibold">Attribution note:</span> {data.attributionNote}</p>
-          <p className="text-white/30 text-xs">Generated {new Date(data.generatedAt).toLocaleString()}</p>
-        </div>
+        <p className="text-white/25 text-xs">Generated {new Date(payload.generatedAt).toLocaleString()}</p>
       </div>
     </div>
   );

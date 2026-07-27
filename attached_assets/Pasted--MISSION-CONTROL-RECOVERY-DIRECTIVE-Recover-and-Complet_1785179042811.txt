@@ -1,0 +1,570 @@
+# MISSION CONTROL RECOVERY DIRECTIVE
+## Recover and Complete the Interrupted Search Console, SEO Audit, and Core Web Vitals Phase
+
+You are resuming an interrupted implementation run.
+
+Do not restart the phase from scratch.
+
+Do not discard, revert, overwrite, or broadly regenerate completed work.
+
+Preserve all valid work already present in the repository and recover from the current working tree.
+
+=========================================================
+CURRENT VERIFIED STATE
+=========================================================
+
+The preceding certified phase, Phase 72.4 — Search Intelligence & Authority Platform, is complete and must remain unchanged except where a strictly necessary compatibility fix is required.
+
+Certified Phase 72.4 status:
+
+- Type-check passed
+- Production build passed
+- 50/50 API tests passed
+- Architect review passed
+- One architect finding was fixed and regression-tested
+- No commit was made
+- No deployment was performed
+
+The interrupted follow-on phase already made substantial progress.
+
+According to the execution record, the following work was completed or substantially completed before the failure:
+
+- Installed the `web-vitals` package
+- Added or extended Drizzle schema definitions
+- Added vocabularies, Zod schemas, and shared types
+- Extended the database bootstrap/table-creation script
+- Added Google Search Console client and synchronization services
+- Added an SEO audit engine
+- Inspected existing Phase 72.1–72.4 table schemas and event vocabularies
+- Added storage and analytics logic
+- Added dashboard tabs and page-shell components
+- Extended the test suite
+- Replaced one problematic `ANY(...)` query with safe scalar parameters
+- Reached 107/107 passing checks
+- Completed a clean production build
+- Confirmed the dashboard route rendered successfully
+- Began documentation and memory updates
+- Began architect review
+- Reviewed pagination, organic-summary, and partial-unique-index patterns
+- Edited `schema.ts`
+- Then encountered an error
+
+Treat the passing 107/107 test run and clean production build as evidence that most of the phase is already implemented correctly.
+
+The objective is to identify and resolve the final interruption without destabilizing completed work.
+
+=========================================================
+MANDATORY RECOVERY PROCEDURE
+=========================================================
+
+Proceed in the exact order below.
+
+Do not begin by writing new features.
+
+---------------------------------------------------------
+STEP 1 — PRESERVE AND INSPECT THE WORKING TREE
+---------------------------------------------------------
+
+First inspect the repository without modifying files.
+
+Run and review:
+
+- `git status --short`
+- `git diff --stat`
+- `git diff`
+- `git diff --cached`
+- recent file modification timestamps
+- package manifest and lockfile changes
+- all new untracked files
+- the most recently edited sections of `schema.ts`
+
+Create an internal inventory of:
+
+1. Modified files
+2. New files
+3. Deleted files
+4. Partially written files
+5. Suspicious or incomplete schema edits
+6. Documentation changes
+7. Test additions
+8. Package changes
+
+Do not use destructive commands.
+
+Forbidden:
+
+- `git reset --hard`
+- `git checkout -- .`
+- `git clean -fd`
+- mass file regeneration
+- deleting untracked files without inspection
+- reverting all schema changes
+- replacing the repository with an earlier checkpoint
+
+---------------------------------------------------------
+STEP 2 — IDENTIFY THE EXACT FAILURE
+---------------------------------------------------------
+
+Determine the actual cause of the interrupted run.
+
+Do not assume the last edited file is necessarily the source of the error.
+
+Inspect:
+
+- terminal/error logs still available
+- TypeScript diagnostics
+- Drizzle schema diagnostics
+- migration or bootstrap-script issues
+- duplicate table, index, or export declarations
+- malformed partial unique indexes
+- incorrect imports or circular imports
+- stale generated types
+- invalid SQL fragments
+- broken architect-review tooling
+- incomplete documentation automation
+- memory or context-limit failure
+- tool/runtime failure unrelated to code
+
+Clearly distinguish:
+
+A. Code failure  
+B. Test failure  
+C. Build failure  
+D. Database/schema failure  
+E. Documentation failure  
+F. Architect-review tooling failure  
+G. Agent/runtime interruption with otherwise valid code
+
+If the previous error output is unavailable, reproduce the failure using the narrowest safe verification command rather than changing code blindly.
+
+---------------------------------------------------------
+STEP 3 — REVIEW THE LATEST SCHEMA CHANGES
+---------------------------------------------------------
+
+Carefully inspect the most recent edits to `schema.ts`.
+
+Verify:
+
+- no duplicate tables
+- no duplicate exported symbols
+- no duplicate enum or vocabulary declarations
+- no conflicting index names
+- no malformed partial unique index
+- no incompatible column types
+- no invalid foreign-key references
+- no accidental changes to certified Phase 72.1–72.4 tables
+- no mismatch between Drizzle schema and bootstrap SQL
+- no nullable/non-nullable mismatch
+- no timestamp/default mismatch
+- no missing schema exports used by services or tests
+
+Compare the new schema patterns against the repository’s already-certified partial-unique-index implementation.
+
+Preserve existing certified schemas.
+
+Apply only the smallest necessary correction.
+
+---------------------------------------------------------
+STEP 4 — VERIFY PACKAGE INTEGRITY
+---------------------------------------------------------
+
+Confirm that `web-vitals` was added correctly.
+
+Check:
+
+- dependency appears in the appropriate dependency section
+- lockfile is synchronized
+- installed version is compatible with the current frontend toolchain
+- imports match the installed API version
+- no duplicate analytics initialization occurs
+- browser-only code is not executed during server startup or SSR-like build paths
+- no unnecessary package was added
+
+Do not upgrade unrelated packages.
+
+Do not run broad dependency updates.
+
+---------------------------------------------------------
+STEP 5 — VERIFY NEW FEATURE BOUNDARIES
+---------------------------------------------------------
+
+Review the interrupted phase as an additive layer on top of Phases 72.1–72.4.
+
+Confirm that it does not change certified behavior for:
+
+- identity/session handling
+- attribution
+- funnel analytics
+- revenue events
+- Search Intelligence
+- Authority Index
+- existing dashboard authorization
+- PIN gate
+- concierge-hidden routes
+- existing API response contracts
+
+No certified endpoint or table may be repurposed.
+
+Any new Search Console, SEO audit, or Core Web Vitals functionality must use new additive tables, services, routes, and dashboard components unless an existing shared utility is safely extended.
+
+---------------------------------------------------------
+STEP 6 — VERIFY GOOGLE SEARCH CONSOLE IMPLEMENTATION
+---------------------------------------------------------
+
+Review the Search Console client and synchronization pipeline.
+
+Confirm:
+
+- credentials are read only from server-side environment variables
+- no secrets are exposed to the client bundle
+- API calls use bounded date ranges
+- pagination terminates correctly
+- pagination cannot loop indefinitely
+- empty result sets are handled
+- partial API failures are surfaced safely
+- rate-limit and quota errors are handled
+- sync operations are idempotent
+- duplicate records are prevented using the intended unique constraint
+- property/site URL is validated
+- query and page dimensions are stored consistently
+- date fields use the expected timezone/date semantics
+- clicks, impressions, CTR, and position retain appropriate numeric precision
+- no keyword data is fabricated when unavailable
+- no Search Console data is presented as real-time
+
+If live credentials are unavailable, retain a safe disconnected state and test using mocks/fixtures.
+
+Do not invent production credentials or data.
+
+---------------------------------------------------------
+STEP 7 — VERIFY SEO AUDIT ENGINE
+---------------------------------------------------------
+
+Review the SEO audit engine for deterministic, explainable results.
+
+Confirm checks cover only implemented and supportable signals, such as:
+
+- title presence and length
+- meta description presence and length
+- canonical presence
+- robots directives
+- heading hierarchy
+- one logical H1
+- image alt-text coverage
+- internal-link integrity
+- structured-data presence and parseability
+- Open Graph metadata
+- Twitter metadata where applicable
+- mobile viewport
+- HTTPS/canonical assumptions
+- sitemap and robots availability when testable
+- duplicate or missing metadata
+- crawlability warnings
+- Core Web Vitals status when actual field or measured lab data exists
+
+Do not claim that a basic page audit is equivalent to a complete external crawler, Google ranking assessment, or third-party domain authority score.
+
+Every score must have a transparent formula or clearly documented rule set.
+
+---------------------------------------------------------
+STEP 8 — VERIFY CORE WEB VITALS INTEGRATION
+---------------------------------------------------------
+
+Review the `web-vitals` integration.
+
+Confirm measurement of supported metrics such as:
+
+- LCP
+- CLS
+- INP
+- FCP
+- TTFB
+
+Requirements:
+
+- initialize once
+- do not double-send in development or Strict Mode
+- generate a server-controlled dedupe/idempotency strategy where applicable
+- validate metric names and payloads
+- reject oversized or malformed metadata
+- retain numeric precision
+- distinguish page path and route
+- avoid collecting sensitive user content
+- document that browser measurements are observational and can vary by device, network, and session
+- do not label client measurements as Google CrUX field data unless they actually come from CrUX
+
+Ensure the analytics endpoint is rate-limited and protected by the same trust-boundary principles as Phase 72.4.
+
+---------------------------------------------------------
+STEP 9 — VERIFY DATABASE CREATION AND MIGRATION PATH
+---------------------------------------------------------
+
+Review the extended bootstrap/table-creation script.
+
+It must be:
+
+- idempotent
+- safe to rerun
+- explicit about each new table and index
+- compatible with the current Render PostgreSQL environment
+- non-destructive
+- documented for production deployment
+
+Do not silently drop, rename, truncate, or mutate certified tables.
+
+If a new partial unique index is required, use the proven repository pattern.
+
+Confirm the Drizzle schema, SQL bootstrap script, services, and tests all agree on exact table and column names.
+
+---------------------------------------------------------
+STEP 10 — RUN TARGETED VERIFICATION FIRST
+---------------------------------------------------------
+
+After making the minimum correction, run the narrowest relevant checks first.
+
+Examples:
+
+- schema-specific TypeScript check
+- affected service tests
+- affected API tests
+- affected SQL/bootstrap tests
+- Search Console sync tests
+- SEO audit tests
+- Core Web Vitals ingestion tests
+
+Do not immediately rerun everything if a smaller command can confirm the fix.
+
+---------------------------------------------------------
+STEP 11 — RUN THE COMPLETE QUALITY GATE
+---------------------------------------------------------
+
+Once targeted checks pass, run the full verification suite.
+
+Required:
+
+1. TypeScript/type-check
+2. All phase-specific tests
+3. All regression tests for Phases 72.1–72.4
+4. Full API test suite
+5. Production build
+6. Dashboard route render check
+7. PIN gate verification
+8. SPA fallback guard
+9. Authorization/trust-boundary checks
+10. Database bootstrap idempotency check
+
+The previously reported baseline was 107/107.
+
+The final result must be at least 107/107, or higher if new regression tests are added.
+
+Do not suppress, skip, weaken, or delete failing tests merely to obtain a green result.
+
+---------------------------------------------------------
+STEP 12 — COMPLETE ARCHITECT REVIEW
+---------------------------------------------------------
+
+Run a focused architect review covering:
+
+- additive architecture
+- schema integrity
+- SQL safety
+- pagination termination
+- idempotency
+- secret isolation
+- trust boundaries
+- dashboard authorization
+- no certified-phase regressions
+- client/server separation
+- scoring transparency
+- performance characteristics
+- production table-creation requirements
+
+Any finding must be classified:
+
+- Critical
+- High
+- Medium
+- Low
+- Informational
+
+Fix Critical and High findings.
+
+Fix Medium findings where reasonably possible within this phase.
+
+Document accepted Low or Informational findings.
+
+After any fix, add a regression test where appropriate and rerun the affected quality gates.
+
+---------------------------------------------------------
+STEP 13 — COMPLETE DOCUMENTATION
+---------------------------------------------------------
+
+Update `replit.md` using the existing phase-documentation format already used in the repository.
+
+Do not invent a new format.
+
+Document:
+
+- phase name and number, based on the repository’s current sequence
+- objective
+- architecture
+- new dependencies
+- new tables and indexes
+- new API endpoints
+- new dashboard route/tabs
+- Search Console credential requirements
+- Search Console synchronization behavior
+- SEO audit methodology
+- Core Web Vitals methodology
+- trust-boundary decisions
+- tests and final counts
+- architect-review outcome
+- production deployment steps
+- known limitations
+- no-commit/no-deploy status
+
+Explicitly document any required production command for creating the new tables against Render’s `DATABASE_URL`.
+
+State clearly that relevant endpoints may fail until the required production tables exist.
+
+---------------------------------------------------------
+STEP 14 — VERIFY FOLLOW-UP TASKS AND MEMORY UPDATES
+---------------------------------------------------------
+
+Inspect any follow-up-task or memory files created during the interrupted run.
+
+Ensure they are:
+
+- complete
+- accurate
+- non-duplicative
+- consistent with final implementation
+- free of claims not supported by tests
+
+Do not let documentation automation failure block a technically complete build, but report it transparently if it cannot be completed.
+
+---------------------------------------------------------
+STEP 15 — FINAL WORKING-TREE REVIEW
+---------------------------------------------------------
+
+Before reporting completion, run:
+
+- `git status --short`
+- `git diff --stat`
+- focused review of all changed files
+
+Confirm:
+
+- no temporary debug files
+- no credentials
+- no generated secrets
+- no accidental screenshots
+- no `.env` changes containing secrets
+- no broken or abandoned partial files
+- no unrelated formatting churn
+- no accidental certified-phase rewrites
+
+Do not commit.
+
+Do not deploy.
+
+Do not publish.
+
+=========================================================
+STRICT SCOPE CONTROL
+=========================================================
+
+Do not add unrelated features.
+
+Do not redesign the dashboard.
+
+Do not modify the approved Authority Index formula.
+
+Do not change certified Phase 72.4 behavior unless required to fix a proven compatibility defect.
+
+Do not rename existing public APIs without a migration requirement.
+
+Do not create speculative AI SEO recommendations.
+
+Do not connect external services beyond the already-planned Google Search Console integration.
+
+Do not use fabricated production data.
+
+Do not perform a database migration against production.
+
+=========================================================
+RECOVERY SUCCESS CRITERIA
+=========================================================
+
+The recovery is complete only when:
+
+- the exact interruption cause is identified
+- the latest schema edit is verified or minimally corrected
+- all targeted tests pass
+- full test suite passes
+- type-check passes
+- production build passes
+- dashboard route renders
+- PIN gate remains functional
+- certified Phases 72.1–72.4 remain green
+- architect review is completed
+- documentation is completed
+- production bootstrap instructions are explicit
+- no commit is made
+- no deploy is performed
+
+=========================================================
+FINAL DELIVERY REPORT
+=========================================================
+
+Return one concise but complete report using this format:
+
+RECOVERY STATUS:
+- Complete / Partially Complete / Blocked
+
+ROOT CAUSE:
+- Exact cause of the interruption
+- Whether it was a code defect, schema defect, tooling failure, or agent/runtime interruption
+
+WORKING TREE RECOVERED:
+- Files preserved
+- Files corrected
+- Files completed
+
+IMPLEMENTATION STATUS:
+- Search Console integration
+- SEO audit engine
+- Core Web Vitals integration
+- Dashboard additions
+- Schema/bootstrap changes
+
+VERIFICATION:
+- Type-check result
+- Test result and exact count
+- Production build result
+- Route-render result
+- PIN-gate result
+- Bootstrap idempotency result
+
+ARCHITECT REVIEW:
+- Findings
+- Fixes
+- Accepted limitations
+
+PRODUCTION REQUIREMENTS:
+- Required environment variables
+- Required table-creation command
+- Any endpoint behavior before tables are created
+
+DOCUMENTATION:
+- `replit.md` status
+- follow-up-task/memory status
+
+FINAL SAFETY CONFIRMATION:
+- No commit
+- No deploy
+- No production database changes
+
+If blocked, do not claim completion.
+
+State the exact blocker, the evidence gathered, and the smallest next action required.

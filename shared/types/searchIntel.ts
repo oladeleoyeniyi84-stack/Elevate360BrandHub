@@ -95,6 +95,262 @@ export interface SearchIntelDiagnostics {
   revenueEventsWithSessionPct: number | null;
 }
 
+// ─── Phase 72.4R — Search Console, SEO audits, Core Web Vitals payloads ─────
+
+export interface GscRunInfo {
+  id: number;
+  status: string; // running | success | partial | error | not_configured
+  source: string; // api | fixture
+  startedAt: string;
+  finishedAt: string | null;
+  daysRequested: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  queryRows: number;
+  pageRows: number;
+  dimensionRows: number;
+  queryPageRows: number;
+  errorText: string | null;
+}
+
+export interface SearchConsoleStatus {
+  configured: boolean;
+  /** Human-readable reason + required env vars when not configured. */
+  reason: string | null;
+  siteUrl: string | null;
+  lastRun: GscRunInfo | null;
+  lastSuccessfulSyncAt: string | null;
+  /** Latest GSC data date present locally (GSC lags ~2–3 days behind). */
+  dataThrough: string | null;
+  totalQueryRows: number;
+  totalPageRows: number;
+}
+
+export interface GscWindowTotals {
+  clicks: number;
+  impressions: number;
+  ctrPct: number | null; // 0–100; null when impressions = 0
+  avgPosition: number | null;
+}
+
+export interface QueryIntelItem {
+  query: string;
+  clicks: number;
+  impressions: number;
+  ctrPct: number | null;
+  avgPosition: number | null;
+  prevClicks: number;
+  prevImpressions: number;
+  deltaClicks: number;
+  deltaImpressions: number;
+  /** Top associated landing pages from the query↔page snapshot. */
+  topPages: string[];
+}
+
+export interface QueryIntelligence {
+  windowDays: number;
+  totals: GscWindowTotals;
+  prevTotals: GscWindowTotals;
+  topQueries: QueryIntelItem[];
+  emerging: QueryIntelItem[];
+  declining: QueryIntelItem[];
+  lowCtrHighImpressions: QueryIntelItem[];
+  nearPageOne: QueryIntelItem[];
+  /** Documented closed thresholds used for the buckets above. */
+  thresholds: string;
+}
+
+export interface LandingPageIntelItem {
+  path: string;
+  clicks: number;
+  impressions: number;
+  ctrPct: number | null;
+  avgPosition: number | null;
+  deltaClicks: number;
+  deltaImpressions: number;
+  organicVisitors: number;
+  organicFunnelSessions: number;
+  organicBookings: number;
+  organicRevenueCents: number;
+  aiAssistedConversions: number;
+}
+
+export interface LandingPageIntelligence {
+  windowDays: number;
+  items: LandingPageIntelItem[];
+  attributionNote: string;
+}
+
+export interface SchemaCoverageItem {
+  schemaType: string;
+  expectedPages: number;
+  presentOnExpected: number;
+  presentAnywhere: number;
+  invalidCount: number;
+}
+
+export interface SchemaAuditPageItem {
+  path: string;
+  schemaType: string;
+  expected: boolean;
+  present: boolean;
+  valid: boolean | null; // null when absent
+  issues: string[];
+}
+
+export interface StructuredDataSummary {
+  runId: number;
+  auditedAt: string;
+  pagesAudited: number;
+  coverage: SchemaCoverageItem[];
+  items: SchemaAuditPageItem[];
+  note: string;
+}
+
+export interface MetadataPageItem {
+  path: string;
+  httpStatus: number;
+  title: string | null;
+  titleLength: number;
+  metaDescription: string | null;
+  descriptionLength: number;
+  canonical: string | null;
+  canonicalOk: boolean | null;
+  robotsMeta: string | null;
+  noindex: boolean;
+  ogTitle: boolean;
+  ogDescription: boolean;
+  ogImage: boolean;
+  twitterTitle: boolean;
+  twitterDescription: boolean;
+  twitterImage: boolean;
+  issues: string[];
+}
+
+export interface DuplicateMetaItem {
+  value: string;
+  count: number;
+  paths: string[];
+}
+
+export interface MetadataAuditSummary {
+  runId: number;
+  auditedAt: string;
+  pagesAudited: number;
+  pagesWithIssues: number;
+  duplicateTitles: DuplicateMetaItem[];
+  duplicateDescriptions: DuplicateMetaItem[];
+  pages: MetadataPageItem[];
+  /** Server-delivered-HTML disclosure (what social bots / non-JS crawlers see). */
+  note: string;
+}
+
+export interface IndexabilityCheckItem {
+  kind: string;
+  url: string;
+  ok: boolean;
+  httpStatus: number | null;
+  detail: string | null;
+}
+
+export interface IndexabilitySummary {
+  runId: number;
+  auditedAt: string;
+  robotsTxtOk: boolean;
+  sitemapOk: boolean;
+  sitemapUrlCount: number;
+  sitemapUrlsChecked: number;
+  sitemapUrlFailures: IndexabilityCheckItem[];
+  canonicalIssues: IndexabilityCheckItem[];
+  noindexPages: IndexabilityCheckItem[];
+  redirectChains: IndexabilityCheckItem[];
+  brokenInternalLinks: IndexabilityCheckItem[];
+  internalLinksChecked: number;
+  note: string;
+}
+
+export interface WebVitalsMetricSummary {
+  metric: string; // lcp | inp | cls
+  deviceClass: string; // mobile | desktop | tablet | unknown
+  p75: number | null;
+  rating: "pass" | "needs_improvement" | "fail" | null;
+  samples: number;
+  /** rum_field / crux_field = field data; lighthouse_lab = synthetic. */
+  source: string;
+}
+
+export interface WebVitalsSummary {
+  windowDays: number;
+  fieldDataAvailable: boolean;
+  syntheticDataAvailable: boolean;
+  metrics: WebVitalsMetricSummary[];
+  thresholds: string;
+  /** Field vs synthetic labeling disclosure — synthetic is never shown as field. */
+  note: string;
+}
+
+export interface OrganicPageOutcome {
+  path: string;
+  organicSessions: number;
+  funnelSessions: number;
+  bookings: number;
+  revenueCents: number;
+  aiAssistedConversions: number;
+}
+
+export interface OrganicRevenueSummary {
+  organicSessions: number;
+  organicFunnelSessions: number;
+  organicBookings: number;
+  organicRevenueCents: number;
+  aiAssistedConversions: number;
+  aiAssistedRevenueCents: number;
+  byLandingPage: OrganicPageOutcome[];
+  attributionNote: string;
+}
+
+export interface SeoRecommendation {
+  id: string;
+  severity: "critical" | "high" | "medium" | "low";
+  category: string;
+  title: string;
+  detail: string;
+}
+
+export interface AuditRunInfo {
+  id: number;
+  status: string;
+  startedAt: string;
+  finishedAt: string | null;
+  pagesAudited: number;
+  issuesFound: number;
+  errorText: string | null;
+}
+
+export interface SyncStatusSummary {
+  searchConsole: SearchConsoleStatus;
+  lastAuditRun: AuditRunInfo | null;
+  recentSyncRuns: GscRunInfo[];
+  recentAuditRuns: AuditRunInfo[];
+}
+
+export interface SearchIntelDashboardPayload {
+  /** The unchanged first-party 72.4 attribution + authority summary. */
+  firstParty: SearchIntelSummary;
+  searchConsole: SearchConsoleStatus;
+  gscTotals: { current: GscWindowTotals; previous: GscWindowTotals; windowDays: number } | null;
+  queries: QueryIntelligence | null;
+  landingPages: LandingPageIntelligence | null;
+  structuredData: StructuredDataSummary | null;
+  metadata: MetadataAuditSummary | null;
+  indexability: IndexabilitySummary | null;
+  webVitals: WebVitalsSummary;
+  organicRevenue: OrganicRevenueSummary;
+  recommendations: SeoRecommendation[];
+  syncStatus: SyncStatusSummary;
+  generatedAt: string;
+}
+
 export interface SearchIntelSummary {
   kpis: SearchIntelKpis;
   /** Full closed traffic-source vocabulary, fixed order, zeros included. */

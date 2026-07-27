@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, serial, boolean, jsonb, integer, json, index, uniqueIndex, vector } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, serial, boolean, jsonb, integer, json, index, uniqueIndex, vector, date, doublePrecision } from "drizzle-orm/pg-core";
 // relations imported for future relation definitions
 import type {} from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
@@ -2412,3 +2412,284 @@ export const insertCognitiveConflictSchema = createInsertSchema(cognitiveConflic
 });
 export type InsertCognitiveConflict = z.infer<typeof insertCognitiveConflictSchema>;
 export type CognitiveConflict = typeof cognitiveConflicts.$inferSelect;
+
+// ─── Phase 72.4R — Search Console integration, SEO audits, Core Web Vitals ──
+// Revision scope on top of the first-party 72.4 attribution platform (which is
+// unchanged): Google Search Console daily snapshots imported by founder-only
+// sync (all dashboard reads are cached SQL — Google is never queried during a
+// dashboard request), persisted SEO/metadata/structured-data/indexability
+// audits, and first-party Core Web Vitals RUM.
+
+export const GSC_SYNC_MAX_DAYS = 90;
+export const GSC_SYNC_DEFAULT_DAYS = 28;
+
+// Extra GSC dimension snapshots stored in one keyed table.
+export const GSC_DIMENSIONS = ["country", "device", "search_appearance"] as const;
+export type GscDimension = (typeof GSC_DIMENSIONS)[number];
+
+export const GSC_SYNC_STATUSES = ["running", "success", "partial", "error", "not_configured"] as const;
+export type GscSyncStatus = (typeof GSC_SYNC_STATUSES)[number];
+
+// Daily query performance (unique per date+query; idempotent upsert imports).
+export const gscQueryDaily = pgTable("gsc_query_daily", {
+  id: serial("id").primaryKey(),
+  date: date("date").notNull(),
+  query: text("query").notNull(),
+  clicks: integer("clicks").notNull().default(0),
+  impressions: integer("impressions").notNull().default(0),
+  ctr: doublePrecision("ctr").notNull().default(0), // 0..1 as returned by GSC
+  position: doublePrecision("position").notNull().default(0),
+  importedAt: timestamp("imported_at").defaultNow().notNull(),
+}, (t) => ({
+  dateQueryUq: uniqueIndex("gsc_query_daily_date_query_uq").on(t.date, t.query),
+  dateIdx: index("gsc_query_daily_date_idx").on(t.date),
+}));
+
+// Daily page performance (page stored as returned by GSC — full URL).
+export const gscPageDaily = pgTable("gsc_page_daily", {
+  id: serial("id").primaryKey(),
+  date: date("date").notNull(),
+  page: text("page").notNull(),
+  clicks: integer("clicks").notNull().default(0),
+  impressions: integer("impressions").notNull().default(0),
+  ctr: doublePrecision("ctr").notNull().default(0),
+  position: doublePrecision("position").notNull().default(0),
+  importedAt: timestamp("imported_at").defaultNow().notNull(),
+}, (t) => ({
+  datePageUq: uniqueIndex("gsc_page_daily_date_page_uq").on(t.date, t.page),
+  dateIdx: index("gsc_page_daily_date_idx").on(t.date),
+}));
+
+// Daily country/device/search-appearance snapshots ("where supported" — sets
+// the API rejects are recorded in the sync run detail, never fatal).
+export const gscDimensionDaily = pgTable("gsc_dimension_daily", {
+  id: serial("id").primaryKey(),
+  date: date("date").notNull(),
+  dimension: varchar("dimension", { length: 24 }).notNull(), // GSC_DIMENSIONS
+  key: text("key").notNull(),
+  clicks: integer("clicks").notNull().default(0),
+  impressions: integer("impressions").notNull().default(0),
+  ctr: doublePrecision("ctr").notNull().default(0),
+  position: doublePrecision("position").notNull().default(0),
+  importedAt: timestamp("imported_at").defaultNow().notNull(),
+}, (t) => ({
+  dimUq: uniqueIndex("gsc_dimension_daily_uq").on(t.date, t.dimension, t.key),
+}));
+
+// Query↔page association snapshot for the sync window (which pages a query
+// lands on). Window totals, replaced on conflict — not a daily time series.
+export const gscQueryPages = pgTable("gsc_query_pages", {
+  id: serial("id").primaryKey(),
+  query: text("query").notNull(),
+  page: text("page").notNull(),
+  clicks: integer("clicks").notNull().default(0),
+  impressions: integer("impressions").notNull().default(0),
+  windowStart: date("window_start"),
+  windowEnd: date("window_end"),
+  importedAt: timestamp("imported_at").defaultNow().notNull(),
+}, (t) => ({
+  queryPageUq: uniqueIndex("gsc_query_pages_uq").on(t.query, t.page),
+  queryIdx: index("gsc_query_pages_query_idx").on(t.query),
+}));
+
+// Sync run history + errors/status (also records fixture imports and
+// not-configured skips so the dashboard can explain itself).
+export const gscSyncRuns = pgTable("gsc_sync_runs", {
+  id: serial("id").primaryKey(),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  finishedAt: timestamp("finished_at"),
+  status: varchar("status", { length: 24 }).notNull().default("running"), // GSC_SYNC_STATUSES
+  source: varchar("source", { length: 16 }).notNull().default("api"), // 'api' | 'fixture'
+  daysRequested: integer("days_requested"),
+  startDate: date("start_date"),
+  endDate: date("end_date"),
+  queryRows: integer("query_rows").notNull().default(0),
+  pageRows: integer("page_rows").notNull().default(0),
+  dimensionRows: integer("dimension_rows").notNull().default(0),
+  queryPageRows: integer("query_page_rows").notNull().default(0),
+  errorText: text("error_text"),
+  detail: jsonb("detail").$type<Record<string, unknown>>(),
+}, (t) => ({
+  startedIdx: index("gsc_sync_runs_started_idx").on(t.startedAt),
+  // At most ONE 'running' row may exist — makes the sync 409 guard atomic at
+  // the DB level (check-then-create alone is race-prone under concurrency).
+  singleRunningUq: uniqueIndex("gsc_sync_runs_single_running_uq").on(t.status).where(sql`status = 'running'`),
+}));
+
+// ── SEO audits (persisted; pages fetched from this server's own HTML — what
+// social scrapers and non-JS crawlers actually receive) ─────────────────────
+
+export const SEO_AUDIT_STATUSES = ["running", "success", "partial", "error"] as const;
+
+export const seoAuditRuns = pgTable("seo_audit_runs", {
+  id: serial("id").primaryKey(),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  finishedAt: timestamp("finished_at"),
+  status: varchar("status", { length: 24 }).notNull().default("running"),
+  pagesAudited: integer("pages_audited").notNull().default(0),
+  issuesFound: integer("issues_found").notNull().default(0),
+  errorText: text("error_text"),
+  detail: jsonb("detail").$type<Record<string, unknown>>(),
+}, (t) => ({
+  startedIdx: index("seo_audit_runs_started_idx").on(t.startedAt),
+}));
+
+// Metadata + social (OG/Twitter) audit per page.
+export const seoPageAudits = pgTable("seo_page_audits", {
+  id: serial("id").primaryKey(),
+  runId: integer("run_id").notNull(),
+  path: text("path").notNull(),
+  httpStatus: integer("http_status").notNull().default(0),
+  title: text("title"),
+  titleLength: integer("title_length").notNull().default(0),
+  metaDescription: text("meta_description"),
+  descriptionLength: integer("description_length").notNull().default(0),
+  canonical: text("canonical"),
+  canonicalOk: boolean("canonical_ok"),
+  robotsMeta: text("robots_meta"),
+  noindex: boolean("noindex").notNull().default(false),
+  ogTitle: text("og_title"),
+  ogDescription: text("og_description"),
+  ogImage: text("og_image"),
+  twitterTitle: text("twitter_title"),
+  twitterDescription: text("twitter_description"),
+  twitterImage: text("twitter_image"),
+  issues: jsonb("issues").$type<string[]>().notNull(),
+  auditedAt: timestamp("audited_at").defaultNow().notNull(),
+}, (t) => ({
+  runIdx: index("seo_page_audits_run_idx").on(t.runId),
+}));
+
+// Structured-data (JSON-LD) audit vocabulary. LocalBusiness is intentionally
+// never *expected* (digital brand, no physical premises) — it is only checked
+// when found, per "do not falsely require schema types".
+export const SEO_SCHEMA_TYPES = [
+  "Organization", "Person", "WebSite", "BreadcrumbList",
+  "Article", "FAQPage", "Product", "LocalBusiness",
+] as const;
+export type SeoSchemaType = (typeof SEO_SCHEMA_TYPES)[number];
+
+export const seoSchemaAudits = pgTable("seo_schema_audits", {
+  id: serial("id").primaryKey(),
+  runId: integer("run_id").notNull(),
+  path: text("path").notNull(),
+  schemaType: varchar("schema_type", { length: 40 }).notNull(),
+  expected: boolean("expected").notNull().default(false),
+  present: boolean("present").notNull().default(false),
+  valid: boolean("valid"), // null when absent
+  issues: jsonb("issues").$type<string[]>().notNull(),
+  auditedAt: timestamp("audited_at").defaultNow().notNull(),
+}, (t) => ({
+  runIdx: index("seo_schema_audits_run_idx").on(t.runId),
+}));
+
+export const INDEXABILITY_KINDS = [
+  "robots_txt", "sitemap", "sitemap_url", "canonical", "noindex", "redirect", "internal_link",
+] as const;
+export type IndexabilityKind = (typeof INDEXABILITY_KINDS)[number];
+
+export const seoIndexabilityAudits = pgTable("seo_indexability_audits", {
+  id: serial("id").primaryKey(),
+  runId: integer("run_id").notNull(),
+  kind: varchar("kind", { length: 30 }).notNull(), // INDEXABILITY_KINDS
+  url: text("url").notNull(),
+  ok: boolean("ok").notNull().default(true),
+  httpStatus: integer("http_status"),
+  detail: text("detail"),
+  auditedAt: timestamp("audited_at").defaultNow().notNull(),
+}, (t) => ({
+  runIdx: index("seo_indexability_run_idx").on(t.runId),
+  kindIdx: index("seo_indexability_kind_idx").on(t.kind),
+}));
+
+// ── Core Web Vitals (first-party RUM = field data) ──────────────────────────
+// The ingestion endpoint stamps source='rum_field' server-side; clients cannot
+// set source, so synthetic data can never be mislabeled as field data. The
+// closed source vocabulary reserves labels for future CrUX/Lighthouse imports.
+export const WEB_VITALS_METRICS = ["lcp", "inp", "cls"] as const;
+export type WebVitalsMetric = (typeof WEB_VITALS_METRICS)[number];
+
+export const WEB_VITALS_SOURCES = ["rum_field", "crux_field", "lighthouse_lab"] as const;
+export type WebVitalsSource = (typeof WEB_VITALS_SOURCES)[number];
+
+/** Plausibility caps per metric (ms for lcp/inp, unitless for cls). */
+export const WEB_VITALS_CAPS: Record<WebVitalsMetric, number> = {
+  lcp: 120_000,
+  inp: 60_000,
+  cls: 10,
+};
+
+/** p75 thresholds: [pass ≤, needs-improvement ≤] — beyond = fail (Google CWV). */
+export const WEB_VITALS_THRESHOLDS: Record<WebVitalsMetric, [number, number]> = {
+  lcp: [2500, 4000],
+  inp: [200, 500],
+  cls: [0.1, 0.25],
+};
+
+export const webVitalsEvents = pgTable("web_vitals_events", {
+  id: serial("id").primaryKey(),
+  metric: varchar("metric", { length: 8 }).notNull(), // WEB_VITALS_METRICS
+  value: doublePrecision("value").notNull(),
+  page: text("page"),
+  device: varchar("device", { length: 40 }),
+  source: varchar("source", { length: 20 }).notNull().default("rum_field"),
+  sessionId: text("session_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  metricCreatedIdx: index("web_vitals_metric_created_idx").on(t.metric, t.createdAt),
+  createdIdx: index("web_vitals_created_idx").on(t.createdAt),
+}));
+
+export const webVitalsRequestSchema = z.object({
+  metric: z.enum(WEB_VITALS_METRICS),
+  value: z.number().finite().min(0),
+  page: z.string().trim().max(600).optional(),
+  device: z.string().trim().max(40).optional(),
+  sessionId: z.string().trim().max(300).optional(),
+  visitorId: z.string().trim().max(300).optional(),
+}).strip().superRefine((v, ctx) => {
+  const cap = WEB_VITALS_CAPS[v.metric];
+  if (v.value > cap) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["value"],
+      message: `${v.metric} value exceeds plausibility cap (${cap})`,
+    });
+  }
+});
+export type WebVitalsRequest = z.infer<typeof webVitalsRequestSchema>;
+
+// ── Founder-only sync request ────────────────────────────────────────────────
+// `fixture` allows hermetic contract tests without live Google credentials;
+// the route only honors it outside production.
+const gscIsoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD");
+const gscMetricRow = {
+  clicks: z.number().int().min(0),
+  impressions: z.number().int().min(0),
+  ctr: z.number().min(0).max(1),
+  position: z.number().min(0).max(1000),
+};
+
+export const gscSyncRequestSchema = z.object({
+  scope: z.enum(["all", "gsc", "audits"]).optional(),
+  days: z.number().int().min(1).max(GSC_SYNC_MAX_DAYS).optional(),
+  fixture: z.object({
+    queries: z.array(z.object({ date: gscIsoDate, query: z.string().trim().min(1).max(500), ...gscMetricRow }).strip()).max(2000).optional(),
+    pages: z.array(z.object({ date: gscIsoDate, page: z.string().trim().min(1).max(1000), ...gscMetricRow }).strip()).max(2000).optional(),
+    dimensions: z.array(z.object({ date: gscIsoDate, dimension: z.enum(GSC_DIMENSIONS), key: z.string().trim().min(1).max(200), ...gscMetricRow }).strip()).max(2000).optional(),
+    queryPages: z.array(z.object({ query: z.string().trim().min(1).max(500), page: z.string().trim().min(1).max(1000), clicks: z.number().int().min(0), impressions: z.number().int().min(0) }).strip()).max(2000).optional(),
+  }).strip().optional(),
+}).strip();
+export type GscSyncRequest = z.infer<typeof gscSyncRequestSchema>;
+export type GscFixture = NonNullable<GscSyncRequest["fixture"]>;
+
+export type GscQueryDailyRow = typeof gscQueryDaily.$inferSelect;
+export type GscPageDailyRow = typeof gscPageDaily.$inferSelect;
+export type GscDimensionDailyRow = typeof gscDimensionDaily.$inferSelect;
+export type GscQueryPageRow = typeof gscQueryPages.$inferSelect;
+export type GscSyncRun = typeof gscSyncRuns.$inferSelect;
+export type SeoAuditRun = typeof seoAuditRuns.$inferSelect;
+export type SeoPageAudit = typeof seoPageAudits.$inferSelect;
+export type SeoSchemaAudit = typeof seoSchemaAudits.$inferSelect;
+export type SeoIndexabilityAudit = typeof seoIndexabilityAudits.$inferSelect;
+export type WebVitalsEventRow = typeof webVitalsEvents.$inferSelect;

@@ -1,0 +1,296 @@
+PHASE 72.4 — REVISION REQUIRED
+
+Mission Control reviewed the Build Delivery Report.
+
+The current implementation is approved as the first-party Search Attribution and Content Authority module, but Phase 72.4 is not complete because major authorized deliverables are absent.
+
+Preserve all current Phase 72.4 work.
+
+Do not commit, push, or deploy.
+
+Complete the following missing scope.
+
+==================================================
+1. GOOGLE SEARCH CONSOLE INTEGRATION
+==================================================
+
+Implement Google Search Console API support with:
+
+- environment-based credentials/configuration
+- site property configuration
+- authenticated founder-only sync
+- daily persisted snapshots
+- idempotent imports
+- cached SQL reads
+- delta comparisons
+- graceful "not configured" state
+
+Create:
+
+POST /api/dashboard/search-intelligence/sync
+
+Protect it with the existing dashboard authentication.
+
+Do not query Google during every dashboard request.
+
+When credentials are absent, return a clear typed configuration status rather than crashing.
+
+==================================================
+2. SEARCH CONSOLE STORAGE
+==================================================
+
+Create additive database objects for:
+
+- daily query performance
+- daily page performance
+- country/device/search appearance dimensions where supported
+- sync run history
+- sync errors/status
+
+Persist:
+
+- date
+- query
+- page
+- clicks
+- impressions
+- ctr
+- position
+- country where applicable
+- device where applicable
+
+Use dedupe constraints appropriate to the selected dimensions.
+
+==================================================
+3. SEARCH QUERY INTELLIGENCE
+==================================================
+
+Add dashboard and API support for:
+
+- top queries
+- emerging queries
+- declining queries
+- high-impression low-CTR queries
+- queries near page-one thresholds
+- query clicks
+- impressions
+- CTR
+- average position
+- associated landing pages
+
+Join to organic funnel and revenue where attribution is defensible.
+
+Clearly label query-to-revenue attribution as inferred when exact keyword linkage is unavailable.
+
+==================================================
+4. LANDING-PAGE SEARCH INTELLIGENCE
+==================================================
+
+Add:
+
+- impressions
+- clicks
+- CTR
+- average position
+- organic visitors
+- organic bookings
+- organic revenue
+- AI-assisted conversions
+- trend deltas
+
+Use Search Console for impressions/clicks/position and first-party analytics for visitor/conversion/revenue joins.
+
+==================================================
+5. STRUCTURED DATA AUDIT
+==================================================
+
+Build a persisted audit for:
+
+- Organization
+- Person
+- WebSite
+- BreadcrumbList
+- Article
+- FAQPage
+- Product where applicable
+- LocalBusiness only if legitimately applicable
+
+Record:
+
+- page
+- schema type
+- present/missing
+- valid/invalid
+- issues
+- audited_at
+
+Do not falsely require schema types on pages where they do not apply.
+
+==================================================
+6. METADATA AND SOCIAL AUDIT
+==================================================
+
+Audit and persist:
+
+- title presence
+- title length
+- duplicate titles
+- meta description presence
+- description length
+- duplicate descriptions
+- canonical presence
+- robots directives
+- og:title
+- og:description
+- og:image
+- twitter:title
+- twitter:description
+- twitter:image
+
+==================================================
+7. INDEXABILITY AUDIT
+==================================================
+
+Audit:
+
+- robots.txt availability
+- sitemap.xml availability
+- sitemap URL validity
+- canonical consistency
+- noindex pages
+- redirect chains
+- broken internal destinations where detectable
+- sitemap pages returning non-200 statuses
+
+Persist results.
+
+==================================================
+8. CORE WEB VITALS
+==================================================
+
+Implement persisted support for:
+
+- LCP
+- INP
+- CLS
+- data source
+- measurement date
+- device class
+- pass/needs-improvement/fail
+
+Clearly distinguish:
+
+- field data
+- synthetic/lab data
+- unavailable data
+
+Never label synthetic data as field data.
+
+==================================================
+9. DASHBOARD
+==================================================
+
+Extend /search-intelligence with:
+
+- Executive Overview
+- Search Queries
+- Landing Pages
+- SEO Health
+- Structured Data
+- Metadata Quality
+- Social Metadata
+- Index Coverage
+- Core Web Vitals
+- Organic Revenue
+- Recommendations
+- Sync Status
+
+Preserve the existing first-party Authority Index and engagement analytics.
+
+==================================================
+10. API
+==================================================
+
+Provide:
+
+GET /api/dashboard/search-intelligence
+POST /api/dashboard/search-intelligence/sync
+
+You may preserve the existing:
+GET /api/dashboard/analytics/search
+
+but the authorized dashboard endpoint must exist or be explicitly aliased with backward compatibility.
+
+All dashboard endpoints must require founder authentication.
+
+==================================================
+11. TESTS
+==================================================
+
+Expand scripts/phase72_4_api_tests.ts to verify:
+
+- unauthenticated dashboard rejection
+- authenticated dashboard response
+- sync authentication
+- sync not-configured behavior
+- idempotent Search Console import
+- query aggregation
+- page aggregation
+- metadata audit persistence
+- structured-data audit persistence
+- indexability audit persistence
+- Core Web Vitals persistence and source labeling
+- organic revenue attribution
+- no API SPA fallback
+- Phase 72.1/72.2/72.3 regression guards
+- existing first-party Phase 72.4 behavior
+
+Use mocks or fixtures for Search Console API tests. Do not require live Google credentials for local contract tests.
+
+==================================================
+12. BUILD VERIFICATION
+==================================================
+
+Run:
+
+npm run check
+npm run build
+
+Run the complete Phase 72.4 test suite.
+
+Perform architect review.
+
+==================================================
+13. REVISED DELIVERY REPORT
+==================================================
+
+Return only:
+
+Files Added
+Files Modified
+Database Objects
+API Endpoints
+First-Party Search Attribution
+Google Search Console Integration
+Search Query Intelligence
+Landing-Page Intelligence
+Structured Data Audit
+Metadata and Social Audit
+Indexability Audit
+Core Web Vitals
+Revenue Attribution
+Dashboard Components
+Test Results
+TypeScript PASS / FAIL
+Build PASS / FAIL
+Architect Review PASS / FAIL
+Environment Variables Required
+Production Migration Command
+Production Verification Command
+Risks / Deferred Items
+
+Stop.
+
+Do not commit.
+Do not push.
+Do not deploy.

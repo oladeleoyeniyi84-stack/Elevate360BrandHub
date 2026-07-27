@@ -58,6 +58,7 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import { AIConcierge } from "@/components/AIConcierge";
 import { isConciergeHiddenRoute } from "@/config/conciergeContext";
 import { trackSearchLanding } from "@/lib/searchIntelligence";
+import { initWebVitals } from "@/lib/webVitals";
 
 // Sprint 71.1 — the concierge is now sitewide (previously homepage-only) so
 // page-aware greetings/context work on every public page. Hidden on founder/
@@ -88,6 +89,7 @@ function RouteTracker() {
 function SearchLandingTracker() {
   useEffect(() => {
     trackSearchLanding();
+    initWebVitals();
   }, []);
   return null;
 }

@@ -26,6 +26,7 @@ import {
   REVENUE_MAX_AMOUNT_CENTS,
   CLIENT_REVENUE_EVENTS,
   searchIntelRequestSchema,
+  webVitalsRequestSchema,
   SEARCH_INTEL_METADATA_MAX_BYTES,
   type RevenueAnalyticsRequest,
   type ChatMessage,
@@ -753,6 +754,29 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to load search intelligence" });
     }
   });
+
+  // ── Phase 72.4R — Core Web Vitals RUM ingestion (public, rate-limited) ────
+  // The server stamps source='rum_field'; the client cannot set a source, so
+  // synthetic measurements can never masquerade as field data.
+  app.post("/api/analytics/web-vitals", rateLimit(120, 60), async (req, res) => {
+    try {
+      const parsed = webVitalsRequestSchema.parse(req.body ?? {});
+      await storage.recordWebVitals(parsed);
+      res.json({ ok: true });
+    } catch (err) {
+      if (err instanceof ZodError) {
+        return res.status(400).json({ error: fromZodError(err).message });
+      }
+      console.error("[analytics/web-vitals] failed:", err);
+      res.status(500).json({ error: "Failed to record web vitals" });
+    }
+  });
+
+  // ── Phase 72.4R — composed Search Intelligence platform (Search Console
+  // snapshots + SEO audits + Core Web Vitals + organic revenue). Dynamic
+  // import matches the cognitiveOs pattern to avoid circular imports.
+  const { searchIntelligenceRouter } = await import("./routes/searchIntelligence");
+  app.use("/api/dashboard/search-intelligence", searchIntelligenceRouter);
 
   app.get("/api/dashboard/clicks", async (req, res) => {
     if (!isDashboardAuthed(req)) return res.status(401).json({ error: "Unauthorized" });

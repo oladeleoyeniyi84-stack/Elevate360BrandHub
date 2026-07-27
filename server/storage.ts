@@ -102,6 +102,71 @@ import type { CognitiveSignal } from "@shared/types/cognitive";
 import type { FunnelAnalyticsSummary, FunnelStage, FunnelConversion, FunnelPeriodBucket, FunnelStageKey } from "@shared/types/funnel";
 import type { RevenueIntelSummary, RevenueBreakdownItem, RevenueTrendBucket, RevenueFunnelStage } from "@shared/types/revenue";
 import type { SearchIntelSummary, TrafficSourceBreakdownItem, SearchTopItem, ContentAuthorityItem, SearchTrendBucket } from "@shared/types/searchIntel";
+// Phase 72.4R — Search Console snapshots, SEO audits, Core Web Vitals
+import type {
+  GscRunInfo, GscWindowTotals, QueryIntelligence, QueryIntelItem,
+  LandingPageIntelligence, LandingPageIntelItem, StructuredDataSummary, MetadataAuditSummary,
+  IndexabilitySummary, IndexabilityCheckItem, WebVitalsSummary, WebVitalsMetricSummary,
+  OrganicRevenueSummary, OrganicPageOutcome, AuditRunInfo, SchemaAuditPageItem,
+  MetadataPageItem, DuplicateMetaItem, SchemaCoverageItem,
+} from "@shared/types/searchIntel";
+import {
+  gscQueryDaily, gscPageDaily, gscDimensionDaily, gscQueryPages, gscSyncRuns,
+  seoAuditRuns, seoPageAudits, seoSchemaAudits, seoIndexabilityAudits, webVitalsEvents,
+  WEB_VITALS_THRESHOLDS, GSC_SYNC_MAX_DAYS,
+  type WebVitalsRequest, type GscSyncRun, type WebVitalsMetric,
+} from "@shared/schema";
+
+// ── Phase 72.4R storage I/O shapes ──────────────────────────────────────────
+export interface GscQueryUpsertRow { date: string; query: string; clicks: number; impressions: number; ctr: number; position: number; }
+export interface GscPageUpsertRow { date: string; page: string; clicks: number; impressions: number; ctr: number; position: number; }
+export interface GscDimensionUpsertRow { date: string; dimension: string; key: string; clicks: number; impressions: number; ctr: number; position: number; }
+export interface GscQueryPageUpsertRow { query: string; page: string; clicks: number; impressions: number; }
+export interface GscSyncRunPatch {
+  status: string;
+  startDate?: string | null; endDate?: string | null;
+  queryRows?: number; pageRows?: number; dimensionRows?: number; queryPageRows?: number;
+  errorText?: string | null; detail?: Record<string, unknown> | null;
+}
+export interface SeoAuditRunPatch {
+  status: string; pagesAudited?: number; issuesFound?: number;
+  errorText?: string | null; detail?: Record<string, unknown> | null;
+}
+export interface SearchConsoleStatusData {
+  lastRun: GscRunInfo | null;
+  lastSuccessfulSyncAt: string | null;
+  dataThrough: string | null;
+  totalQueryRows: number;
+  totalPageRows: number;
+  recentRuns: GscRunInfo[];
+}
+export interface SeoPageAuditInsertRow {
+  path: string; httpStatus: number;
+  title: string | null; titleLength: number;
+  metaDescription: string | null; descriptionLength: number;
+  canonical: string | null; canonicalOk: boolean | null;
+  robotsMeta: string | null; noindex: boolean;
+  ogTitle: string | null; ogDescription: string | null; ogImage: string | null;
+  twitterTitle: string | null; twitterDescription: string | null; twitterImage: string | null;
+  issues: string[];
+}
+export interface SeoSchemaAuditInsertRow {
+  path: string; schemaType: string; expected: boolean; present: boolean;
+  valid: boolean | null; issues: string[];
+}
+export interface SeoIndexabilityInsertRow {
+  kind: string; url: string; ok: boolean; httpStatus: number | null; detail: string | null;
+}
+
+function chunkRows<T>(rows: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < rows.length; i += size) out.push(rows.slice(i, i + size));
+  return out;
+}
+
+function clampWindowDays(days: number): number {
+  return Math.max(1, Math.min(GSC_SYNC_MAX_DAYS, Math.floor(days)));
+}
 import { db } from "./db";
 import { and, asc, count, desc, eq, getTableColumns, gte, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
 
@@ -180,6 +245,33 @@ export interface IStorage {
   getRevenueIntelSummary(): Promise<RevenueIntelSummary>;
   recordSearchIntelEvent(input: SearchIntelRequest): Promise<{ inserted: boolean }>;
   getSearchIntelSummary(): Promise<SearchIntelSummary>;
+  // Phase 72.4R — Search Console snapshots
+  /** Returns null when another 'running' sync holds the DB-enforced single-run slot. */
+  createGscSyncRun(input: { source: string; daysRequested: number | null }): Promise<number | null>;
+  finishGscSyncRun(id: number, patch: GscSyncRunPatch): Promise<void>;
+  hasActiveGscSyncRun(): Promise<boolean>;
+  upsertGscQueryRows(rows: GscQueryUpsertRow[]): Promise<number>;
+  upsertGscPageRows(rows: GscPageUpsertRow[]): Promise<number>;
+  upsertGscDimensionRows(rows: GscDimensionUpsertRow[]): Promise<number>;
+  upsertGscQueryPages(rows: GscQueryPageUpsertRow[], windowStart: string | null, windowEnd: string | null): Promise<number>;
+  getSearchConsoleStatusData(): Promise<SearchConsoleStatusData>;
+  getGscWindowTotals(windowDays: number): Promise<{ current: GscWindowTotals; previous: GscWindowTotals; windowDays: number } | null>;
+  getQueryIntelligence(windowDays: number): Promise<QueryIntelligence | null>;
+  getLandingPageIntelligence(windowDays: number): Promise<LandingPageIntelligence | null>;
+  // Phase 72.4R — SEO audits
+  createSeoAuditRun(): Promise<number>;
+  finishSeoAuditRun(id: number, patch: SeoAuditRunPatch): Promise<void>;
+  insertSeoPageAudits(runId: number, rows: SeoPageAuditInsertRow[]): Promise<void>;
+  insertSeoSchemaAudits(runId: number, rows: SeoSchemaAuditInsertRow[]): Promise<void>;
+  insertSeoIndexabilityAudits(runId: number, rows: SeoIndexabilityInsertRow[]): Promise<void>;
+  getRecentAuditRuns(limit?: number): Promise<AuditRunInfo[]>;
+  getStructuredDataSummary(): Promise<StructuredDataSummary | null>;
+  getMetadataAuditSummary(): Promise<MetadataAuditSummary | null>;
+  getIndexabilitySummary(): Promise<IndexabilitySummary | null>;
+  // Phase 72.4R — Core Web Vitals + organic revenue
+  recordWebVitals(input: WebVitalsRequest): Promise<void>;
+  getWebVitalsSummary(windowDays: number): Promise<WebVitalsSummary>;
+  getOrganicRevenueSummary(): Promise<OrganicRevenueSummary>;
   getTestimonials(all?: boolean): Promise<Testimonial[]>;
   getLatestApprovedTestimonials(limit?: number): Promise<Testimonial[]>;
   createTestimonial(t: InsertTestimonial): Promise<Testimonial>;
@@ -1863,6 +1955,827 @@ export class DatabaseStorage implements IStorage {
         "ids: server-recorded Stripe webhook events usually carry no session id, so search-attributed revenue is a lower " +
         "bound (see revenue session coverage). Sessions predating Phase 72.4 have no landing events.",
       generatedAt: new Date().toISOString(),
+    };
+  }
+
+  // ── Phase 72.4R — Search Console snapshot storage ─────────────────────────
+
+  async createGscSyncRun(input: { source: string; daysRequested: number | null }): Promise<number | null> {
+    // Sweep stale runs first so a crashed sync can never wedge the single-run
+    // slot (partial unique index allows at most ONE 'running' row).
+    await db.execute(sql`
+      UPDATE gsc_sync_runs SET status = 'error', finished_at = NOW(),
+             error_text = 'run marked stale — never finished (process restart or crash)'
+      WHERE status = 'running' AND started_at <= NOW() - INTERVAL '10 minutes'
+    `);
+    try {
+      const [row] = await db.insert(gscSyncRuns).values({
+        source: input.source,
+        daysRequested: input.daysRequested,
+        status: "running",
+      }).returning({ id: gscSyncRuns.id });
+      return row.id;
+    } catch (err) {
+      // 23505 on gsc_sync_runs_single_running_uq → a concurrent sync won the
+      // race; report conflict instead of throwing (route maps this to 409).
+      const code = (err as { code?: string })?.code
+        ?? (err as { cause?: { code?: string } })?.cause?.code;
+      if (code === "23505") return null;
+      throw err;
+    }
+  }
+
+  async finishGscSyncRun(id: number, patch: GscSyncRunPatch): Promise<void> {
+    await db.update(gscSyncRuns).set({
+      status: patch.status,
+      finishedAt: new Date(),
+      startDate: patch.startDate ?? null,
+      endDate: patch.endDate ?? null,
+      queryRows: patch.queryRows ?? 0,
+      pageRows: patch.pageRows ?? 0,
+      dimensionRows: patch.dimensionRows ?? 0,
+      queryPageRows: patch.queryPageRows ?? 0,
+      errorText: patch.errorText ?? null,
+      detail: patch.detail ?? null,
+    }).where(eq(gscSyncRuns.id, id));
+  }
+
+  async hasActiveGscSyncRun(): Promise<boolean> {
+    const rows = await db.select({ id: gscSyncRuns.id }).from(gscSyncRuns)
+      .where(sql`${gscSyncRuns.status} = 'running' AND ${gscSyncRuns.startedAt} > NOW() - INTERVAL '10 minutes'`)
+      .limit(1);
+    return rows.length > 0;
+  }
+
+  async upsertGscQueryRows(rows: GscQueryUpsertRow[]): Promise<number> {
+    const dedup = new Map<string, GscQueryUpsertRow>();
+    for (const r of rows) dedup.set(`${r.date}\u0000${r.query}`, r);
+    let count = 0;
+    for (const batch of chunkRows(Array.from(dedup.values()), 500)) {
+      await db.insert(gscQueryDaily).values(batch).onConflictDoUpdate({
+        target: [gscQueryDaily.date, gscQueryDaily.query],
+        set: {
+          clicks: sql`excluded.clicks`,
+          impressions: sql`excluded.impressions`,
+          ctr: sql`excluded.ctr`,
+          position: sql`excluded."position"`,
+          importedAt: sql`NOW()`,
+        },
+      });
+      count += batch.length;
+    }
+    return count;
+  }
+
+  async upsertGscPageRows(rows: GscPageUpsertRow[]): Promise<number> {
+    const dedup = new Map<string, GscPageUpsertRow>();
+    for (const r of rows) dedup.set(`${r.date}\u0000${r.page}`, r);
+    let count = 0;
+    for (const batch of chunkRows(Array.from(dedup.values()), 500)) {
+      await db.insert(gscPageDaily).values(batch).onConflictDoUpdate({
+        target: [gscPageDaily.date, gscPageDaily.page],
+        set: {
+          clicks: sql`excluded.clicks`,
+          impressions: sql`excluded.impressions`,
+          ctr: sql`excluded.ctr`,
+          position: sql`excluded."position"`,
+          importedAt: sql`NOW()`,
+        },
+      });
+      count += batch.length;
+    }
+    return count;
+  }
+
+  async upsertGscDimensionRows(rows: GscDimensionUpsertRow[]): Promise<number> {
+    const dedup = new Map<string, GscDimensionUpsertRow>();
+    for (const r of rows) dedup.set(`${r.date}\u0000${r.dimension}\u0000${r.key}`, r);
+    let count = 0;
+    for (const batch of chunkRows(Array.from(dedup.values()), 500)) {
+      await db.insert(gscDimensionDaily).values(batch).onConflictDoUpdate({
+        target: [gscDimensionDaily.date, gscDimensionDaily.dimension, gscDimensionDaily.key],
+        set: {
+          clicks: sql`excluded.clicks`,
+          impressions: sql`excluded.impressions`,
+          ctr: sql`excluded.ctr`,
+          position: sql`excluded."position"`,
+          importedAt: sql`NOW()`,
+        },
+      });
+      count += batch.length;
+    }
+    return count;
+  }
+
+  async upsertGscQueryPages(rows: GscQueryPageUpsertRow[], windowStart: string | null, windowEnd: string | null): Promise<number> {
+    const dedup = new Map<string, GscQueryPageUpsertRow>();
+    for (const r of rows) dedup.set(`${r.query}\u0000${r.page}`, r);
+    let count = 0;
+    for (const batch of chunkRows(Array.from(dedup.values()), 500)) {
+      await db.insert(gscQueryPages).values(batch.map((r) => ({
+        query: r.query,
+        page: r.page,
+        clicks: r.clicks,
+        impressions: r.impressions,
+        windowStart,
+        windowEnd,
+      }))).onConflictDoUpdate({
+        target: [gscQueryPages.query, gscQueryPages.page],
+        set: {
+          clicks: sql`excluded.clicks`,
+          impressions: sql`excluded.impressions`,
+          windowStart: sql`excluded.window_start`,
+          windowEnd: sql`excluded.window_end`,
+          importedAt: sql`NOW()`,
+        },
+      });
+      count += batch.length;
+    }
+    return count;
+  }
+
+  private toGscRunInfo(r: GscSyncRun): GscRunInfo {
+    return {
+      id: r.id,
+      status: r.status,
+      source: r.source,
+      startedAt: r.startedAt.toISOString(),
+      finishedAt: r.finishedAt ? r.finishedAt.toISOString() : null,
+      daysRequested: r.daysRequested,
+      startDate: r.startDate,
+      endDate: r.endDate,
+      queryRows: r.queryRows,
+      pageRows: r.pageRows,
+      dimensionRows: r.dimensionRows,
+      queryPageRows: r.queryPageRows,
+      errorText: r.errorText,
+    };
+  }
+
+  async getSearchConsoleStatusData(): Promise<SearchConsoleStatusData> {
+    const recent = await db.select().from(gscSyncRuns).orderBy(desc(gscSyncRuns.startedAt)).limit(10);
+    const lastSuccessRows = await db.select().from(gscSyncRuns)
+      .where(sql`${gscSyncRuns.status} IN ('success', 'partial')`)
+      .orderBy(desc(gscSyncRuns.startedAt)).limit(1);
+    const countsRes = await db.execute(sql`
+      SELECT
+        (SELECT COUNT(*)::int FROM gsc_query_daily) AS query_rows,
+        (SELECT COUNT(*)::int FROM gsc_page_daily) AS page_rows,
+        (SELECT MAX("date")::text FROM gsc_query_daily) AS data_through
+    `);
+    const counts = (countsRes.rows[0] ?? {}) as { query_rows?: number; page_rows?: number; data_through?: string | null };
+    const lastSuccess = lastSuccessRows[0];
+    return {
+      lastRun: recent[0] ? this.toGscRunInfo(recent[0]) : null,
+      lastSuccessfulSyncAt: lastSuccess?.finishedAt ? lastSuccess.finishedAt.toISOString() : null,
+      dataThrough: counts.data_through ?? null,
+      totalQueryRows: Number(counts.query_rows ?? 0),
+      totalPageRows: Number(counts.page_rows ?? 0),
+      recentRuns: recent.map((r) => this.toGscRunInfo(r)),
+    };
+  }
+
+  async getGscWindowTotals(windowDays: number): Promise<{ current: GscWindowTotals; previous: GscWindowTotals; windowDays: number } | null> {
+    const win = clampWindowDays(windowDays);
+    // win is a clamped internal integer (closed constant) — safe to inline;
+    // avoids the parameterized-GROUP-BY expression mismatch trap.
+    const W = sql.raw(String(win));
+    const W2 = sql.raw(String(win * 2));
+    const res = await db.execute(sql`
+      SELECT
+        CASE WHEN "date" >= CURRENT_DATE - ${W} THEN 'current' ELSE 'previous' END AS period,
+        COALESCE(SUM(clicks), 0)::int AS clicks,
+        COALESCE(SUM(impressions), 0)::int AS impressions,
+        CASE WHEN SUM(impressions) > 0 THEN SUM("position" * impressions) / SUM(impressions) END AS avg_pos
+      FROM gsc_query_daily
+      WHERE "date" >= CURRENT_DATE - ${W2}
+      GROUP BY 1
+    `);
+    const rows = res.rows as Array<{ period: string; clicks: number; impressions: number; avg_pos: number | null }>;
+    if (rows.length === 0) return null;
+    const build = (period: string): GscWindowTotals => {
+      const r = rows.find((x) => x.period === period);
+      const clicks = Number(r?.clicks ?? 0);
+      const impressions = Number(r?.impressions ?? 0);
+      return {
+        clicks,
+        impressions,
+        ctrPct: impressions > 0 ? Math.round((clicks / impressions) * 10000) / 100 : null,
+        avgPosition: r?.avg_pos == null ? null : Math.round(Number(r.avg_pos) * 10) / 10,
+      };
+    };
+    return { current: build("current"), previous: build("previous"), windowDays: win };
+  }
+
+  async getQueryIntelligence(windowDays: number): Promise<QueryIntelligence | null> {
+    const win = clampWindowDays(windowDays);
+    const W = sql.raw(String(win));
+    const W2 = sql.raw(String(win * 2));
+    const res = await db.execute(sql`
+      WITH cur AS (
+        SELECT "query", SUM(clicks)::int AS clicks, SUM(impressions)::int AS impressions,
+               CASE WHEN SUM(impressions) > 0 THEN SUM("position" * impressions) / SUM(impressions) END AS avg_pos
+        FROM gsc_query_daily
+        WHERE "date" >= CURRENT_DATE - ${W}
+        GROUP BY "query"
+      ),
+      prev AS (
+        SELECT "query", SUM(clicks)::int AS clicks, SUM(impressions)::int AS impressions
+        FROM gsc_query_daily
+        WHERE "date" >= CURRENT_DATE - ${W2} AND "date" < CURRENT_DATE - ${W}
+        GROUP BY "query"
+      )
+      SELECT COALESCE(c."query", p."query") AS query,
+             COALESCE(c.clicks, 0) AS clicks,
+             COALESCE(c.impressions, 0) AS impressions,
+             c.avg_pos,
+             COALESCE(p.clicks, 0) AS prev_clicks,
+             COALESCE(p.impressions, 0) AS prev_impressions
+      FROM cur c FULL OUTER JOIN prev p ON c."query" = p."query"
+      WHERE COALESCE(c.impressions, 0) + COALESCE(p.impressions, 0) >= 3 OR COALESCE(c.clicks, 0) > 0
+      ORDER BY COALESCE(c.impressions, 0) DESC
+      LIMIT 2000
+    `);
+    const raw = res.rows as Array<{ query: string; clicks: number; impressions: number; avg_pos: number | null; prev_clicks: number; prev_impressions: number }>;
+    if (raw.length === 0) return null;
+
+    const items: QueryIntelItem[] = raw.map((r) => {
+      const clicks = Number(r.clicks);
+      const impressions = Number(r.impressions);
+      const prevClicks = Number(r.prev_clicks);
+      const prevImpressions = Number(r.prev_impressions);
+      return {
+        query: r.query,
+        clicks,
+        impressions,
+        ctrPct: impressions > 0 ? Math.round((clicks / impressions) * 10000) / 100 : null,
+        avgPosition: r.avg_pos == null ? null : Math.round(Number(r.avg_pos) * 10) / 10,
+        prevClicks,
+        prevImpressions,
+        deltaClicks: clicks - prevClicks,
+        deltaImpressions: impressions - prevImpressions,
+        topPages: [],
+      };
+    });
+
+    // Closed classification thresholds (documented in the payload).
+    const topQueries = [...items]
+      .filter((i) => i.impressions > 0 || i.clicks > 0)
+      .sort((a, b) => b.clicks - a.clicks || b.impressions - a.impressions)
+      .slice(0, 50);
+    const emerging = items
+      .filter((i) => i.impressions >= 10 && i.deltaImpressions > 0 &&
+        (i.prevImpressions === 0 ? i.impressions >= 20 : i.impressions >= i.prevImpressions * 1.5))
+      .sort((a, b) => b.deltaImpressions - a.deltaImpressions)
+      .slice(0, 25);
+    const declining = items
+      .filter((i) => i.prevImpressions >= 20 && i.impressions <= i.prevImpressions * 0.5)
+      .sort((a, b) => a.deltaImpressions - b.deltaImpressions)
+      .slice(0, 25);
+    const lowCtrHighImpressions = items
+      .filter((i) => i.impressions >= 50 && (i.ctrPct ?? 0) < 1.5 && (i.avgPosition ?? 999) <= 30)
+      .sort((a, b) => b.impressions - a.impressions)
+      .slice(0, 25);
+    const nearPageOne = items
+      .filter((i) => i.avgPosition !== null && i.avgPosition >= 8 && i.avgPosition <= 14 && i.impressions >= 10)
+      .sort((a, b) => b.impressions - a.impressions)
+      .slice(0, 25);
+
+    // Associated landing pages for every displayed query (top 2 each).
+    const displayed = Array.from(new Set(
+      [...topQueries, ...emerging, ...declining, ...lowCtrHighImpressions, ...nearPageOne].map((i) => i.query),
+    )).slice(0, 200);
+    if (displayed.length > 0) {
+      const pageRes = await db.execute(sql`
+        SELECT "query", page FROM (
+          SELECT "query", page,
+                 ROW_NUMBER() OVER (PARTITION BY "query" ORDER BY clicks DESC, impressions DESC) AS rn
+          FROM gsc_query_pages
+          WHERE "query" IN (${sql.join(displayed.map((q) => sql`${q}`), sql`, `)})
+        ) t WHERE rn <= 2
+      `);
+      const byQuery = new Map<string, string[]>();
+      for (const row of pageRes.rows as Array<{ query: string; page: string }>) {
+        const path = row.page.replace(/^https?:\/\/[^/]+/i, "") || "/";
+        if (!byQuery.has(row.query)) byQuery.set(row.query, []);
+        byQuery.get(row.query)!.push(path);
+      }
+      for (const list of [topQueries, emerging, declining, lowCtrHighImpressions, nearPageOne]) {
+        for (const item of list) item.topPages = byQuery.get(item.query) ?? [];
+      }
+    }
+
+    const totals = await this.getGscWindowTotals(win);
+    const zero: GscWindowTotals = { clicks: 0, impressions: 0, ctrPct: null, avgPosition: null };
+    return {
+      windowDays: win,
+      totals: totals?.current ?? zero,
+      prevTotals: totals?.previous ?? zero,
+      topQueries,
+      emerging,
+      declining,
+      lowCtrHighImpressions,
+      nearPageOne,
+      thresholds:
+        "emerging: ≥10 impressions and ≥1.5× prior-window impressions (≥20 if new); " +
+        "declining: prior ≥20 impressions and ≤0.5× current; " +
+        "low CTR: ≥50 impressions, CTR <1.5%, avg position ≤30; " +
+        "near page one: avg position 8–14 with ≥10 impressions",
+    };
+  }
+
+  async getLandingPageIntelligence(windowDays: number): Promise<LandingPageIntelligence | null> {
+    const win = clampWindowDays(windowDays);
+    const W = sql.raw(String(win));
+    const W2 = sql.raw(String(win * 2));
+    // Closed internal constants only — never user input (sql.raw rule).
+    const organicSrc = sql.raw(ORGANIC_SEARCH_SOURCES.map((s) => `'${s}'`).join(", "));
+    const earning = sql.raw(REVENUE_EARNING_EVENTS.map((s) => `'${s}'`).join(", "));
+    const res = await db.execute(sql`
+      WITH cur AS (
+        SELECT page, SUM(clicks)::int AS clicks, SUM(impressions)::int AS impressions,
+               CASE WHEN SUM(impressions) > 0 THEN SUM("position" * impressions) / SUM(impressions) END AS avg_pos
+        FROM gsc_page_daily
+        WHERE "date" >= CURRENT_DATE - ${W}
+        GROUP BY page
+      ),
+      prev AS (
+        SELECT page, SUM(clicks)::int AS clicks, SUM(impressions)::int AS impressions
+        FROM gsc_page_daily
+        WHERE "date" >= CURRENT_DATE - ${W2} AND "date" < CURRENT_DATE - ${W}
+        GROUP BY page
+      ),
+      gsc AS (
+        SELECT COALESCE(c.page, p.page) AS page,
+               COALESCE(c.clicks, 0) AS clicks,
+               COALESCE(c.impressions, 0) AS impressions,
+               c.avg_pos,
+               COALESCE(p.clicks, 0) AS prev_clicks,
+               COALESCE(p.impressions, 0) AS prev_impressions
+        FROM cur c FULL OUTER JOIN prev p ON c.page = p.page
+        ORDER BY COALESCE(c.impressions, 0) DESC
+        LIMIT 200
+      ),
+      gsc_norm AS (
+        SELECT g.*,
+               CASE WHEN rtrim(regexp_replace(g.page, '^https?://[^/]+', ''), '/') = ''
+                    THEN '/'
+                    ELSE rtrim(regexp_replace(g.page, '^https?://[^/]+', ''), '/')
+               END AS path
+        FROM gsc g
+      ),
+      org AS (
+        SELECT DISTINCT
+               CASE WHEN rtrim(landing_path, '/') = '' THEN '/' ELSE rtrim(landing_path, '/') END AS path,
+               session_id
+        FROM search_intelligence_events
+        WHERE event_name = 'search_landing'
+          AND traffic_source IN (${organicSrc})
+          AND landing_path IS NOT NULL
+          AND session_id IS NOT NULL AND session_id NOT IN ('anon', '')
+          AND created_at >= CURRENT_DATE - ${W2}
+      ),
+      org_counts AS (
+        SELECT path, COUNT(*)::int AS organic_sessions FROM org GROUP BY path
+      ),
+      fun AS (
+        SELECT o.path,
+               COUNT(DISTINCT f.session_id)::int AS funnel_sessions,
+               COUNT(DISTINCT f.session_id) FILTER (WHERE f.event_name IN ('checkout_completed', 'booking_completed'))::int AS bookings
+        FROM org o JOIN strategy_funnel_events f ON f.session_id = o.session_id
+        GROUP BY o.path
+      ),
+      rev AS (
+        SELECT o.path,
+               COALESCE(SUM(r.amount_cents) FILTER (WHERE r.event_type IN (${earning})), 0)::bigint AS revenue_cents,
+               COUNT(DISTINCT r.session_id) FILTER (WHERE r.ai_assisted = true AND r.event_type IN (${earning}))::int AS ai_conversions
+        FROM org o JOIN revenue_intelligence_events r ON r.session_id = o.session_id
+        GROUP BY o.path
+      )
+      SELECT g.path, g.clicks, g.impressions, g.avg_pos, g.prev_clicks, g.prev_impressions,
+             COALESCE(oc.organic_sessions, 0) AS organic_sessions,
+             COALESCE(f.funnel_sessions, 0) AS funnel_sessions,
+             COALESCE(f.bookings, 0) AS bookings,
+             COALESCE(rv.revenue_cents, 0) AS revenue_cents,
+             COALESCE(rv.ai_conversions, 0) AS ai_conversions
+      FROM gsc_norm g
+      LEFT JOIN org_counts oc ON oc.path = g.path
+      LEFT JOIN fun f ON f.path = g.path
+      LEFT JOIN rev rv ON rv.path = g.path
+      ORDER BY g.impressions DESC, g.clicks DESC
+    `);
+    const rows = res.rows as Array<{
+      path: string; clicks: number; impressions: number; avg_pos: number | null;
+      prev_clicks: number; prev_impressions: number; organic_sessions: number;
+      funnel_sessions: number; bookings: number; revenue_cents: string | number; ai_conversions: number;
+    }>;
+    if (rows.length === 0) return null;
+    const items: LandingPageIntelItem[] = rows.map((r) => {
+      const clicks = Number(r.clicks);
+      const impressions = Number(r.impressions);
+      return {
+        path: r.path,
+        clicks,
+        impressions,
+        ctrPct: impressions > 0 ? Math.round((clicks / impressions) * 10000) / 100 : null,
+        avgPosition: r.avg_pos == null ? null : Math.round(Number(r.avg_pos) * 10) / 10,
+        deltaClicks: clicks - Number(r.prev_clicks),
+        deltaImpressions: impressions - Number(r.prev_impressions),
+        organicVisitors: Number(r.organic_sessions),
+        organicFunnelSessions: Number(r.funnel_sessions),
+        organicBookings: Number(r.bookings),
+        organicRevenueCents: Number(r.revenue_cents),
+        aiAssistedConversions: Number(r.ai_conversions),
+      };
+    });
+    return {
+      windowDays: win,
+      items,
+      attributionNote:
+        "Clicks/impressions/position come from Google Search Console (page-level; Google privacy-filters some queries). " +
+        "Visitors, funnel sessions, bookings and revenue are first-party session joins from organic search landings on the same path. " +
+        "Query→revenue linkage is inferred through the landing page — search engines do not expose per-query conversion identity.",
+    };
+  }
+
+  // ── Phase 72.4R — SEO audit storage ───────────────────────────────────────
+
+  async createSeoAuditRun(): Promise<number> {
+    const [row] = await db.insert(seoAuditRuns).values({ status: "running" }).returning({ id: seoAuditRuns.id });
+    return row.id;
+  }
+
+  async finishSeoAuditRun(id: number, patch: SeoAuditRunPatch): Promise<void> {
+    await db.update(seoAuditRuns).set({
+      status: patch.status,
+      finishedAt: new Date(),
+      pagesAudited: patch.pagesAudited ?? 0,
+      issuesFound: patch.issuesFound ?? 0,
+      errorText: patch.errorText ?? null,
+      detail: patch.detail ?? null,
+    }).where(eq(seoAuditRuns.id, id));
+  }
+
+  async insertSeoPageAudits(runId: number, rows: SeoPageAuditInsertRow[]): Promise<void> {
+    for (const batch of chunkRows(rows, 200)) {
+      await db.insert(seoPageAudits).values(batch.map((r) => ({ ...r, runId })));
+    }
+  }
+
+  async insertSeoSchemaAudits(runId: number, rows: SeoSchemaAuditInsertRow[]): Promise<void> {
+    for (const batch of chunkRows(rows, 200)) {
+      await db.insert(seoSchemaAudits).values(batch.map((r) => ({ ...r, runId })));
+    }
+  }
+
+  async insertSeoIndexabilityAudits(runId: number, rows: SeoIndexabilityInsertRow[]): Promise<void> {
+    for (const batch of chunkRows(rows, 200)) {
+      await db.insert(seoIndexabilityAudits).values(batch.map((r) => ({ ...r, runId })));
+    }
+  }
+
+  private toAuditRunInfo(r: typeof seoAuditRuns.$inferSelect): AuditRunInfo {
+    return {
+      id: r.id,
+      status: r.status,
+      startedAt: r.startedAt.toISOString(),
+      finishedAt: r.finishedAt ? r.finishedAt.toISOString() : null,
+      pagesAudited: r.pagesAudited,
+      issuesFound: r.issuesFound,
+      errorText: r.errorText,
+    };
+  }
+
+  async getRecentAuditRuns(limit = 10): Promise<AuditRunInfo[]> {
+    const rows = await db.select().from(seoAuditRuns).orderBy(desc(seoAuditRuns.startedAt)).limit(Math.min(limit, 25));
+    return rows.map((r) => this.toAuditRunInfo(r));
+  }
+
+  private async latestFinishedAuditRun(): Promise<typeof seoAuditRuns.$inferSelect | null> {
+    const rows = await db.select().from(seoAuditRuns)
+      .where(sql`${seoAuditRuns.status} IN ('success', 'partial')`)
+      .orderBy(desc(seoAuditRuns.startedAt)).limit(1);
+    return rows[0] ?? null;
+  }
+
+  async getStructuredDataSummary(): Promise<StructuredDataSummary | null> {
+    const run = await this.latestFinishedAuditRun();
+    if (!run) return null;
+    const covRes = await db.execute(sql`
+      SELECT schema_type,
+             COUNT(*) FILTER (WHERE expected)::int AS expected_pages,
+             COUNT(*) FILTER (WHERE expected AND present)::int AS present_on_expected,
+             COUNT(*) FILTER (WHERE present)::int AS present_anywhere,
+             COUNT(*) FILTER (WHERE valid = false)::int AS invalid_count
+      FROM seo_schema_audits
+      WHERE run_id = ${run.id}
+      GROUP BY schema_type
+      ORDER BY schema_type
+    `);
+    const itemsRes = await db.execute(sql`
+      SELECT path, schema_type, expected, present, valid, issues
+      FROM seo_schema_audits
+      WHERE run_id = ${run.id}
+      ORDER BY expected DESC, present ASC, path ASC
+      LIMIT 400
+    `);
+    const coverage: SchemaCoverageItem[] = (covRes.rows as Array<{ schema_type: string; expected_pages: number; present_on_expected: number; present_anywhere: number; invalid_count: number }>).map((r) => ({
+      schemaType: r.schema_type,
+      expectedPages: Number(r.expected_pages),
+      presentOnExpected: Number(r.present_on_expected),
+      presentAnywhere: Number(r.present_anywhere),
+      invalidCount: Number(r.invalid_count),
+    }));
+    const items: SchemaAuditPageItem[] = (itemsRes.rows as Array<{ path: string; schema_type: string; expected: boolean; present: boolean; valid: boolean | null; issues: string[] }>).map((r) => ({
+      path: r.path,
+      schemaType: r.schema_type,
+      expected: r.expected,
+      present: r.present,
+      valid: r.valid,
+      issues: Array.isArray(r.issues) ? r.issues : [],
+    }));
+    return {
+      runId: run.id,
+      auditedAt: (run.finishedAt ?? run.startedAt).toISOString(),
+      pagesAudited: run.pagesAudited,
+      coverage,
+      items,
+      note:
+        "Structured data audited from server-delivered HTML (what non-JS crawlers receive). Expected types are enforced " +
+        "only where they apply — Organization/WebSite/Person on the homepage, Article on blog posts. LocalBusiness is " +
+        "deliberately never required for this digital-first brand; other types are validated when found.",
+    };
+  }
+
+  async getMetadataAuditSummary(): Promise<MetadataAuditSummary | null> {
+    const run = await this.latestFinishedAuditRun();
+    if (!run) return null;
+    const pagesRes = await db.execute(sql`
+      SELECT path, http_status, title, title_length, meta_description, description_length,
+             canonical, canonical_ok, robots_meta, noindex,
+             og_title, og_description, og_image, twitter_title, twitter_description, twitter_image, issues
+      FROM seo_page_audits
+      WHERE run_id = ${run.id}
+      ORDER BY jsonb_array_length(issues) DESC, path ASC
+      LIMIT 200
+    `);
+    const statsRes = await db.execute(sql`
+      SELECT COUNT(*)::int AS total,
+             COUNT(*) FILTER (WHERE jsonb_array_length(issues) > 0)::int AS with_issues
+      FROM seo_page_audits WHERE run_id = ${run.id}
+    `);
+    const dupTitlesRes = await db.execute(sql`
+      SELECT title AS value, COUNT(*)::int AS count, array_agg(path ORDER BY path) AS paths
+      FROM seo_page_audits
+      WHERE run_id = ${run.id} AND http_status = 200 AND title IS NOT NULL
+      GROUP BY title HAVING COUNT(*) > 1
+      ORDER BY COUNT(*) DESC LIMIT 20
+    `);
+    const dupDescRes = await db.execute(sql`
+      SELECT meta_description AS value, COUNT(*)::int AS count, array_agg(path ORDER BY path) AS paths
+      FROM seo_page_audits
+      WHERE run_id = ${run.id} AND http_status = 200 AND meta_description IS NOT NULL
+      GROUP BY meta_description HAVING COUNT(*) > 1
+      ORDER BY COUNT(*) DESC LIMIT 20
+    `);
+    const toDup = (rows: unknown[]): DuplicateMetaItem[] =>
+      (rows as Array<{ value: string; count: number; paths: string[] }>).map((r) => ({
+        value: r.value.slice(0, 200),
+        count: Number(r.count),
+        paths: (Array.isArray(r.paths) ? r.paths : []).slice(0, 12),
+      }));
+    const pages: MetadataPageItem[] = (pagesRes.rows as Array<Record<string, unknown>>).map((r) => ({
+      path: String(r.path),
+      httpStatus: Number(r.http_status),
+      title: (r.title as string | null),
+      titleLength: Number(r.title_length),
+      metaDescription: (r.meta_description as string | null),
+      descriptionLength: Number(r.description_length),
+      canonical: (r.canonical as string | null),
+      canonicalOk: (r.canonical_ok as boolean | null),
+      robotsMeta: (r.robots_meta as string | null),
+      noindex: Boolean(r.noindex),
+      ogTitle: r.og_title != null,
+      ogDescription: r.og_description != null,
+      ogImage: r.og_image != null,
+      twitterTitle: r.twitter_title != null,
+      twitterDescription: r.twitter_description != null,
+      twitterImage: r.twitter_image != null,
+      issues: Array.isArray(r.issues) ? (r.issues as string[]) : [],
+    }));
+    const stats = (statsRes.rows[0] ?? {}) as { total?: number; with_issues?: number };
+    return {
+      runId: run.id,
+      auditedAt: (run.finishedAt ?? run.startedAt).toISOString(),
+      pagesAudited: Number(stats.total ?? run.pagesAudited),
+      pagesWithIssues: Number(stats.with_issues ?? 0),
+      duplicateTitles: toDup(dupTitlesRes.rows),
+      duplicateDescriptions: toDup(dupDescRes.rows),
+      pages,
+      note:
+        "Audited from server-delivered HTML — exactly what social scrapers and non-JS crawlers receive. " +
+        "Client-side Helmet rewrites these tags after hydration for JS-rendering crawlers like Googlebot; " +
+        "gaps flagged here are real for non-rendering bots.",
+    };
+  }
+
+  async getIndexabilitySummary(): Promise<IndexabilitySummary | null> {
+    const run = await this.latestFinishedAuditRun();
+    if (!run) return null;
+    const rowsRes = await db.execute(sql`
+      SELECT kind, url, ok, http_status, detail
+      FROM seo_indexability_audits
+      WHERE run_id = ${run.id}
+      ORDER BY ok ASC, kind ASC, url ASC
+      LIMIT 500
+    `);
+    const all = (rowsRes.rows as Array<{ kind: string; url: string; ok: boolean; http_status: number | null; detail: string | null }>).map((r): IndexabilityCheckItem => ({
+      kind: r.kind,
+      url: r.url,
+      ok: r.ok,
+      httpStatus: r.http_status == null ? null : Number(r.http_status),
+      detail: r.detail,
+    }));
+    const byKind = (kind: string) => all.filter((r) => r.kind === kind);
+    const detail = (run.detail ?? {}) as Record<string, unknown>;
+    const robotsRow = byKind("robots_txt")[0];
+    const sitemapRow = byKind("sitemap")[0];
+    return {
+      runId: run.id,
+      auditedAt: (run.finishedAt ?? run.startedAt).toISOString(),
+      robotsTxtOk: robotsRow ? robotsRow.ok : Boolean(detail.robotsTxtOk),
+      sitemapOk: sitemapRow ? sitemapRow.ok : Boolean(detail.sitemapOk),
+      sitemapUrlCount: Number(detail.sitemapUrlCount ?? 0),
+      sitemapUrlsChecked: Number(detail.sitemapUrlsChecked ?? 0),
+      sitemapUrlFailures: byKind("sitemap_url").filter((r) => !r.ok).slice(0, 50),
+      canonicalIssues: byKind("canonical").filter((r) => !r.ok).slice(0, 50),
+      noindexPages: byKind("noindex").filter((r) => !r.ok).slice(0, 50),
+      redirectChains: byKind("redirect").slice(0, 50),
+      brokenInternalLinks: byKind("internal_link").filter((r) => !r.ok).slice(0, 50),
+      internalLinksChecked: Number(detail.internalLinksChecked ?? 0),
+      note:
+        "Checks run against this server's own routes (path-level). robots.txt and sitemap.xml are the live served files; " +
+        "production CDN/redirect behavior may differ slightly.",
+    };
+  }
+
+  // ── Phase 72.4R — Core Web Vitals + organic revenue ───────────────────────
+
+  async recordWebVitals(input: WebVitalsRequest): Promise<void> {
+    // Empty-string identity contamination guard: ''/anon → NULL at ingestion.
+    const norm = (v?: string | null): string | null => {
+      const t = v?.trim();
+      if (!t || t === "anon") return null;
+      return t;
+    };
+    await db.insert(webVitalsEvents).values({
+      metric: input.metric,
+      value: input.value,
+      page: norm(input.page)?.slice(0, 600) ?? null,
+      device: norm(input.device)?.toLowerCase().slice(0, 40) ?? null,
+      source: "rum_field", // stamped server-side — clients can never label data
+      sessionId: norm(input.sessionId),
+    });
+  }
+
+  async getWebVitalsSummary(windowDays: number): Promise<WebVitalsSummary> {
+    const win = clampWindowDays(windowDays);
+    const res = await db.execute(sql`
+      SELECT metric,
+             COALESCE(NULLIF(device, ''), 'unknown') AS device_class,
+             source,
+             percentile_cont(0.75) WITHIN GROUP (ORDER BY "value") AS p75,
+             COUNT(*)::int AS samples
+      FROM web_vitals_events
+      WHERE created_at >= NOW() - INTERVAL '${sql.raw(String(win))} days'
+      GROUP BY metric, COALESCE(NULLIF(device, ''), 'unknown'), source
+      ORDER BY metric ASC, device_class ASC
+    `);
+    const rows = res.rows as Array<{ metric: string; device_class: string; source: string; p75: number | null; samples: number }>;
+    const rate = (metric: string, p75: number | null): WebVitalsMetricSummary["rating"] => {
+      if (p75 === null) return null;
+      const thresholds = WEB_VITALS_THRESHOLDS[metric as WebVitalsMetric];
+      if (!thresholds) return null;
+      if (p75 <= thresholds[0]) return "pass";
+      if (p75 <= thresholds[1]) return "needs_improvement";
+      return "fail";
+    };
+    const metrics: WebVitalsMetricSummary[] = rows.map((r) => {
+      const raw = r.p75 == null ? null : Number(r.p75);
+      const p75 = raw == null ? null : (r.metric === "cls" ? Math.round(raw * 1000) / 1000 : Math.round(raw));
+      return {
+        metric: r.metric,
+        deviceClass: r.device_class,
+        p75,
+        rating: rate(r.metric, p75),
+        samples: Number(r.samples),
+        source: r.source,
+      };
+    });
+    return {
+      windowDays: win,
+      fieldDataAvailable: metrics.some((m) => (m.source === "rum_field" || m.source === "crux_field") && m.samples > 0),
+      syntheticDataAvailable: metrics.some((m) => m.source === "lighthouse_lab" && m.samples > 0),
+      metrics,
+      thresholds: "p75 targets — LCP ≤2500ms good / >4000ms poor; INP ≤200ms / >500ms; CLS ≤0.10 / >0.25",
+      note:
+        "Real-user field data (rum_field) collected from actual visitors via the web-vitals library. " +
+        "Synthetic/lab measurements, if ever imported, are labeled lighthouse_lab and are never presented as field data.",
+    };
+  }
+
+  async getOrganicRevenueSummary(): Promise<OrganicRevenueSummary> {
+    const organicSrc = sql.raw(ORGANIC_SEARCH_SOURCES.map((s) => `'${s}'`).join(", "));
+    const earning = sql.raw(REVENUE_EARNING_EVENTS.map((s) => `'${s}'`).join(", "));
+    const totalsRes = await db.execute(sql`
+      WITH org AS (
+        SELECT DISTINCT
+               CASE WHEN rtrim(landing_path, '/') = '' THEN '/' ELSE rtrim(landing_path, '/') END AS path,
+               session_id
+        FROM search_intelligence_events
+        WHERE event_name = 'search_landing'
+          AND traffic_source IN (${organicSrc})
+          AND landing_path IS NOT NULL
+          AND session_id IS NOT NULL AND session_id NOT IN ('anon', '')
+          AND created_at >= NOW() - INTERVAL '90 days'
+      ),
+      org_sessions AS (SELECT DISTINCT session_id FROM org),
+      fun AS (
+        SELECT COUNT(DISTINCT f.session_id)::int AS funnel_sessions,
+               COUNT(DISTINCT f.session_id) FILTER (WHERE f.event_name IN ('checkout_completed', 'booking_completed'))::int AS bookings
+        FROM org_sessions o JOIN strategy_funnel_events f ON f.session_id = o.session_id
+      ),
+      rev AS (
+        SELECT COALESCE(SUM(r.amount_cents) FILTER (WHERE r.event_type IN (${earning})), 0)::bigint AS revenue_cents,
+               COUNT(DISTINCT r.session_id) FILTER (WHERE r.ai_assisted = true AND r.event_type IN (${earning}))::int AS ai_conversions,
+               COALESCE(SUM(r.amount_cents) FILTER (WHERE r.ai_assisted = true AND r.event_type IN (${earning})), 0)::bigint AS ai_revenue_cents
+        FROM org_sessions o JOIN revenue_intelligence_events r ON r.session_id = o.session_id
+      )
+      SELECT (SELECT COUNT(*)::int FROM org_sessions) AS organic_sessions,
+             fun.funnel_sessions, fun.bookings, rev.revenue_cents, rev.ai_conversions, rev.ai_revenue_cents
+      FROM fun, rev
+    `);
+    const byPageRes = await db.execute(sql`
+      WITH org AS (
+        SELECT DISTINCT
+               CASE WHEN rtrim(landing_path, '/') = '' THEN '/' ELSE rtrim(landing_path, '/') END AS path,
+               session_id
+        FROM search_intelligence_events
+        WHERE event_name = 'search_landing'
+          AND traffic_source IN (${organicSrc})
+          AND landing_path IS NOT NULL
+          AND session_id IS NOT NULL AND session_id NOT IN ('anon', '')
+          AND created_at >= NOW() - INTERVAL '90 days'
+      ),
+      fun AS (
+        SELECT o.path,
+               COUNT(DISTINCT f.session_id)::int AS funnel_sessions,
+               COUNT(DISTINCT f.session_id) FILTER (WHERE f.event_name IN ('checkout_completed', 'booking_completed'))::int AS bookings
+        FROM org o JOIN strategy_funnel_events f ON f.session_id = o.session_id
+        GROUP BY o.path
+      ),
+      rev AS (
+        SELECT o.path,
+               COALESCE(SUM(r.amount_cents) FILTER (WHERE r.event_type IN (${earning})), 0)::bigint AS revenue_cents,
+               COUNT(DISTINCT r.session_id) FILTER (WHERE r.ai_assisted = true AND r.event_type IN (${earning}))::int AS ai_conversions
+        FROM org o JOIN revenue_intelligence_events r ON r.session_id = o.session_id
+        GROUP BY o.path
+      ),
+      base AS (
+        SELECT path, COUNT(*)::int AS organic_sessions FROM org GROUP BY path
+      )
+      SELECT b.path, b.organic_sessions,
+             COALESCE(f.funnel_sessions, 0) AS funnel_sessions,
+             COALESCE(f.bookings, 0) AS bookings,
+             COALESCE(rv.revenue_cents, 0) AS revenue_cents,
+             COALESCE(rv.ai_conversions, 0) AS ai_conversions
+      FROM base b
+      LEFT JOIN fun f ON f.path = b.path
+      LEFT JOIN rev rv ON rv.path = b.path
+      ORDER BY COALESCE(rv.revenue_cents, 0) DESC, b.organic_sessions DESC
+      LIMIT 10
+    `);
+    const t = (totalsRes.rows[0] ?? {}) as Record<string, unknown>;
+    const byLandingPage: OrganicPageOutcome[] = (byPageRes.rows as Array<Record<string, unknown>>).map((r) => ({
+      path: String(r.path),
+      organicSessions: Number(r.organic_sessions ?? 0),
+      funnelSessions: Number(r.funnel_sessions ?? 0),
+      bookings: Number(r.bookings ?? 0),
+      revenueCents: Number(r.revenue_cents ?? 0),
+      aiAssistedConversions: Number(r.ai_conversions ?? 0),
+    }));
+    return {
+      organicSessions: Number(t.organic_sessions ?? 0),
+      organicFunnelSessions: Number(t.funnel_sessions ?? 0),
+      organicBookings: Number(t.bookings ?? 0),
+      organicRevenueCents: Number(t.revenue_cents ?? 0),
+      aiAssistedConversions: Number(t.ai_conversions ?? 0),
+      aiAssistedRevenueCents: Number(t.ai_revenue_cents ?? 0),
+      byLandingPage,
+      attributionNote:
+        "Inferred attribution: revenue is joined to organic search landings from the last 90 days by shared " +
+        "first-party session id. This is session-level attribution, not Google-verified keyword attribution — " +
+        "treat keyword-to-revenue reads as directional.",
     };
   }
 
