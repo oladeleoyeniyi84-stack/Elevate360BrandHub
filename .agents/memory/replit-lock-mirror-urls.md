@@ -30,3 +30,5 @@ bytes. Same tarball on npmjs.org → same hash → `npm ci` succeeds.
 installs. And the main agent cannot `git commit`/`git push` — the platform
 auto-commits the working tree each turn; pushing to an external origin (for
 Render) must be done from the workspace Git pane.
+
+**Gotcha (July 2026):** the mirror URL can be **plain `http://`** (not just `https://`) — e.g. `"resolved": "http://package-firewall.replit.local/npm/web-vitals/-/..."`. An `https`-anchored grep/sed silently misses it; match the host with optional scheme: `(https?://)package-firewall\.replit\.local(:[0-9]+)?/(npm/)?` → `https://registry.npmjs.org/`. Verify with a scheme-less `grep -c package-firewall` afterward.
