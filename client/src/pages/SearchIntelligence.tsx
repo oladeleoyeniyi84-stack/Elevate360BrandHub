@@ -4,8 +4,17 @@
 // Vitals, organic revenue attribution, recommendations and sync controls.
 // One composed GET feeds every tab — dashboard reads never call Google.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+
+// Phase 72.4.2 — carry the HTTP status on load failures so the console can
+// route 401 back into the PIN flow instead of a generic error screen.
+class HttpError extends Error {
+  constructor(public status: number) {
+    super(`Failed to load search intelligence (${status})`);
+    this.name = "HttpError";
+  }
+}
 import { Search, Eye, EyeOff, Loader2, RefreshCw } from "lucide-react";
 import type { SearchIntelDashboardPayload } from "@shared/types/searchIntel";
 import { GOLD, BG } from "@/components/searchIntel/shared";
@@ -75,7 +84,7 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]["id"];
 
-function Console() {
+function Console({ onUnauthenticated }: { onUnauthenticated: () => void }) {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
@@ -86,10 +95,21 @@ function Console() {
     queryKey: ["/api/dashboard/search-intelligence"],
     queryFn: async () => {
       const res = await fetch("/api/dashboard/search-intelligence");
-      if (!res.ok) throw new Error(`Failed to load search intelligence (${res.status})`);
+      if (!res.ok) throw new HttpError(res.status);
       return res.json();
     },
+    // Auth failures are deterministic — retrying them only delays the PIN
+    // prompt. Transient (network/5xx) failures still get one retry.
+    retry: (count, err) =>
+      !(err instanceof HttpError && (err.status === 401 || err.status === 403)) && count < 2,
   });
+
+  // Session expired (or was never established server-side): hand control back
+  // to the PIN gate rather than showing a load-failure screen.
+  const unauthorized = query.error instanceof HttpError && query.error.status === 401;
+  useEffect(() => {
+    if (unauthorized) onUnauthenticated();
+  }, [unauthorized, onUnauthenticated]);
 
   const runSync = async () => {
     setSyncing(true); setSyncMessage(null); setSyncError(null);
@@ -128,11 +148,27 @@ function Console() {
       </div>
     );
   }
+  if (unauthorized) {
+    // The PIN gate is about to take over — render the spinner, never the
+    // generic failure screen, for an authentication condition.
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: BG }}>
+        <Loader2 className="h-8 w-8 animate-spin" style={{ color: GOLD }} />
+      </div>
+    );
+  }
   if (query.isError || !query.data) {
+    const forbidden = query.error instanceof HttpError && query.error.status === 403;
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4" style={{ background: BG }}>
-        <p className="text-white/60">Could not load search intelligence.</p>
-        <button onClick={() => query.refetch()} className="btn-primary px-6 py-2">Retry</button>
+        <p className="text-white/60" data-testid="text-si-load-error">
+          {forbidden
+            ? "Access denied — this account is not permitted to view Search Intelligence."
+            : "Could not load search intelligence."}
+        </p>
+        {!forbidden && (
+          <button onClick={() => query.refetch()} className="btn-primary px-6 py-2">Retry</button>
+        )}
       </div>
     );
   }
@@ -215,9 +251,26 @@ function Console() {
 }
 
 export default function SearchIntelligence() {
+  const queryClient = useQueryClient();
   const [authed, setAuthed] = useState(() => {
     try { return sessionStorage.getItem("e360_dashboard_auth") === "true"; } catch { return false; }
   });
-  if (!authed) return <PinGate onAuth={() => setAuthed(true)} />;
-  return <Console />;
+
+  // Phase 72.4.2: a 401 from the dashboard API means the server session is
+  // gone even if the sessionStorage hint says otherwise — clear the stale
+  // hint and re-run the PIN flow.
+  const handleUnauthenticated = () => {
+    try { sessionStorage.removeItem("e360_dashboard_auth"); } catch { /* no-op */ }
+    setAuthed(false);
+  };
+
+  // After a successful PIN login, drop the cached 401 result so the console
+  // automatically reloads with the fresh server session.
+  const handleAuth = () => {
+    queryClient.removeQueries({ queryKey: ["/api/dashboard/search-intelligence"] });
+    setAuthed(true);
+  };
+
+  if (!authed) return <PinGate onAuth={handleAuth} />;
+  return <Console onUnauthenticated={handleUnauthenticated} />;
 }
