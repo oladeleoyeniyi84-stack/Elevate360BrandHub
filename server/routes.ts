@@ -57,6 +57,7 @@ import { generateContentDraft } from "./ai/contentFactory";
 import { generateAndSaveDigest } from "./ai/digestGenerator";
 import { notifyNewContact, notifyNewLead, notifyNewSubscriber, notifyNewLeadMagnetLead, sendContactReply, sendDigestEmail, notifyNewBooking } from "./email";
 import { generateSitemap } from "./sitemap";
+import { buildLlmsTxt } from "./seo/llms";
 import { z } from "zod";
 import { WebhookHandlers } from "./webhookHandlers";
 import { getUncachableStripeClient, getStripePublishableKey, isStripeConfigured } from "./stripeClient";
@@ -268,6 +269,15 @@ export async function registerRoutes(
       res.header("Content-Type", "application/xml");
       res.send(generateSitemap());
     }
+  });
+
+  // Phase 72.4.1 — machine-readable discovery/orientation resource for
+  // automated agents. Public canonical URLs only; served as plain text so it
+  // can never fall through to the SPA shell.
+  app.get("/llms.txt", (_req, res) => {
+    res.header("Content-Type", "text/plain; charset=utf-8");
+    res.header("Cache-Control", "public, max-age=3600");
+    res.send(buildLlmsTxt());
   });
 
   app.post("/api/contact", rateLimit(5, 60), botGuard, async (req, res) => {

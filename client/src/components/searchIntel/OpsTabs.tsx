@@ -160,6 +160,15 @@ export function SyncStatusTab({ payload, onSync, syncing, syncMessage, syncError
           {!sc.configured && sc.reason && (
             <p className="text-white/45 text-xs leading-relaxed bg-white/4 border border-white/10 rounded-xl p-3" data-testid="text-gsc-reason">{sc.reason}</p>
           )}
+          {!sc.configured && (
+            <div className="text-white/45 text-xs leading-relaxed bg-white/4 border border-white/10 rounded-xl p-3 space-y-1.5" data-testid="panel-gsc-setup">
+              <p className="text-white/70 font-bold uppercase tracking-wide text-[10px]">Activation checklist (Render)</p>
+              <p>1. Set <span className="font-mono text-white/70">GOOGLE_SEARCH_CONSOLE_CREDENTIALS</span> to the complete service-account JSON key as one string (escaped newlines in the private key are handled automatically).</p>
+              <p>2. Set <span className="font-mono text-white/70">GSC_SITE_URL</span> to <span className="font-mono text-white/70">sc-domain:elevate360official.com</span> (exact value).</p>
+              <p>3. In Google Search Console, add the service-account email as a user on the verified domain property.</p>
+              <p className="text-white/30">The credential value itself is never displayed, logged or stored.</p>
+            </div>
+          )}
           <div className="flex items-center justify-between"><span className="text-white/75">Last successful sync</span><span className="text-white font-bold" data-testid="text-gsc-last-sync">{sc.lastSuccessfulSyncAt ? new Date(sc.lastSuccessfulSyncAt).toLocaleString() : "never"}</span></div>
           <div className="flex items-center justify-between"><span className="text-white/75">Data through</span><span className="text-white font-bold">{sc.dataThrough ?? "—"}</span></div>
           <div className="flex items-center justify-between"><span className="text-white/75">Stored query rows</span><span className="text-white font-bold" data-testid="text-gsc-query-rows">{sc.totalQueryRows.toLocaleString()}</span></div>

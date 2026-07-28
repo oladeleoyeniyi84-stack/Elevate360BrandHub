@@ -1,0 +1,613 @@
+PHASE 72.4.1 — SEARCH ACTIVATION & SEO REMEDIATION
+
+MISSION
+
+Activate and harden the Phase 72.4 Search Intelligence platform and remediate the production SEO findings currently reported by the dashboard.
+
+This phase includes:
+
+1. Google Search Console production-configuration readiness
+2. Duplicate server-delivered metadata remediation
+3. Server-delivered BlogPosting/Article JSON-LD
+4. Canonical URL standardization
+5. Standards-aligned llms.txt publication
+6. Regression testing for Phases 72.1–72.4
+
+Follow the locked Elevate360 engineering sequence.
+
+STOP after the Build Delivery Report.
+
+DO NOT commit.
+DO NOT push.
+DO NOT deploy.
+DO NOT modify production data.
+DO NOT place credentials in source control.
+
+==================================================
+A. PRESERVE CERTIFIED SYSTEMS
+==================================================
+
+Do not regress:
+
+- Phase 72.1 Homepage Analytics
+- Phase 72.2 Funnel Analytics
+- Phase 72.3 Revenue Intelligence
+- Phase 72.4 Search Intelligence
+- Dashboard authentication
+- Existing API contracts
+- Existing routes
+- Existing schema and database tables
+- Existing Render build/start behavior
+
+All changes must be additive or narrowly corrective.
+
+==================================================
+B. GOOGLE SEARCH CONSOLE ACTIVATION READINESS
+==================================================
+
+The Search Console domain property is:
+
+sc-domain:elevate360official.com
+
+The production integration already supports:
+
+GOOGLE_SEARCH_CONSOLE_CREDENTIALS
+GSC_SITE_URL
+
+Review the current implementation in:
+
+server/services/googleSearchConsole.ts
+server/routes/searchIntelligence.ts
+shared/types/searchIntel.ts
+client/src/components/searchIntel/OpsTabs.tsx
+scripts/phase72_4_api_tests.ts
+
+Confirm and correct, where necessary:
+
+1. GOOGLE_SEARCH_CONSOLE_CREDENTIALS accepts the complete service-account JSON as one environment-variable string.
+
+2. Escaped private-key newlines are normalized safely:
+
+\\n → actual newline
+
+Do not mutate other credential fields.
+
+3. The production site property is passed exactly as:
+
+sc-domain:elevate360official.com
+
+4. The Search Console API request uses the correct site-property encoding.
+
+5. Missing credentials return:
+
+not_configured
+
+and never produce a 500 response.
+
+6. Malformed credentials return a typed configuration error without exposing:
+
+- private keys
+- JSON contents
+- tokens
+- stack traces
+- service-account secrets
+
+7. Authentication errors and permission errors must be distinguishable from:
+
+- not configured
+- no data available
+- partial import
+- network failure
+- Google API rate limiting
+
+8. Sync results must continue to be persisted before dashboard display.
+
+9. The dashboard GET endpoint must never call Google directly.
+
+10. Fixture mode must remain blocked in production.
+
+11. No credentials may be written to:
+
+- logs
+- database records
+- error payloads
+- test snapshots
+- replit.md
+- Git history
+
+12. Add an operational configuration panel or clear instructions in Sync Status showing:
+
+Required Render variables:
+- GOOGLE_SEARCH_CONSOLE_CREDENTIALS
+- GSC_SITE_URL=sc-domain:elevate360official.com
+
+Required Search Console permission:
+- service-account email must be added to the verified property
+
+Do not display the secret JSON value.
+
+==================================================
+C. SERVER-DELIVERED METADATA
+==================================================
+
+The current audit reports duplicated metadata because multiple SPA routes initially receive the same static server-delivered <head> before React hydration.
+
+Implement deterministic server-delivered metadata for all audited public routes.
+
+At minimum cover:
+
+/
+ /about-founder
+ /founder
+ /blog
+ /guide
+ /blog/:slug
+
+Also inspect the sitemap and include every indexable public route audited by Phase 72.4.
+
+Each indexable route must receive an appropriate server-delivered:
+
+- <title>
+- <meta name="description">
+- <link rel="canonical">
+- <meta property="og:title">
+- <meta property="og:description">
+- <meta property="og:image">
+- <meta property="og:url">
+- <meta name="twitter:card">
+- <meta name="twitter:title">
+- <meta name="twitter:description">
+- <meta name="twitter:image">
+
+Requirements:
+
+1. Metadata must be present in the initial HTML response.
+
+2. Do not depend exclusively on client-side Helmet hydration.
+
+3. Retain Helmet for client-side navigation where useful.
+
+4. Escape all dynamic metadata before insertion into HTML.
+
+5. Never interpolate raw article HTML into <head>.
+
+6. Use one reusable metadata resolver.
+
+7. Use route-specific fallback metadata where database content is unavailable.
+
+8. Blog article titles and descriptions must derive from authoritative stored article data.
+
+9. Metadata must remain consistent between:
+   - server-delivered HTML
+   - React Helmet output
+   - canonical URL
+   - Open Graph URL
+   - structured data URL
+
+10. Do not introduce a heavy new SSR framework solely for this correction.
+
+Prefer narrowly scoped server-side HTML-head injection compatible with the current Express/Vite production architecture.
+
+==================================================
+D. CANONICAL URL STANDARDIZATION
+==================================================
+
+The production canonical host is:
+
+https://www.elevate360official.com
+
+Create one canonical URL utility shared wherever practical.
+
+Rules:
+
+1. Protocol:
+   https
+
+2. Host:
+   www.elevate360official.com
+
+3. Home page:
+   https://www.elevate360official.com/
+
+4. Internal route canonicals:
+   absolute URLs only
+
+5. Remove:
+   - query strings
+   - fragments
+   - tracking parameters
+   - duplicate trailing slashes
+
+6. Preserve:
+   - valid route paths
+   - lowercase article slugs where slugs are defined as lowercase
+
+7. Do not canonicalize every route to the homepage.
+
+8. Redirect noncanonical host variants where existing infrastructure permits:
+   - http → https
+   - non-www → www
+
+9. Ensure canonical consistency across:
+   - HTTP response HTML
+   - Helmet
+   - Open Graph
+   - Article/BlogPosting JSON-LD
+   - WebSite JSON-LD
+   - Organization JSON-LD
+   - sitemap.xml
+
+10. Ensure the SEO audit expects the same canonical policy used by production.
+
+11. Add tests for:
+   - homepage
+   - static pages
+   - blog listing
+   - individual blog posts
+   - query-string removal
+   - trailing-slash normalization
+   - www/non-www consistency
+
+==================================================
+E. SERVER-DELIVERED ARTICLE STRUCTURED DATA
+==================================================
+
+The Phase 72.4 audit reports Article schema missing on three expected blog pages.
+
+Add server-delivered JSON-LD to every published blog article route.
+
+Use:
+
+@type: BlogPosting
+
+unless an existing content type legitimately requires Article or NewsArticle.
+
+Include applicable fields:
+
+- @context
+- @type
+- @id
+- headline
+- description
+- url
+- mainEntityOfPage
+- image
+- datePublished
+- dateModified
+- author
+- publisher
+- articleSection
+- keywords
+
+Author:
+
+{
+  "@type": "Person",
+  "name": "Oladele Oyeniyi",
+  "url": "https://www.elevate360official.com/about-founder"
+}
+
+Publisher:
+
+{
+  "@type": "Organization",
+  "name": "Elevate360Official",
+  "url": "https://www.elevate360official.com/",
+  "logo": {
+    "@type": "ImageObject",
+    "url": "<existing canonical crawlable brand-logo URL>"
+  }
+}
+
+Requirements:
+
+1. Use stored article values.
+
+2. Do not fabricate:
+   - dates
+   - authors
+   - images
+   - keywords
+   - sections
+
+3. Omit optional fields when source data is absent.
+
+4. Use ISO 8601 dates.
+
+5. Use absolute crawlable image URLs.
+
+6. Ensure headline and description match visible article content.
+
+7. Safely serialize JSON-LD so content containing </script> cannot terminate the script block.
+
+8. Avoid duplicate BlogPosting nodes after hydration.
+
+9. Existing global Organization, Person and WebSite nodes must remain valid.
+
+10. Add deterministic IDs, for example:
+
+https://www.elevate360official.com/blog/<slug>#article
+
+11. Add tests confirming schema exists in the initial HTML, not only after JavaScript execution.
+
+==================================================
+F. LLMS.TXT
+==================================================
+
+Publish:
+
+/llms.txt
+
+The file must be:
+
+- publicly accessible
+- plain text or Markdown-compatible text
+- served with an appropriate text content type
+- concise
+- factual
+- stable
+- free of private routes, credentials and internal instructions
+
+The file should identify:
+
+# Elevate360Official
+
+> Empowering Lives Through Technology & Words.
+
+Include concise sections such as:
+
+## About
+## Primary Services
+## Founder
+## Key Resources
+## Published Content
+## Contact
+## Policies
+
+Use canonical absolute URLs.
+
+Include only real, public, production resources.
+
+At minimum, evaluate inclusion of:
+
+- homepage
+- about/founder page
+- blog
+- guide/resources
+- publicly available service pages
+- privacy policy
+- terms
+- contact page
+
+Do not include:
+
+- dashboard routes
+- admin routes
+- PIN routes
+- API endpoints
+- internal architecture
+- environment-variable names
+- database information
+- private email addresses unless already intentionally public
+- unsupported claims
+
+Also determine whether the current robots.txt or routing configuration blocks /llms.txt.
+
+It must not be blocked.
+
+Important wording:
+
+Do not describe llms.txt as an official search-engine ranking standard.
+
+Do not claim guaranteed AI indexing, citation or agent compliance.
+
+Describe it as a machine-readable discovery and orientation resource.
+
+==================================================
+G. SITEMAP AND ROBOTS CONSISTENCY
+==================================================
+
+Review:
+
+/robots.txt
+/sitemap.xml
+/llms.txt
+
+Requirements:
+
+1. robots.txt remains reachable.
+
+2. sitemap.xml remains reachable and parseable.
+
+3. Sitemap URLs use only:
+
+https://www.elevate360official.com
+
+4. Include indexable public content only.
+
+5. Exclude:
+   - dashboards
+   - admin routes
+   - APIs
+   - authentication pages
+   - private tools
+   - duplicate route aliases where one route is canonical
+
+6. llms.txt may be referenced from robots.txt only if appropriate and non-disruptive.
+
+7. Do not add unsupported directives that could affect normal crawlers.
+
+==================================================
+H. SECURITY
+==================================================
+
+1. Never commit Google service-account JSON.
+
+2. Never add secrets to client bundles.
+
+3. Never expose credentials through dashboard payloads.
+
+4. Redact Google API error objects before logging.
+
+5. Avoid logging Authorization headers or signed JWT assertions.
+
+6. Dynamic server-head injection must escape:
+   - title
+   - description
+   - URLs
+   - JSON-LD
+
+7. Preserve CSP and existing security headers.
+
+8. Do not weaken authentication or rate limiting.
+
+==================================================
+I. TESTS
+==================================================
+
+Create or extend an operational test script such as:
+
+scripts/phase72_4_1_tests.ts
+
+Test at minimum:
+
+GOOGLE SEARCH CONSOLE
+- missing credentials → not_configured
+- malformed JSON → typed safe error
+- escaped private-key newline normalization
+- exact domain-property value
+- no secret leakage
+- mocked successful sync
+- mocked permission failure
+- mocked rate-limit failure
+- dashboard GET does not call Google
+- fixture mode blocked in production
+
+SERVER METADATA
+- unique server-delivered title per audited route
+- unique description where content differs
+- canonical tag present
+- Open Graph tags present
+- Twitter tags present
+- HTML escaping
+- unknown route cannot inject metadata
+- initial HTML contains metadata before hydration
+
+CANONICALS
+- exact www canonical host
+- HTTPS
+- homepage trailing slash
+- query strings removed
+- fragments excluded
+- article route preserved
+- sitemap and page canonical agree
+- OG URL and canonical agree
+
+STRUCTURED DATA
+- published blog pages contain BlogPosting JSON-LD
+- author values match stored/approved values
+- date fields are valid
+- canonical article URL is used
+- image URL is absolute
+- optional absent fields are omitted
+- JSON-LD cannot be broken by </script>
+- no duplicate BlogPosting node in server HTML
+- global schema remains present
+
+LLMS.TXT
+- GET /llms.txt returns 200
+- content type is text/plain or text/markdown
+- canonical public URLs only
+- no dashboard or API routes
+- no credentials
+- no secrets
+- no unsupported ranking claims
+- no SPA fallback
+
+REGRESSIONS
+- Phase 72.1 tests
+- Phase 72.2 tests
+- Phase 72.3 tests
+- Phase 72.4 tests
+- dashboard authentication
+- API SPA-fallback protection
+- production build
+
+==================================================
+J. VALIDATION
+==================================================
+
+Run:
+
+npm run check
+npm run build
+
+Run:
+
+- Phase 72.1 regression tests
+- Phase 72.2 regression tests
+- Phase 72.3 regression tests
+- Phase 72.4 regression tests
+- Phase 72.4.1 tests
+
+Also perform read-only verification against local server responses:
+
+curl -s http://localhost:<port>/blog/<valid-slug>
+
+Confirm the initial HTML contains:
+
+- route-specific title
+- description
+- canonical
+- OG tags
+- Twitter tags
+- BlogPosting JSON-LD
+
+Verify:
+
+curl -si http://localhost:<port>/llms.txt
+
+Confirm:
+
+- HTTP 200
+- non-HTML content type
+- no SPA fallback
+
+Run architect review after all fixes.
+
+==================================================
+K. DELIVERY REPORT
+==================================================
+
+Return only:
+
+Files Added
+Files Modified
+Metadata Architecture
+Canonical Policy
+Google Search Console Activation Readiness
+Article/BlogPosting Structured Data
+llms.txt
+Sitemap and Robots Changes
+Security Controls
+Test Results
+Phase 72.1 Regression
+Phase 72.2 Regression
+Phase 72.3 Regression
+Phase 72.4 Regression
+TypeScript PASS / FAIL
+Build PASS / FAIL
+Architect Review PASS / FAIL
+Environment Variables Required
+Google Cloud Manual Steps Required
+Search Console Manual Steps Required
+Render Manual Steps Required
+Production Migration Required YES / NO
+Production Verification Commands
+Risks / Deferred Items
+
+STOP.
+
+DO NOT COMMIT.
+DO NOT PUSH.
+DO NOT DEPLOY.

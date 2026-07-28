@@ -1,4 +1,6 @@
-const BASE_URL = "https://www.elevate360official.com";
+import { CANONICAL_ORIGIN } from "./seo/canonical";
+
+const BASE_URL = CANONICAL_ORIGIN;
 
 interface SitemapUrl {
   loc: string;
@@ -38,17 +40,20 @@ interface BlogPostEntry {
 export function generateSitemap(blogPosts: BlogPostEntry[] = []): string {
   const today = new Date().toISOString().split("T")[0];
 
+  // Canonical URLs only — no fragments (they duplicate the homepage) and no
+  // dashboards/admin/API/auth routes. Phase 72.4.1 canonical policy.
   const staticUrls: SitemapUrl[] = [
     { loc: `${BASE_URL}/`, changefreq: "weekly", priority: "1.0" },
     { loc: `${BASE_URL}/blog`, changefreq: "daily", priority: "0.9" },
     { loc: `${BASE_URL}/links`, changefreq: "monthly", priority: "0.8" },
     { loc: `${BASE_URL}/press-kit`, changefreq: "monthly", priority: "0.7" },
     { loc: `${BASE_URL}/founder`, changefreq: "monthly", priority: "0.8" },
+    { loc: `${BASE_URL}/about-founder`, changefreq: "monthly", priority: "0.8" },
     { loc: `${BASE_URL}/marketplace`, changefreq: "weekly", priority: "0.9" },
-    { loc: `${BASE_URL}/#apps`, changefreq: "monthly", priority: "0.9" },
-    { loc: `${BASE_URL}/#books`, changefreq: "monthly", priority: "0.9" },
-    { loc: `${BASE_URL}/#art-studio`, changefreq: "monthly", priority: "0.8" },
-    { loc: `${BASE_URL}/#music`, changefreq: "monthly", priority: "0.8" },
+    { loc: `${BASE_URL}/guide`, changefreq: "monthly", priority: "0.7" },
+    { loc: `${BASE_URL}/knowledge`, changefreq: "weekly", priority: "0.7" },
+    { loc: `${BASE_URL}/strategy-session`, changefreq: "monthly", priority: "0.6" },
+    { loc: `${BASE_URL}/pricing`, changefreq: "monthly", priority: "0.6" },
   ];
 
   const blogUrls: SitemapUrl[] = blogPosts.map((post) => ({

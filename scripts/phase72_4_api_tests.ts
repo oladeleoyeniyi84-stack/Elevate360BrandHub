@@ -467,8 +467,10 @@ async function main() {
   check("metadata audit stored (pages ≥10)", (comp4.metadata?.pagesAudited ?? 0) >= 10, String(comp4.metadata?.pagesAudited));
   check("metadata note discloses server-delivered-HTML scope",
     typeof comp4.metadata?.note === "string" && comp4.metadata.note.toLowerCase().includes("server"), JSON.stringify(comp4.metadata?.note));
-  check("dev SPA duplicate titles honestly reported (expected finding)",
-    (comp4.metadata?.duplicateTitles?.length ?? 0) >= 1, String(comp4.metadata?.duplicateTitles?.length));
+  // Phase 72.4.1: server-delivered per-route metadata eliminated the SPA
+  // duplicate-title condition, so the audit correctly reports zero duplicates.
+  check("duplicate titles resolved by server-delivered metadata (72.4.1)",
+    (comp4.metadata?.duplicateTitles?.length ?? 0) === 0, String(comp4.metadata?.duplicateTitles?.length));
   check("structured-data coverage includes Organization expectation",
     (comp4.structuredData?.coverage ?? []).some((c: any) => c.schemaType === "Organization" && c.expectedPages >= 1),
     JSON.stringify(comp4.structuredData?.coverage?.map((c: any) => c.schemaType)));

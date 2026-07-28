@@ -2,3 +2,6 @@ User-agent: *
 Allow: /
 
 Sitemap: https://www.elevate360official.com/sitemap.xml
+
+# Machine-readable discovery resource for automated agents (not blocked):
+# https://www.elevate360official.com/llms.txt

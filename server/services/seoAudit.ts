@@ -11,8 +11,8 @@
 
 import { storage } from "../storage";
 import type { SeoSchemaType } from "@shared/schema";
+import { canonicalUrl } from "../seo/canonical";
 
-const CANONICAL_BASE = "https://www.elevate360official.com";
 const STATIC_PATHS = [
   "/", "/blog", "/knowledge", "/links", "/press-kit", "/founder",
   "/marketplace", "/about-founder", "/strategy-session", "/guide",
@@ -181,7 +181,9 @@ function collectSchemaNodes(value: unknown, out: FoundSchema[]): void {
   const rawType = obj["@type"];
   const types = Array.isArray(rawType) ? rawType : rawType ? [rawType] : [];
   for (const t of types) {
-    if (typeof t === "string") out.push({ type: t, node: obj });
+    // BlogPosting is a subtype of Article — it satisfies the Article
+    // expectation on blog routes (validated with the Article rules).
+    if (typeof t === "string") out.push({ type: t === "BlogPosting" ? "Article" : t, node: obj });
   }
   if (obj["@graph"]) collectSchemaNodes(obj["@graph"], out);
 }
@@ -344,7 +346,8 @@ export async function runSeoAudit(): Promise<SeoAuditResult> {
       else if (description.length < DESC_MIN) issues.push(`description short (${description.length} < ${DESC_MIN})`);
       else if (description.length > DESC_MAX) issues.push(`description long (${description.length} > ${DESC_MAX})`);
 
-      const expectedCanonical = `${CANONICAL_BASE}${path === "/" ? "/" : path}`;
+      // Same canonical policy the app uses to render pages (server/seo/canonical.ts).
+      const expectedCanonical = canonicalUrl(path);
       let canonicalOk: boolean | null = null;
       if (!canonical) {
         issues.push("canonical missing");

@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "wouter";
-import { Helmet } from "react-helmet-async";
 import type { BlogPost } from "@shared/schema";
 import SEO from "@/components/SEO";
 import { ShareButton } from "@/components/ShareButton";
@@ -69,24 +68,10 @@ export default function BlogPostPage() {
 
   return (
     <div className="min-h-screen" style={{ background: "hsl(220 50% 8%)" }}>
+      {/* Phase 72.4.1: BlogPosting JSON-LD is server-delivered in the initial
+          HTML (server/seo/meta.ts) — the client no longer injects a second
+          Article node, avoiding duplicate/conflicting structured data. */}
       <SEO title={seoTitle} description={seoDescription} path={seoPath} type="article" />
-      <Helmet>
-        <script type="application/ld+json">
-          {JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "Article",
-            headline: post?.title || "Elevate360Official Blog Post",
-            description: seoDescription,
-            author: { "@type": "Organization", name: "Elevate360Official" },
-            publisher: {
-              "@type": "Organization",
-              name: "Elevate360Official",
-              logo: { "@type": "ImageObject", url: "https://www.elevate360official.com/social-preview/elevate360-logo-share.png" },
-            },
-            mainEntityOfPage: `https://www.elevate360official.com${seoPath}`,
-          })}
-        </script>
-      </Helmet>
       <header className="border-b border-white/8 sticky top-0 z-50 backdrop-blur-xl" style={{ background: "rgba(7,11,19,0.92)" }}>
         <div className="container mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
           <Link href="/">

@@ -5,6 +5,7 @@ import viteConfig from "../vite.config";
 import fs from "fs";
 import path from "path";
 import { nanoid } from "nanoid";
+import { applySeoHead } from "./seo/injectHead";
 
 const viteLogger = createLogger();
 
@@ -49,7 +50,9 @@ export async function setupVite(server: Server, app: Express) {
         `src="/src/main.tsx?v=${nanoid()}"`,
       );
       const page = await vite.transformIndexHtml(url, template);
-      res.status(200).set({ "Content-Type": "text/html" }).end(page);
+      // Phase 72.4.1 — per-route server-delivered <head> metadata.
+      const withSeo = await applySeoHead(page, req.originalUrl);
+      res.status(200).set({ "Content-Type": "text/html" }).end(withSeo);
     } catch (e) {
       vite.ssrFixStacktrace(e as Error);
       next(e);

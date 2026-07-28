@@ -84,6 +84,28 @@ function b64url(input: string | Buffer): string {
   return Buffer.from(input).toString("base64url");
 }
 
+// ── Error taxonomy + redaction (Phase 72.4.1) ───────────────────────────────
+// Stored errorText starts with a stable kind prefix so auth, permission,
+// rate-limit, availability and network failures are distinguishable from
+// not_configured / partial / no-data. Google response snippets are redacted
+// so tokens, JWT assertions or key material can never reach logs or the DB.
+
+function redactSensitive(text: string): string {
+  return text
+    .replace(/-----BEGIN[\s\S]*?KEY-----/g, "[redacted-key]")
+    .replace(/[A-Za-z0-9_\-.=]{40,}/g, "[redacted]")
+    .replace(/\s+/g, " ")
+    .slice(0, 300);
+}
+
+function classifyGoogleFailure(status: number, phase: "token" | "query"): string {
+  if (status === 401) return phase === "token" ? "auth_failed" : "auth_expired";
+  if (status === 403) return phase === "token" ? "auth_failed" : "permission_denied";
+  if (status === 429) return "rate_limited";
+  if (status >= 500) return "google_unavailable";
+  return phase === "token" ? "auth_failed" : "gsc_error";
+}
+
 async function getAccessToken(config: GscConfig): Promise<string> {
   if (tokenCache && tokenCache.expiresAt > Date.now() + 60_000) return tokenCache.token;
   const now = Math.floor(Date.now() / 1000);
@@ -96,14 +118,20 @@ async function getAccessToken(config: GscConfig): Promise<string> {
   const signature = signer.sign(config.privateKey).toString("base64url");
   const assertion = `${header}.${claims}.${signature}`;
 
-  const res = await fetch(TOKEN_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion }),
-  });
+  let res: Response;
+  try {
+    res = await fetch(TOKEN_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion }),
+    });
+  } catch (err) {
+    throw new Error(`network_failure: could not reach Google's token endpoint — ${redactSensitive(err instanceof Error ? err.message : String(err))}`);
+  }
   if (!res.ok) {
-    const snippet = (await res.text()).slice(0, 300);
-    throw new Error(`Google token exchange failed (${res.status}): ${snippet}`);
+    const kind = classifyGoogleFailure(res.status, "token");
+    const snippet = redactSensitive(await res.text().catch(() => ""));
+    throw new Error(`${kind}: Google token exchange failed (${res.status}) — check the service-account key. ${snippet}`);
   }
   const json = (await res.json()) as { access_token?: string; expires_in?: number };
   if (!json.access_token) throw new Error("Google token exchange returned no access_token");
@@ -127,14 +155,23 @@ async function fetchAnalyticsRows(
   body: Record<string, unknown>,
 ): Promise<GscApiRow[]> {
   const url = `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(config.siteUrl)}/searchAnalytics/query`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    throw new Error(`network_failure: could not reach the Search Console API — ${redactSensitive(err instanceof Error ? err.message : String(err))}`);
+  }
   if (!res.ok) {
-    const snippet = (await res.text()).slice(0, 300);
-    throw new Error(`GSC query failed (${res.status}): ${snippet}`);
+    const kind = classifyGoogleFailure(res.status, "query");
+    const snippet = redactSensitive(await res.text().catch(() => ""));
+    const hint = res.status === 403
+      ? ` Add the service account (${config.clientEmail}) as a user on the verified property ${config.siteUrl}.`
+      : "";
+    throw new Error(`${kind}: GSC query failed (${res.status}).${hint} ${snippet}`);
   }
   const json = (await res.json()) as { rows?: GscApiRow[] };
   return json.rows ?? [];
