@@ -218,6 +218,57 @@ export interface GscSyncResult {
   reason?: string;
   rows: { queries: number; pages: number; dimensions: number; queryPages: number };
   setErrors?: Record<string, string>;
+  /** Informational notes (optional capabilities etc.) — never counted as errors. */
+  notes?: string[];
+}
+
+// ── Phase 72.4.3 — optional-capability classification ───────────────────────
+// searchAppearance cannot be grouped with another dimension on this
+// property/API combination (production-confirmed Google 400:
+// "Cannot group by search appearance dimension together with another
+// dimension"). It is an OPTIONAL capability: its absence must never downgrade
+// an otherwise successful core import. The daily storage model
+// (gsc_dimension_daily) has no truthful home for non-date rows, so we do not
+// request ["date","searchAppearance"] at all and record an informational note
+// instead — no fabricated dates, no migration.
+
+export const SEARCH_APPEARANCE_UNAVAILABLE_NOTE =
+  "Search appearance is unavailable as a daily grouped dimension for this property/API combination.";
+
+/**
+ * True only for the production-confirmed unsupported-combination response for
+ * the searchAppearance set. Every other failure (unknown 400s, auth, network,
+ * quota) on any set — including searchAppearance — remains a genuine error.
+ * Exported for tests; also the gate should a future phase re-attempt the
+ * optional request.
+ */
+export function isOptionalUnsupportedSearchAppearance(setKey: string, message: string): boolean {
+  if (!/searchAppearance/i.test(setKey)) return false;
+  return /cannot group by search appearance dimension together with another dimension/i.test(message);
+}
+
+/**
+ * Pure status policy (Phase 72.4.3), used by runGscSync and unit-tested
+ * directly. Only blocking errors on required datasets drive
+ * success/partial/error; optional-unsupported searchAppearance responses are
+ * demoted to informational notes.
+ */
+export function resolveGscRunOutcome(
+  setErrors: Record<string, string>,
+  importedAny: boolean,
+): { status: "success" | "partial" | "error"; blockingErrors: Record<string, string>; optionalNotes: string[] } {
+  const blockingErrors: Record<string, string> = {};
+  const optionalNotes: string[] = [];
+  for (const [setKey, message] of Object.entries(setErrors)) {
+    if (isOptionalUnsupportedSearchAppearance(setKey, message)) {
+      optionalNotes.push(`${setKey}: ${message}`);
+    } else {
+      blockingErrors[setKey] = message;
+    }
+  }
+  const errorCount = Object.keys(blockingErrors).length;
+  const status = errorCount === 0 ? "success" : importedAny ? "partial" : "error";
+  return { status, blockingErrors, optionalNotes };
 }
 
 /**
@@ -304,11 +355,12 @@ export async function runGscSync(opts: { days?: number; fixture?: GscFixture }):
       setErrors["date+page"] = err instanceof Error ? err.message : String(err);
     }
 
-    // date+country / date+device / date+searchAppearance → gsc_dimension_daily
+    // date+country / date+device → gsc_dimension_daily (REQUIRED sets).
+    // date+searchAppearance is intentionally NOT requested — see
+    // isOptionalUnsupportedSearchAppearance above (Phase 72.4.3).
     const dimSets: Array<{ api: string; stored: GscDimension }> = [
       { api: "country", stored: "country" },
       { api: "device", stored: "device" },
-      { api: "searchAppearance", stored: "search_appearance" },
     ];
     for (const dim of dimSets) {
       try {
@@ -318,11 +370,10 @@ export async function runGscSync(opts: { days?: number; fixture?: GscFixture }):
         );
         if (truncated) setErrors[`date+${dim.api}`] = TRUNCATION_NOTE;
       } catch (err) {
-        // Some properties reject certain combinations (e.g. searchAppearance
-        // with date) — recorded per-set, never fatal ("where supported").
         setErrors[`date+${dim.api}`] = err instanceof Error ? err.message : String(err);
       }
     }
+    const notes: string[] = [SEARCH_APPEARANCE_UNAVAILABLE_NOTE];
 
     // query+page window snapshot → gsc_query_pages (associated landing pages)
     try {
@@ -337,9 +388,14 @@ export async function runGscSync(opts: { days?: number; fixture?: GscFixture }):
       setErrors["query+page"] = err instanceof Error ? err.message : String(err);
     }
 
-    const errorCount = Object.keys(setErrors).length;
+    // Phase 72.4.3 — partition failures: only BLOCKING errors on required
+    // datasets drive success/partial/error. A confirmed optional-unsupported
+    // searchAppearance response (should any code path ever record one) is
+    // demoted to an informational note, never to errorText.
     const importedAny = rows.queries + rows.pages + rows.dimensions + rows.queryPages > 0;
-    const status = errorCount === 0 ? "success" : importedAny ? "partial" : "error";
+    const { status, blockingErrors, optionalNotes } = resolveGscRunOutcome(setErrors, importedAny);
+    notes.push(...optionalNotes);
+    const errorCount = Object.keys(blockingErrors).length;
     await storage.finishGscSyncRun(runId, {
       status,
       startDate,
@@ -348,10 +404,13 @@ export async function runGscSync(opts: { days?: number; fixture?: GscFixture }):
       pageRows: rows.pages,
       dimensionRows: rows.dimensions,
       queryPageRows: rows.queryPages,
-      errorText: errorCount > 0 ? Object.entries(setErrors).map(([k, v]) => `${k}: ${v}`).join(" | ").slice(0, 2000) : null,
-      detail: errorCount > 0 ? { setErrors } : null,
+      errorText: errorCount > 0 ? Object.entries(blockingErrors).map(([k, v]) => `${k}: ${v}`).join(" | ").slice(0, 2000) : null,
+      detail: {
+        ...(errorCount > 0 ? { setErrors: blockingErrors } : {}),
+        notes,
+      },
     });
-    return { runId, status, source, rows, setErrors: errorCount > 0 ? setErrors : undefined };
+    return { runId, status, source, rows, setErrors: errorCount > 0 ? blockingErrors : undefined, notes };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await storage.finishGscSyncRun(runId, { status: "error", errorText: message.slice(0, 2000) }).catch(() => {});

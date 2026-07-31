@@ -2109,6 +2109,9 @@ export class DatabaseStorage implements IStorage {
       dimensionRows: r.dimensionRows,
       queryPageRows: r.queryPageRows,
       errorText: r.errorText,
+      notes: Array.isArray((r.detail as Record<string, unknown> | null)?.notes)
+        ? ((r.detail as Record<string, unknown>).notes as unknown[]).filter((n): n is string => typeof n === "string")
+        : null,
     };
   }
 

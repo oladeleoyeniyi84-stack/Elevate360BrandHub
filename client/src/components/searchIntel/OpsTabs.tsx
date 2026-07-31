@@ -173,6 +173,12 @@ export function SyncStatusTab({ payload, onSync, syncing, syncMessage, syncError
           <div className="flex items-center justify-between"><span className="text-white/75">Data through</span><span className="text-white font-bold">{sc.dataThrough ?? "—"}</span></div>
           <div className="flex items-center justify-between"><span className="text-white/75">Stored query rows</span><span className="text-white font-bold" data-testid="text-gsc-query-rows">{sc.totalQueryRows.toLocaleString()}</span></div>
           <div className="flex items-center justify-between"><span className="text-white/75">Stored page rows</span><span className="text-white font-bold">{sc.totalPageRows.toLocaleString()}</span></div>
+          {sc.lastRun?.notes && sc.lastRun.notes.length > 0 && (
+            <div className="text-white/45 text-xs leading-relaxed bg-white/4 border border-white/10 rounded-xl p-3" data-testid="text-gsc-optional-note">
+              <p className="text-white/60 font-bold uppercase tracking-wide text-[10px] mb-1">Notes</p>
+              <p>Search appearance: unavailable for daily grouped import on this property.</p>
+            </div>
+          )}
         </div>
       </SectionCard>
 

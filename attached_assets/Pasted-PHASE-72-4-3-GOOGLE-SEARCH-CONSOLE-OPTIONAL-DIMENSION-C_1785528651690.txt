@@ -1,0 +1,326 @@
+PHASE 72.4.3 — GOOGLE SEARCH CONSOLE OPTIONAL-DIMENSION CORRECTION
+
+Engineering sequence status:
+
+🟢 1. Build — Replit Agent
+⬜ 2. Review — CEO + Mission Control
+⬜ 3. Commit & Push — Replit Shell
+⬜ 4. Deploy — Render
+⬜ 5. Production Verification — Render Shell
+⬜ 6. Close Phase — Mission Control
+
+IMPORTANT OPERATING CONSTRAINTS
+
+- Build and test only.
+- Do not commit.
+- Do not push.
+- Do not deploy.
+- Do not modify Render environment variables.
+- Do not change the working production GSC property:
+  GSC_SITE_URL=https://www.elevate360official.com/
+- Do not alter service-account authentication.
+- Do not introduce a database migration unless absolutely unavoidable.
+- Preserve all certified Phase 72.1–72.4.2 behavior.
+- Keep this correction tightly scoped to Google Search Console optional-dimension handling.
+
+PRODUCTION EVIDENCE
+
+The Google Search Console integration is operational.
+
+The latest production synchronization successfully imported:
+
+- 24 query rows
+- 32 page rows
+- Window: 2026-07-02 through 2026-07-29
+
+The run was marked PARTIAL only because Google rejected:
+
+dimensions: ["date", "searchAppearance"]
+
+with an API 400 response equivalent to:
+
+"Cannot group by search appearance dimension together with another dimension."
+
+This is not an authentication, permission, credential, API-enablement, quota, or property-access failure.
+
+The production URL-prefix property is:
+
+https://www.elevate360official.com/
+
+CURRENT CODE DEFECT
+
+In server/services/googleSearchConsole.ts, the current dimension loop contains:
+
+- country
+- device
+- searchAppearance
+
+and requests every item as:
+
+["date", dimension]
+
+The returned error is stored in setErrors. The final status logic treats every setErrors entry as a genuine failure:
+
+errorCount === 0
+  ? "success"
+  : importedAny
+    ? "partial"
+    : "error"
+
+Therefore, a known unsupported optional dataset incorrectly downgrades an otherwise successful synchronization to PARTIAL.
+
+PRIMARY OBJECTIVE
+
+Correct the Search Console synchronization so that an unsupported searchAppearance grouping does not downgrade a successful core import.
+
+CORE DATASETS
+
+These remain required:
+
+1. date + query
+2. date + page
+3. date + country
+4. date + device
+5. query + page
+
+SEARCH APPEARANCE
+
+searchAppearance is optional.
+
+Do not request:
+
+["date", "searchAppearance"]
+
+because production has confirmed that Google rejects it for this property/API combination.
+
+IMPLEMENTATION REQUIREMENTS
+
+1. Separate required and optional dimension processing.
+
+Required date-grouped dimensions:
+
+- ["date", "country"]
+- ["date", "device"]
+
+Optional capability:
+
+- searchAppearance
+
+2. Do not fabricate dates.
+
+The existing gsc_dimension_daily storage model is daily. Do not assign startDate, endDate, today's date, or another artificial date to non-date searchAppearance rows.
+
+3. Avoid unnecessary schema changes.
+
+If there is no truthful existing storage model for a non-date searchAppearance snapshot:
+
+- do not add a migration merely to satisfy this corrective phase;
+- do not persist fabricated daily rows;
+- classify the capability as unsupported or unavailable;
+- preserve that information as an operational note rather than a synchronization error.
+
+4. Introduce a distinction between:
+
+- blocking/core errors;
+- optional unsupported capabilities;
+- pagination truncation;
+- informational notes.
+
+A known unsupported searchAppearance combination must not be included in the error count used to determine success/partial/error.
+
+5. Final status policy
+
+SUCCESS:
+- all required datasets complete successfully;
+- optional searchAppearance is unsupported, absent, or returns no rows;
+- no pagination cap is hit;
+- no required dataset fails.
+
+PARTIAL:
+- at least one required dataset succeeds;
+- another required dataset fails;
+- or a required dataset hits the pagination cap;
+- or another genuine non-optional integrity problem occurs.
+
+ERROR:
+- no required dataset is imported because of authentication, authorization, configuration, network, Google availability, or required-query failures.
+
+NOT_CONFIGURED:
+- preserve existing behavior unchanged.
+
+6. Search-appearance behavior
+
+Preferred safe behavior for this phase:
+
+- remove searchAppearance from the date-grouped dimension loop;
+- represent it as an optional unsupported capability for the current daily storage model;
+- store an informational note such as:
+  "Search appearance is unavailable as a daily grouped dimension for this property/API combination."
+- do not place that note in errorText;
+- do not mark the run partial solely because of that note.
+
+If the current architecture already contains a truthful non-daily storage destination for searchAppearance, it may be queried separately as:
+
+["searchAppearance"]
+
+and stored there.
+
+Do not create a new table or migration solely for this correction without first proving it is required.
+
+7. Historical records
+
+Do not rewrite or delete previous production sync rows.
+
+Earlier ERROR and PARTIAL records are valid historical evidence.
+
+The correction applies only to new sync runs.
+
+8. Dashboard behavior
+
+Update the Sync Status or operations display only as necessary so the newest run can distinguish:
+
+- Success
+- Partial
+- Error
+- Optional capability unavailable
+
+Do not render the optional capability note as a red error.
+
+Use neutral informational copy.
+
+Suggested wording:
+
+"Search appearance: unavailable for daily grouped import on this property."
+
+Do not claim that Google does not support searchAppearance globally.
+
+9. Preserve error honesty
+
+Do not broadly suppress all HTTP 400 responses.
+
+Only classify the confirmed unsupported-dimension case as optional when the response clearly identifies the searchAppearance dimension combination as invalid.
+
+Other 400 responses must remain visible as genuine failures.
+
+10. Preserve security
+
+- Do not expose access tokens.
+- Do not expose private keys.
+- Preserve error redaction.
+- Preserve credential parsing.
+- Preserve the server-side trust boundary.
+- Preserve the founder PIN requirement.
+- Do not add client-controlled sync status fields.
+
+TEST REQUIREMENTS
+
+Create:
+
+scripts/phase72_4_3_tests.ts
+
+Tests must cover at least:
+
+A. Required datasets
+
+1. date+query success
+2. date+page success
+3. date+country success
+4. date+device success
+5. query+page success
+
+B. Optional capability handling
+
+6. confirmed searchAppearance/date invalid-combination response does not mark run partial
+7. optional unsupported note is retained
+8. optional unsupported note is not written as errorText
+9. unknown searchAppearance 400 remains a genuine error
+10. searchAppearance authentication failure remains a genuine error
+11. searchAppearance network failure remains visible if the implementation attempts that optional request
+
+C. Status rules
+
+12. all required sets succeed + optional unsupported → success
+13. required set failure + another required set succeeds → partial
+14. all required sets fail → error
+15. required pagination truncation → partial
+16. optional capability unavailable alone → success
+17. no-data core response without errors → success
+18. not_configured remains unchanged
+
+D. Data integrity
+
+19. no fabricated date is written for searchAppearance
+20. country and device daily rows retain correct dates and dimensions
+21. idempotent repeated sync behavior remains intact
+22. previous historical sync records are untouched
+23. single-running-sync DB guard remains intact
+
+E. Regression guards
+
+24. 401 founder authentication behavior unchanged
+25. wrong PIN remains rejected
+26. authenticated sync endpoint remains operational
+27. fixture mode remains blocked in production
+28. Google credentials remain redacted
+29. Search Intelligence composed GET never calls Google
+30. no SPA fallback on API endpoints
+
+Run the complete existing regression suites:
+
+- Phase 72.1
+- Phase 72.2
+- Phase 72.3
+- Phase 72.4
+- Phase 72.4.1
+- Phase 72.4.2
+- Phase 72.4.3
+
+Also run:
+
+npm run check
+npm run build
+
+ARCHITECT REVIEW
+
+Run an architect review after tests and build pass.
+
+Architect must explicitly assess:
+
+- required-vs-optional error classification;
+- whether genuine errors can be accidentally suppressed;
+- whether any fake date is stored;
+- whether success can be reported when a required dataset failed;
+- whether pagination truncation still produces partial;
+- whether historical records remain untouched;
+- whether credentials and Google error bodies remain safely redacted;
+- whether the implementation remains additive and regression-safe.
+
+DELIVERY REPORT
+
+Return a Phase 72.4.3 Build Delivery Report containing:
+
+1. Status
+2. Root cause
+3. Files added
+4. Files modified
+5. Exact status-policy changes
+6. Required datasets
+7. Optional-dimension treatment
+8. Storage decision and justification
+9. Dashboard behavior
+10. Test totals and results
+11. Full regression results
+12. TypeScript result
+13. Production build result
+14. Architect review findings and fixes
+15. Database migration required: yes/no
+16. Production activation instructions
+17. Production verification commands
+18. Risks and deferred items
+19. Confirmation that nothing was committed, pushed, or deployed
+
+STOP after the Build Delivery Report.
+
+Do not commit.
+Do not push.
+Do not deploy.

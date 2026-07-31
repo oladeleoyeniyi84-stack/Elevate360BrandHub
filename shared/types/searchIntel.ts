@@ -111,6 +111,8 @@ export interface GscRunInfo {
   dimensionRows: number;
   queryPageRows: number;
   errorText: string | null;
+  /** Informational notes (e.g. optional capabilities unavailable) — never errors. */
+  notes: string[] | null;
 }
 
 export interface SearchConsoleStatus {
