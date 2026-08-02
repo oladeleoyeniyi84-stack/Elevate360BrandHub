@@ -2683,6 +2683,91 @@ export const gscSyncRequestSchema = z.object({
 export type GscSyncRequest = z.infer<typeof gscSyncRequestSchema>;
 export type GscFixture = NonNullable<GscSyncRequest["fixture"]>;
 
+// ── Phase 72.5 — Search Growth Operations: remediation action queue ─────────
+// Evidence-based, founder-approved SEO remediation actions. Generated ONLY
+// server-side from stored GSC / audit / engagement / funnel / revenue / CWV
+// data after a successful sync. Clients can never create trusted actions,
+// set scores, or fabricate evidence — only decide on proposed ones.
+
+export const SEARCH_GROWTH_ACTION_TYPES = [
+  "improve_title",
+  "improve_meta_description",
+  "add_or_correct_structured_data",
+  "correct_canonical",
+  "strengthen_internal_linking",
+  "improve_content_depth",
+  "improve_search_intent_alignment",
+  "improve_ctr",
+  "address_indexability",
+  "improve_core_web_vitals",
+  "distribute_unseen_content",
+  "investigate_query_decline",
+] as const;
+export type SearchGrowthActionType = (typeof SEARCH_GROWTH_ACTION_TYPES)[number];
+
+export const SEARCH_GROWTH_ACTION_STATUSES = [
+  "proposed", "approved", "in_progress", "completed", "dismissed", "superseded",
+] as const;
+export type SearchGrowthActionStatus = (typeof SEARCH_GROWTH_ACTION_STATUSES)[number];
+
+export const searchGrowthActions = pgTable("search_growth_actions", {
+  id: serial("id").primaryKey(),
+  actionType: varchar("action_type", { length: 48 }).notNull(), // SEARCH_GROWTH_ACTION_TYPES
+  title: varchar("title", { length: 300 }).notNull(),
+  description: text("description").notNull(),
+  /** Structured, server-derived evidence that produced this action. */
+  evidence: jsonb("evidence").$type<Record<string, unknown>>().notNull(),
+  targetPath: varchar("target_path", { length: 1000 }),
+  targetQuery: varchar("target_query", { length: 500 }),
+  // Transparent 0-100 priority model — components stored individually:
+  // priority = 30% impact + 25% evidence + 20% relevance + 15% confidence + 10% effort efficiency.
+  priorityScore: integer("priority_score").notNull(),
+  impactScore: integer("impact_score").notNull(),
+  evidenceScore: integer("evidence_score").notNull(),
+  relevanceScore: integer("relevance_score").notNull(),
+  confidenceScore: integer("confidence_score").notNull(),
+  effortScore: integer("effort_score").notNull(), // effort EFFICIENCY (higher = less effort)
+  sourceType: varchar("source_type", { length: 32 }).notNull(), // e.g. gsc_change | seo_audit | engagement | revenue | web_vitals
+  sourceReference: varchar("source_reference", { length: 200 }), // e.g. sync run id / audit run id
+  status: varchar("status", { length: 24 }).notNull().default("proposed"), // SEARCH_GROWTH_ACTION_STATUSES
+  founderDecision: varchar("founder_decision", { length: 24 }), // approved | dismissed
+  decisionNote: text("decision_note"),
+  implementationNote: text("implementation_note"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  approvedAt: timestamp("approved_at"),
+  completedAt: timestamp("completed_at"),
+  dismissedAt: timestamp("dismissed_at"),
+  measurementStart: date("measurement_start"),
+  measurementEnd: date("measurement_end"),
+  baselineMetrics: jsonb("baseline_metrics").$type<Record<string, unknown>>(),
+  resultMetrics: jsonb("result_metrics").$type<Record<string, unknown>>(),
+  /** Server-derived identity of the underlying opportunity (never client-supplied). */
+  dedupeKey: varchar("dedupe_key", { length: 300 }).notNull(),
+}, (t) => ({
+  statusIdx: index("search_growth_actions_status_idx").on(t.status),
+  priorityIdx: index("search_growth_actions_priority_idx").on(t.priorityScore),
+  // One LIVE action per opportunity: proposed/approved/in_progress rows are
+  // unique per dedupeKey; completed/dismissed/superseded history is kept.
+  liveDedupeUq: uniqueIndex("search_growth_actions_live_dedupe_uq").on(t.dedupeKey)
+    .where(sql`status IN ('proposed','approved','in_progress')`),
+}));
+
+export type SearchGrowthAction = typeof searchGrowthActions.$inferSelect;
+export type InsertSearchGrowthAction = typeof searchGrowthActions.$inferInsert;
+
+// Founder decision request bodies — deliberately narrow: no scores, no
+// evidence, no status values. The server owns everything else.
+export const searchGrowthDismissSchema = z.object({
+  reason: z.string().trim().min(3).max(1000),
+}).strip();
+export const searchGrowthCompleteSchema = z.object({
+  implementationNote: z.string().trim().min(3).max(2000),
+}).strip();
+export const searchGrowthApproveSchema = z.object({
+  note: z.string().trim().max(1000).optional(),
+}).strip();
+
 export type GscQueryDailyRow = typeof gscQueryDaily.$inferSelect;
 export type GscPageDailyRow = typeof gscPageDaily.$inferSelect;
 export type GscDimensionDailyRow = typeof gscDimensionDaily.$inferSelect;

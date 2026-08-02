@@ -1,0 +1,439 @@
+PHASE 72.5 — SEARCH GROWTH OPERATIONS & SEO REMEDIATION
+
+ENGINEERING SEQUENCE
+
+🟢 1. Build — Replit Agent
+⬜ 2. Review — CEO + Mission Control
+⬜ 3. Commit & Push — Replit Shell
+⬜ 4. Deploy — Render
+⬜ 5. Production Verification — Render Shell
+⬜ 6. Close Phase — Mission Control
+
+OPERATING CONSTRAINTS
+
+- Build and test only.
+- Do not commit.
+- Do not push.
+- Do not deploy.
+- Do not modify Render environment variables.
+- Do not alter the working GSC property:
+  https://www.elevate360official.com/
+- Preserve all certified Phase 72.1–72.4.3 behavior.
+- Do not automatically modify production content, metadata, redirects, structured data, or URLs.
+- All recommended remediations must require founder approval.
+- Recommendations must be derived only from stored GSC, SEO-audit, content-engagement, funnel, revenue, and Core Web Vitals data.
+- Never fabricate keywords, rankings, traffic, revenue, or projected results.
+
+CURRENT PRODUCTION STATE
+
+The Search Intelligence platform now has a successful Google Search Console connection.
+
+Latest verified production synchronization:
+
+- Status: SUCCESS
+- Query rows: 26
+- Page rows: 34
+- Window: 2026-07-03 through 2026-07-30
+- SEO audit: 13 pages, 7 issues
+- Optional searchAppearance limitation stored as a neutral note
+- No authentication, permission, API-enablement, or property-alignment failures remain
+
+PRIMARY OBJECTIVE
+
+Turn Search Intelligence into an operational growth system that:
+
+1. Synchronizes search data reliably.
+2. Detects meaningful search-performance changes.
+3. Creates evidence-based SEO remediation actions.
+4. Prioritizes actions transparently.
+5. Tracks founder approval and execution status.
+6. Measures before-and-after results.
+7. Never performs autonomous production modifications.
+
+A. SEARCH OPERATIONS AUTOMATION
+
+Add controlled scheduling using the existing Elevate360 job-runner architecture.
+
+Required jobs:
+
+1. Daily GSC synchronization
+   - Run once every 24 hours.
+   - Reuse the existing DB-enforced single-running-sync guard.
+   - Skip safely if a sync is already running.
+   - Preserve founder-triggered manual sync.
+   - Record every automated attempt in gsc_sync_runs.
+   - Use source="scheduled" if the existing enum permits it; otherwise make an additive type-safe change.
+
+2. Weekly SEO audit
+   - Run once every seven days.
+   - Audit the same approved canonical public routes used by Phase 72.4.
+   - Do not audit dashboards, APIs, private routes, or arbitrary external URLs.
+   - Preserve deterministic self-fetch behavior.
+   - Record audit results using existing SEO audit tables.
+
+3. Failure control
+   - No retry storms.
+   - Use bounded retries only for transient network, rate-limit, or Google 5xx failures.
+   - Do not retry configuration, permission, validation, or unsupported-capability failures indefinitely.
+   - Record the final failure category honestly.
+
+B. SEARCH PERFORMANCE CHANGE DETECTION
+
+Compare stored periods without calling Google during dashboard reads.
+
+Required comparisons:
+
+- Latest seven complete days versus previous seven complete days
+- Latest 28 complete days versus previous 28 complete days
+
+Detect:
+
+1. Emerging queries
+   - Meaningful new impressions or clicks compared with the prior period.
+
+2. Declining queries
+   - Material click, impression, CTR, or position deterioration.
+
+3. High-impression, low-CTR queries
+   - Minimum data thresholds required.
+   - Do not create recommendations from one or two incidental impressions.
+
+4. Near-page-one queries
+   - Average positions approximately 8–20.
+   - Label this as a prioritization range, not a guaranteed page classification.
+
+5. Landing-page opportunities
+   - Pages receiving search impressions but weak engagement or funnel progression.
+
+6. Search-to-revenue opportunities
+   - Use existing directional session-level attribution.
+   - Preserve the existing disclosure that this is not Google-verified keyword revenue attribution.
+
+7. Technical regressions
+   - New metadata, structured-data, canonical, indexability, sitemap, internal-link, or Core Web Vitals issues.
+
+C. REMEDIATION ACTION QUEUE
+
+Create an additive table:
+
+search_growth_actions
+
+Suggested fields:
+
+- id
+- actionType
+- title
+- description
+- evidence
+- targetPath
+- targetQuery
+- priorityScore
+- impactScore
+- confidenceScore
+- effortScore
+- sourceType
+- sourceReference
+- status
+- founderDecision
+- decisionNote
+- createdAt
+- updatedAt
+- approvedAt
+- completedAt
+- dismissedAt
+- measurementStart
+- measurementEnd
+- baselineMetrics
+- resultMetrics
+- dedupeKey
+
+Statuses:
+
+- proposed
+- approved
+- in_progress
+- completed
+- dismissed
+- superseded
+
+Founder decisions must be server-authoritative.
+
+Clients must not be able to:
+
+- create trusted recommendations directly;
+- set priority scores;
+- mark actions approved without founder authentication;
+- fabricate evidence;
+- claim completion metrics.
+
+Use an idempotent bootstrap script:
+
+scripts/create_phase72_5_tables.ts
+
+D. TRANSPARENT PRIORITY MODEL
+
+Use a documented 0–100 priority score.
+
+Suggested components:
+
+- 30% potential impact
+- 25% evidence strength
+- 20% business relevance
+- 15% implementation confidence
+- 10% effort efficiency
+
+Requirements:
+
+- Store component scores.
+- Display the formula in the dashboard.
+- Do not call the score an AI certainty or ranking guarantee.
+- Minimum data thresholds must prevent recommendations from sparse data.
+- Every action must display the evidence that produced it.
+
+E. ACTION TYPES
+
+Support evidence-based action types such as:
+
+- improve_title
+- improve_meta_description
+- add_or_correct_structured_data
+- correct_canonical
+- strengthen_internal_linking
+- improve_content_depth
+- improve_search_intent_alignment
+- improve_ctr
+- address_indexability
+- improve_core_web_vitals
+- distribute_unseen_content
+- investigate_query_decline
+
+Do not automatically execute these actions in this phase.
+
+F. FOUNDER WORKFLOW
+
+Add a new tab to /search-intelligence:
+
+Growth Actions
+
+Required capabilities:
+
+- View proposed actions.
+- Filter by priority, type, page, query, and status.
+- Open evidence details.
+- Approve.
+- Dismiss with a reason.
+- Mark in progress.
+- Mark completed.
+- Record implementation notes.
+- View baseline and post-completion measurements.
+
+Founder-authenticated API endpoints:
+
+GET /api/dashboard/search-growth/actions
+POST /api/dashboard/search-growth/actions/:id/approve
+POST /api/dashboard/search-growth/actions/:id/dismiss
+POST /api/dashboard/search-growth/actions/:id/start
+POST /api/dashboard/search-growth/actions/:id/complete
+
+All endpoints must:
+
+- require founder authentication;
+- return JSON;
+- never fall through to the SPA;
+- use Zod validation;
+- enforce valid state transitions;
+- record audit timestamps.
+
+G. RECOMMENDATION GENERATION
+
+Create a deterministic service such as:
+
+server/services/searchGrowthActions.ts
+
+Requirements:
+
+- Read only stored data.
+- Never call Google during dashboard GET requests.
+- Generate actions after a successful scheduled or manual synchronization.
+- Deduplicate equivalent recommendations.
+- Supersede obsolete recommendations safely.
+- Never delete historical completed or dismissed actions.
+- Do not create recommendations from old ERROR or PARTIAL sync records when a newer successful sync exists.
+- Optional GSC capability notes must not generate false remediation tasks.
+
+H. IMPACT MEASUREMENT
+
+For completed actions:
+
+- Capture baseline clicks, impressions, CTR, average position, engagement, funnel entry, and attributed revenue when available.
+- Measure later periods using equivalent windows.
+- Clearly distinguish:
+  - improved;
+  - declined;
+  - unchanged;
+  - insufficient data.
+
+Do not claim causation.
+
+Display:
+
+"Observed after implementation; other factors may have influenced the result."
+
+I. DASHBOARD SUMMARY
+
+Add executive KPIs:
+
+- Open actions
+- Critical/high-priority actions
+- Approved actions
+- Completed actions
+- Actions awaiting measurement
+- Observed improvements
+- Search impressions change
+- Search clicks change
+- Organic funnel entries
+- Directional organic revenue
+
+Add an operations panel showing:
+
+- Last GSC sync
+- Next scheduled GSC sync
+- Last SEO audit
+- Next scheduled SEO audit
+- Last generation run
+- Any current job failure
+
+J. SECURITY AND DATA INTEGRITY
+
+Preserve:
+
+- founder PIN authentication;
+- session security;
+- rate limits;
+- GSC credential secrecy;
+- Google token secrecy;
+- SQL aggregation discipline;
+- single-running-sync protection;
+- API fallback guards;
+- server-derived dedupe keys.
+
+Do not expose:
+
+- service-account JSON;
+- private keys;
+- access tokens;
+- raw session identifiers;
+- internal database credentials;
+- sensitive Google error payloads.
+
+K. TESTING
+
+Create:
+
+scripts/phase72_5_api_tests.ts
+
+Test at minimum:
+
+1. Table bootstrap is idempotent.
+2. Action generation uses stored data only.
+3. Sparse GSC data does not create false recommendations.
+4. High-impression/low-CTR opportunity generation.
+5. Near-page-one opportunity generation.
+6. Declining-query detection.
+7. Emerging-query detection.
+8. Technical-audit regression generation.
+9. Optional searchAppearance note creates no action.
+10. Newest successful sync is selected correctly.
+11. Older ERROR/PARTIAL runs do not override newer success.
+12. Recommendation deduplication.
+13. Obsolete recommendation superseding.
+14. Completed history is preserved.
+15. Founder authentication required.
+16. Wrong PIN rejected.
+17. Unauthorized approval rejected.
+18. Valid approval succeeds.
+19. Invalid state transition rejected.
+20. Dismissal requires a reason.
+21. Completion stores implementation notes.
+22. Priority score components total correctly.
+23. Client cannot set trusted scores.
+24. Client cannot fabricate evidence.
+25. No raw session identifiers returned.
+26. No secret credential exposure.
+27. Dashboard GET makes no Google call.
+28. Scheduled job respects sync concurrency guard.
+29. Transient retry is bounded.
+30. Permission/configuration failures do not retry indefinitely.
+31. API endpoints return JSON.
+32. API endpoints do not fall through to SPA.
+33. Existing manual GSC sync remains operational.
+34. Existing Search Intelligence dashboard remains operational.
+35. Existing Phase 72.4.3 success classification remains intact.
+
+Run all existing regression suites:
+
+- Phase 72.1
+- Phase 72.2
+- Phase 72.3
+- Phase 72.4
+- Phase 72.4.1
+- Phase 72.4.2
+- Phase 72.4.3
+
+Also run:
+
+npm run check
+npm run build
+
+L. ARCHITECT REVIEW
+
+The architect must assess:
+
+- scheduler safety;
+- duplicate-job prevention;
+- data-window correctness;
+- sparse-data thresholds;
+- recommendation honesty;
+- priority-score transparency;
+- state-transition integrity;
+- authorization boundaries;
+- historical-record preservation;
+- secret redaction;
+- SQL performance;
+- absence of Google calls during dashboard reads;
+- no autonomous production modifications.
+
+M. DELIVERY REPORT
+
+Return a Phase 72.5 Build Delivery Report containing:
+
+1. Status
+2. Root cause/business need
+3. Files added
+4. Files modified
+5. Database objects
+6. Scheduler design
+7. Change-detection methodology
+8. Recommendation types
+9. Priority formula
+10. Founder approval workflow
+11. Measurement methodology
+12. Security controls
+13. API endpoints
+14. Dashboard changes
+15. Test totals
+16. Full regression results
+17. TypeScript result
+18. Production build result
+19. Architect review findings and fixes
+20. Migration command
+21. Production activation steps
+22. Production verification commands
+23. Risks and deferred items
+24. Confirmation that nothing was committed, pushed, or deployed
+
+STOP after the Build Delivery Report.
+
+Do not commit.
+Do not push.
+Do not deploy.

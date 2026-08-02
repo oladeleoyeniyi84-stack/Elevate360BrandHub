@@ -22,6 +22,7 @@ import { FirstPartyOverview } from "@/components/searchIntel/FirstPartyOverview"
 import { GscTotalsStrip, QueriesTab, LandingPagesTab } from "@/components/searchIntel/GscTabs";
 import { SeoHealthTab, StructuredDataTab, MetadataTab, SocialTab, IndexCoverageTab } from "@/components/searchIntel/SeoTabs";
 import { WebVitalsTab, OrganicRevenueTab, RecommendationsTab, SyncStatusTab } from "@/components/searchIntel/OpsTabs";
+import { GrowthActionsTab } from "@/components/searchIntel/GrowthActionsTab";
 
 function PinGate({ onAuth }: { onAuth: () => void }) {
   const [pin, setPin] = useState("");
@@ -79,6 +80,7 @@ const TABS = [
   { id: "vitals", label: "Web Vitals" },
   { id: "organic-revenue", label: "Organic Revenue" },
   { id: "recommendations", label: "Recommendations" },
+  { id: "growth-actions", label: "Growth Actions" },
   { id: "sync", label: "Sync Status" },
 ] as const;
 
@@ -240,6 +242,7 @@ function Console({ onUnauthenticated }: { onUnauthenticated: () => void }) {
         {activeTab === "vitals" && <WebVitalsTab payload={payload} />}
         {activeTab === "organic-revenue" && <OrganicRevenueTab payload={payload} />}
         {activeTab === "recommendations" && <RecommendationsTab payload={payload} />}
+        {activeTab === "growth-actions" && <GrowthActionsTab />}
         {activeTab === "sync" && (
           <SyncStatusTab payload={payload} onSync={runSync} syncing={syncing} syncMessage={syncMessage} syncError={syncError} />
         )}

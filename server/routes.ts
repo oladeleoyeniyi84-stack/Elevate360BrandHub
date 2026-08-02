@@ -788,6 +788,10 @@ export async function registerRoutes(
   const { searchIntelligenceRouter } = await import("./routes/searchIntelligence");
   app.use("/api/dashboard/search-intelligence", searchIntelligenceRouter);
 
+  // Phase 72.5 — Search Growth Operations (founder action queue).
+  const { searchGrowthRouter } = await import("./routes/searchGrowth");
+  app.use("/api/dashboard/search-growth", searchGrowthRouter);
+
   app.get("/api/dashboard/clicks", async (req, res) => {
     if (!isDashboardAuthed(req)) return res.status(401).json({ error: "Unauthorized" });
     const stats = await storage.getClickStats();

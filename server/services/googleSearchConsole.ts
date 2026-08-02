@@ -214,7 +214,7 @@ function isoDaysAgo(days: number): string {
 export interface GscSyncResult {
   runId: number;
   status: "success" | "partial" | "error" | "not_configured";
-  source: "api" | "fixture";
+  source: "api" | "fixture" | "scheduled";
   reason?: string;
   rows: { queries: number; pages: number; dimensions: number; queryPages: number };
   setErrors?: Record<string, string>;
@@ -284,9 +284,11 @@ export class GscSyncConflictError extends Error {
   }
 }
 
-export async function runGscSync(opts: { days?: number; fixture?: GscFixture }): Promise<GscSyncResult> {
+export async function runGscSync(opts: { days?: number; fixture?: GscFixture; scheduled?: boolean }): Promise<GscSyncResult> {
   const days = opts.days ?? GSC_SYNC_DEFAULT_DAYS;
-  const source = opts.fixture ? "fixture" : "api";
+  // Phase 72.5 — scheduled runs are recorded distinctly (additive; the
+  // source column is an unconstrained varchar(16)). Fixture wins for tests.
+  const source = opts.fixture ? "fixture" : opts.scheduled ? "scheduled" : "api";
   // Atomic claim: a partial unique index allows at most one 'running' row, so
   // two concurrent syncs can never both pass a check-then-create window.
   const runId = await storage.createGscSyncRun({ source, daysRequested: days });

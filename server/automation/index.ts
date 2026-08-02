@@ -317,4 +317,26 @@ export async function startAutomationJobs() {
     1_020_000 // 17-minute boot offset
   );
   console.log("[automation] Phase 68 jobs registered (2 jobs)");
+
+  // ── Phase 72.5 — Search Growth Operations ─────────────────────────────────
+  const { runScheduledGscSync, runScheduledSeoAudit } = await import("./searchGrowthOps");
+  await registerRecurringJob(
+    {
+      jobKey: "phase72_5_daily_gsc_sync",
+      jobGroup: "search-growth",
+      cadenceMinutes: 24 * 60,
+      run: runScheduledGscSync,
+    },
+    1_080_000 // 18-minute boot offset
+  );
+  await registerRecurringJob(
+    {
+      jobKey: "phase72_5_weekly_seo_audit",
+      jobGroup: "search-growth",
+      cadenceMinutes: 7 * 24 * 60,
+      run: runScheduledSeoAudit,
+    },
+    1_140_000 // 19-minute boot offset
+  );
+  console.log("[automation] Phase 72.5 jobs registered (2 jobs)");
 }

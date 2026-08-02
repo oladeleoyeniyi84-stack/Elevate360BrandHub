@@ -101,7 +101,20 @@ searchIntelligenceRouter.post("/sync", requireDashboardAuth, rateLimit(6, 300), 
     }
     const result: Record<string, unknown> = { ok: true, scope };
     if (wantsGsc) {
-      result.gsc = await runGscSync({ days: parsed.days ?? GSC_SYNC_DEFAULT_DAYS, fixture: parsed.fixture });
+      const gsc = await runGscSync({ days: parsed.days ?? GSC_SYNC_DEFAULT_DAYS, fixture: parsed.fixture });
+      result.gsc = gsc;
+      // Phase 72.5 — a successful manual sync also refreshes the growth
+      // action queue (generation reads stored data only; failures here never
+      // fail the sync response).
+      if (gsc.status === "success") {
+        try {
+          const { generateSearchGrowthActions, measureCompletedActions } = await import("../services/searchGrowthActions");
+          result.growthActions = await generateSearchGrowthActions({ reason: "manual_sync" });
+          await measureCompletedActions().catch(() => {});
+        } catch (err) {
+          console.error("[search-growth] post-sync generation failed:", err);
+        }
+      }
     }
     if (wantsAudits) {
       result.audits = await runSeoAudit();

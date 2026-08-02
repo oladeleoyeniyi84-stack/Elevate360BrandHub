@@ -13,4 +13,6 @@
 - [Revert one file in protected git sandbox](git-restore-protected-sandbox.md) — git checkout/restore/rm blocked; use `git show HEAD:path > path` to undo single-file drift; never rm .git/index.lock.
 - [Replit lock mirror URLs break deploys](replit-lock-mirror-urls.md) — package-lock resolves to package-firewall.replit.local (unreachable on Render); regen on Replit reproduces it; fix by sed host→registry.npmjs.org (integrity stays valid).
 - [Empty-string identity contamination](empty-string-identity.md) — '' session/visitor ids pass trim-zod and bypass falsy dedupe guards yet store as ONE shared joinable session; normalize ''→NULL at ingestion, SQL anon guards must include ''.
+- [Derived-data run anchoring](derived-data-run-anchoring.md) — generators over shared daily tables must anchor windows on the newest SUCCESS run's end_date, not MAX(date); transitions via compare-and-swap.
+- [Test-data accumulation flakes](test-data-accumulation-flakes.md) — leftover synthetic rows saturate top-N lists & detector caps; sort-by-volume before capping, clean `sil-camp-%`/fixture rows on flake.
 - [Drizzle array params in raw SQL](drizzle-array-params.md) — sql`ANY(${jsArray})` fails at runtime w/ 42809 once data exists; build IN lists via sql.join per-element params instead.
