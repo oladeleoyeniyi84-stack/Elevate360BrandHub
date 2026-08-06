@@ -15,4 +15,5 @@
 - [Empty-string identity contamination](empty-string-identity.md) — '' session/visitor ids pass trim-zod and bypass falsy dedupe guards yet store as ONE shared joinable session; normalize ''→NULL at ingestion, SQL anon guards must include ''.
 - [Derived-data run anchoring](derived-data-run-anchoring.md) — generators over shared daily tables must anchor windows on the newest SUCCESS run's end_date, not MAX(date); transitions via compare-and-swap.
 - [Test-data accumulation flakes](test-data-accumulation-flakes.md) — leftover synthetic rows saturate top-N lists & detector caps; sort-by-volume before capping, clean `sil-camp-%`/fixture rows on flake.
+- [GitHub push from Replit](github-push-from-replit.md) — shell git push auth always fails; gitPush BRANCH_ALREADY_EXISTS → gitPull then fix upstream tracking, retry; Render deploys main in ~90s.
 - [Drizzle array params in raw SQL](drizzle-array-params.md) — sql`ANY(${jsArray})` fails at runtime w/ 42809 once data exists; build IN lists via sql.join per-element params instead.
