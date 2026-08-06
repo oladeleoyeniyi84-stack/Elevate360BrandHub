@@ -421,6 +421,13 @@ export const HOMEPAGE_ANALYTICS_EVENTS = [
   "booking_cta_click",
   "concierge_open",
   "social_link_click",
+  // Phase 72.6 — public flagship work & collaborations showcase.
+  "work_section_view",
+  "work_project_view",
+  "work_project_cta_click",
+  "work_filter_used",
+  "current_initiative_view",
+  "consultation_cta_click",
 ] as const;
 export type HomepageAnalyticsEvent = (typeof HOMEPAGE_ANALYTICS_EVENTS)[number];
 

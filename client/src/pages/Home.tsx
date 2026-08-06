@@ -41,6 +41,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ContactDialog } from "@/components/ContactDialog";
 import { WhoWeHelpSection } from "@/components/WhoWeHelpSection";
+import FlagshipWorkSection from "@/components/FlagshipWorkSection";
 import { LatestFromElevate360 } from "@/components/LatestFromElevate360";
 import { NewsletterForm } from "@/components/NewsletterForm";
 import { ShareButton } from "@/components/ShareButton";
@@ -414,6 +415,9 @@ export default function Home() {
             <Link href="/blog" data-testid="link-nav-blog" className="text-sm font-medium hover:text-primary transition-colors">
               {t("nav_blog")}
             </Link>
+            <Link href="/work" data-testid="link-nav-work" className="text-sm font-medium hover:text-primary transition-colors">
+              Work
+            </Link>
             <Link href="/knowledge" data-testid="link-nav-knowledge" className="text-sm font-medium hover:text-primary transition-colors">
               Knowledge Center
             </Link>
@@ -514,6 +518,7 @@ export default function Home() {
               </a>
             ))}
             {[
+              { href: "/work", label: "Work", icon: <Rocket className="h-4 w-4" /> },
               { href: "/knowledge", label: "Knowledge Center", icon: <BookOpen className="h-4 w-4" /> },
               { href: "/about-founder", label: "Founder", icon: <Sparkles className="h-4 w-4" /> },
               { href: "/strategy-session", label: "Strategy Session", icon: <Rocket className="h-4 w-4" /> },
@@ -2195,6 +2200,9 @@ export default function Home() {
         );
       })()}
 
+      {/* Phase 72.6 — Flagship work & collaborations showcase */}
+      <FlagshipWorkSection />
+
       {/* CTA Section */}
       <section className="py-20 bg-gradient-to-b from-background to-[#070b13] border-t border-white/10">
         <div className="container mx-auto px-4 md:px-6 text-center">
@@ -2267,6 +2275,8 @@ export default function Home() {
                 <a key={label} href={href} data-testid={`link-footer-${label.toLowerCase()}`}
                   className="text-sm text-muted-foreground hover:text-foreground transition-colors">{label}</a>
               ))}
+              <Link href="/work" data-testid="link-footer-work"
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors">Work</Link>
               <ContactDialog>
                 <button data-testid="button-footer-contact"
                   className="text-sm text-muted-foreground hover:text-foreground transition-colors text-left cursor-pointer">

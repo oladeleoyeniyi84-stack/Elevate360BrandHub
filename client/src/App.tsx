@@ -42,6 +42,7 @@ import Guide from "@/pages/Guide";
 import PressKit from "@/pages/PressKit";
 import CheckoutSuccess from "@/pages/CheckoutSuccess";
 import Pricing from "@/pages/Pricing";
+import Work from "@/pages/Work";
 import Account from "@/pages/Account";
 import BondedLoveProduct from "@/pages/BondedLoveProduct";
 import HealthWiseProduct from "@/pages/HealthWiseProduct";
@@ -430,6 +431,7 @@ function Router() {
       </Route>
 
       <Route path="/pricing" component={Pricing} />
+      <Route path="/work" component={Work} />
       <Route path="/account" component={Account} />
       <Route path="/apps/bondedlove" component={BondedLoveProduct} />
       <Route path="/apps/healthwise" component={HealthWiseProduct} />

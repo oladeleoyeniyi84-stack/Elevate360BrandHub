@@ -24,6 +24,7 @@ Amazon-published books, original music, and visual art.
 
 ## Primary Services
 
+- Flagship work, collaborations and current initiatives: ${u("/work")}
 - Apps, books, music and art links hub: ${u("/links")}
 - Marketplace: ${u("/marketplace")}
 - Strategy sessions: ${u("/strategy-session")}

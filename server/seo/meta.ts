@@ -5,6 +5,7 @@
 
 import { storage } from "../storage";
 import { canonicalPath, canonicalUrl, CANONICAL_ORIGIN } from "./canonical";
+import { getPublicProjects } from "@shared/flagshipProjects";
 
 const SITE_NAME = "Elevate360Official";
 const DEFAULT_IMAGE = `${CANONICAL_ORIGIN}/social-preview/elevate360-logo-share.png`;
@@ -96,7 +97,48 @@ const STATIC_ROUTE_META: Record<string, { title: string; description: string; og
     description:
       "Simple, transparent pricing for Elevate360Official products and services — apps, digital products and consultations.",
   },
+  "/work": {
+    title: "Our Work, Collaborations & Digital Projects | Elevate360Official",
+    description:
+      "Explore Elevate360Official’s flagship platforms, AI systems, nonprofit collaborations, intelligent websites, digital experiences, analytics infrastructure, and current initiatives.",
+  },
 };
+
+// Phase 72.6 — /work structured data. Built from the shared public project
+// configuration (confidential records already excluded there). No fabricated
+// ratings, awards, review counts, or metrics — names/descriptions/URLs only.
+function buildWorkJsonLd(): Record<string, unknown> {
+  const canonical = canonicalUrl("/work");
+  const projects = getPublicProjects();
+  return {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    "@id": `${canonical}#collection`,
+    name: "Our Work, Collaborations & Digital Projects",
+    url: canonical,
+    description:
+      "Flagship platforms, strategic collaborations, current initiatives, and creative digital experiences built by Elevate360Official.",
+    publisher: {
+      "@type": "Organization",
+      name: SITE_NAME,
+      url: `${CANONICAL_ORIGIN}/`,
+      logo: { "@type": "ImageObject", url: DEFAULT_IMAGE },
+    },
+    mainEntity: {
+      "@type": "ItemList",
+      itemListElement: projects.map((p, idx) => ({
+        "@type": "ListItem",
+        position: idx + 1,
+        item: {
+          "@type": "CreativeWork",
+          name: p.title,
+          description: p.summary,
+          url: p.externalUrl ?? canonical,
+        },
+      })),
+    },
+  };
+}
 
 // Strict slug shape — anything else is treated as unknown, so request input
 // is never reflected into the response head.
@@ -161,6 +203,7 @@ export async function resolveRouteMeta(rawUrl: string): Promise<ResolvedMeta | n
       canonical: canonicalUrl(path),
       ogType: staticMeta.ogType ?? "website",
       image: DEFAULT_IMAGE,
+      jsonLd: path === "/work" ? buildWorkJsonLd() : undefined,
     };
   }
 

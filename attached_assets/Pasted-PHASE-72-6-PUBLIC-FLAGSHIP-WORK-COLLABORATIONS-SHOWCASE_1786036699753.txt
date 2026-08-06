@@ -1,0 +1,778 @@
+PHASE 72.6 — PUBLIC FLAGSHIP WORK & COLLABORATIONS SHOWCASE
+
+ENGINEERING SEQUENCE
+
+🟢 1. Build — Replit Agent
+⬜ 2. Review — Founder + Mission Control
+⬜ 3. Commit & Push — Replit Shell
+⬜ 4. Deploy — Render
+⬜ 5. Production Verification — Render Shell
+⬜ 6. Close Phase — Mission Control
+
+OPERATING CONSTRAINTS
+
+- Build and test only.
+- Do not commit.
+- Do not push.
+- Do not deploy.
+- Do not change Render environment variables.
+- Do not expose private dashboards, API routes, credentials, database details, security findings, internal phase logs, client documents, meeting transcripts, or proprietary implementation details.
+- Do not claim that a project is completed when it is active, exploratory, proposed, or awaiting client approval.
+- Do not publish confidential client names, logos, internal documents, or sensitive project details unless they are explicitly approved for public display.
+- Use accurate status labels such as Live, Completed, Active Collaboration, In Development, Pilot, Strategic Initiative, or Private Client Engagement.
+- Preserve all existing homepage functionality, navigation, analytics, conversion tracking, SEO metadata, responsive design, accessibility, and performance behavior.
+- Do not remove or rewrite existing homepage sections unless required for layout integration.
+- Maintain Elevate360Official’s premium dark navy, black, gold, and warm-white visual identity.
+- All public-facing wording must be professional, truthful, and commercially useful.
+
+PRIMARY OBJECTIVE
+
+Create a premium public-facing space on the Elevate360Official landing page that shows:
+
+1. What Elevate360Official has built.
+2. What Elevate360Official is currently building.
+3. The collaborations and strategic initiatives in which Elevate360Official is involved.
+4. The business value, technology capability, leadership, and execution discipline behind the work.
+5. A clear path for prospective clients, nonprofit leaders, churches, entrepreneurs, and organizations to request a consultation.
+
+The section must position Elevate360Official as a serious digital transformation, AI strategy, intelligent systems, web development, analytics, automation, publishing, and creative technology brand.
+
+INFORMATION ARCHITECTURE
+
+Implement two connected public experiences:
+
+1. Homepage flagship showcase section.
+2. Full public portfolio page at:
+
+/work
+
+Recommended navigation label:
+
+Work
+
+Alternative acceptable label:
+
+Flagship Work
+
+The homepage section should preview the strongest projects and link to /work for the full portfolio.
+
+A. HOMEPAGE SECTION
+
+Add a prominent section after the main capabilities or ecosystem section and before the final conversion CTA.
+
+Section eyebrow:
+
+OUR WORK
+
+Main heading:
+
+Flagship Work, Strategic Collaborations & Current Initiatives
+
+Supporting copy:
+
+Elevate360Official builds intelligent digital platforms, AI-enabled systems, strategic experiences, and growth infrastructure for businesses, nonprofits, communities, ministries, and purpose-driven leaders.
+
+Secondary sentence:
+
+Explore selected projects we have delivered, collaborations we are supporting, and initiatives currently being developed.
+
+Primary CTA:
+
+Explore Our Work
+
+Link:
+
+/work
+
+Secondary CTA:
+
+Start a Project
+
+Link to the existing strategy-session, consultation, or booking route already used by the platform.
+
+Display no more than six project cards on the homepage.
+
+Recommended homepage cards:
+
+1. Elevate360Official Digital Ecosystem
+2. Search Intelligence & Growth Operations
+3. Operation ASCEND
+4. Project Nehemiah
+5. Ranti & Dele Wedding Experience
+6. South Shore AI Collaboration
+
+Each card must include:
+
+- Project title
+- Short category
+- Status badge
+- Concise 25–45 word description
+- Optional capability tags
+- View Project button or Learn More button
+- Appropriate privacy treatment
+- No false performance claims
+- No internal technical details
+
+B. FULL /WORK PAGE
+
+Create a polished, responsive page that organizes the portfolio into clear sections.
+
+Page title:
+
+Our Work | Elevate360Official
+
+Hero heading:
+
+Technology, Strategy and Creativity Built for Real-World Impact
+
+Hero supporting copy:
+
+From intelligent websites and analytics systems to nonprofit transformation, private event platforms, AI strategy, publishing, and business automation, Elevate360Official turns ideas into secure, practical, and scalable digital experiences.
+
+Hero CTAs:
+
+Discuss Your Project
+Explore Featured Work
+
+Sections:
+
+1. Featured Platforms
+2. Strategic Collaborations
+3. Current Initiatives
+4. Creative and Personal Experiences
+5. How We Work
+6. Start a Project
+
+C. PROJECT DATA MODEL
+
+Use a maintainable project-data configuration instead of hardcoding duplicate JSX across the homepage and /work page.
+
+Create a typed configuration file such as:
+
+client/src/data/flagshipProjects.ts
+
+Suggested fields:
+
+- id
+- slug
+- title
+- shortTitle
+- category
+- summary
+- fullDescription
+- status
+- visibility
+- featured
+- homepageFeatured
+- capabilities
+- outcomes
+- collaborationType
+- organization
+- publicOrganizationName
+- externalUrl
+- internalRoute
+- image
+- altText
+- startDateLabel
+- currentPhase
+- disclaimer
+- sortOrder
+
+Suggested visibility values:
+
+- public
+- limited_public
+- confidential
+
+Rules:
+
+- confidential records must never render publicly;
+- limited_public projects may render only approved summary language;
+- homepage shows only homepageFeatured records;
+- /work displays only public and approved limited_public records;
+- all statuses must come from a controlled union;
+- no raw database or admin editing is required in this phase.
+
+D. PUBLIC PROJECT COPY
+
+Use the following approved positioning as the baseline. Improve grammar and presentation without materially changing meaning.
+
+1. ELEVATE360OFFICIAL DIGITAL ECOSYSTEM
+
+Category:
+AI, Digital Platforms & Business Infrastructure
+
+Status:
+Live
+
+Homepage description:
+A growing ecosystem of intelligent websites, digital products, publishing, automation, analytics, music, creative media, and AI-enabled business services built under one unified brand.
+
+Full-page description:
+Elevate360Official is developing an integrated digital ecosystem that combines intelligent web platforms, business automation, analytics, content systems, publishing, music, creative products, customer engagement, and AI-supported decision tools.
+
+Capabilities:
+- Full-stack web development
+- AI integration
+- Revenue analytics
+- Business automation
+- Digital publishing
+- Creative technology
+- Secure founder dashboards
+
+CTA:
+Explore Elevate360Official
+
+Internal route:
+Use the homepage or the most appropriate existing ecosystem page.
+
+2. SEARCH INTELLIGENCE & GROWTH OPERATIONS
+
+Category:
+SEO Intelligence, Analytics & Growth Operations
+
+Status:
+Live
+
+Homepage description:
+A founder-controlled intelligence system connecting Google Search Console, technical SEO audits, Core Web Vitals, organic attribution, revenue signals, and evidence-based growth actions.
+
+Full-page description:
+Elevate360Official created a production-grade Search Intelligence and Growth Operations system that synchronizes search-performance data, audits technical SEO, identifies high-value opportunities, assigns transparent priority scores, and preserves human approval over every recommended action.
+
+Capabilities:
+- Google Search Console integration
+- Scheduled synchronization
+- Technical SEO auditing
+- Core Web Vitals monitoring
+- Organic funnel attribution
+- Revenue intelligence
+- Founder approval workflow
+- Post-implementation measurement
+
+Governance statement:
+Recommendations are evidence-based and require human approval. The system does not autonomously alter public content.
+
+CTA:
+View Search Intelligence
+
+Only link to /search-intelligence if that route is already safely PIN-protected and the public card clearly says “Founder Console.” Otherwise use no direct public link and provide “Request a Similar System.”
+
+3. OPERATION ASCEND — HOUSE OF POSSIBILITIES
+
+Category:
+Nonprofit Digital Transformation & AI Strategy
+
+Status:
+Active Collaboration
+
+Public organization name:
+House of Possibilities
+
+Homepage description:
+A strategic digital transformation and AI initiative exploring how intelligent systems can support staff, families, leadership, internal knowledge access, and organizational decision-making.
+
+Full-page description:
+Operation ASCEND is a collaborative initiative focused on practical and responsible digital transformation for House of Possibilities. The work explores opportunities to improve internal knowledge access, staff support, family information, operational efficiency, and leadership decision-making.
+
+Approved strategic pillars:
+- Support staff
+- Support families
+- Support leadership
+- Improve knowledge access
+- Strengthen responsible AI readiness
+- Develop practical implementation pathways
+
+Public disclaimer:
+Project details shown here are limited to approved, non-confidential information. Internal documents, organizational data, technical findings, and implementation decisions remain private.
+
+Do not claim:
+- deployment is complete;
+- the organization formally adopted every recommendation;
+- Elevate360Official owns House of Possibilities systems;
+- confidential internal details;
+- measurable outcomes not yet verified.
+
+CTA:
+Discuss Nonprofit Transformation
+
+Link:
+Existing strategy-session or consultation route.
+
+4. SOUTH SHORE AI COLLABORATION
+
+Category:
+AI Platform Strategy & Technical Advisory
+
+Status:
+Strategic Collaboration
+
+Homepage description:
+Technical review, platform strategy, AI ecosystem analysis, and responsible implementation guidance supporting the development of an accessible regional AI-learning initiative.
+
+Full-page description:
+Elevate360Official has supported strategic and technical thinking around South Shore AI, including platform review, AI-tool evaluation, digital architecture considerations, security awareness, learning accessibility, and practical implementation planning.
+
+Public disclaimer:
+Only high-level, approved collaboration information is displayed. Private technical findings, security observations, credentials, planning documents, and unpublished recommendations are excluded.
+
+Do not publish:
+- vulnerability details;
+- SSL or security findings;
+- internal emails;
+- private architecture;
+- credentials;
+- unpublished dossier content;
+- claims of ownership or formal partnership unless confirmed.
+
+CTA:
+Discuss AI Strategy
+
+5. PROJECT NEHEMIAH — THE APOSTOLIC CHURCH LAWNA BOSTON
+
+Category:
+Intelligent Church Website & Ministry Platform
+
+Status:
+In Development
+
+Homepage description:
+An intelligent church website initiative designed to strengthen digital ministry, communications, leadership access, member engagement, content publishing, and future AI-enabled service delivery.
+
+Full-page description:
+Project Nehemiah is the working initiative for an intelligent digital platform being developed for The Apostolic Church LAWNA Boston. The project is centered on creating a modern, secure, accessible, ministry-focused website that can support church communications, ministries, leadership, events, resources, media, and future intelligent assistance.
+
+Potential capabilities may include:
+- Ministry and department pages
+- Multi-leader content access
+- Events and announcements
+- Sermons and media
+- Member and visitor information
+- Prayer and contact pathways
+- Intelligent website assistant
+- Administrative publishing tools
+- Mobile-responsive design
+- Search and content discovery
+
+Use careful wording:
+“planned,” “designed to,” “may include,” or “currently being developed.”
+
+Do not present unverified modules as completed.
+
+Public disclaimer:
+Feature scope and launch details remain subject to church leadership review and approval.
+
+CTA:
+Discuss a Ministry Platform
+
+6. RANTI & DELE WEDDING DIGITAL EXPERIENCE
+
+Category:
+Private Event Technology & Wedding Planning
+
+Status:
+Active / Launching 2026
+
+Homepage description:
+A personalized wedding-planning and guest-experience platform combining an interactive invitation, event details, travel guidance, accommodation information, registry access, and branded social sharing.
+
+Full-page description:
+The Ranti & Dele Wedding Digital Experience demonstrates how Elevate360Official applies technology, design, logistics, branding, and storytelling to a major personal event. The platform brings invitation presentation, ceremony and reception information, travel recommendations, hotel guidance, registry access, guest communication, and social-preview optimization into one cohesive experience.
+
+Capabilities:
+- Interactive digital invitation
+- Wedding website
+- Travel and hotel guidance
+- Registry integration
+- Mobile guest experience
+- Social-sharing metadata
+- Custom domain configuration
+- Event storytelling and branding
+
+Status:
+Active / September 2026
+
+External URL:
+https://rantianddele.com
+
+Privacy rule:
+Do not display private addresses, unpublished schedules, guest names, contact details, registry credentials, or private planning information.
+
+CTA:
+Visit Wedding Experience
+
+7. REVENUE INTELLIGENCE SYSTEM
+
+Category:
+Revenue Analytics & Decision Intelligence
+
+Status:
+Live
+
+Description:
+A trusted analytics layer connecting customer journeys, funnel behavior, revenue events, AI-assisted engagement, and directional attribution to support informed commercial decisions.
+
+Capabilities:
+- Revenue-event tracking
+- Funnel analytics
+- Attribution controls
+- AI-assisted conversion analysis
+- Executive dashboards
+- Trust boundaries
+- Deduplication
+- Revenue diagnostics
+
+CTA:
+Request a Similar System
+
+8. AI BUSINESS AUTOMATION
+
+Category:
+AI Automation & Operational Intelligence
+
+Status:
+Ongoing Capability
+
+Description:
+Custom AI-enabled workflows for lead qualification, content operations, customer engagement, business intelligence, follow-up systems, internal knowledge access, and executive decision support.
+
+CTA:
+Explore AI Solutions
+
+E. CURRENT INITIATIVES SECTION
+
+Add a dedicated section titled:
+
+What We’re Building Now
+
+Supporting copy:
+
+Selected initiatives currently moving through strategy, design, engineering, review, deployment, or collaboration.
+
+Include:
+
+- Project Nehemiah
+- Operation ASCEND
+- South Shore AI collaboration
+- Search Growth Operations enhancements
+- Other approved active Elevate360Official products
+
+Each active initiative should show:
+
+- Current status
+- Current focus
+- Public next milestone
+- Collaboration type
+- Last-updated label using a static human-readable date or controlled config value
+- No confidential task details
+
+Use a timeline or clean progress-card layout.
+
+Do not use fake percentage-complete values.
+
+Preferred status language:
+
+- Discovery
+- Strategy
+- Design
+- Engineering
+- Review
+- Pilot
+- Live
+- Ongoing
+
+F. HOW WE WORK SECTION
+
+Add a compact process section that communicates the established engineering discipline.
+
+Heading:
+
+From Vision to Verified Production
+
+Steps:
+
+1. Discover
+2. Design
+3. Build
+4. Review
+5. Deploy
+6. Verify
+7. Improve
+
+Supporting statement:
+
+Every project moves through structured planning, engineering, review, deployment, production verification, and continuous improvement.
+
+Do not expose Replit, Render, GitHub, database, or credential details unnecessarily. Tool references may appear only in a technical-capabilities subsection if already publicly used elsewhere.
+
+G. TRUST, CONSENT AND CONFIDENTIALITY
+
+Add a small statement near collaborations:
+
+We respect client confidentiality. Public case studies include only approved information and exclude private documents, sensitive data, security findings, credentials, and internal operational details.
+
+For projects without explicit public permission:
+
+- use generic organization type;
+- omit logos;
+- omit private screenshots;
+- omit names when required;
+- label as “Confidential Client Engagement.”
+
+For House of Possibilities, South Shore AI, and The Apostolic Church LAWNA Boston:
+
+- use text-based presentation initially;
+- do not use their logos without explicit authorization;
+- do not imply endorsement;
+- do not call the relationship a formal partnership unless formally approved;
+- use “collaboration,” “initiative,” “technical advisory,” or “in development” accurately.
+
+H. VISUAL DESIGN
+
+Design requirements:
+
+- Premium dark navy background
+- Gold accent lines, icons, badges, and CTAs
+- Warm white headings
+- Muted gray body copy
+- Clean editorial layout
+- Subtle animations only
+- No excessive glow
+- No crowded card walls
+- Responsive on desktop, tablet, and mobile
+- Minimum 44px touch targets
+- Accessible contrast
+- Keyboard navigation
+- Visible focus states
+- Semantic headings
+- Proper alt text
+- Respect reduced-motion preferences
+
+Homepage card layout:
+
+- Desktop: 3 columns
+- Tablet: 2 columns
+- Mobile: 1 column
+
+Project cards should include:
+
+- status badge;
+- category label;
+- project title;
+- short summary;
+- 3–5 capability chips maximum;
+- CTA;
+- optional thumbnail or abstract branded visual.
+
+Do not use random stock imagery that misrepresents a client or project.
+
+I. SEO REQUIREMENTS
+
+For /work:
+
+Title:
+Our Work, Collaborations & Digital Projects | Elevate360Official
+
+Meta description:
+Explore Elevate360Official’s flagship platforms, AI systems, nonprofit collaborations, intelligent websites, digital experiences, analytics infrastructure, and current initiatives.
+
+Canonical:
+https://www.elevate360official.com/work
+
+Open Graph:
+- og:title
+- og:description
+- og:url
+- og:type=website
+- approved Elevate360Official share image
+
+Twitter card:
+summary_large_image
+
+Structured data:
+
+Add an ItemList or CollectionPage JSON-LD for the public portfolio.
+
+Each public project may be represented as a CreativeWork or SoftwareApplication only when accurate.
+
+Do not fabricate:
+- awards;
+- customer ratings;
+- revenue;
+- user counts;
+- launch dates;
+- partner endorsements;
+- results;
+- testimonials.
+
+Add /work to:
+
+- sitemap.xml
+- llms.txt
+- public navigation
+- footer navigation
+- internal links from relevant service pages
+
+Ensure server-delivered metadata is correct using the existing SEO head-injection architecture.
+
+J. ANALYTICS
+
+Track public portfolio engagement using existing first-party analytics.
+
+Suggested events:
+
+- work_section_view
+- work_project_view
+- work_project_cta_click
+- work_filter_used
+- current_initiative_view
+- consultation_cta_click
+
+Metadata:
+
+- projectId
+- projectCategory
+- projectStatus
+- sourcePage
+- targetRoute
+
+Requirements:
+
+- do not include personal data;
+- do not include private project details;
+- use existing anonymous session logic;
+- use fire-and-forget behavior;
+- analytics failure must not block navigation.
+
+K. OPTIONAL FILTERS ON /WORK
+
+Provide simple filters:
+
+- All
+- AI & Automation
+- Websites & Platforms
+- Nonprofit & Community
+- Creative Experiences
+- Analytics & Growth
+- Current Initiatives
+
+Do not overcomplicate the page with admin-level controls.
+
+L. CALL TO ACTION
+
+Final section heading:
+
+Let’s Build What Your Organization Needs Next
+
+Supporting copy:
+
+Whether you need an intelligent website, AI strategy, operational automation, analytics infrastructure, digital transformation support, or a custom experience, Elevate360Official can help move the idea from strategy to verified production.
+
+Primary CTA:
+
+Start a Strategy Session
+
+Secondary CTA:
+
+Contact Elevate360Official
+
+Use existing approved routes.
+
+M. TESTING
+
+Create:
+
+scripts/phase72_6_tests.ts
+
+Test at minimum:
+
+1. /work route renders.
+2. Homepage flagship section renders.
+3. Homepage shows no more than six featured projects.
+4. Confidential projects never render.
+5. Limited-public records require approved public summaries.
+6. Status labels come from the controlled union.
+7. External URLs use safe rel attributes.
+8. Wedding project links to rantianddele.com.
+9. Project Nehemiah is labeled In Development.
+10. Operation ASCEND is labeled Active Collaboration.
+11. South Shore AI language does not imply ownership or formal partnership.
+12. No private dashboards are publicly linked.
+13. No credentials, API keys, environment-variable names, database URLs, or internal security findings appear.
+14. No unsupported performance claims appear.
+15. /work has correct title, canonical, OG, and Twitter metadata.
+16. /work appears in sitemap.xml.
+17. /work appears in llms.txt.
+18. Navigation includes Work.
+19. Footer includes Work.
+20. JSON-LD is valid and script-safe.
+21. Mobile layout does not horizontally overflow.
+22. Buttons meet minimum target size.
+23. Keyboard focus is visible.
+24. Reduced-motion behavior is respected.
+25. Analytics events use approved names.
+26. Analytics metadata excludes personal data.
+27. Existing homepage sections remain available.
+28. Existing homepage analytics remain operational.
+29. Existing Search Intelligence remains protected.
+30. Existing routes do not regress.
+31. TypeScript passes.
+32. Production build passes.
+
+Run all existing relevant regression suites.
+
+N. ARCHITECT REVIEW
+
+The architect must review:
+
+- factual accuracy;
+- public/private boundary;
+- confidentiality controls;
+- client-consent risks;
+- status honesty;
+- route and metadata integrity;
+- structured-data validity;
+- analytics privacy;
+- mobile responsiveness;
+- accessibility;
+- performance impact;
+- image optimization;
+- no security or architecture leakage;
+- no implication of endorsement or completed results without evidence.
+
+O. BUILD DELIVERY REPORT
+
+Return a Phase 72.6 Build Delivery Report containing:
+
+1. Status
+2. Files added
+3. Files modified
+4. Homepage placement
+5. /work information architecture
+6. Public project records
+7. Collaboration language
+8. Confidentiality safeguards
+9. Project status rules
+10. Visual design
+11. Mobile implementation
+12. SEO metadata
+13. Structured data
+14. Sitemap and llms.txt updates
+15. Analytics events
+16. Accessibility controls
+17. Test totals
+18. Regression results
+19. TypeScript result
+20. Production build result
+21. Architect findings and corrections
+22. Environment-variable changes
+23. Database migration requirement
+24. Production verification plan
+25. Risks and deferred items
+26. Confirmation that nothing was committed, pushed, or deployed
+
+STOP after the Build Delivery Report.
+
+Do not commit.
+Do not push.
+Do not deploy.

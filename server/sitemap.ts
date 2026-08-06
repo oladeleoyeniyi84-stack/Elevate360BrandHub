@@ -54,6 +54,7 @@ export function generateSitemap(blogPosts: BlogPostEntry[] = []): string {
     { loc: `${BASE_URL}/knowledge`, changefreq: "weekly", priority: "0.7" },
     { loc: `${BASE_URL}/strategy-session`, changefreq: "monthly", priority: "0.6" },
     { loc: `${BASE_URL}/pricing`, changefreq: "monthly", priority: "0.6" },
+    { loc: `${BASE_URL}/work`, changefreq: "weekly", priority: "0.8" },
   ];
 
   const blogUrls: SitemapUrl[] = blogPosts.map((post) => ({
