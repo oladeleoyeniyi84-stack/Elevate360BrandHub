@@ -143,10 +143,42 @@
 
 :root {
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --bottom-nav-h: 72px;
 }
 
 .safe-bottom {
   padding-bottom: calc(24px + var(--safe-bottom));
+}
+
+/* Safe-area-aware bottom padding; expands when the mobile bottom nav is present */
+.pb-mobile-nav {
+  padding-bottom: calc(24px + var(--safe-bottom));
+}
+
+@media (max-width: 767px) {
+  body[data-bottom-nav="true"] .pb-mobile-nav {
+    padding-bottom: calc(var(--bottom-nav-h) + 24px + var(--safe-bottom));
+  }
+  /* Floating controls (concierge launcher, back-to-top) sit above the bottom nav */
+  body[data-bottom-nav="true"] .e360-float {
+    bottom: calc(var(--bottom-nav-h) + 20px + var(--safe-bottom));
+  }
+  /* Concierge chat panel clears the launcher + bottom nav */
+  body[data-bottom-nav="true"] .e360-float-panel {
+    bottom: calc(var(--bottom-nav-h) + 92px + var(--safe-bottom));
+  }
+}
+
+/* Mobile drawer open: lock background scroll and hide/disable floating chrome */
+body[data-drawer-open="true"] {
+  overflow: hidden;
+  touch-action: none;
+}
+
+body[data-drawer-open="true"] .e360-drawer-hide {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 html {

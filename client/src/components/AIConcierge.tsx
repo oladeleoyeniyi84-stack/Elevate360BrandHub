@@ -271,7 +271,7 @@ export function AIConcierge() {
         data-testid="button-ai-concierge-launcher"
         onClick={() => setOpen((v) => !v)}
         aria-label="Open Elevate360 AI Concierge"
-        className="fixed bottom-6 right-6 z-50 transition-all duration-300 hover:scale-105 active:scale-95"
+        className="fixed bottom-6 right-6 z-50 e360-float e360-drawer-hide transition-all duration-300 hover:scale-105 active:scale-95"
         style={{ filter: "drop-shadow(0 8px 24px rgba(244,166,42,0.45))" }}
       >
         {open ? (
@@ -285,7 +285,7 @@ export function AIConcierge() {
 
       {/* Chat panel */}
       <div
-        className={`fixed bottom-24 right-6 z-50 w-[90vw] max-w-sm transition-all duration-300 ${
+        className={`fixed bottom-24 right-6 z-50 e360-float-panel e360-drawer-hide w-[90vw] max-w-sm transition-all duration-300 ${
           open ? "opacity-100 translate-y-0 pointer-events-auto" : "opacity-0 translate-y-4 pointer-events-none"
         }`}
       >

@@ -344,6 +344,18 @@ export default function Home() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  // Mobile drawer open: lock background scroll and hide floating chrome/bottom nav (see index.css)
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      document.body.dataset.drawerOpen = "true";
+    } else {
+      delete document.body.dataset.drawerOpen;
+    }
+    return () => {
+      delete document.body.dataset.drawerOpen;
+    };
+  }, [mobileMenuOpen]);
+
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (langRef.current && !langRef.current.contains(e.target as Node)) {
@@ -355,7 +367,7 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-background text-foreground font-sans safe-bottom luxury-bg">
+    <div className="min-h-screen bg-background text-foreground font-sans pb-mobile-nav luxury-bg">
       <SEO
         title="Elevate360Official | Build Smarter. Grow Faster. Create Greater Impact."
         description="Elevate360Official empowers entrepreneurs, businesses, churches, nonprofits, healthcare providers, educators, and creators to grow through technology, artificial intelligence, education, and digital innovation."
@@ -491,6 +503,16 @@ export default function Home() {
           </button>
         </div>
 
+        {/* Backdrop: blocks interaction with page content while drawer is open */}
+        {mobileMenuOpen && (
+          <div
+            aria-hidden="true"
+            data-testid="mobile-drawer-backdrop"
+            onClick={() => setMobileMenuOpen(false)}
+            className="md:hidden fixed inset-0 z-[-1] bg-black/50 backdrop-blur-sm"
+          />
+        )}
+
         {/* Mobile drawer */}
         <div
           className={`md:hidden overflow-hidden transition-all duration-300 ease-in-out ${
@@ -536,7 +558,7 @@ export default function Home() {
             ))}
             {/* Mobile language picker */}
             <div className="pt-2 border-t border-white/10">
-              <p className="px-4 pb-2 text-[10px] uppercase tracking-widest text-white/30 font-semibold">Language</p>
+              <p className="px-4 pb-2 text-[10px] uppercase tracking-widest text-white/60 font-semibold">Language</p>
               <div className="grid grid-cols-4 gap-1">
                 {LANGUAGES.map((l) => (
                   <button

@@ -245,7 +245,7 @@ export default function Work() {
         </div>
       </header>
 
-      <main className="px-4 pb-24">
+      <main className="px-4 pb-[calc(6rem+var(--safe-bottom))]">
         <div className="max-w-6xl mx-auto space-y-24">
           {/* Filters */}
           <div className="flex gap-2 flex-wrap" role="group" aria-label="Filter projects">

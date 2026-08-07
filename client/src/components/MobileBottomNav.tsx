@@ -16,8 +16,26 @@ export function MobileBottomNav() {
   const [location] = useLocation();
   const [activeId, setActiveId] = useState<string>("top");
 
-  // Track active section via IntersectionObserver
+  const isHome = location === "/";
+
+  // Signal presence of the bottom nav so floating controls and page padding
+  // can position themselves above it (see index.css: e360-float / pb-mobile-nav)
   useEffect(() => {
+    if (isHome) {
+      document.body.dataset.bottomNav = "true";
+    } else {
+      delete document.body.dataset.bottomNav;
+    }
+    return () => {
+      delete document.body.dataset.bottomNav;
+    };
+  }, [isHome]);
+
+  // Track active section via IntersectionObserver — only ever on "/"
+  useEffect(() => {
+    // Derive active state strictly from the current pathname:
+    // any non-home route resets to "top" and never highlights a section tab.
+    setActiveId("top");
     if (location !== "/") return;
 
     const observers: IntersectionObserver[] = [];
@@ -50,7 +68,7 @@ export function MobileBottomNav() {
   }, [location]);
 
   // Only show on the home page
-  if (location !== "/") return null;
+  if (!isHome) return null;
 
   const handleTap = (tab: typeof TABS[number]) => {
     if (tab.scrollTop) {
@@ -67,8 +85,9 @@ export function MobileBottomNav() {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-[100] md:hidden safe-bottom"
+      className="fixed bottom-0 left-0 right-0 z-[100] md:hidden safe-bottom e360-drawer-hide transition-opacity duration-200"
       aria-label="Mobile section navigation"
+      data-testid="mobile-bottom-nav"
     >
       {/* Frosted glass bar */}
       <div
@@ -80,7 +99,7 @@ export function MobileBottomNav() {
         }}
       >
         {TABS.map((tab) => {
-          const isActive = activeId === tab.id;
+          const isActive = isHome && activeId === tab.id;
           return (
             <button
               key={tab.id}
@@ -95,13 +114,13 @@ export function MobileBottomNav() {
               >
                 <tab.Icon
                   className="w-5 h-5 transition-colors duration-200"
-                  style={{ color: isActive ? "#F4A62A" : "rgba(255,255,255,0.35)" }}
+                  style={{ color: isActive ? "#F4A62A" : "rgba(255,255,255,0.72)" }}
                   strokeWidth={isActive ? 2.5 : 1.8}
                 />
               </div>
               <span
                 className="text-[10px] font-semibold tracking-wide transition-colors duration-200"
-                style={{ color: isActive ? "#F4A62A" : "rgba(255,255,255,0.35)" }}
+                style={{ color: isActive ? "#F4A62A" : "rgba(255,255,255,0.72)" }}
               >
                 {tab.label}
               </span>
