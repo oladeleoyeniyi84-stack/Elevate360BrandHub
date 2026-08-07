@@ -10,6 +10,8 @@ Mission Control sprints repeatedly require desktop+mobile screenshots with a cle
 - Suppress overlays before `page.goto` via `evaluateOnNewDocument`: `localStorage.setItem('elevate360_cookie_consent','accepted')` and `sessionStorage.setItem('e360_popup_dismissed','1')`.
 - Sections use IntersectionObserver reveal animations: scroll through the section in ~300px steps with 200ms pauses before the element screenshot, or lower cards render dark/empty.
 - Viewports: 1440x900 desktop, 390x844 deviceScaleFactor 2 mobile.
+- Run the script from the workspace root (not /tmp) so `puppeteer-core` resolves from node_modules.
+- Interaction tests: `html { scroll-behavior: smooth }` makes `window.scrollTo` async — use `behavior: "instant"` + waitForFunction on scrollY before clicking, or scroll-listeners (e.g. drawer auto-close at scrollY>80) fire mid-test and cause width-dependent flakes.
 
 **Cleanup rules (Why: directive is "do not commit screenshots/ or tooling"):**
 - Uninstall puppeteer-core + chromium at the end; restore `package-lock.json` via `git show HEAD:package-lock.json > package-lock.json` (install/uninstall leaves ws-package mirror-URL drift).
