@@ -31,20 +31,41 @@ import {
 import {
   getPremiumStatus,
   applyTier,
+  applyTierWithGrant,
   featureCatalog,
 } from "../billing/premiumService";
 
 export const customerBillingRouter = Router();
 
-function originFor(): string {
-  const rawHost =
-    process.env.PUBLIC_BASE_URL ??
-    process.env.CANONICAL_HOST ??
-    process.env.RENDER_EXTERNAL_HOSTNAME ??
-    (process.env.REPLIT_DOMAINS ?? "").split(",")[0] ??
-    "localhost:5000";
-  const cleanHost = rawHost.replace(/^https?:\/\//, "").replace(/\/$/, "") || "localhost:5000";
-  return cleanHost.startsWith("localhost") ? `http://${cleanHost}` : `https://${cleanHost}`;
+// Phase 72.7 — hardened canonical origin for billing return URLs.
+// Deterministic, environment-driven only: NEVER derived from the request
+// (no Host header, no Origin reflection → no open-redirect surface).
+// Priority: PUBLIC_BASE_URL > CANONICAL_HOST > RENDER_EXTERNAL_HOSTNAME >
+// REPLIT_DOMAINS (dev) > localhost. Blank/whitespace values are skipped
+// (`"" ?? x` would previously short-circuit and yield "https://").
+// HTTPS is forced for every non-localhost host. Exported for tests.
+export function originFor(): string {
+  const candidates = [
+    process.env.PUBLIC_BASE_URL,
+    process.env.CANONICAL_HOST,
+    process.env.RENDER_EXTERNAL_HOSTNAME,
+    (process.env.REPLIT_DOMAINS ?? "").split(",")[0],
+  ];
+  let rawHost = "localhost:5000";
+  for (const c of candidates) {
+    const trimmed = (c ?? "").trim();
+    if (trimmed) { rawHost = trimmed; break; }
+  }
+  // Strict host extraction: strip protocol, drop credentials (userinfo),
+  // drop any path/query/fragment. Only EXACT loopback hostnames get http —
+  // `localhost.evil.example` is NOT local and is forced to https.
+  let cleanHost = rawHost.replace(/^https?:\/\//i, "");
+  const atIdx = cleanHost.lastIndexOf("@");
+  if (atIdx !== -1) cleanHost = cleanHost.slice(atIdx + 1);
+  cleanHost = cleanHost.split(/[/?#]/)[0].replace(/\/+$/, "") || "localhost:5000";
+  const hostname = cleanHost.split(":")[0].toLowerCase();
+  const isLoopback = hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]" || hostname === "::1" || hostname === "0.0.0.0";
+  return isLoopback ? `http://${cleanHost}` : `https://${cleanHost}`;
 }
 
 function publicUser(u: { id: string; email: string | null; premiumTier: string }) {
@@ -220,6 +241,8 @@ async function resolveUserId(metadataUserId: string | undefined, stripeCustomerI
 
 export async function handleBillingEvent(event: any): Promise<void> {
   const stripe = getStripeClient();
+  // Trusted per-event ordering value (Stripe sets `created` server-side).
+  const eventCreated: Date | null = event.created ? new Date(event.created * 1000) : null;
 
   if (event.type === "checkout.session.completed") {
     const session = event.data?.object;
@@ -228,7 +251,7 @@ export async function handleBillingEvent(event: any): Promise<void> {
     const subId = session.subscription;
     if (!userId || !subId || !stripe) return;
     const sub = await stripe.subscriptions.retrieve(subId);
-    await syncSubscription(userId, sub);
+    await syncSubscription(userId, sub, eventCreated);
     return;
   }
 
@@ -237,7 +260,7 @@ export async function handleBillingEvent(event: any): Promise<void> {
     const sub = event.data?.object;
     const userId = await resolveUserId(sub?.metadata?.userId, sub?.customer);
     if (!userId) return;
-    await syncSubscription(userId, sub);
+    await syncSubscription(userId, sub, eventCreated);
     return;
   }
 
@@ -246,7 +269,10 @@ export async function handleBillingEvent(event: any): Promise<void> {
     const userId = await resolveUserId(sub?.metadata?.userId, sub?.customer);
     if (!userId) return;
     const canceledTier: TierKey = isValidTier(sub.metadata?.tier) ? sub.metadata.tier : "free";
-    await storage.upsertSubscription({
+    // Atomic ordering-enforced write: the staleness decision and the state
+    // transition are one SQL statement (see upsertSubscriptionIfNewer). Only
+    // the winner may touch user-level entitlements.
+    const won = await storage.upsertSubscriptionIfNewer({
       userId,
       stripeSubscriptionId: sub.id,
       stripeCustomerId: typeof sub.customer === "string" ? sub.customer : undefined,
@@ -254,12 +280,38 @@ export async function handleBillingEvent(event: any): Promise<void> {
       tier: canceledTier,
       currentPeriodEnd: sub.current_period_end ? new Date(sub.current_period_end * 1000) : undefined,
       cancelAtPeriodEnd: false,
+      lastEventAt: eventCreated ?? undefined,
     });
-    await applyTier(userId, "free", false);
+    if (!won) {
+      console.log(`[billing] billing_subscription_stale_event_skipped user=${userId} sub=${sub.id} (stale deletion event lost ordering race)`);
+      return;
+    }
+    await applyEntitlementAfterLoss(userId, sub.id, "billing_subscription_cancelled");
   }
 }
 
-async function syncSubscription(userId: string, sub: any): Promise<void> {
+// Phase 72.7 — shared entitlement re-derivation for EVERY lifecycle transition
+// that removes a subscription's eligibility (deleted, canceled, unpaid,
+// incomplete_expired). A late event for an OLD subscription must not revoke a
+// newer replacement subscription (different Stripe id) the customer has since
+// started: re-derive the user's entitlement from the newest remaining
+// active/trialing subscription instead of unconditionally downgrading to free.
+async function applyEntitlementAfterLoss(userId: string, lostSubId: string | undefined, logEvent: string): Promise<void> {
+  // Active/trialing-only + excluded-id filtering happens IN SQL — a
+  // later-ending past_due row must never shadow a valid active replacement.
+  const replacement = await storage.getEligibleReplacementSubscriptionForUser(userId, lostSubId);
+  if (replacement && isValidTier(replacement.tier)) {
+    await applyTier(userId, replacement.tier as TierKey, false);
+    console.log(
+      `[billing] ${logEvent} user=${userId} sub=${lostSubId} — entitlement kept on newer active sub ${replacement.stripeSubscriptionId} (${replacement.tier})`,
+    );
+  } else {
+    await applyTier(userId, "free", false);
+    console.log(`[billing] ${logEvent} user=${userId} sub=${lostSubId} tier=free`);
+  }
+}
+
+async function syncSubscription(userId: string, sub: any, eventCreated: Date | null = null, isReconcile = false): Promise<void> {
   const priceId = sub.items?.data?.[0]?.price?.id ?? null;
   const resolvedTier = tierFromPriceId(priceId) ?? sub.metadata?.tier ?? "starter";
 
@@ -277,20 +329,79 @@ async function syncSubscription(userId: string, sub: any): Promise<void> {
   const tier: TierKey = resolvedTier;
   const active = sub.status === "active" || sub.status === "trialing";
 
-  await storage.upsertSubscription({
+  // Phase 72.7 — credit-grant idempotency boundary. Commercial policy
+  // (documented, unchanged): the monthly credit balance is reset to the plan
+  // allotment exactly once per (subscription, tier, billing period) — first
+  // activation, tier change (up/downgrade), or period advance (renewal).
+  // One lifecycle emits several legitimate events (checkout.session.completed
+  // + subscription.created + subscription.updated) and Stripe may redeliver
+  // ANY of them, concurrently and out of order; none of those repeats may
+  // restore spent credits. The grant decision therefore does NOT rely on
+  // comparing the stored row (only valid for serial in-order delivery) — it is
+  // recorded durably as a claim in the idempotency ledger keyed by
+  // (subscription id, tier, period end), which is atomic under concurrency and
+  // immune to redelivery/ordering.
+  const existing = sub.id ? await storage.getSubscriptionByStripeId(sub.id) : undefined;
+  const incomingPeriodEnd = sub.current_period_end ? new Date(sub.current_period_end * 1000) : null;
+
+  // Ordering enforcement is ATOMIC with the write (single conditional SQL
+  // statement — see storage.upsertSubscriptionIfNewer). The row lock
+  // serializes concurrent lifecycle events for this subscription and the
+  // conditions re-evaluate against the committed row, so an older event can
+  // never overwrite newer state even when two deliveries interleave. Guards:
+  // event-time monotonic (Stripe event.created), billing-period monotonic,
+  // and terminal cancellation (an active event can't resurrect a canceled
+  // row unless it describes a strictly newer period). Losers apply NOTHING —
+  // no subscription write, no entitlement, no credits.
+  const won = await storage.upsertSubscriptionIfNewer({
     userId,
     stripeSubscriptionId: sub.id,
     stripeCustomerId: typeof sub.customer === "string" ? sub.customer : undefined,
     status: sub.status,
     tier,
-    currentPeriodEnd: sub.current_period_end ? new Date(sub.current_period_end * 1000) : undefined,
+    currentPeriodEnd: incomingPeriodEnd ?? undefined,
     cancelAtPeriodEnd: Boolean(sub.cancel_at_period_end),
+    lastEventAt: eventCreated ?? undefined,
   });
+  if (!won) {
+    console.log(
+      `[billing] billing_subscription_stale_event_skipped user=${userId} sub=${sub.id} (lost atomic ordering guard: older/tied event-time, older period, or post-cancellation)`,
+    );
+    // Same-second ties (event.created is second-resolution, not a total
+    // order) and unknowable orderings are resolved from the AUTHORITATIVE
+    // source: retrieve the live subscription from Stripe and apply that
+    // current object, stamped with retrieval time (the snapshot subsumes
+    // every event created before it). One level only — a reconcile that
+    // loses simply defers to the even newer committed state.
+    if (!isReconcile && eventCreated && sub.id) {
+      const stripe = getStripeClient();
+      if (stripe) {
+        try {
+          const live = await stripe.subscriptions.retrieve(sub.id);
+          await syncSubscription(userId, live, new Date(), true);
+        } catch (e: any) {
+          console.log(
+            `[billing] billing_subscription_reconcile_unavailable sub=${sub.id} — keeping committed state (retry/next event converges).`,
+          );
+        }
+      }
+    }
+    return;
+  }
 
   if (active) {
-    // Top up credits on activation/renewal.
-    await applyTier(userId, tier, true);
+    // Exactly-once credit grant per (subscription, tier, billing period): the
+    // grant marker commits in the SAME transaction as the balance reset (see
+    // storage.applyPlanCreditsWithGrant), so no crash timing can double-credit
+    // or silently lose an activation's credits — the webhook retry self-heals.
+    const grantKey = `credit_grant:${sub.id}:${tier}:${incomingPeriodEnd?.getTime() ?? 0}`;
+    const granted = await applyTierWithGrant(userId, tier, grantKey, Boolean(sub.livemode));
+    console.log(
+      `[billing] billing_subscription_${existing ? "updated" : "activated"} user=${userId} tier=${tier} creditReset=${granted}`,
+    );
   } else if (sub.status === "canceled" || sub.status === "unpaid" || sub.status === "incomplete_expired") {
-    await applyTier(userId, "free", false);
+    // Ineligible transition: re-derive entitlement (a replacement active
+    // subscription under a different Stripe id keeps its plan; otherwise free).
+    await applyEntitlementAfterLoss(userId, sub.id, `billing_subscription_updated status=${sub.status}`);
   }
 }

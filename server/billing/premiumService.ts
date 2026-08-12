@@ -40,6 +40,29 @@ export async function applyTier(userId: string, tier: TierKey, resetBalance: boo
   return true;
 }
 
+// Phase 72.7 — webhook-safe variant: entitlement writes are absolute/idempotent
+// (safe to replay), and the credit grant is exactly-once per grantKey — the
+// grant marker and balance reset commit in ONE transaction (crash-safe: no
+// window where credits were reset but the marker is missing, or vice versa).
+// Returns whether this call issued the grant.
+export async function applyTierWithGrant(
+  userId: string,
+  tier: TierKey,
+  grantKey: string,
+  livemode: boolean,
+): Promise<boolean> {
+  if (!isValidTier(tier)) {
+    console.warn(`[billing] applyTierWithGrant called with unknown tier "${tier}" for user ${userId}; skipping (no DB write).`);
+    return false;
+  }
+  const plan = PLANS[tier];
+  // Idempotent absolute writes first — a retry after a crash re-applies the
+  // identical state, so partial application self-heals on redelivery.
+  await storage.setUserPremiumTier(userId, tier);
+  await storage.setPremiumFeatures(userId, plan.features, "subscription");
+  return storage.applyPlanCreditsWithGrant(userId, plan.monthlyCredits, grantKey, livemode);
+}
+
 // Resolve a customer's live entitlement snapshot.
 export async function getPremiumStatus(userId: string): Promise<PremiumStatus> {
   const user = await storage.getUser(userId);

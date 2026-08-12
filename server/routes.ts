@@ -1136,6 +1136,34 @@ export async function registerRoutes(
       return res.status(400).json({ error: "Invalid signature" });
     }
 
+    // Phase 72.7 — event-level idempotency: atomically claim event.id BEFORE
+    // any fulfillment. A duplicate Stripe delivery (retry or replay) loses the
+    // claim and is acknowledged without re-applying orders, subscriptions,
+    // entitlements, or credits.
+    let claimToken: string | undefined;
+    if (event.id) {
+      try {
+        const claim = await storage.claimStripeWebhookEvent(event.id, event.type, Boolean(event.livemode));
+        claimToken = claim.token;
+        if (claim.status === "duplicate") {
+          console.log(`[billing] billing_webhook_duplicate event=${event.id} type=${event.type} — already fulfilled, skipping.`);
+          return res.json({ received: true, duplicate: true });
+        }
+        if (claim.status === "in_flight") {
+          // Another worker holds a fresh lease on this event — retryable, NOT
+          // a duplicate ack (a crashed worker's stale lease is reclaimable).
+          console.log(`[billing] billing_webhook_in_flight event=${event.id} type=${event.type} — retryable 409.`);
+          return res.status(409).json({ error: "Event processing in flight, retry later" });
+        }
+      } catch (e: any) {
+        // Fail CLOSED: if the authoritative idempotency ledger is unavailable
+        // we must not fulfill (a replay during the outage could double-apply).
+        // 503 is retryable — Stripe redelivers once the ledger is back.
+        console.error("[billing] webhook idempotency ledger unavailable — failing closed (retryable):", e?.message);
+        return res.status(503).json({ error: "Idempotency store unavailable, retry later" });
+      }
+    }
+
     try {
       if (event.type === "checkout.session.completed") {
         const session: any = event.data?.object;
@@ -1265,9 +1293,27 @@ export async function registerRoutes(
       // and subscriptions. handleBillingEvent self-filters by event type and
       // ignores non-subscription checkout sessions, so this is safe to always call.
       await handleBillingEvent(event);
+      if (event.id) {
+        // Await the durable, FENCED terminal state before acknowledging: only
+        // the current lease owner's success write lands. If our lease was
+        // reclaimed (long-running worker) or the write fails, respond
+        // retryable — the underlying billing effects are idempotent, so the
+        // owning/retry delivery converges to the same state and acks.
+        const acked = await storage.markStripeWebhookEventResult(event.id, "success", claimToken);
+        if (!acked) {
+          console.log(`[billing] billing_webhook_lease_lost event=${event.id} type=${event.type} — retryable 409.`);
+          return res.status(409).json({ error: "Event lease reassigned, retry later" });
+        }
+      }
       res.json({ received: true });
     } catch (e: any) {
-      console.error("[stripe] webhook fulfillment error:", e.message);
+      // Redacted operational log — never the raw body or signature.
+      console.error(`[billing] billing_webhook_failed type=${event?.type}:`, e.message);
+      // Mark the claim failed (durable record, immediately reclaimable) so
+      // Stripe's retry of this same event.id can legitimately reprocess.
+      if (event?.id) {
+        await storage.markStripeWebhookEventResult(event.id, "failed", claimToken).catch(() => {});
+      }
       res.status(500).json({ error: "Webhook fulfillment error" });
     }
   });

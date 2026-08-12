@@ -1,15 +1,117 @@
 // Phase 68A — customer account: auth (signup/login) + subscription management.
-import { useState } from "react";
+// Phase 72.7 — billing=success return UX: the query string is treated ONLY as
+// a hint to show a "confirming" state; entitlement truth always comes from the
+// server via /api/premium/status, refetched on a tightly bounded schedule.
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Loader2, ArrowLeft } from "lucide-react";
+import { Loader2, ArrowLeft, CheckCircle2, Clock } from "lucide-react";
 import SEO from "@/components/SEO";
 import { useCustomer, usePremiumStatus } from "@/hooks/useCustomer";
 import { customerApi, type FeaturesResponse } from "@/api/customer";
 import { SubscriptionCard } from "@/components/premium/SubscriptionCard";
 import { PlanComparison } from "@/components/premium/PlanComparison";
+import { trackFunnelEvent } from "@/lib/funnelAnalytics";
 
 const GOLD = "#F4A62A";
+
+// Bounded confirmation poll: ~30s max (10 refetches, 3s apart). No infinite polling.
+const BILLING_POLL_INTERVAL_MS = 3000;
+const BILLING_POLL_MAX_ATTEMPTS = 10;
+
+function useBillingReturn() {
+  // Read once on mount; never re-parsed so navigation can't re-trigger it.
+  const [returnedFromCheckout] = useState<boolean>(() => {
+    try {
+      return new URLSearchParams(window.location.search).get("billing") === "success";
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    if (returnedFromCheckout) {
+      trackFunnelEvent("billing_checkout_returned");
+    }
+  }, [returnedFromCheckout]);
+  return returnedFromCheckout;
+}
+
+function BillingConfirmationBanner({
+  isPremium,
+  refetch,
+}: {
+  isPremium: boolean;
+  refetch: () => void;
+}) {
+  const [phase, setPhase] = useState<"confirming" | "confirmed" | "timeout">(
+    isPremium ? "confirmed" : "confirming",
+  );
+  const attempts = useRef(0);
+
+  useEffect(() => {
+    if (isPremium) {
+      setPhase("confirmed");
+      return;
+    }
+    if (phase !== "confirming") return;
+    const timer = setInterval(() => {
+      attempts.current += 1;
+      if (attempts.current > BILLING_POLL_MAX_ATTEMPTS) {
+        clearInterval(timer);
+        setPhase("timeout");
+        return;
+      }
+      refetch();
+    }, BILLING_POLL_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [isPremium, phase, refetch]);
+
+  if (phase === "confirmed") {
+    return (
+      <div
+        className="mb-6 rounded-2xl border border-emerald-400/25 bg-emerald-400/10 px-5 py-4 flex items-start gap-3"
+        data-testid="banner-billing-confirmed"
+        role="status"
+      >
+        <CheckCircle2 className="h-5 w-5 mt-0.5 text-emerald-400 shrink-0" aria-hidden="true" />
+        <div>
+          <p className="font-semibold text-emerald-300">Subscription active</p>
+          <p className="text-white/60 text-sm mt-0.5">Your payment was received and your plan is now active.</p>
+        </div>
+      </div>
+    );
+  }
+  if (phase === "timeout") {
+    return (
+      <div
+        className="mb-6 rounded-2xl border border-amber-400/25 bg-amber-400/10 px-5 py-4 flex items-start gap-3"
+        data-testid="banner-billing-timeout"
+        role="status"
+      >
+        <Clock className="h-5 w-5 mt-0.5 text-amber-400 shrink-0" aria-hidden="true" />
+        <div>
+          <p className="font-semibold text-amber-300">Payment may still be processing</p>
+          <p className="text-white/60 text-sm mt-0.5">
+            Your payment may still be processing. Refresh shortly or contact support if access is not updated.
+          </p>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div
+      className="mb-6 rounded-2xl border border-white/15 bg-white/[0.06] px-5 py-4 flex items-start gap-3"
+      data-testid="banner-billing-confirming"
+      role="status"
+    >
+      <Loader2 className="h-5 w-5 mt-0.5 animate-spin shrink-0" style={{ color: GOLD }} aria-hidden="true" />
+      <div>
+        <p className="font-semibold" style={{ color: GOLD }}>Payment received. We&rsquo;re confirming your subscription.</p>
+        <p className="text-white/60 text-sm mt-0.5">This usually takes just a few seconds.</p>
+      </div>
+    </div>
+  );
+}
 
 function AuthForm() {
   const { login, signup } = useCustomer();
@@ -84,9 +186,9 @@ function AuthForm() {
   );
 }
 
-function AccountDashboard() {
+function AccountDashboard({ returnedFromCheckout }: { returnedFromCheckout: boolean }) {
   const { user, logout } = useCustomer();
-  const { data: status, isLoading } = usePremiumStatus(true);
+  const { data: status, isLoading, refetch } = usePremiumStatus(true);
   const { data: features } = useQuery<FeaturesResponse>({
     queryKey: ["/api/premium/features"],
     queryFn: () => customerApi.features(),
@@ -114,6 +216,9 @@ function AccountDashboard() {
         </div>
       ) : (
         <>
+          {returnedFromCheckout && (
+            <BillingConfirmationBanner isPremium={status.isPremium} refetch={refetch} />
+          )}
           <SubscriptionCard status={status} />
           {!status.isPremium && features && (
             <div className="mt-10">
@@ -129,6 +234,7 @@ function AccountDashboard() {
 
 export default function Account() {
   const { isAuthenticated, isLoading } = useCustomer();
+  const returnedFromCheckout = useBillingReturn();
 
   return (
     <div className="min-h-screen bg-[hsl(220,50%,10%)] text-white">
@@ -143,7 +249,7 @@ export default function Account() {
               <Loader2 className="h-8 w-8 animate-spin" style={{ color: GOLD }} />
             </div>
           ) : isAuthenticated ? (
-            <AccountDashboard />
+            <AccountDashboard returnedFromCheckout={returnedFromCheckout} />
           ) : (
             <AuthForm />
           )}

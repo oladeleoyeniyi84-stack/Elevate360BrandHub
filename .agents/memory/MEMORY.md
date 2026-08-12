@@ -16,4 +16,5 @@
 - [Derived-data run anchoring](derived-data-run-anchoring.md) — generators over shared daily tables must anchor windows on the newest SUCCESS run's end_date, not MAX(date); transitions via compare-and-swap.
 - [Test-data accumulation flakes](test-data-accumulation-flakes.md) — leftover synthetic rows saturate top-N lists & detector caps; sort-by-volume before capping, clean `sil-camp-%`/fixture rows on flake.
 - [GitHub push from Replit](github-push-from-replit.md) — shell git push auth always fails; gitPush BRANCH_ALREADY_EXISTS → gitPull then fix upstream tracking, retry; Render deploys main in ~90s.
+- [Webhook lease/fence/ordering](webhook-lease-fence-ordering.md) — exactly-once webhook sync: fenced event lease + transactional effect markers + atomic conditional upsert (never app-level ordering checks) + same-second tie reconcile.
 - [Drizzle array params in raw SQL](drizzle-array-params.md) — sql`ANY(${jsArray})` fails at runtime w/ 42809 once data exists; build IN lists via sql.join per-element params instead.

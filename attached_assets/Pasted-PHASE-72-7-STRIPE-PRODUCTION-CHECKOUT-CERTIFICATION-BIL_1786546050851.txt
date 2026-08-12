@@ -1,0 +1,630 @@
+PHASE 72.7 — STRIPE PRODUCTION CHECKOUT CERTIFICATION & BILLING HARDENING
+
+ENGINEERING SEQUENCE
+
+🟢 1. Build — Replit Agent
+⬜ 2. Review — Founder + Mission Control
+⬜ 3. Commit & Push — Replit Shell
+⬜ 4. Deploy — Render
+⬜ 5. Production Verification — Render Shell + Stripe Dashboard
+⬜ 6. Close Phase — Mission Control
+
+OPERATING CONSTRAINTS
+
+* Build, inspect, and test only.
+* Do not commit.
+* Do not push.
+* Do not deploy.
+* Do not create a real paid Stripe transaction.
+* Do not modify live Stripe products, prices, customers, subscriptions, webhook endpoints, or DNS.
+* Do not rotate or expose Stripe secrets.
+* Do not print:
+    * STRIPE_SECRET_KEY
+    * STRIPE_WEBHOOK_SECRET
+    * Stripe customer PII
+    * card details
+    * raw webhook signatures
+    * session secrets
+* Do not replace the current Stripe-hosted Checkout architecture.
+* Preserve all currently certified Phase 68A billing behavior and later production phases.
+* Any live payment test must require explicit Founder approval during Step 5.
+* Use mocks, fixtures, Stripe test constructs, or hermetic event payloads for the build/test phase.
+* No autonomous refunds, cancellations, subscription creation, upgrades, or downgrades.
+
+PRIMARY OBJECTIVE
+
+Certify the Elevate360Official Stripe subscription transaction path from:
+
+Customer account
+→ checkout-session creation
+→ Stripe-hosted Checkout
+→ signed webhook
+→ subscription synchronization
+→ premium entitlement activation
+→ account confirmation
+→ billing portal
+→ cancellation / downgrade
+
+The result must provide objective evidence that a successful Stripe payment cannot leave the customer paid but unfulfilled, and that duplicate Stripe deliveries cannot improperly double-apply entitlements or credits.
+
+⸻
+
+A. CURRENT ARCHITECTURE — PRESERVE
+
+The existing customer billing implementation already:
+
+* requires authenticated customer identity for subscription checkout;
+* validates paid tiers;
+* validates Stripe configuration;
+* resolves the Stripe price server-side;
+* creates or reuses a Stripe Customer;
+* creates a Stripe Checkout Session in subscription mode;
+* attaches userId and tier metadata;
+* uses client_reference_id;
+* returns success to /account?billing=success;
+* returns cancellation to /pricing?billing=cancelled;
+* creates Billing Portal sessions server-side;
+* processes subscription lifecycle events through the existing Stripe webhook infrastructure.
+
+Do not introduce a second webhook endpoint.
+
+Do not move sensitive Stripe operations into the browser.
+
+⸻
+
+B. CHECKOUT SESSION CERTIFICATION
+
+Inspect:
+
+server/routes/customerBilling.ts
+
+and all related plan/billing modules.
+
+Verify and preserve:
+
+1. Customer authentication required.
+2. Tier comes from a controlled server-side union.
+3. Price ID is resolved server-side.
+4. The browser cannot inject an arbitrary Stripe Price ID.
+5. customer/customerId cannot be supplied by the browser.
+6. userId metadata is server-derived.
+7. tier metadata is validated.
+8. Checkout Session mode is subscription.
+9. quantity is controlled.
+10. success_url uses the canonical production origin.
+11. cancel_url uses the canonical production origin.
+12. only HTTPS production return URLs are generated outside localhost.
+13. session.url is returned to the browser.
+14. no secret Stripe fields are returned.
+
+Add validation where genuinely missing.
+
+Do not change working behavior unnecessarily.
+
+⸻
+
+C. ORIGIN / RETURN-URL HARDENING
+
+Review originFor() and all billing-return URLs.
+
+Production canonical origin must resolve to:
+
+https://www.elevate360official.com
+
+Requirements:
+
+* no open redirects;
+* no Host-header-controlled billing return URL;
+* no arbitrary request-origin reflection;
+* no downgrade from HTTPS;
+* no Replit or Render hostname used when canonical production configuration is available;
+* localhost remains permitted only for local development.
+
+If CANONICAL_HOST or PUBLIC_BASE_URL already provide safe production origin behavior, preserve them.
+
+Add a deterministic helper test covering:
+
+* production canonical host;
+* localhost development;
+* input containing protocol;
+* input containing trailing slash;
+* invalid/blank fallback behavior.
+
+⸻
+
+D. WEBHOOK SIGNATURE CERTIFICATION
+
+Inspect the existing:
+
+POST /api/stripe/webhook
+
+Confirm:
+
+1. stripe-signature is required.
+2. raw request body is used for signature verification.
+3. parsed/re-serialized JSON is never substituted for the signed raw body.
+4. STRIPE_WEBHOOK_SECRET is server-only.
+5. malformed signatures return a controlled 400-class response.
+6. unsigned webhook requests never reach fulfillment.
+7. webhook errors return JSON.
+8. webhook route cannot fall through to SPA HTML.
+9. production logs never print secrets, payment method details, or raw request bodies.
+
+Preserve the existing single webhook endpoint.
+
+⸻
+
+E. WEBHOOK EVENT IDEMPOTENCY — CRITICAL
+
+Inspect whether Stripe EVENT-ID-level deduplication already exists.
+
+Search for:
+
+* processed_webhook_events
+* stripe event id storage
+* webhook event dedupe
+* event.id
+* idempotent webhook fulfillment
+
+If robust Stripe event-level dedupe already exists:
+
+* reuse it;
+* test it;
+* do not create a duplicate mechanism.
+
+If it does NOT exist:
+
+create an additive server-side persistence mechanism.
+
+Preferred table:
+
+stripe_processed_events
+
+Suggested fields:
+
+* event_id VARCHAR PRIMARY KEY
+* event_type VARCHAR NOT NULL
+* livemode BOOLEAN NOT NULL
+* processed_at TIMESTAMP NOT NULL DEFAULT now()
+* result VARCHAR
+* metadata JSONB
+
+Never store:
+
+* card numbers
+* payment-method payloads
+* private customer objects
+* webhook signature
+* Stripe secret
+* entire raw event payload
+
+Required behavior:
+
+1. Before business fulfillment, attempt atomic event claim.
+2. Duplicate event.id must not re-apply premium credits or subscription fulfillment.
+3. Mark processing outcome honestly.
+4. Failed event handling must have a recoverable policy.
+5. Avoid permanently claiming an event before recoverable processing if that would prevent a legitimate Stripe retry.
+
+Architect must specifically review the claim/failure/retry transaction design.
+
+If a new table is required, create:
+
+scripts/create_phase72_7_tables.ts
+
+It must be idempotent.
+
+⸻
+
+F. SUBSCRIPTION FULFILLMENT CERTIFICATION
+
+Certify these Stripe events:
+
+1. checkout.session.completed
+2. customer.subscription.created
+3. customer.subscription.updated
+4. customer.subscription.deleted
+
+For checkout.session.completed:
+
+* ignore non-subscription sessions;
+* resolve user only from trusted server/Stripe metadata;
+* retrieve subscription from Stripe when required;
+* synchronize subscription once;
+* do not grant an unknown tier.
+
+For subscription created/updated:
+
+* validate tier mapping;
+* apply premium entitlement only when subscription state is eligible;
+* preserve existing active/trialing semantics unless architect identifies a bug.
+
+For subscription deleted:
+
+* update subscription state;
+* remove premium entitlement appropriately;
+* do not destroy customer/account history.
+
+Unknown tier:
+
+* must never partially write an invalid premium state;
+* must not trigger infinite Stripe retries solely because metadata is unknown;
+* must be logged in a redacted operational manner.
+
+⸻
+
+G. CREDIT / ENTITLEMENT DUPLICATION REVIEW
+
+The current flow may receive multiple legitimate events for one subscription lifecycle.
+
+Example:
+
+checkout.session.completed
+customer.subscription.created
+customer.subscription.updated
+
+Certify that these related events cannot improperly multiply:
+
+* monthly AI credits;
+* premium feature grants;
+* entitlement records;
+* subscription rows.
+
+If applyTier(…, true) performs a top-up, carefully determine whether repeated lifecycle events can repeatedly top up the same customer.
+
+This is a HIGH-PRIORITY architect review item.
+
+Requirements:
+
+* monthly credits must have an explicit renewal/activation idempotency boundary;
+* duplicate webhooks must not duplicate credits;
+* customer.subscription.updated events that contain no new billing period must not repeatedly grant monthly credit;
+* renewal should grant credits once per eligible billing period if that is the intended commercial policy.
+
+Do not silently alter the commercial credit policy.
+
+Document the existing policy and any proposed correction.
+
+⸻
+
+H. STRIPE PRICE / TIER INTEGRITY
+
+Review:
+
+server/billing/plans.ts
+
+and related price resolution.
+
+Verify:
+
+* every paid public tier has an explicitly mapped Stripe Price ID;
+* unknown price IDs cannot activate premium;
+* unknown metadata tiers cannot activate premium;
+* Stripe product names are not trusted as entitlement keys;
+* inactive prices cannot be initiated from the application;
+* test and live price configuration are not accidentally mixed.
+
+Do not print actual secret environment values.
+
+The delivery report may say:
+
+configured / missing / inconsistent
+
+but must not expose secret values.
+
+⸻
+
+I. CUSTOMER BILLING PORTAL CERTIFICATION
+
+Verify:
+
+POST /api/billing/portal
+
+Requirements:
+
+* authenticated customer required;
+* customer can open only their own portal session;
+* Stripe customer ID is loaded from the authenticated server record;
+* no client-supplied Stripe customer ID;
+* return URL is canonical;
+* absence of billing account returns controlled JSON;
+* errors do not leak Stripe internals.
+
+⸻
+
+J. ACCOUNT SUCCESS EXPERIENCE
+
+Review the /account?billing=success behavior.
+
+A query string alone must NOT be treated as proof that payment succeeded.
+
+Requirements:
+
+* billing=success may display a “Payment received / confirming subscription” UI state;
+* authoritative premium status must come from the server/database;
+* refresh premium status after Checkout return;
+* handle brief webhook delay gracefully;
+* do not display permanent “Premium active” solely because the URL contains billing=success;
+* show a controlled pending state if Stripe completed Checkout but webhook fulfillment has not propagated yet.
+
+Suggested UX:
+
+“Payment received. We’re confirming your subscription.”
+
+Then poll/refetch /api/premium/status with a tightly bounded retry window.
+
+Stop when:
+
+* premium becomes active; or
+* timeout occurs.
+
+Timeout copy:
+
+“Your payment may still be processing. Refresh shortly or contact support if access is not updated.”
+
+No infinite polling.
+
+⸻
+
+K. CANCELLED CHECKOUT EXPERIENCE
+
+For:
+
+/pricing?billing=cancelled
+
+Verify:
+
+* no subscription is activated;
+* no credits are granted;
+* cancellation is not treated as an error;
+* user can safely retry checkout;
+* stale checkout session URLs are not permanently stored client-side.
+
+⸻
+
+L. BILLING OBSERVABILITY
+
+Add privacy-safe operational observability if missing.
+
+Recommended events:
+
+* billing_checkout_started
+* billing_checkout_session_created
+* billing_checkout_cancelled
+* billing_checkout_returned
+* billing_subscription_activated
+* billing_subscription_updated
+* billing_subscription_cancelled
+* billing_webhook_duplicate
+* billing_webhook_failed
+* billing_portal_opened
+
+Never place in analytics metadata:
+
+* Stripe secret
+* webhook signature
+* complete customer object
+* card/payment-method fields
+* customer email unless explicitly necessary
+* session URL
+* Checkout Session secret-bearing values
+
+Use only:
+
+* internal tier
+* event type
+* success/failure category
+* authenticated internal user ID only where server operational logs permit it
+
+Public analytics should remain anonymous.
+
+⸻
+
+M. CUSTOM CHECKOUT DOMAIN — READINESS ONLY
+
+Do NOT configure DNS or Stripe custom domains in this phase.
+
+Add a delivery-report readiness assessment for:
+
+pay.elevate360official.com
+
+Preferred future flow:
+
+Elevate360Official
+→ pay.elevate360official.com
+→ Stripe-hosted secure payment
+→ Elevate360Official account
+
+Assess:
+
+* application code impact;
+* DNS requirement;
+* Stripe Dashboard requirement;
+* whether any return URLs need changes;
+* whether existing Checkout Session creation remains compatible.
+
+No live changes.
+
+⸻
+
+N. TEST SUITE
+
+Create:
+
+scripts/phase72_7_stripe_tests.ts
+
+Minimum tests:
+
+Checkout
+
+1. Unauthenticated checkout rejected.
+2. Invalid tier rejected.
+3. Missing price configuration fails safely.
+4. Client cannot submit arbitrary price ID.
+5. Client cannot submit arbitrary customer ID.
+6. Server-derived metadata contains correct user.
+7. Server-derived tier metadata correct.
+8. Subscription mode enforced.
+9. Success URL canonical.
+10. Cancel URL canonical.
+11. No Stripe secret returned.
+
+Webhook
+
+12. Missing stripe-signature rejected.
+13. Invalid signature rejected.
+14. Valid fixture signature accepted.
+15. Raw body used for verification.
+16. Non-subscription checkout completion ignored by subscription handler.
+17. Unknown tier does not activate premium.
+18. subscription.created handled.
+19. subscription.updated handled.
+20. subscription.deleted handled.
+
+Idempotency
+
+21. Same Stripe event ID delivered twice produces one fulfillment.
+22. Duplicate event does not duplicate credits.
+23. Duplicate event does not create duplicate subscription records.
+24. Distinct legitimate events remain processable.
+25. Failed processing follows the documented retry policy.
+
+Credits
+
+26. checkout.session.completed + subscription.created cannot double-credit.
+27. repeated subscription.updated cannot repeatedly credit same billing period.
+28. legitimate renewal can credit according to documented policy.
+29. cancellation does not credit.
+
+Portal
+
+30. Unauthenticated portal rejected.
+31. Customer without Stripe account receives controlled response.
+32. Client cannot choose another Stripe customer.
+33. Return URL canonical.
+
+Return UX
+
+34. billing=success alone does not activate UI entitlement.
+35. account page refetches authoritative premium status.
+36. polling is bounded.
+37. cancelled checkout does not alter entitlement.
+
+Security
+
+38. No secret values in API responses.
+39. No raw webhook body logging.
+40. No webhook signature logging.
+41. No SPA fallback for billing API errors.
+42. Production fixture/test bypass impossible.
+
+Regression
+
+43. Existing customer signup remains operational.
+44. Existing customer login remains operational.
+45. Existing premium-status route remains protected.
+46. Existing Phase 72.x dashboards unaffected.
+47. Existing one-time Stripe order webhook behavior unaffected.
+48. TypeScript clean.
+49. Production build clean.
+
+Run all relevant existing billing, Stripe, auth, revenue, and Phase 72 regression suites.
+
+⸻
+
+O. CONTROLLED LIVE TRANSACTION PLAN
+
+Do not execute during Step 1.
+
+Prepare a documented Step-5 production test plan using the lowest legitimate live subscription tier.
+
+The live test must require explicit Founder authorization immediately before purchase.
+
+The verification must capture:
+
+1. checkout session starts successfully;
+2. Stripe-hosted page is live mode;
+3. correct product/tier/amount displayed;
+4. successful payment returns to canonical account page;
+5. Stripe Dashboard shows successful Checkout Session;
+6. Stripe webhook endpoint shows successful 2xx delivery;
+7. internal subscription row is active;
+8. premium entitlement is active;
+9. credits are correct exactly once;
+10. duplicate/replayed delivery does not duplicate entitlement;
+11. Billing Portal opens;
+12. cancellation behavior can be verified without immediately cancelling a valuable live subscription unless Founder explicitly authorizes it.
+
+Do not use or display full payment-card details in screenshots or logs.
+
+⸻
+
+P. ARCHITECT REVIEW
+
+Architect must explicitly inspect:
+
+* Checkout trust boundary
+* customer ownership
+* price/tier trust boundary
+* canonical return URLs
+* raw webhook signature verification
+* webhook event idempotency
+* failure/retry semantics
+* credit duplication risk
+* subscription lifecycle correctness
+* customer portal authorization
+* webhook / API secret leakage
+* live/test-mode isolation
+* one-time order webhook regression
+* account success UX
+* production migration ordering if new table added
+
+Any Critical or High finding must be fixed before PASS.
+
+⸻
+
+Q. BUILD DELIVERY REPORT
+
+Return:
+
+PHASE 72.7 — STRIPE PRODUCTION CHECKOUT CERTIFICATION DELIVERY REPORT
+
+Include:
+
+1. Status
+2. Architecture inspected
+3. Root risks identified
+4. Files added
+5. Files modified
+6. Checkout trust-boundary findings
+7. Return-URL findings
+8. Webhook signature findings
+9. Webhook idempotency findings
+10. Credit/entitlement duplication findings
+11. Subscription lifecycle findings
+12. Billing Portal findings
+13. Account success/cancel UX changes
+14. Observability changes
+15. Custom-domain readiness assessment
+16. Database objects/migration, if any
+17. Test totals/results
+18. Existing regression results
+19. TypeScript result
+20. Production build result
+21. Architect initial findings
+22. Fixes applied
+23. Architect final verdict
+24. Environment-variable changes
+25. Render pre-deploy requirement
+26. Step-5 controlled live transaction plan
+27. Production verification commands
+28. Risks/deferred items
+29. Explicit confirmation that no real payment was made
+30. Explicit confirmation that nothing was committed, pushed, or deployed
+
+STOP.
+
+Do not commit.
+Do not push.
+Do not deploy.
+Do not execute a live Stripe charge.

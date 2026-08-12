@@ -1,5 +1,6 @@
+import { randomUUID } from "node:crypto";
 import {
-  subscriptions, aiCredits, userPremiumFeatures,
+  subscriptions, aiCredits, userPremiumFeatures, stripeProcessedEvents,
   type Subscription, type InsertSubscription,
   type AiCredits, type UserPremiumFeature,
   type User, type InsertUser,
@@ -197,6 +198,13 @@ export interface IStorage {
   listAiCreditAccounts(dueBefore?: Date): Promise<AiCredits[]>;
   setPremiumFeatures(userId: string, featureKeys: string[], source: string): Promise<void>;
   getPremiumFeatures(userId: string): Promise<UserPremiumFeature[]>;
+  // Phase 72.7 — Stripe webhook event-level idempotency (lease-based, fenced claim / result / release)
+  claimStripeWebhookEvent(eventId: string, eventType: string, livemode: boolean): Promise<{ status: "claimed" | "duplicate" | "in_flight"; token?: string }>;
+  markStripeWebhookEventResult(eventId: string, result: string, token?: string): Promise<boolean>;
+  releaseStripeWebhookEvent(eventId: string): Promise<void>;
+  applyPlanCreditsWithGrant(userId: string, monthlyAllotment: number, grantKey: string, livemode: boolean): Promise<boolean>;
+  upsertSubscriptionIfNewer(sub: InsertSubscription): Promise<boolean>;
+  getEligibleReplacementSubscriptionForUser(userId: string, excludedSubId?: string): Promise<Subscription | undefined>;
   createContactMessage(message: InsertContactMessage): Promise<ContactMessage>;
   getContactMessages(limit?: number): Promise<ContactMessage[]>;
   getContactMessageById(id: number): Promise<ContactMessage | undefined>;
@@ -684,6 +692,140 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
+  // Phase 72.7 — lease-based atomic Stripe event claim (durable state machine:
+  // processing → success | failed). Exactly one concurrent delivery of a given
+  // event id wins the claim. Rows are RECLAIMABLE when a previous attempt
+  // failed, or when a 'processing' claim is stale (> 5 min lease — the process
+  // crashed after claiming), so an abandoned claim can never permanently
+  // swallow fulfillment: Stripe's retry reclaims and reprocesses it.
+  // Every successful claim carries a FENCING TOKEN: terminal state writes must
+  // present it, so an expired-but-still-running owner whose lease was reclaimed
+  // cannot ack or overwrite the new owner's state.
+  //   "claimed"   → caller must fulfill (token returned).
+  //   "duplicate" → already fulfilled successfully; acknowledge, skip.
+  //   "in_flight" → another worker holds a fresh lease; respond retryable.
+  async claimStripeWebhookEvent(eventId: string, eventType: string, livemode: boolean): Promise<{ status: "claimed" | "duplicate" | "in_flight"; token?: string }> {
+    const token = randomUUID();
+    const res = await db.execute(sql`
+      INSERT INTO stripe_processed_events (event_id, event_type, livemode, processed_at, result, metadata)
+      VALUES (${eventId}, ${eventType}, ${livemode}, now(), 'processing', ${JSON.stringify({ token })}::jsonb)
+      ON CONFLICT (event_id) DO UPDATE
+        SET processed_at = now(), result = 'processing', metadata = EXCLUDED.metadata
+        WHERE stripe_processed_events.result IS DISTINCT FROM 'success'
+          AND (stripe_processed_events.result = 'failed'
+               OR stripe_processed_events.processed_at < now() - interval '5 minutes')
+      RETURNING event_id
+    `);
+    if ((res as any).rows?.length) return { status: "claimed", token };
+    const [row] = await db.select().from(stripeProcessedEvents)
+      .where(eq(stripeProcessedEvents.eventId, eventId));
+    return { status: row?.result === "success" ? "duplicate" : "in_flight" };
+  }
+
+  // Fenced terminal-state write: with a token, only the current lease owner's
+  // write lands (returns false when the lease was reclaimed by another worker).
+  async markStripeWebhookEventResult(eventId: string, result: string, token?: string): Promise<boolean> {
+    const res = token
+      ? await db.execute(sql`
+          UPDATE stripe_processed_events SET result = ${result}
+          WHERE event_id = ${eventId} AND metadata->>'token' = ${token}
+          RETURNING event_id`)
+      : await db.execute(sql`
+          UPDATE stripe_processed_events SET result = ${result}
+          WHERE event_id = ${eventId}
+          RETURNING event_id`);
+    return ((res as any).rows?.length ?? 0) > 0;
+  }
+
+  // Phase 72.7 — exactly-once, crash-safe credit grant. The per-(subscription,
+  // tier, billing period) grant marker is committed in the SAME transaction as
+  // the balance reset: a crash rolls back both (retry re-grants), a commit
+  // makes both durable (any replay sees the marker and never re-credits).
+  // Concurrent grants serialize on the marker row lock — exactly one wins.
+  async applyPlanCreditsWithGrant(userId: string, monthlyAllotment: number, grantKey: string, livemode: boolean): Promise<boolean> {
+    return db.transaction(async (tx) => {
+      await tx.insert(aiCredits)
+        .values({ userId, balance: monthlyAllotment, monthlyAllotment })
+        .onConflictDoNothing({ target: aiCredits.userId });
+      const res = await tx.execute(sql`
+        INSERT INTO stripe_processed_events (event_id, event_type, livemode, processed_at, result)
+        VALUES (${grantKey}, 'credit_grant', ${livemode}, now(), 'success')
+        ON CONFLICT (event_id) DO UPDATE
+          SET processed_at = now(), result = 'success'
+          WHERE stripe_processed_events.result IS DISTINCT FROM 'success'
+        RETURNING event_id
+      `);
+      const granted = (((res as any).rows?.length ?? 0) > 0);
+      const set: Record<string, unknown> = { monthlyAllotment, updatedAt: new Date() };
+      if (granted) { set.balance = monthlyAllotment; set.lastResetAt = new Date(); }
+      await tx.update(aiCredits).set(set).where(eq(aiCredits.userId, userId));
+      return granted;
+    });
+  }
+
+  // Release a failed claim so a legitimate Stripe retry (same event.id) can
+  // reprocess. Called only when fulfillment threw — never after success.
+  async releaseStripeWebhookEvent(eventId: string): Promise<void> {
+    await db.delete(stripeProcessedEvents)
+      .where(eq(stripeProcessedEvents.eventId, eventId));
+  }
+
+  // Phase 72.7 — atomic, ordering-enforced subscription sync. The staleness
+  // decision and the write are ONE statement: the ON CONFLICT row lock
+  // serializes concurrent lifecycle events for the same subscription, and the
+  // conditional WHERE re-evaluates against the committed row, so an older
+  // event that lost the race can never overwrite newer tier/status/period
+  // state. Returns whether the incoming event won (only winners may apply
+  // entitlements/credits). Guards:
+  //   • event-time monotonic: last_event_at never regresses
+  //   • billing-period monotonic: current_period_end never regresses
+  //   • cancellation terminal: an active event can't resurrect a canceled row
+  //     unless it describes a strictly newer billing period
+  async upsertSubscriptionIfNewer(sub: InsertSubscription): Promise<boolean> {
+    const res = await db.execute(sql`
+      INSERT INTO subscriptions
+        (user_id, stripe_subscription_id, stripe_customer_id, status, tier,
+         current_period_end, cancel_at_period_end, last_event_at, updated_at)
+      VALUES
+        (${sub.userId}, ${sub.stripeSubscriptionId}, ${sub.stripeCustomerId ?? null},
+         ${sub.status}, ${sub.tier}, ${sub.currentPeriodEnd ?? null},
+         ${sub.cancelAtPeriodEnd ?? false}, ${sub.lastEventAt ?? null}, now())
+      ON CONFLICT (stripe_subscription_id) DO UPDATE SET
+        user_id = EXCLUDED.user_id,
+        stripe_customer_id = COALESCE(EXCLUDED.stripe_customer_id, subscriptions.stripe_customer_id),
+        status = EXCLUDED.status,
+        tier = EXCLUDED.tier,
+        current_period_end = COALESCE(EXCLUDED.current_period_end, subscriptions.current_period_end),
+        cancel_at_period_end = EXCLUDED.cancel_at_period_end,
+        last_event_at = COALESCE(EXCLUDED.last_event_at, subscriptions.last_event_at),
+        updated_at = now()
+      WHERE
+        (EXCLUDED.last_event_at IS NULL
+         OR subscriptions.last_event_at IS NULL
+         OR subscriptions.last_event_at < EXCLUDED.last_event_at
+         -- Stripe event.created is second-resolution, so equal timestamps are
+         -- NOT a total order. An equal-time write may only win when it is a
+         -- no-op (identical tier+status — replay convergence) or a terminal
+         -- cancellation (deletion is always the last event for a sub id).
+         -- Conflicting same-second states are rejected; the caller reconciles
+         -- from the authoritative Stripe subscription object instead.
+         OR (subscriptions.last_event_at = EXCLUDED.last_event_at
+             AND (EXCLUDED.status = 'canceled'
+                  OR (subscriptions.tier = EXCLUDED.tier
+                      AND subscriptions.status = EXCLUDED.status))))
+        AND (EXCLUDED.current_period_end IS NULL
+         OR subscriptions.current_period_end IS NULL
+         OR subscriptions.current_period_end <= EXCLUDED.current_period_end)
+        AND (subscriptions.status <> 'canceled'
+         OR EXCLUDED.status = 'canceled'
+         OR (EXCLUDED.current_period_end IS NOT NULL
+             AND (subscriptions.current_period_end IS NULL
+                  OR EXCLUDED.current_period_end > subscriptions.current_period_end)))
+      RETURNING id
+    `);
+    return (((res as any).rows?.length ?? 0) > 0);
+  }
+
   async getSubscriptionByStripeId(stripeSubscriptionId: string): Promise<Subscription | undefined> {
     const [row] = await db.select().from(subscriptions)
       .where(eq(subscriptions.stripeSubscriptionId, stripeSubscriptionId));
@@ -696,6 +838,22 @@ export class DatabaseStorage implements IStorage {
         eq(subscriptions.userId, userId),
         inArray(subscriptions.status, ["active", "trialing", "past_due"]),
       ))
+      .orderBy(desc(subscriptions.currentPeriodEnd))
+      .limit(1);
+    return row;
+  }
+
+  // Phase 72.7 — eligible-replacement lookup for entitlement re-derivation.
+  // Filters to active/trialing IN SQL (a later-ending past_due row must not
+  // shadow a valid active replacement) and excludes the lost subscription id.
+  async getEligibleReplacementSubscriptionForUser(userId: string, excludedSubId?: string): Promise<Subscription | undefined> {
+    const conditions = [
+      eq(subscriptions.userId, userId),
+      inArray(subscriptions.status, ["active", "trialing"]),
+    ];
+    if (excludedSubId) conditions.push(ne(subscriptions.stripeSubscriptionId, excludedSubId));
+    const [row] = await db.select().from(subscriptions)
+      .where(and(...conditions))
       .orderBy(desc(subscriptions.currentPeriodEnd))
       .limit(1);
     return row;

@@ -31,6 +31,9 @@ export const subscriptions = pgTable("subscriptions", {
   // plan tier key: 'starter' | 'pro'
   tier: varchar("tier", { length: 20 }).notNull().default("starter"),
   currentPeriodEnd: timestamp("current_period_end"),
+  // Phase 72.7 — Stripe event `created` time of the newest lifecycle event
+  // applied to this row; used to reject stale out-of-order deliveries.
+  lastEventAt: timestamp("last_event_at"),
   cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -40,6 +43,20 @@ export const subscriptions = pgTable("subscriptions", {
 }));
 
 // Phase 68A — AI credit balance (one row per customer). Atomic decrement on use.
+// Phase 72.7 — Stripe webhook event-level idempotency ledger. One row per
+// processed Stripe event.id. Claimed atomically (INSERT ... ON CONFLICT DO
+// NOTHING) BEFORE fulfillment; released (deleted) on processing failure so a
+// legitimate Stripe retry can reprocess. Never stores raw payloads, signatures,
+// card data, or secrets — only the event id/type and a redacted result.
+export const stripeProcessedEvents = pgTable("stripe_processed_events", {
+  eventId: varchar("event_id", { length: 255 }).primaryKey(),
+  eventType: varchar("event_type", { length: 100 }).notNull(),
+  livemode: boolean("livemode").notNull(),
+  processedAt: timestamp("processed_at").defaultNow().notNull(),
+  result: varchar("result", { length: 40 }),
+  metadata: jsonb("metadata"),
+});
+
 export const aiCredits = pgTable("ai_credits", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull().unique(),
@@ -193,6 +210,8 @@ export const insertUserPremiumFeatureSchema = createInsertSchema(userPremiumFeat
 });
 export type InsertUserPremiumFeature = z.infer<typeof insertUserPremiumFeatureSchema>;
 export type UserPremiumFeature = typeof userPremiumFeatures.$inferSelect;
+
+export type StripeProcessedEvent = typeof stripeProcessedEvents.$inferSelect;
 
 export const insertContactMessageSchema = createInsertSchema(contactMessages, {
   name: z.string().min(1, "Name is required").max(200),
@@ -472,6 +491,12 @@ export const STRATEGY_FUNNEL_EVENTS = [
   "thank_you_view",
   "consultation_rescheduled",
   "consultation_cancelled",
+  // Phase 72.7 — anonymous subscription billing UX observability. No PII,
+  // no Stripe identifiers, no session URLs — tier/category metadata only.
+  "billing_checkout_started",
+  "billing_checkout_cancelled",
+  "billing_checkout_returned",
+  "billing_portal_opened",
 ] as const;
 export type StrategyFunnelEvent = (typeof STRATEGY_FUNNEL_EVENTS)[number];
 

@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Check, Loader2 } from "lucide-react";
 import { customerApi, type PublicPlan } from "@/api/customer";
+import { trackFunnelEvent } from "@/lib/funnelAnalytics";
 
 const GOLD = "#F4A62A";
 
@@ -24,6 +25,8 @@ export function PlanComparison({
       return;
     }
     setLoadingTier(tier);
+    // Phase 72.7 — anonymous billing observability (tier only; no PII/IDs/URLs).
+    trackFunnelEvent("billing_checkout_started", { tier });
     try {
       const { url } = await customerApi.createCheckout(tier);
       window.location.assign(url);

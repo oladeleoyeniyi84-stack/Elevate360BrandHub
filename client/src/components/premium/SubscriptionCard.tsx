@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { customerApi, type PremiumStatus } from "@/api/customer";
 import { CreditMeter } from "./CreditMeter";
+import { trackFunnelEvent } from "@/lib/funnelAnalytics";
 
 const GOLD = "#F4A62A";
 
@@ -13,6 +14,8 @@ export function SubscriptionCard({ status }: { status: PremiumStatus }) {
   const openPortal = async () => {
     setLoading(true);
     setError(null);
+    // Phase 72.7 — anonymous billing observability (no PII/IDs/URLs).
+    trackFunnelEvent("billing_portal_opened");
     try {
       const { url } = await customerApi.openPortal();
       window.location.assign(url);
