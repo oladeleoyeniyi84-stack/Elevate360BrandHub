@@ -1,0 +1,76 @@
+BOOKS PAGE — AMAZON INFLUENCER STOREFRONT CTA UPDATE
+
+Update the public Books section/page on Elevate360Official.
+
+CURRENT PRIMARY CTA:
+"Visit Author Central on Amazon"
+
+CHANGE PRIMARY CTA TO:
+"Shop My Books on Amazon"
+
+PRIMARY URL:
+https://a.co/d/0gRcYt8Q
+
+REQUIREMENTS:
+
+1. Replace the current Author Central button destination with the new Amazon Influencer storefront URL above.
+2. Keep the existing premium gold CTA styling.
+3. Open the Amazon storefront in a new tab.
+4. Add:
+   target="_blank"
+   rel="noopener noreferrer sponsored"
+5. Do not use the raw Amazon URL as visible button text.
+6. Preserve mobile responsiveness and minimum 44px touch target.
+7. Keep the existing book-cover presentation for:
+   - Healthwise: Stay Healthy
+   - Together: Let There Be Love
+   - One Clean Meal: A 7-Day Reset
+8. Add a small secondary link beneath the main CTA:
+   "View Author Profile on Amazon"
+   pointing to the existing Amazon Author Central/author-page URL already configured in the project.
+9. The secondary Author Profile link must be visually subordinate to the main storefront CTA.
+10. Do not remove any existing book analytics.
+
+ANALYTICS
+
+Track the primary storefront CTA with the existing first-party analytics architecture.
+
+Event:
+amazon_storefront_click
+
+Metadata:
+{
+  source: "books_page",
+  destination: "amazon_influencer_storefront"
+}
+
+Do not place the full Amazon session URL, customer information, or personal data in analytics.
+
+If an existing Amazon/Books click event should be reused instead of adding another event name, preserve the established analytics taxonomy and document the choice.
+
+COPY UPDATE
+
+Above or near the book covers, use concise commerce-oriented language such as:
+
+"Explore Oladele Oyeniyi's books and recommended resources on Amazon."
+
+Optional supporting text:
+
+"Shop published books, featured titles, and selected recommendations through the official Amazon storefront."
+
+Do not make unsupported bestseller, rating, sales-volume, or ranking claims.
+
+TEST:
+
+- CTA renders on desktop/mobile.
+- CTA URL is exactly https://a.co/d/0gRcYt8Q
+- External link opens safely in new tab.
+- Author Profile remains available as secondary navigation.
+- No horizontal overflow on mobile.
+- Existing bottom navigation does not obscure the book cards or CTA.
+- Analytics fire once per intentional click.
+- TypeScript and production build pass.
+
+BUILD/TEST ONLY.
+Do not commit, push, or deploy.
+Return the changed files and verification results.

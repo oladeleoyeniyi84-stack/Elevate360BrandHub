@@ -1308,8 +1308,8 @@ export default function Home() {
                 Insights & Inspiration
               </h2>
               <p className="text-lg text-muted-foreground leading-relaxed">
-                Dive deep into our collection of eBooks and hardcover publications. Whether you're looking for guidance,
-                knowledge, or inspiration, our carefully crafted books are designed to elevate your understanding.
+                Explore Oladele Oyeniyi's books and recommended resources on Amazon. Shop published books, featured
+                titles, and selected recommendations through the official Amazon storefront.
               </p>
 
               <ul className="space-y-4">
@@ -1317,7 +1317,7 @@ export default function Home() {
                   "Expertly researched content",
                   "Available in digital and physical formats",
                   "Actionable insights for personal growth",
-                  "Highly rated by readers globally",
+                  "Shop paperback and Kindle editions on Amazon",
                 ].map((item, i) => (
                   <li key={i} className="flex items-center text-foreground font-medium">
                     <div className="mr-3 h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-primary">
@@ -1328,16 +1328,31 @@ export default function Home() {
                 ))}
               </ul>
 
-              <div className="pt-4">
+              <div className="pt-4 flex flex-col items-start gap-3">
+                <a
+                  href="https://a.co/d/0gRcYt8Q"
+                  target="_blank"
+                  rel="noopener noreferrer sponsored"
+                  onClick={() =>
+                    trackRevenueEvent("affiliate_click", "book_sale", {
+                      productName: "Amazon Influencer Storefront",
+                      metadata: { source: "books_page", destination: "amazon_influencer_storefront" },
+                    })
+                  }
+                  data-testid="link-amazon-storefront"
+                  className="btn-primary min-h-[44px] inline-flex items-center"
+                >
+                  Shop My Books on Amazon
+                </a>
                 <a
                   href="https://www.amazon.com/stores/Oladele-Oyeniyi/author/B0GCMSCWPV?ref=ap_rdr&shoppingPortalEnabled=true&ccs_id=6b61ffb3-1a86-4ecc-a3b9-bcb63f0525ae"
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={() => trackRevenueEvent("affiliate_click", "book_sale", { productName: "Amazon Author Central" })}
                   data-testid="link-amazon-author-central"
-                  className="btn-primary"
+                  className="inline-flex items-center min-h-[44px] text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground transition-colors"
                 >
-                  Visit Author Central on Amazon
+                  View Author Profile on Amazon
                 </a>
               </div>
             </div>
