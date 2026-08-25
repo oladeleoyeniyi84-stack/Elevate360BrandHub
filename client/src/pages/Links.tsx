@@ -16,11 +16,12 @@ interface LinkCardProps {
 
 function LinkCard({ href, emoji, label, sublabel, highlight, delay = "0ms" }: LinkCardProps) {
   const [pressed, setPressed] = useState(false);
+  const external = /^https?:\/\//.test(href);
   return (
     <a
       href={href}
-      target="_blank"
-      rel="noopener noreferrer"
+      target={external ? "_blank" : undefined}
+      rel={external ? "noopener noreferrer" : undefined}
       data-testid={`link-bio-${label.toLowerCase().replace(/\s+/g, "-")}`}
       onMouseDown={() => setPressed(true)}
       onMouseUp={() => setPressed(false)}
@@ -48,7 +49,9 @@ function LinkCard({ href, emoji, label, sublabel, highlight, delay = "0ms" }: Li
           </p>
         )}
       </div>
-      <ExternalLink className={`h-4 w-4 flex-shrink-0 opacity-50 group-hover:opacity-100 transition-opacity ${highlight ? "text-[#0d1a2e]" : ""}`} />
+      {external
+        ? <ExternalLink className={`h-4 w-4 flex-shrink-0 opacity-50 group-hover:opacity-100 transition-opacity ${highlight ? "text-[#0d1a2e]" : ""}`} />
+        : <Smartphone className={`h-4 w-4 flex-shrink-0 opacity-50 group-hover:opacity-100 transition-opacity ${highlight ? "text-[#0d1a2e]" : ""}`} />}
     </a>
   );
 }
@@ -126,19 +129,19 @@ export default function Links() {
           {/* Apps */}
           <SectionLabel>Mobile Apps</SectionLabel>
           <LinkCard
-            href="https://bondedlove.elevate360official.com"
+            href="/apps/bondedlove"
             emoji="❤️"
             label="Bondedlove"
             sublabel="Dating app built for real connections"
           />
           <LinkCard
-            href="https://health.elevate360official.com"
+            href="/apps/healthwise"
             emoji="💚"
             label="Healthwisesupport"
             sublabel="Your wellness companion app"
           />
           <LinkCard
-            href="https://crafter.elevate360official.com"
+            href="/apps/video-crafter"
             emoji="🎬"
             label="Video Crafter"
             sublabel="Professional video editing suite"

@@ -3,8 +3,27 @@ const CREATOR_EMAIL = process.env.CREATOR_EMAIL;
 const FROM_ADDRESS = process.env.EMAIL_FROM || "Elevate360 <onboarding@resend.dev>";
 const BRAND_GOLD = "#F4A62A";
 const BRAND_NAVY = "#0d1a2e";
+const MAX_EMAIL_HTML_BYTES = 256 * 1024;
+
+export function escapeEmailHtml(value: unknown): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+export function sanitizeEmailHeader(value: unknown, maxLength = 250): string {
+  return String(value ?? "").replace(/[\r\n\u0000-\u001f\u007f]+/g, " ").trim().slice(0, maxLength);
+}
+
+function safeMailto(value: string): string {
+  return `mailto:${encodeURIComponent(sanitizeEmailHeader(value, 320))}`;
+}
 
 function baseTemplate(title: string, body: string): string {
+  const safeTitle = escapeEmailHtml(title);
   return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -16,7 +35,7 @@ function baseTemplate(title: string, body: string): string {
         <tr>
           <td style="background:${BRAND_NAVY};padding:32px 40px;text-align:center;">
             <p style="margin:0;font-size:22px;font-weight:800;color:${BRAND_GOLD};letter-spacing:0.04em;">ELEVATE360</p>
-            <p style="margin:6px 0 0;font-size:13px;color:rgba(255,255,255,0.55);letter-spacing:0.06em;text-transform:uppercase;">${title}</p>
+             <p style="margin:6px 0 0;font-size:13px;color:rgba(255,255,255,0.55);letter-spacing:0.06em;text-transform:uppercase;">${safeTitle}</p>
           </td>
         </tr>
         <!-- Body -->
@@ -47,20 +66,26 @@ async function sendEmail(to: string, subject: string, html: string): Promise<voi
     return;
   }
 
+  const safeTo = sanitizeEmailHeader(to, 320);
+  const safeSubject = sanitizeEmailHeader(subject);
+  const safeFrom = sanitizeEmailHeader(FROM_ADDRESS, 320);
+  if (!safeTo || Buffer.byteLength(html, "utf8") > MAX_EMAIL_HTML_BYTES) {
+    throw new Error("Email payload is invalid or too large");
+  }
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${RESEND_API_KEY}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ from: FROM_ADDRESS, to, subject, html }),
+    body: JSON.stringify({ from: safeFrom, to: safeTo, subject: safeSubject, html }),
   });
 
   if (!res.ok) {
-    const err = await res.text();
-    console.warn(`[email] Resend error ${res.status}:`, err);
+    // Provider responses may echo addresses or request details; never log them.
+    console.warn(`[email] provider rejected request status=${res.status}`);
   } else {
-    console.log(`[email] Sent "${subject}" → ${to}`);
+    console.log("[email] provider accepted request");
   }
 }
 
@@ -71,35 +96,39 @@ export async function notifyNewContact(
 ): Promise<void> {
   if (!CREATOR_EMAIL) return;
 
+  const safeName = escapeEmailHtml(name);
+  const safeEmail = escapeEmailHtml(email);
+  const mailto = safeMailto(email);
+  const safeMessage = escapeEmailHtml(message).replace(/\n/g, "<br>");
   const body = `
     <h2 style="margin:0 0 24px;font-size:20px;font-weight:700;color:#111827;">New Contact Message</h2>
     <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
       <tr>
         <td style="padding:12px 0;border-bottom:1px solid #f3f4f6;">
           <p style="margin:0;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">From</p>
-          <p style="margin:4px 0 0;font-size:16px;font-weight:600;color:#111827;">${name}</p>
+          <p style="margin:4px 0 0;font-size:16px;font-weight:600;color:#111827;">${safeName}</p>
         </td>
       </tr>
       <tr>
         <td style="padding:12px 0;border-bottom:1px solid #f3f4f6;">
           <p style="margin:0;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">Email</p>
-          <a href="mailto:${email}" style="margin:4px 0 0;display:block;font-size:16px;color:${BRAND_GOLD};text-decoration:none;">${email}</a>
+          <a href="${mailto}" style="margin:4px 0 0;display:block;font-size:16px;color:${BRAND_GOLD};text-decoration:none;">${safeEmail}</a>
         </td>
       </tr>
       <tr>
         <td style="padding:12px 0;">
           <p style="margin:0;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">Message</p>
-          <p style="margin:4px 0 0;font-size:15px;color:#374151;line-height:1.7;">${message.replace(/\n/g, "<br>")}</p>
+          <p style="margin:4px 0 0;font-size:15px;color:#374151;line-height:1.7;">${safeMessage}</p>
         </td>
       </tr>
     </table>
     <div style="margin-top:32px;">
-      <a href="mailto:${email}" style="display:inline-block;padding:12px 28px;background:${BRAND_GOLD};color:#0d1a2e;font-weight:700;font-size:14px;border-radius:999px;text-decoration:none;">Reply to ${name}</a>
+      <a href="${mailto}" style="display:inline-block;padding:12px 28px;background:${BRAND_GOLD};color:#0d1a2e;font-weight:700;font-size:14px;border-radius:999px;text-decoration:none;">Reply to ${safeName}</a>
     </div>`;
 
   await sendEmail(
     CREATOR_EMAIL,
-    `📬 New contact from ${name} — Elevate360`,
+    `New contact from ${sanitizeEmailHeader(name, 100)} — Elevate360`,
     baseTemplate("New Contact Message", body)
   );
 }
@@ -111,7 +140,10 @@ export async function notifyNewLead(
 ): Promise<void> {
   if (!CREATOR_EMAIL || !email) return;
 
-  const displayName = name || "Anonymous visitor";
+  const displayName = escapeEmailHtml(name || "Anonymous visitor");
+  const safeEmail = escapeEmailHtml(email);
+  const mailto = safeMailto(email);
+  const safeSessionId = escapeEmailHtml(sessionId);
 
   const body = `
     <h2 style="margin:0 0 8px;font-size:20px;font-weight:700;color:#111827;">New Lead Captured</h2>
@@ -126,18 +158,18 @@ export async function notifyNewLead(
       <tr>
         <td style="padding:12px 0;border-bottom:1px solid #f3f4f6;">
           <p style="margin:0;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">Email</p>
-          <a href="mailto:${email}" style="margin:4px 0 0;display:block;font-size:16px;color:${BRAND_GOLD};text-decoration:none;">${email}</a>
+          <a href="${mailto}" style="margin:4px 0 0;display:block;font-size:16px;color:${BRAND_GOLD};text-decoration:none;">${safeEmail}</a>
         </td>
       </tr>
       <tr>
         <td style="padding:12px 0;">
           <p style="margin:0;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">Session</p>
-          <p style="margin:4px 0 0;font-size:13px;color:#9ca3af;font-family:monospace;">${sessionId}</p>
+          <p style="margin:4px 0 0;font-size:13px;color:#9ca3af;font-family:monospace;">${safeSessionId}</p>
         </td>
       </tr>
     </table>
     <div style="margin-top:32px;">
-      <a href="mailto:${email}" style="display:inline-block;padding:12px 28px;background:${BRAND_GOLD};color:#0d1a2e;font-weight:700;font-size:14px;border-radius:999px;text-decoration:none;">Follow Up with ${displayName}</a>
+      <a href="${mailto}" style="display:inline-block;padding:12px 28px;background:${BRAND_GOLD};color:#0d1a2e;font-weight:700;font-size:14px;border-radius:999px;text-decoration:none;">Follow Up with ${displayName}</a>
     </div>`;
 
   await sendEmail(
@@ -152,11 +184,13 @@ export async function sendContactReply(
   toEmail: string,
   replyText: string
 ): Promise<void> {
+  const safeName = escapeEmailHtml(toName);
+  const safeReply = escapeEmailHtml(replyText).replace(/\n/g, "<br>");
   const body = `
-    <h2 style="margin:0 0 12px;font-size:20px;font-weight:700;color:#111827;">Hello ${toName},</h2>
+    <h2 style="margin:0 0 12px;font-size:20px;font-weight:700;color:#111827;">Hello ${safeName},</h2>
     <p style="margin:0 0 24px;font-size:14px;color:#6b7280;">Thank you for reaching out to Elevate360. Here's our reply to your message:</p>
     <div style="padding:20px 24px;background:#f9fafb;border-left:4px solid ${BRAND_GOLD};border-radius:0 12px 12px 0;margin-bottom:28px;">
-      <p style="margin:0;font-size:15px;color:#374151;line-height:1.8;white-space:pre-wrap;">${replyText.replace(/\n/g, "<br>")}</p>
+      <p style="margin:0;font-size:15px;color:#374151;line-height:1.8;white-space:pre-wrap;">${safeReply}</p>
     </div>
     <p style="margin:0;font-size:14px;color:#6b7280;line-height:1.7;">
       Feel free to reply to this email if you have further questions. We look forward to hearing from you.
@@ -171,6 +205,8 @@ export async function sendContactReply(
 }
 
 export async function notifyNewSubscriber(email: string): Promise<void> {
+  const safeEmail = escapeEmailHtml(email);
+  const mailto = safeMailto(email);
   const welcomeBody = `
     <h2 style="margin:0 0 12px;font-size:22px;font-weight:800;color:#111827;">Welcome to Elevate360! 🎉</h2>
     <p style="margin:0 0 20px;font-size:15px;color:#374151;line-height:1.7;">
@@ -182,12 +218,12 @@ export async function notifyNewSubscriber(email: string): Promise<void> {
     <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:32px;">
       <tr>
         <td style="padding:10px 0;border-bottom:1px solid #f3f4f6;">
-          <a href="https://bondedlove.elevate360official.com" style="font-size:14px;color:${BRAND_GOLD};font-weight:600;text-decoration:none;">📱 Bondedlove — Dating App</a>
+          <a href="https://www.elevate360official.com/apps/bondedlove" style="font-size:14px;color:${BRAND_GOLD};font-weight:600;text-decoration:none;">📱 Bondedlove — Dating App</a>
         </td>
       </tr>
       <tr>
         <td style="padding:10px 0;border-bottom:1px solid #f3f4f6;">
-          <a href="https://health.elevate360official.com" style="font-size:14px;color:${BRAND_GOLD};font-weight:600;text-decoration:none;">💚 Healthwisesupport — Wellness App</a>
+          <a href="https://www.elevate360official.com/apps/healthwise" style="font-size:14px;color:${BRAND_GOLD};font-weight:600;text-decoration:none;">💚 Healthwisesupport — Wellness App</a>
         </td>
       </tr>
       <tr>
@@ -208,13 +244,13 @@ export async function notifyNewSubscriber(email: string): Promise<void> {
     <p style="margin:0 0 24px;font-size:14px;color:#6b7280;">Someone just subscribed to the Elevate360 newsletter.</p>
     <div style="padding:20px;background:#f9fafb;border-radius:12px;border:1px solid #e5e7eb;">
       <p style="margin:0;font-size:14px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">Subscriber Email</p>
-      <a href="mailto:${email}" style="margin:6px 0 0;display:block;font-size:18px;color:${BRAND_GOLD};font-weight:700;text-decoration:none;">${email}</a>
+       <a href="${mailto}" style="margin:6px 0 0;display:block;font-size:18px;color:${BRAND_GOLD};font-weight:700;text-decoration:none;">${safeEmail}</a>
     </div>`;
 
   await Promise.all([
     sendEmail(email, "Welcome to Elevate360! 🎉", baseTemplate("Welcome Aboard", welcomeBody)),
     CREATOR_EMAIL
-      ? sendEmail(CREATOR_EMAIL, `📧 New subscriber: ${email}`, baseTemplate("Newsletter Signup", adminBody))
+      ? sendEmail(CREATOR_EMAIL, `New subscriber: ${sanitizeEmailHeader(email, 180)}`, baseTemplate("Newsletter Signup", adminBody))
       : Promise.resolve(),
   ]);
 }
@@ -227,7 +263,11 @@ export async function notifyNewLeadMagnetLead(
   email: string,
   guideTitle: string
 ): Promise<void> {
-  const firstName = name?.trim() ? name.trim().split(/\s+/)[0] : "there";
+  const firstName = escapeEmailHtml(name?.trim() ? name.trim().split(/\s+/)[0] : "there");
+  const safeName = escapeEmailHtml(name?.trim() ?? "");
+  const safeEmail = escapeEmailHtml(email);
+  const safeGuideTitle = escapeEmailHtml(guideTitle);
+  const mailto = safeMailto(email);
   const point = (n: string, title: string, text: string) => `
     <tr>
       <td style="padding:14px 0;border-bottom:1px solid #f3f4f6;">
@@ -260,17 +300,17 @@ export async function notifyNewLeadMagnetLead(
 
   const adminBody = `
     <h2 style="margin:0 0 8px;font-size:20px;font-weight:700;color:#111827;">New Guide Lead</h2>
-    <p style="margin:0 0 24px;font-size:14px;color:#6b7280;">Someone requested the free guide (<strong>${guideTitle}</strong>).</p>
+     <p style="margin:0 0 24px;font-size:14px;color:#6b7280;">Someone requested the free guide (<strong>${safeGuideTitle}</strong>).</p>
     <div style="padding:20px;background:#f9fafb;border-radius:12px;border:1px solid #e5e7eb;">
-      ${name?.trim() ? `<p style="margin:0 0 12px;font-size:14px;color:#111827;"><strong>Name:</strong> ${name.trim()}</p>` : ""}
+       ${safeName ? `<p style="margin:0 0 12px;font-size:14px;color:#111827;"><strong>Name:</strong> ${safeName}</p>` : ""}
       <p style="margin:0;font-size:14px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">Lead Email</p>
-      <a href="mailto:${email}" style="margin:6px 0 0;display:block;font-size:18px;color:${BRAND_GOLD};font-weight:700;text-decoration:none;">${email}</a>
+       <a href="${mailto}" style="margin:6px 0 0;display:block;font-size:18px;color:${BRAND_GOLD};font-weight:700;text-decoration:none;">${safeEmail}</a>
     </div>`;
 
   await Promise.all([
     sendEmail(email, "Your AI Growth Playbook 🚀", baseTemplate("Free Guide", guideBody)),
     CREATOR_EMAIL
-      ? sendEmail(CREATOR_EMAIL, `📘 New guide lead: ${email}`, baseTemplate("Guide Lead", adminBody))
+      ? sendEmail(CREATOR_EMAIL, `New guide lead: ${sanitizeEmailHeader(email, 180)}`, baseTemplate("Guide Lead", adminBody))
       : Promise.resolve(),
   ]);
 }
@@ -319,7 +359,7 @@ export async function sendDigestEmail(stats: DigestStats): Promise<void> {
         <td style="padding:8px 0;border-bottom:1px solid #f3f4f6;">
           <span style="font-size:13px;color:#6b7280;">#${i + 1}</span>
           &nbsp;
-          <span style="font-size:14px;font-weight:600;color:#111827;">${c.label}</span>
+           <span style="font-size:14px;font-weight:600;color:#111827;">${escapeEmailHtml(c.label)}</span>
           <span style="float:right;font-size:14px;font-weight:700;color:${color};">${c.count} click${c.count !== 1 ? "s" : ""}</span>
         </td>
       </tr>`;
@@ -327,7 +367,7 @@ export async function sendDigestEmail(stats: DigestStats): Promise<void> {
 
   const body = `
     <h2 style="margin:0 0 4px;font-size:22px;font-weight:800;color:#111827;">Your Site Digest</h2>
-    <p style="margin:0 0 28px;font-size:14px;color:#6b7280;">Generated ${stats.generatedAt} · Dashboard: <a href="https://www.elevate360official.com/dashboard" style="color:${BRAND_GOLD};">View Dashboard</a></p>
+     <p style="margin:0 0 28px;font-size:14px;color:#6b7280;">Generated ${escapeEmailHtml(stats.generatedAt)} · Dashboard: <a href="https://www.elevate360official.com/dashboard" style="color:${BRAND_GOLD};">View Dashboard</a></p>
 
     <h3 style="margin:0 0 12px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#9ca3af;">Traffic & Engagement</h3>
     <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:28px;">
@@ -363,12 +403,13 @@ export async function sendLeadFollowupEmail(params: {
   bodyText: string;
 }): Promise<void> {
   const { toName, toEmail, subject, bodyText } = params;
-  const displayName = toName || "there";
+  const displayName = escapeEmailHtml(toName || "there");
+  const safeBodyText = escapeEmailHtml(bodyText);
 
   const body = `
     <h2 style="margin:0 0 12px;font-size:20px;font-weight:700;color:#111827;">Hey ${displayName},</h2>
     <div style="font-size:15px;color:#374151;line-height:1.85;">
-      ${bodyText.replace(/\n\n/g, '</p><p style="margin:0 0 12px;">').replace(/\n/g, "<br>")}
+       ${safeBodyText.replace(/\n\n/g, '</p><p style="margin:0 0 12px;">').replace(/\n/g, "<br>")}
     </div>
     <div style="margin-top:32px;padding:20px;background:#f9fafb;border-radius:12px;text-align:center;">
       <a href="https://www.elevate360official.com" style="display:inline-block;padding:12px 28px;background:${BRAND_GOLD};color:#0d1a2e;font-weight:800;border-radius:8px;text-decoration:none;font-size:14px;">Visit Elevate360 →</a>
@@ -389,26 +430,32 @@ export async function notifyNewBooking(params: {
 }): Promise<void> {
   if (!RESEND_API_KEY || !CREATOR_EMAIL) return;
   const { clientName, clientEmail, consultationTitle, preferredDate, message } = params;
+  const safeName = escapeEmailHtml(clientName);
+  const safeEmail = escapeEmailHtml(clientEmail);
+  const safeTitle = escapeEmailHtml(consultationTitle ?? "Consultation");
+  const safeDate = escapeEmailHtml(preferredDate ?? "Flexible");
+  const safeMessage = message ? escapeEmailHtml(message).replace(/\n/g, "<br>") : "";
+  const mailto = safeMailto(clientEmail);
   const adminBody = `
     <p style="font-size:16px;color:#374151;">A new consultation booking has been submitted on <strong>Elevate360Official</strong>.</p>
     <table width="100%" cellpadding="8" style="border-collapse:collapse;border-radius:12px;overflow:hidden;margin-top:16px;">
-      <tr style="background:#f9fafb;"><td style="font-weight:600;color:#374151;width:40%;">Client Name</td><td style="color:#111827;">${clientName}</td></tr>
-      <tr><td style="font-weight:600;color:#374151;">Client Email</td><td><a href="mailto:${clientEmail}" style="color:${BRAND_GOLD};">${clientEmail}</a></td></tr>
-      <tr style="background:#f9fafb;"><td style="font-weight:600;color:#374151;">Session Type</td><td style="color:#111827;">${consultationTitle ?? "Not specified"}</td></tr>
-      <tr><td style="font-weight:600;color:#374151;">Preferred Date</td><td style="color:#111827;">${preferredDate ?? "Flexible"}</td></tr>
-      ${message ? `<tr style="background:#f9fafb;"><td style="font-weight:600;color:#374151;vertical-align:top;">Message</td><td style="color:#374151;">${message}</td></tr>` : ""}
+       <tr style="background:#f9fafb;"><td style="font-weight:600;color:#374151;width:40%;">Client Name</td><td style="color:#111827;">${safeName}</td></tr>
+       <tr><td style="font-weight:600;color:#374151;">Client Email</td><td><a href="${mailto}" style="color:${BRAND_GOLD};">${safeEmail}</a></td></tr>
+       <tr style="background:#f9fafb;"><td style="font-weight:600;color:#374151;">Session Type</td><td style="color:#111827;">${safeTitle}</td></tr>
+       <tr><td style="font-weight:600;color:#374151;">Preferred Date</td><td style="color:#111827;">${safeDate}</td></tr>
+       ${safeMessage ? `<tr style="background:#f9fafb;"><td style="font-weight:600;color:#374151;vertical-align:top;">Message</td><td style="color:#374151;">${safeMessage}</td></tr>` : ""}
     </table>
     <div style="margin-top:24px;background:#f9fafb;border-radius:12px;padding:20px;text-align:center;">
       <a href="https://www.elevate360official.com/dashboard" style="display:inline-block;padding:12px 28px;background:${BRAND_GOLD};color:#0d1a2e;font-weight:800;border-radius:8px;text-decoration:none;font-size:14px;">View in Dashboard →</a>
     </div>`;
   const clientBody = `
-    <p style="font-size:16px;color:#374151;">Hi <strong>${clientName}</strong>,</p>
-    <p style="color:#374151;">Thank you for booking a <strong>${consultationTitle ?? "consultation"}</strong> with Elevate360Official!</p>
-    <p style="color:#374151;">We've received your request and will be in touch within <strong>24 hours</strong> to confirm your session${preferredDate ? ` for <strong>${preferredDate}</strong>` : ""}.</p>
+     <p style="font-size:16px;color:#374151;">Hi <strong>${safeName}</strong>,</p>
+     <p style="color:#374151;">Thank you for booking a <strong>${safeTitle}</strong> with Elevate360Official!</p>
+     <p style="color:#374151;">We've received your request and will be in touch within <strong>24 hours</strong> to confirm your session${preferredDate ? ` for <strong>${safeDate}</strong>` : ""}.</p>
     <p style="color:#374151;">In the meantime, feel free to explore our resources at <a href="https://www.elevate360official.com" style="color:${BRAND_GOLD};">www.elevate360official.com</a>.</p>
     <p style="color:#374151;margin-top:24px;">— The Elevate360Official Team</p>`;
   await Promise.allSettled([
-    sendEmail(CREATOR_EMAIL, `📅 New Booking: ${consultationTitle ?? "Consultation"} — ${clientName}`, baseTemplate("New Booking Request", adminBody)),
-    sendEmail(clientEmail, `✅ Your Elevate360 Booking is Confirmed — ${consultationTitle ?? "Consultation"}`, baseTemplate("Booking Confirmed", clientBody)),
+     sendEmail(CREATOR_EMAIL, `New Booking: ${sanitizeEmailHeader(consultationTitle ?? "Consultation", 100)} — ${sanitizeEmailHeader(clientName, 100)}`, baseTemplate("New Booking Request", adminBody)),
+     sendEmail(clientEmail, `Your Elevate360 Booking is Confirmed — ${sanitizeEmailHeader(consultationTitle ?? "Consultation", 100)}`, baseTemplate("Booking Confirmed", clientBody)),
   ]);
 }

@@ -334,13 +334,18 @@ export async function runGscSync(opts: { days?: number; fixture?: GscFixture; sc
     const token = await getAccessToken(cfg.config);
     const setErrors: Record<string, string> = {};
     const TRUNCATION_NOTE = `pagination cap hit (${MAX_PAGES_PER_SET * ROW_LIMIT} rows) — imported snapshot for this set is incomplete`;
+    // Do not write a mixed/partial pull into the canonical snapshot tables.
+    // Staging in memory is bounded by the existing pagination caps and lets us
+    // publish all datasets only after the run is classified SUCCESS.
+    let queryRows: Array<{ date: string; query: string; clicks: number; impressions: number; ctr: number; position: number }> = [];
+    let pageRows: Array<{ date: string; page: string; clicks: number; impressions: number; ctr: number; position: number }> = [];
+    let dimensionRows: Array<{ date: string; dimension: GscDimension; key: string; clicks: number; impressions: number; ctr: number; position: number }> = [];
+    let queryPageRows: Array<{ query: string; page: string; clicks: number; impressions: number }> = [];
 
     // date+query → gsc_query_daily
     try {
       const { rows: r, truncated } = await pullDimensionSet(cfg.config, token, ["date", "query"], startDate, endDate);
-      rows.queries = await storage.upsertGscQueryRows(
-        r.map((x) => ({ date: x.keys[0], query: x.keys[1], clicks: x.clicks, impressions: x.impressions, ctr: x.ctr, position: x.position })),
-      );
+      queryRows = r.map((x) => ({ date: x.keys[0], query: x.keys[1], clicks: x.clicks, impressions: x.impressions, ctr: x.ctr, position: x.position }));
       if (truncated) setErrors["date+query"] = TRUNCATION_NOTE;
     } catch (err) {
       setErrors["date+query"] = err instanceof Error ? err.message : String(err);
@@ -349,9 +354,7 @@ export async function runGscSync(opts: { days?: number; fixture?: GscFixture; sc
     // date+page → gsc_page_daily
     try {
       const { rows: r, truncated } = await pullDimensionSet(cfg.config, token, ["date", "page"], startDate, endDate);
-      rows.pages = await storage.upsertGscPageRows(
-        r.map((x) => ({ date: x.keys[0], page: x.keys[1], clicks: x.clicks, impressions: x.impressions, ctr: x.ctr, position: x.position })),
-      );
+      pageRows = r.map((x) => ({ date: x.keys[0], page: x.keys[1], clicks: x.clicks, impressions: x.impressions, ctr: x.ctr, position: x.position }));
       if (truncated) setErrors["date+page"] = TRUNCATION_NOTE;
     } catch (err) {
       setErrors["date+page"] = err instanceof Error ? err.message : String(err);
@@ -367,9 +370,7 @@ export async function runGscSync(opts: { days?: number; fixture?: GscFixture; sc
     for (const dim of dimSets) {
       try {
         const { rows: r, truncated } = await pullDimensionSet(cfg.config, token, ["date", dim.api], startDate, endDate);
-        rows.dimensions += await storage.upsertGscDimensionRows(
-          r.map((x) => ({ date: x.keys[0], dimension: dim.stored, key: x.keys[1], clicks: x.clicks, impressions: x.impressions, ctr: x.ctr, position: x.position })),
-        );
+        dimensionRows.push(...r.map((x) => ({ date: x.keys[0], dimension: dim.stored, key: x.keys[1], clicks: x.clicks, impressions: x.impressions, ctr: x.ctr, position: x.position })));
         if (truncated) setErrors[`date+${dim.api}`] = TRUNCATION_NOTE;
       } catch (err) {
         setErrors[`date+${dim.api}`] = err instanceof Error ? err.message : String(err);
@@ -380,11 +381,7 @@ export async function runGscSync(opts: { days?: number; fixture?: GscFixture; sc
     // query+page window snapshot → gsc_query_pages (associated landing pages)
     try {
       const { rows: r, truncated } = await pullDimensionSet(cfg.config, token, ["query", "page"], startDate, endDate);
-      rows.queryPages = await storage.upsertGscQueryPages(
-        r.map((x) => ({ query: x.keys[0], page: x.keys[1], clicks: x.clicks, impressions: x.impressions })),
-        startDate,
-        endDate,
-      );
+      queryPageRows = r.map((x) => ({ query: x.keys[0], page: x.keys[1], clicks: x.clicks, impressions: x.impressions }));
       if (truncated) setErrors["query+page"] = TRUNCATION_NOTE;
     } catch (err) {
       setErrors["query+page"] = err instanceof Error ? err.message : String(err);
@@ -394,10 +391,16 @@ export async function runGscSync(opts: { days?: number; fixture?: GscFixture; sc
     // datasets drive success/partial/error. A confirmed optional-unsupported
     // searchAppearance response (should any code path ever record one) is
     // demoted to an informational note, never to errorText.
-    const importedAny = rows.queries + rows.pages + rows.dimensions + rows.queryPages > 0;
+    const importedAny = queryRows.length + pageRows.length + dimensionRows.length + queryPageRows.length > 0;
     const { status, blockingErrors, optionalNotes } = resolveGscRunOutcome(setErrors, importedAny);
     notes.push(...optionalNotes);
     const errorCount = Object.keys(blockingErrors).length;
+    if (status === "success") {
+      rows.queries = await storage.upsertGscQueryRows(queryRows);
+      rows.pages = await storage.upsertGscPageRows(pageRows);
+      rows.dimensions = await storage.upsertGscDimensionRows(dimensionRows);
+      rows.queryPages = await storage.upsertGscQueryPages(queryPageRows, startDate, endDate);
+    }
     await storage.finishGscSyncRun(runId, {
       status,
       startDate,

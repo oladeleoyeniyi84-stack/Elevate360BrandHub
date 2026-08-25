@@ -11,7 +11,7 @@
 import { Router } from "express";
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
-import { requireDashboardAuth } from "../routes";
+import { requireDashboardAuth, rateLimit } from "../routes";
 import { storage } from "../storage";
 import {
   createCampaignSchema,
@@ -26,6 +26,7 @@ export const campaignsRouter = Router();
 // Router-level auth: ANY method/path under /api/admin/campaigns requires the
 // dashboard PIN, so unauthenticated requests always get 401 JSON.
 campaignsRouter.use(requireDashboardAuth);
+campaignsRouter.use(rateLimit(120, 900));
 
 campaignsRouter.get("/", async (_req, res) => {
   try {

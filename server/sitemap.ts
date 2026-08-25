@@ -1,4 +1,5 @@
 import { CANONICAL_ORIGIN } from "./seo/canonical";
+import { KNOWLEDGE_ARTICLES, PUBLIC_ROUTES } from "@shared/publicRoutes";
 
 const BASE_URL = CANONICAL_ORIGIN;
 
@@ -42,20 +43,17 @@ export function generateSitemap(blogPosts: BlogPostEntry[] = []): string {
 
   // Canonical URLs only — no fragments (they duplicate the homepage) and no
   // dashboards/admin/API/auth routes. Phase 72.4.1 canonical policy.
-  const staticUrls: SitemapUrl[] = [
-    { loc: `${BASE_URL}/`, changefreq: "weekly", priority: "1.0" },
-    { loc: `${BASE_URL}/blog`, changefreq: "daily", priority: "0.9" },
-    { loc: `${BASE_URL}/links`, changefreq: "monthly", priority: "0.8" },
-    { loc: `${BASE_URL}/press-kit`, changefreq: "monthly", priority: "0.7" },
-    { loc: `${BASE_URL}/founder`, changefreq: "monthly", priority: "0.8" },
-    { loc: `${BASE_URL}/about-founder`, changefreq: "monthly", priority: "0.8" },
-    { loc: `${BASE_URL}/marketplace`, changefreq: "weekly", priority: "0.9" },
-    { loc: `${BASE_URL}/guide`, changefreq: "monthly", priority: "0.7" },
-    { loc: `${BASE_URL}/knowledge`, changefreq: "weekly", priority: "0.7" },
-    { loc: `${BASE_URL}/strategy-session`, changefreq: "monthly", priority: "0.6" },
-    { loc: `${BASE_URL}/pricing`, changefreq: "monthly", priority: "0.6" },
-    { loc: `${BASE_URL}/work`, changefreq: "weekly", priority: "0.8" },
-  ];
+  const staticUrls: SitemapUrl[] = PUBLIC_ROUTES.map((route) => ({
+    loc: route.path === "/" ? `${BASE_URL}/` : `${BASE_URL}${route.path}`,
+    changefreq: route.changefreq,
+    priority: route.priority,
+  }));
+  const knowledgeUrls: SitemapUrl[] = KNOWLEDGE_ARTICLES.map(([slug, , , date]) => ({
+    loc: `${BASE_URL}/knowledge/${slug}`,
+    changefreq: "monthly",
+    priority: "0.6",
+    lastmod: date,
+  }));
 
   const blogUrls: SitemapUrl[] = blogPosts.map((post) => ({
     loc: `${BASE_URL}/blog/${post.slug}`,
@@ -66,5 +64,5 @@ export function generateSitemap(blogPosts: BlogPostEntry[] = []): string {
       : today,
   }));
 
-  return buildSitemap([...staticUrls, ...blogUrls]);
+  return buildSitemap([...staticUrls, ...knowledgeUrls, ...blogUrls]);
 }

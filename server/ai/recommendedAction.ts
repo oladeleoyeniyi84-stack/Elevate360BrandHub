@@ -21,7 +21,7 @@ export type RecommendedAction =
     }
   | {
       type: "offer";
-      priceId: string;
+      offerId: string;
       name: string;
       amount: number; // cents
       currency: string;
@@ -35,7 +35,7 @@ export type RecommendedAction =
     };
 
 export type OfferLike = {
-  priceId: string;
+  productId: string;
   name: string;
   amount: number;
   currency: string;
@@ -101,7 +101,7 @@ export function resolveRecommendedAction(
     const o = bestOffer.offer;
     return {
       type: "offer",
-      priceId: o.priceId,
+      offerId: o.productId,
       name: o.name,
       amount: o.amount,
       currency: o.currency,

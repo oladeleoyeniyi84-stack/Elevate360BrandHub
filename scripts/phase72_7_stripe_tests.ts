@@ -189,6 +189,9 @@ async function main() {
   const user = await storage.getUserByEmail(email);
   ok(!!user, "F0. fixture customer exists");
   const uid = user!.id;
+  // Phase 72.8 ownership boundary: lifecycle fixtures must use the Stripe
+  // customer durably bound to the authenticated application user.
+  await storage.setUserStripeCustomerId(uid, `cus_727_${stamp}`);
   const T1 = Math.floor(stamp / 1000) + 30 * 86400;
   const T2 = T1 + 30 * 86400;
   const subFixture = (over: any = {}) => ({

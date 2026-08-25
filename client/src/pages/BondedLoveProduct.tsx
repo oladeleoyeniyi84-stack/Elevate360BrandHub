@@ -6,8 +6,6 @@ import { useCustomer } from "@/hooks/useCustomer";
 import appBondedlove from "@/assets/images/app-bondedlove.png";
 
 const GOLD = "#F4A62A";
-const APP_URL = "https://bondedlove.elevate360official.com";
-
 const FEATURES = [
   { icon: Heart, title: "Meaningful matches", body: "Connect through values and intent, not just a swipe." },
   { icon: MessageCircle, title: "Thoughtful prompts", body: "Conversation starters designed to spark real connection." },
@@ -40,16 +38,14 @@ export default function BondedLoveProduct() {
               interactions — not endless swiping.
             </p>
             <div className="flex flex-wrap gap-3 mt-8">
-              <a
-                href={APP_URL}
-                target="_blank"
-                rel="noopener noreferrer"
+              <Link
+                href="/#apps"
                 className="inline-flex items-center gap-2 text-sm font-semibold rounded-xl px-5 py-3"
                 style={{ background: GOLD, color: "#0a1124" }}
                 data-testid="link-open-app"
               >
-                Open the app <ArrowRight className="h-4 w-4" />
-              </a>
+                Explore our apps <ArrowRight className="h-4 w-4" />
+              </Link>
               <Link
                 href="/pricing"
                 className="inline-flex items-center gap-2 text-sm font-semibold rounded-xl px-5 py-3 border border-white/20 hover:bg-white/5"

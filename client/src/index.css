@@ -124,10 +124,33 @@
   }
   body {
     @apply font-sans antialiased bg-background text-foreground;
+    min-width: 320px;
+    overflow-x: hidden;
   }
   h1, h2, h3, h4, h5, h6 {
     @apply font-heading tracking-tight;
   }
+}
+
+/* Visible for keyboard users without changing the visual composition. */
+.skip-link {
+  position: fixed;
+  top: max(0.5rem, env(safe-area-inset-top, 0px));
+  left: 0.75rem;
+  z-index: 300;
+  transform: translateY(-150%);
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  background: #F4A62A;
+  color: #0d1a2e;
+  font-weight: 700;
+  transition: transform 160ms ease;
+}
+.skip-link:focus { transform: translateY(0); }
+
+:focus-visible {
+  outline: 3px solid #F4A62A;
+  outline-offset: 3px;
 }
 
 .glass-card {
@@ -175,6 +198,10 @@ body[data-drawer-open="true"] {
   touch-action: none;
 }
 
+body[data-dialog-open="true"] {
+  overflow: hidden;
+}
+
 body[data-drawer-open="true"] .e360-drawer-hide {
   opacity: 0;
   visibility: hidden;
@@ -183,6 +210,7 @@ body[data-drawer-open="true"] .e360-drawer-hide {
 
 html {
   scroll-behavior: smooth;
+  scroll-padding-top: calc(6rem + env(safe-area-inset-top, 0px));
 }
 
 @layer utilities {
@@ -280,6 +308,12 @@ html {
 .reveal-delay-4 { transition-delay: 440ms; }
 
 @media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
   .reveal, .reveal-left, .reveal-right, .reveal-scale {
     opacity: 1;
     transform: none;

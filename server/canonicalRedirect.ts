@@ -1,32 +1,47 @@
 import type { Request, Response, NextFunction } from "express";
 
-const devBypass = (host: string) =>
-  host.includes("localhost") ||
-  host.startsWith("127.0.0.1") ||
-  host.endsWith(".replit.dev");
+const devBypass = (hostname: string) =>
+  hostname === "localhost" ||
+  hostname === "127.0.0.1" ||
+  hostname === "::1" ||
+  hostname.endsWith(".replit.dev");
+
+function normalizeCanonicalHost(value: string): string | null {
+  try {
+    const url = new URL(value.includes("://") ? value : `https://${value}`);
+    if (url.username || url.password || url.pathname !== "/" || url.search || url.hash) return null;
+    return url.host.toLowerCase();
+  } catch {
+    return null;
+  }
+}
 
 export function canonicalRedirect(req: Request, res: Response, next: NextFunction) {
-  const canonicalHost = process.env.CANONICAL_HOST;
-  if (!canonicalHost) return next();
-
-  const host = (req.headers.host || "").toLowerCase();
-  if (!host || devBypass(host)) return next();
-
-  const proto = (req.headers["x-forwarded-proto"] || "http").toString().split(",")[0].trim();
-  const isHttps = proto === "https";
-
-  const url = new URL(`${proto}://${host}${req.originalUrl}`);
-  if (url.pathname.length > 1 && url.pathname.endsWith("/")) {
-    url.pathname = url.pathname.slice(0, -1);
+  if (!process.env.CANONICAL_HOST) return next();
+  const canonicalHost = normalizeCanonicalHost(process.env.CANONICAL_HOST);
+  if (!canonicalHost) {
+    console.error("[canonical] CANONICAL_HOST is invalid; redirect disabled");
+    return next();
   }
 
+  const host = (req.get("host") || "").toLowerCase();
+  const hostname = req.hostname.toLowerCase();
+  if (!host || devBypass(hostname)) return next();
+
   const needsHost = host !== canonicalHost;
-  const needsHttps = !isHttps;
+  const needsHttps = !req.secure;
 
   if (needsHost || needsHttps) {
-    url.host = canonicalHost;
-    url.protocol = "https:";
-    return res.redirect(301, url.toString());
+    // Parse request-controlled path/query separately, then copy only those
+    // components onto the fixed origin. A network-path input such as
+    // //attacker.example must never be allowed to replace the canonical host.
+    const requestUrl = new URL(req.originalUrl, "http://request.invalid");
+    const redirectUrl = new URL(`https://${canonicalHost}`);
+    redirectUrl.pathname = requestUrl.pathname;
+    redirectUrl.search = requestUrl.search;
+    res.status(301);
+    res.setHeader("Location", redirectUrl.toString());
+    return res.end();
   }
 
   return next();

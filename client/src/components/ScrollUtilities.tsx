@@ -38,7 +38,7 @@ export function ScrollUtilities() {
         data-testid="button-back-to-top"
         className={`
           fixed bottom-6 right-4 md:right-6 z-50 e360-float e360-drawer-hide
-          w-11 h-11 rounded-full
+          w-11 h-11 min-w-11 min-h-11 rounded-full
           bg-primary text-[#0d1a2e]
           flex items-center justify-center
           shadow-lg shadow-primary/30

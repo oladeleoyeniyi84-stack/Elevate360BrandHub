@@ -61,7 +61,9 @@ function getAttribution(): Attribution {
       source: params.get("utm_source") ?? undefined,
       medium: params.get("utm_medium") ?? undefined,
       campaign: params.get("utm_campaign") ?? undefined,
-      referrer: document.referrer || undefined,
+      // Retain attribution host only; a full referrer can contain query-string
+      // identifiers and is neither needed nor appropriate for analytics.
+      referrer: document.referrer ? new URL(document.referrer).origin : undefined,
       landingPage: window.location.pathname,
     };
     sessionStorage.setItem(ATTRIBUTION_KEY, JSON.stringify(attr));

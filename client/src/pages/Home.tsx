@@ -220,6 +220,11 @@ export default function Home() {
 
   const [langOpen, setLangOpen] = useState(false);
   const langRef = useRef<HTMLDivElement>(null);
+  const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
+  const bookingDialogRef = useRef<HTMLDivElement>(null);
+  const bookingCloseRef = useRef<HTMLButtonElement>(null);
+  const bookingReturnFocusRef = useRef<HTMLElement | null>(null);
 
   const trackClick = useTrackClick();
   useTrackPageView("home");
@@ -356,6 +361,105 @@ export default function Home() {
     };
   }, [mobileMenuOpen]);
 
+  // Keep the navigation drawer keyboard-operable and return visitors to its
+  // trigger rather than leaving focus behind a closed layer.
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const drawer = mobileMenuRef.current;
+    const getFocusable = () => drawer
+      ? Array.from(
+          drawer.querySelectorAll<HTMLElement>(
+            'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+          ),
+        ).filter((element) => element.getClientRects().length > 0)
+      : [];
+    getFocusable()[0]?.focus();
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMobileMenuOpen(false);
+        return;
+      }
+      if (event.key === "Tab") {
+        const focusable = getFocusable();
+        if (focusable.length === 0) {
+          event.preventDefault();
+          return;
+        }
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      mobileMenuButtonRef.current?.focus();
+    };
+  }, [mobileMenuOpen]);
+
+  useEffect(() => {
+    if (!bookingConsultation) return;
+    const dialog = bookingDialogRef.current;
+    bookingCloseRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setBookingConsultation(null);
+        setBookingSuccess(false);
+        bookingReturnFocusRef.current?.focus();
+        return;
+      }
+      if (event.key !== "Tab" || !dialog) return;
+      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [href]'
+      ));
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [bookingConsultation]);
+
+  useEffect(() => {
+    if (bookingConsultation) {
+      document.body.dataset.dialogOpen = "true";
+    } else {
+      delete document.body.dataset.dialogOpen;
+    }
+    return () => {
+      delete document.body.dataset.dialogOpen;
+    };
+  }, [bookingConsultation]);
+
+  const closeBookingDialog = () => {
+    setBookingConsultation(null);
+    setBookingSuccess(false);
+    bookingReturnFocusRef.current?.focus();
+  };
+
+  const openBookingDialog = (consultation: ConsultationItem) => {
+    bookingReturnFocusRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    setBookingConsultation(consultation);
+    setBookingSuccess(false);
+    setBookingError("");
+  };
+
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (langRef.current && !langRef.current.contains(e.target as Node)) {
@@ -490,9 +594,12 @@ export default function Home() {
 
           {/* Hamburger — mobile only */}
           <button
+            ref={mobileMenuButtonRef}
             className="md:hidden flex items-center justify-center w-10 h-10 rounded-full border border-white/15 hover:bg-white/8 transition-colors"
             onClick={() => setMobileMenuOpen((o) => !o)}
             aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={mobileMenuOpen}
+            aria-controls="mobile-navigation-drawer"
             data-testid="button-mobile-menu"
           >
             {mobileMenuOpen ? (
@@ -515,8 +622,15 @@ export default function Home() {
 
         {/* Mobile drawer */}
         <div
+          ref={mobileMenuRef}
+          id="mobile-navigation-drawer"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Mobile navigation"
+          aria-hidden={!mobileMenuOpen}
+          inert={!mobileMenuOpen}
           className={`md:hidden overflow-hidden transition-all duration-300 ease-in-out ${
-            mobileMenuOpen ? "max-h-[520px] border-t border-white/10" : "max-h-0"
+            mobileMenuOpen ? "max-h-[calc(100dvh-5rem)] border-t border-white/10 overflow-y-auto" : "max-h-0"
           }`}
         >
           <div className="container mx-auto px-4 py-4 flex flex-col gap-1 bg-background/95 backdrop-blur-2xl">
@@ -966,9 +1080,7 @@ export default function Home() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
             {/* Bondedlove */}
             <a
-              href="https://bondedlove.elevate360official.com"
-              target="_blank"
-              rel="noopener noreferrer"
+              href="/apps/bondedlove"
               onClick={() => trackClick("app", "Bondedlove")}
               aria-label="Open Bondedlove web app"
               className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-[2px] h-full flex flex-col cursor-pointer reveal reveal-delay-1"
@@ -996,7 +1108,7 @@ export default function Home() {
                   </span>
                   <ScreenshotsButton images={APP_SCREENSHOTS["Bondedlove"]} appName="Bondedlove" />
                   <ShareButton
-                    url="https://bondedlove.elevate360official.com"
+                    url="https://www.elevate360official.com/apps/bondedlove"
                     title="Bondedlove — Dating App"
                     text="Check out Bondedlove, a dating app built for real connections by Elevate360!"
                   />
@@ -1006,9 +1118,7 @@ export default function Home() {
 
             {/* Healthwisesupport */}
             <a
-              href="https://health.elevate360official.com"
-              target="_blank"
-              rel="noopener noreferrer"
+              href="/apps/healthwise"
               onClick={() => trackClick("app", "Healthwisesupport")}
               aria-label="Open Healthwisesupport web app"
               className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-[2px] h-full flex flex-col cursor-pointer reveal reveal-delay-2"
@@ -1036,7 +1146,7 @@ export default function Home() {
                   </span>
                   <ScreenshotsButton images={APP_SCREENSHOTS["Healthwisesupport"]} appName="Healthwisesupport" />
                   <ShareButton
-                    url="https://health.elevate360official.com"
+                    url="https://www.elevate360official.com/apps/healthwise"
                     title="Healthwisesupport — Wellness App"
                     text="Check out Healthwisesupport, your wellness companion app by Elevate360!"
                   />
@@ -1046,9 +1156,7 @@ export default function Home() {
 
             {/* Video Crafter */}
             <a
-              href="https://crafter.elevate360official.com"
-              target="_blank"
-              rel="noopener noreferrer"
+              href="/apps/video-crafter"
               onClick={() => trackClick("app", "Video Crafter")}
               aria-label="Open Video Crafter web app"
               className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-[2px] h-full flex flex-col cursor-pointer reveal reveal-delay-3"
@@ -1076,7 +1184,7 @@ export default function Home() {
                   </span>
                   <ScreenshotsButton images={APP_SCREENSHOTS["Video Crafter"]} appName="Video Crafter" />
                   <ShareButton
-                    url="https://crafter.elevate360official.com"
+                    url="https://www.elevate360official.com/apps/video-crafter"
                     title="Video Crafter — Video Editor"
                     text="Check out Video Crafter, a professional video editing suite by Elevate360!"
                   />
@@ -1958,7 +2066,7 @@ export default function Home() {
 
             <ConsultationGrid
               consultations={consultations}
-              onBook={(c) => { setBookingConsultation(c); setBookingSuccess(false); setBookingError(""); }}
+              onBook={openBookingDialog}
             />
           </div>
         </section>
@@ -1966,14 +2074,21 @@ export default function Home() {
 
       {/* Booking Modal */}
       {bookingConsultation && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4"
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4"
           style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(8px)" }}
-          onClick={(e) => { if (e.target === e.currentTarget) { setBookingConsultation(null); setBookingSuccess(false); } }}
+          onClick={(e) => { if (e.target === e.currentTarget) closeBookingDialog(); }}
         >
-          <div className="lux-card w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div
+            ref={bookingDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="booking-dialog-title"
+            className="lux-card w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-start justify-between mb-6">
               <div>
-                <h3 className="font-heading font-bold text-white text-xl">{bookingConsultation.title}</h3>
+                <h3 id="booking-dialog-title" className="font-heading font-bold text-white text-xl">{bookingConsultation.title}</h3>
                 <p className="text-white/40 text-sm mt-1 flex items-center gap-2">
                   <Clock className="w-3.5 h-3.5" />{bookingConsultation.duration} min
                   &nbsp;·&nbsp;
@@ -1982,9 +2097,10 @@ export default function Home() {
                   </span>
                 </p>
               </div>
-              <button data-testid="btn-close-booking-modal"
-                onClick={() => { setBookingConsultation(null); setBookingSuccess(false); }}
-                className="text-white/40 hover:text-white transition-colors p-1">
+              <button ref={bookingCloseRef} type="button" data-testid="btn-close-booking-modal"
+                onClick={closeBookingDialog}
+                aria-label="Close booking dialog"
+                className="min-w-11 min-h-11 text-white/40 hover:text-white transition-colors p-1">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1995,44 +2111,44 @@ export default function Home() {
                 <h4 className="text-white font-heading font-bold text-lg mb-2">Booking Request Sent!</h4>
                 <p className="text-white/50 text-sm">We'll confirm your session within 24 hours. Check your email for a confirmation.</p>
                 <button data-testid="btn-booking-done"
-                  onClick={() => { setBookingConsultation(null); setBookingSuccess(false); }}
+                  onClick={closeBookingDialog}
                   className="btn-primary mt-6 px-8">Done</button>
               </div>
             ) : (
               <form onSubmit={handleBookingSubmit} className="flex flex-col gap-4">
                 <div>
-                  <label className="block text-white/60 text-xs font-semibold uppercase tracking-wide mb-1">Your Name *</label>
-                  <input data-testid="input-booking-name"
+                  <label htmlFor="booking-name" className="block text-white/60 text-xs font-semibold uppercase tracking-wide mb-1">Your Name *</label>
+                  <input id="booking-name" data-testid="input-booking-name"
                     required value={bookingForm.name}
                     onChange={(e) => setBookingForm(f => ({ ...f, name: e.target.value }))}
                     placeholder="Your full name"
                     className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-white/25 text-sm focus:outline-none focus:border-[#F4A62A]/50" />
                 </div>
                 <div>
-                  <label className="block text-white/60 text-xs font-semibold uppercase tracking-wide mb-1">Email Address *</label>
-                  <input data-testid="input-booking-email"
+                  <label htmlFor="booking-email" className="block text-white/60 text-xs font-semibold uppercase tracking-wide mb-1">Email Address *</label>
+                  <input id="booking-email" data-testid="input-booking-email"
                     type="email" required value={bookingForm.email}
                     onChange={(e) => setBookingForm(f => ({ ...f, email: e.target.value }))}
                     placeholder="you@example.com"
                     className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-white/25 text-sm focus:outline-none focus:border-[#F4A62A]/50" />
                 </div>
                 <div>
-                  <label className="block text-white/60 text-xs font-semibold uppercase tracking-wide mb-1">Preferred Date/Time</label>
-                  <input data-testid="input-booking-date"
+                  <label htmlFor="booking-date" className="block text-white/60 text-xs font-semibold uppercase tracking-wide mb-1">Preferred Date/Time</label>
+                  <input id="booking-date" data-testid="input-booking-date"
                     type="text" value={bookingForm.preferredDate}
                     onChange={(e) => setBookingForm(f => ({ ...f, preferredDate: e.target.value }))}
                     placeholder="e.g. Weekdays after 3pm EST"
                     className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-white/25 text-sm focus:outline-none focus:border-[#F4A62A]/50" />
                 </div>
                 <div>
-                  <label className="block text-white/60 text-xs font-semibold uppercase tracking-wide mb-1">Tell Us Your Goal</label>
-                  <textarea data-testid="input-booking-message"
+                  <label htmlFor="booking-message" className="block text-white/60 text-xs font-semibold uppercase tracking-wide mb-1">Tell Us Your Goal</label>
+                  <textarea id="booking-message" data-testid="input-booking-message"
                     rows={3} value={bookingForm.message}
                     onChange={(e) => setBookingForm(f => ({ ...f, message: e.target.value }))}
                     placeholder="What would you like to accomplish in this session?"
                     className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-white/25 text-sm focus:outline-none focus:border-[#F4A62A]/50 resize-none" />
                 </div>
-                {bookingError && <p className="text-red-400 text-sm">{bookingError}</p>}
+                {bookingError && <p role="alert" className="text-red-400 text-sm">{bookingError}</p>}
                 <button data-testid="btn-submit-booking"
                   type="submit" disabled={bookingSubmitting}
                   className="btn-primary w-full mt-1 flex items-center justify-center gap-2">
@@ -2326,16 +2442,15 @@ export default function Home() {
             <div className="flex flex-col gap-3">
               <p className="text-[11px] font-bold tracking-[0.14em] text-muted-foreground uppercase mb-1">Our Apps</p>
               {[
-                { href: "https://bondedlove.elevate360official.com", label: "Bondedlove" },
-                { href: "https://health.elevate360official.com", label: "Healthwisesupport" },
-                { href: "https://crafter.elevate360official.com", label: "Video Crafter" },
+                { href: "/apps/bondedlove", label: "Bondedlove" },
+                { href: "/apps/healthwise", label: "Healthwisesupport" },
+                { href: "/apps/video-crafter", label: "Video Crafter" },
               ].map(({ href, label }) => (
-                <a key={label} href={href} target="_blank" rel="noopener noreferrer"
+                <Link key={label} href={href}
                   data-testid={`link-footer-app-${label.toLowerCase().replace(/\s+/g, "-")}`}
                   className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 group">
                   {label}
-                  <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity" />
-                </a>
+                </Link>
               ))}
             </div>
 

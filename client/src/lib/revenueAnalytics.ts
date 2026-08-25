@@ -60,7 +60,8 @@ function getAttribution(): Attribution {
       source: params.get("utm_source") ?? undefined,
       medium: params.get("utm_medium") ?? undefined,
       campaign: params.get("utm_campaign") ?? undefined,
-      referrer: document.referrer || undefined,
+      // Never send referrer query strings, which can contain identifiers.
+      referrer: document.referrer ? new URL(document.referrer).origin : undefined,
       landingPage: window.location.pathname,
     };
     sessionStorage.setItem(ATTRIBUTION_KEY, JSON.stringify(attr));

@@ -139,14 +139,14 @@ async function main() {
 
   const routes: Array<[string, string]> = [
     ["/blog", "Blog | Elevate360Official"],
-    ["/about-founder", "About Oladele Oyeniyi | Elevate360Official"],
-    ["/founder", "Founder Authority | Oladele Oyeniyi — Elevate360Official"],
-    ["/guide", "Guide | Elevate360Official"],
+    ["/about-founder", "About the Founder — Oladele Oyeniyi | Elevate360Official"],
+    ["/founder", "Founder Authority | Elevate360Official"],
+    ["/guide", "Free AI Growth Playbook | Elevate360Official"],
     ["/knowledge", "Knowledge Center | Elevate360Official"],
     ["/links", "Links | Elevate360Official"],
     ["/press-kit", "Press Kit | Elevate360Official"],
     ["/marketplace", "Marketplace | Elevate360Official"],
-    ["/strategy-session", "Strategy Session | Elevate360Official"],
+    ["/strategy-session", "AI Growth Strategy Session — Launch Offer $97 | Elevate360Official"],
   ];
   const seen = new Map<string, string>();
   for (const [p, title] of routes) {
@@ -179,15 +179,15 @@ async function main() {
   check("no duplicate client Article JSON-LD source", (post.text.match(/"@type":"(Article|BlogPosting)"/g) ?? []).length === 1);
 
   const missing = await get("/blog/this-post-does-not-exist");
-  check("unknown slug → blog fallback, no article node", missing.text.includes("<title>Blog Post | Elevate360Official</title>") && !missing.text.includes('"@type":"BlogPosting"'));
-  check("unknown slug canonical falls back to /blog", missing.text.includes(`href="${CANONICAL_ORIGIN}/blog"`));
+  check("unknown slug → real 404, no article node", missing.status === 404 && !missing.text.includes('"@type":"BlogPosting"'));
+  check("unknown slug is not presented as canonical blog content", !missing.text.includes(`<link rel="canonical"`));
 
   // ── G. Injection safety ───────────────────────────────────────────────────
   section("G. Injection safety");
   const inj = await get(`/blog/${encodeURIComponent('"><script>alert(31337)</script>')}`);
   check("hostile slug not reflected", !inj.text.includes("alert(31337)"));
   const unknown = await get("/definitely-not-a-real-route-xyz");
-  check("unknown route keeps safe home defaults", unknown.text.includes(`href="${CANONICAL_ORIGIN}/"`) && !unknown.text.includes("not-a-real-route"));
+  check("unknown route returns a real 404 instead of a false SPA success", unknown.status === 404 && !unknown.text.includes(`<link rel="canonical"`));
 
   // ── H. llms.txt / sitemap / robots ────────────────────────────────────────
   section("H. llms.txt, sitemap, robots");
@@ -204,14 +204,14 @@ async function main() {
   check("all sitemap locs on canonical origin", (sm.text.match(/<loc>([^<]+)<\/loc>/g) ?? []).every((l) => l.includes(CANONICAL_ORIGIN)));
 
   const robots = await get("/robots.txt");
-  check("robots allows all + references sitemap and llms.txt", /Allow: \//.test(robots.text) && robots.text.includes("sitemap.xml") && robots.text.includes("llms.txt") && !/Disallow: \/llms/.test(robots.text));
+  check("robots allows public pages, blocks private/API surfaces, and references sitemap", /Allow: \//.test(robots.text) && /Disallow: \/api\//.test(robots.text) && /Disallow: \/account/.test(robots.text) && robots.text.includes("sitemap.xml") && !/Disallow: \/llms/.test(robots.text));
 
   // ── I. API fallback regression guard ──────────────────────────────────────
   section("I. Regression guards");
   const blogApi = await realFetch(`${BASE_URL}/api/blog/${KNOWN_SLUG}`);
   check("blog API still JSON", (blogApi.headers.get("content-type") ?? "").includes("application/json"));
   const spa = await get("/api/definitely-not-real");
-  check("note: unregistered /api/* served as SPA shell (known: assert JSON CT in API tests)", spa.status === 200);
+  check("unregistered /api/* returns JSON 404, never SPA HTML", spa.status === 404 && spa.ct.includes("application/json"));
 
   console.log(`\n══════ RESULT: ${pass} passed, ${fail} failed ══════`);
   if (fail) { console.log("Failures:", failures.join(" | ")); process.exit(1); }

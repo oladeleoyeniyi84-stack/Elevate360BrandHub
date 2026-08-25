@@ -6,8 +6,6 @@ import { useCustomer } from "@/hooks/useCustomer";
 import appVideoCrafter from "@/assets/images/app-videocrafter.png";
 
 const GOLD = "#F4A62A";
-const APP_URL = "https://crafter.elevate360official.com";
-
 const FEATURES = [
   { icon: Wand2, title: "Intuitive editing", body: "Professional-grade tools made accessible for every creator." },
   { icon: Layers, title: "Creative control", body: "Layer, trim, and polish your videos with precision." },
@@ -40,16 +38,14 @@ export default function VideoCrafterProduct() {
               made accessible for creators of all levels.
             </p>
             <div className="flex flex-wrap gap-3 mt-8">
-              <a
-                href={APP_URL}
-                target="_blank"
-                rel="noopener noreferrer"
+              <Link
+                href="/#apps"
                 className="inline-flex items-center gap-2 text-sm font-semibold rounded-xl px-5 py-3"
                 style={{ background: GOLD, color: "#0a1124" }}
                 data-testid="link-open-app"
               >
-                Open the app <ArrowRight className="h-4 w-4" />
-              </a>
+                Explore our apps <ArrowRight className="h-4 w-4" />
+              </Link>
               <Link
                 href="/pricing"
                 className="inline-flex items-center gap-2 text-sm font-semibold rounded-xl px-5 py-3 border border-white/20 hover:bg-white/5"
