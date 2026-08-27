@@ -50,7 +50,7 @@ export function generateSitemap(blogPosts: BlogPostEntry[] = []): string {
     { loc: `${BASE_URL}/founder`, changefreq: "monthly", priority: "0.8" },
     { loc: `${BASE_URL}/about-founder`, changefreq: "monthly", priority: "0.8" },
     { loc: `${BASE_URL}/marketplace`, changefreq: "weekly", priority: "0.9" },
-    { loc: `${BASE_URL}/guide`, changefreq: "monthly", priority: "0.7" },
+    { loc: `${BASE_URL}/ai-growth-guide`, changefreq: "monthly", priority: "0.8" },
     { loc: `${BASE_URL}/knowledge`, changefreq: "weekly", priority: "0.7" },
     { loc: `${BASE_URL}/strategy-session`, changefreq: "monthly", priority: "0.6" },
     { loc: `${BASE_URL}/pricing`, changefreq: "monthly", priority: "0.6" },

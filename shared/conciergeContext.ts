@@ -142,14 +142,24 @@ export const CONCIERGE_PAGE_CONTEXTS: Record<string, ConciergePageContext> = {
       `${SITE}/#book-session.`,
     recommendedLinks: [{ label: "Book a Session", url: `${SITE}/#book-session` }],
   },
-  "/guide": {
-    pageTitle: "AI Growth Guide",
+  "/ai-growth-guide": {
+    pageTitle: "AI Business Growth Blueprint 2026",
     section: "Lead Magnet",
     greeting:
-      "Grabbing the AI Growth Guide? I can tell you what's inside and how to apply it.",
+      "Downloading the free AI Business Growth Blueprint? I can help you apply any of its 15 practical actions.",
     knowledge:
-      "The visitor is on the free AI Growth Guide download page (email opt-in lead magnet about growing with AI tools).",
-    suggestedCta: "Encourage the free download; follow-up questions can lead to a strategy session.",
+      "The visitor is on the free AI Business Growth Blueprint 2026 download page. The seven-page PDF is available immediately with no payment or email required.",
+    suggestedCta: "Encourage the free PDF download. Mention the paid strategy session only as a clearly optional next step.",
+    recommendedLinks: [{ label: "Book a Session", url: `${SITE}/#book-session` }],
+  },
+  "/guide": {
+    pageTitle: "AI Business Growth Blueprint 2026",
+    section: "Lead Magnet",
+    greeting:
+      "Downloading the free AI Business Growth Blueprint? I can help you apply any of its 15 practical actions.",
+    knowledge:
+      "The visitor is on the free AI Business Growth Blueprint 2026 download page. The seven-page PDF is available immediately with no payment or email required.",
+    suggestedCta: "Encourage the free PDF download. Mention the paid strategy session only as a clearly optional next step.",
     recommendedLinks: [{ label: "Book a Session", url: `${SITE}/#book-session` }],
   },
   "/press-kit": {

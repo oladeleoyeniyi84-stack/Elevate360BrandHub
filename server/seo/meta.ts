@@ -77,10 +77,17 @@ const STATIC_ROUTE_META: Record<string, { title: string; description: string; og
     description:
       "Meet Oladele Oyeniyi — founder of Elevate360Official, author, app developer, artist and music producer empowering lives through technology and words.",
   },
-  "/guide": {
-    title: "Guide | Elevate360Official",
+  "/ai-growth-guide": {
+    title: "Free AI Business Growth Blueprint 2026 | Elevate360Official",
     description:
-      "A practical guide to the Elevate360Official ecosystem — how to get the most from our apps, books, music and resources.",
+      "Download Elevate360Official's free seven-page AI Business Growth Blueprint 2026 with 15 practical ways to save time, attract customers, and grow responsibly.",
+    ogType: "article",
+  },
+  "/guide": {
+    title: "Free AI Business Growth Blueprint 2026 | Elevate360Official",
+    description:
+      "Download Elevate360Official's free seven-page AI Business Growth Blueprint 2026 with 15 practical ways to save time, attract customers, and grow responsibly.",
+    ogType: "article",
   },
   "/knowledge": {
     title: "Knowledge Center | Elevate360Official",

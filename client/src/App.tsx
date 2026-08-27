@@ -395,6 +395,7 @@ function Router() {
 
       <Route path="/about-founder" component={AboutFounder} />
       <Route path="/strategy-session" component={StrategySession} />
+      <Route path="/ai-growth-guide" component={Guide} />
       <Route path="/guide" component={Guide} />
 
       <Route path="/press-kit">

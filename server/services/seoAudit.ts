@@ -15,7 +15,7 @@ import { canonicalUrl } from "../seo/canonical";
 
 const STATIC_PATHS = [
   "/", "/blog", "/knowledge", "/links", "/press-kit", "/founder",
-  "/marketplace", "/about-founder", "/strategy-session", "/guide",
+  "/marketplace", "/about-founder", "/strategy-session", "/ai-growth-guide",
 ];
 const MAX_BLOG_PAGES = 50;
 const MAX_SITEMAP_URL_CHECKS = 100;

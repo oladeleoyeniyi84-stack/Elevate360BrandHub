@@ -37,7 +37,7 @@ Amazon-published books, original music, and visual art.
 
 ## Key Resources
 
-- Guide: ${u("/guide")}
+- Free AI Business Growth Blueprint 2026: ${u("/ai-growth-guide")}
 - Knowledge center: ${u("/knowledge")}
 - Press kit: ${u("/press-kit")}
 
