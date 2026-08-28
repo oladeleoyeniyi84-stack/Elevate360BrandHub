@@ -1,0 +1,289 @@
+PHASE 72.8 — TASK #8
+PRODUCTION STRIPE CONFIGURATION VERIFICATION & RELEASE-GATE CERTIFICATION
+
+STATUS
+
+Task #6 source certification: PASS
+Mission Control review: PASS WITH RELEASE GATES
+
+Current release gate:
+Production Stripe configuration must be verified before Task #7 commit/push/deploy is authorized.
+
+OPERATING MODE
+
+INSPECT + VERIFY ONLY.
+
+DO NOT:
+
+* commit
+* push
+* deploy
+* modify Render environment variables
+* rotate secrets
+* change Stripe Dashboard configuration
+* create or edit Stripe products/prices
+* create or cancel subscriptions
+* make a live charge
+* issue a refund
+* mutate customers
+* mutate production database data
+* print secret values
+* print full Stripe IDs where avoidable
+* expose webhook signing secrets
+* expose customer PII
+
+If any production configuration defect is found, STOP before changing it and report the exact environment-variable name or Stripe setting that requires correction.
+
+PRIMARY OBJECTIVE
+
+Determine whether Elevate360Official production billing is connected to the intended live Stripe account and whether all production billing configuration is internally consistent with the Phase 72.8 certified source.
+
+The prior diagnostic reported:
+
+* Production Stripe connection not found
+* Development connection fallback
+
+Treat this as HIGH until disproven.
+
+A. VERIFY REQUIRED PRODUCTION CONFIGURATION
+
+Inspect presence and configuration state for these variable names only:
+
+STRIPE_SECRET_KEY
+STRIPE_PUBLISHABLE_KEY
+STRIPE_WEBHOOK_SECRET
+STRIPE_PRICE_STRATEGY_SESSION
+STRIPE_PRICE_STARTER
+STRIPE_PRICE_PRO
+STRIPE_PRICE_ELITE
+STRIPE_ONE_TIME_OFFER_PRODUCT_IDS
+
+Also inspect any existing Stripe integration/connector configuration used by the app.
+
+Never print values.
+
+Report only statuses such as:
+
+* configured
+* missing
+* test-mode
+* live-mode
+* inconsistent
+* points to wrong account
+* inaccessible
+* requires manual verification
+
+B. ACCOUNT CONSISTENCY
+
+Verify that:
+
+1. STRIPE_SECRET_KEY is live mode.
+2. STRIPE_PUBLISHABLE_KEY is live mode.
+3. Secret and publishable keys belong to the same Stripe account.
+4. The account is the intended production account for Elevate360Official / DELEBOSTON INC.
+5. No test-mode key is used in production.
+6. No development fallback is active in production.
+7. The runtime billing code resolves the same account the production configuration intends to use.
+
+Do not expose account-sensitive data beyond a safe account label or masked identifier.
+
+C. WEBHOOK CERTIFICATION
+
+Verify the production webhook destination:
+
+https://www.elevate360official.com/api/stripe/webhook
+
+Confirm:
+
+1. Destination exists.
+2. Destination is active.
+3. Destination is in live mode.
+4. STRIPE_WEBHOOK_SECRET corresponds to that production destination.
+5. The endpoint belongs to the same Stripe account as the live API keys.
+6. No second conflicting production webhook endpoint is active for the same application path.
+7. Event delivery history shows healthy 2xx responses.
+8. The Phase 72.7 idempotency ledger remains compatible with this endpoint.
+
+Do not resend events unless Mission Control explicitly authorizes it.
+Do not modify webhook subscriptions.
+
+D. SUBSCRIPTION PRICE CERTIFICATION
+
+Verify each configured production price:
+
+STRIPE_PRICE_STARTER
+STRIPE_PRICE_PRO
+STRIPE_PRICE_ELITE
+
+For each:
+
+* variable configured?
+* live-mode price?
+* active?
+* belongs to intended Stripe account?
+* expected recurring billing type?
+* linked to intended product?
+* currency correct?
+* amount consistent with current product policy?
+* not archived?
+* not test-mode?
+
+Do not change amounts.
+
+If a discrepancy exists, report it and STOP before modifying Stripe or Render.
+
+E. STRATEGY SESSION PRICE
+
+Verify:
+
+STRIPE_PRICE_STRATEGY_SESSION
+
+Confirm:
+
+* configured
+* live mode
+* active
+* intended product
+* intended one-time or recurring behavior
+* correct account
+* consistent with current checkout code
+
+Do not make a purchase.
+
+F. ONE-TIME OFFER ALLOWLIST
+
+Verify:
+
+STRIPE_ONE_TIME_OFFER_PRODUCT_IDS
+
+Requirements:
+
+1. Variable exists if required by certified source.
+2. Entries resolve only to intended live Stripe products.
+3. Every allowed product is active.
+4. No test product is included.
+5. No archived or unrelated product is included.
+6. Browser cannot bypass this allowlist with an arbitrary Stripe priceId.
+7. Server-authoritative checkout behavior from Phase 72.8 remains intact.
+8. All current one-time public offers still resolve successfully from allowed product identifiers.
+
+Do not add or remove IDs without approval.
+
+G. SOURCE / RUNTIME ALIGNMENT
+
+Inspect the final working-tree source and verify that production configuration names match the actual code paths.
+
+Check:
+
+* stripeClient implementation
+* billing/plans configuration
+* customerBilling routes
+* legacy one-time checkout route
+* webhook route
+* offer resolution
+* environment fallback logic
+
+Specifically determine why Task #6 observed:
+
+“Production Stripe connection not found”
+“Development connection fallback”
+
+Classify the root cause as one of:
+
+1. stale diagnostic interpretation
+2. Replit integration-only issue
+3. missing production environment variable
+4. production code fallback bug
+5. wrong account configuration
+6. wrong deployment/environment context
+7. other verified cause
+
+Provide evidence for the classification.
+
+H. NO-SECRET VALIDATION
+
+Perform a safe secret-presence check.
+
+Allowed output:
+
+STRIPE_SECRET_KEY: configured
+STRIPE_PUBLISHABLE_KEY: configured
+
+Not allowed:
+
+actual values
+prefix + large identifier
+webhook secret
+complete live price IDs
+full customer/account tokens
+
+Do not echo environment output directly if it includes values.
+
+I. READ-ONLY PRODUCTION EVIDENCE
+
+Where safe and available, verify read-only production evidence:
+
+* current deployed Stripe mode
+* current webhook health
+* known successful payment history
+* Phase 72.7 processed-event table health
+* active subscription state
+* no test/live mixing
+
+Do not mutate anything.
+
+J. REQUIRED OUTPUT — TASK #8 REPORT
+
+Return:
+
+PHASE 72.8 — TASK #8
+PRODUCTION STRIPE CONFIGURATION CERTIFICATION REPORT
+
+Include:
+
+1. Executive verdict
+2. Root cause of prior “production Stripe connection not found” finding
+3. Production Stripe account state
+4. Live/test mode consistency
+5. Secret/publishable-key consistency
+6. Webhook destination state
+7. Webhook-account consistency
+8. Starter price status
+9. Pro price status
+10. Elite price status
+11. Strategy Session price status
+12. One-time offer allowlist status
+13. Development fallback status
+14. Source/runtime configuration alignment
+15. Phase 72.7 compatibility
+16. Security concerns
+17. Missing configuration
+18. Misconfiguration
+19. Required environment changes, if any
+20. Required Stripe Dashboard changes, if any
+21. Whether production billing is safe for Task #7 deployment
+22. Whether a real transaction is necessary for verification
+23. Confirmation no secret values were printed
+24. Confirmation no live Stripe mutation occurred
+25. Confirmation no Render environment changes occurred
+26. Confirmation no commit/push/deploy occurred
+
+FINAL VERDICT MUST BE ONE OF:
+
+PASS — production Stripe configuration is internally consistent and deployment may proceed to final regression gate.
+
+BLOCKED — configuration defect exists; exact required correction must be approved before any mutation.
+
+INCONCLUSIVE — required production evidence is unavailable; specify what must be manually verified.
+
+STOP CONDITION
+
+STOP after the Task #8 report.
+
+Do not fix production configuration automatically.
+Do not authorize Task #7.
+Do not commit.
+Do not push.
+Do not deploy.
+
+Await Founder + Mission Control review.
