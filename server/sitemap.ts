@@ -43,18 +43,11 @@ export function generateSitemap(blogPosts: BlogPostEntry[] = []): string {
 
   // Canonical URLs only — no fragments (they duplicate the homepage) and no
   // dashboards/admin/API/auth routes. Phase 72.4.1 canonical policy.
-  const staticUrls: SitemapUrl[] = [
-    ...PUBLIC_ROUTES.filter((route) => route.path !== "/guide").map((route) => ({
-      loc: route.path === "/" ? `${BASE_URL}/` : `${BASE_URL}${route.path}`,
-      changefreq: route.changefreq,
-      priority: route.priority,
-    })),
-    {
-      loc: `${BASE_URL}/ai-growth-guide`,
-      changefreq: "monthly",
-      priority: "0.8",
-    },
-  ];
+  const staticUrls: SitemapUrl[] = PUBLIC_ROUTES.map((route) => ({
+    loc: route.path === "/" ? `${BASE_URL}/` : `${BASE_URL}${route.path}`,
+    changefreq: route.changefreq,
+    priority: route.priority,
+  }));
   const knowledgeUrls: SitemapUrl[] = KNOWLEDGE_ARTICLES.map(([slug, , , date]) => ({
     loc: `${BASE_URL}/knowledge/${slug}`,
     changefreq: "monthly",

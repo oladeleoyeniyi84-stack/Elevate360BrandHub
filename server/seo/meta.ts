@@ -39,18 +39,7 @@ export interface ResolvedMeta {
 }
 
 const STATIC_ROUTE_META = Object.fromEntries(
-  [
-    ...PUBLIC_ROUTES.filter((route) => route.path !== "/guide"),
-    {
-      path: "/ai-growth-guide",
-      title: "Free AI Business Growth Blueprint 2026 | Elevate360Official",
-      description:
-        "Download Elevate360Official's free seven-page AI Business Growth Blueprint 2026 with 15 practical ways to save time, attract customers, and grow responsibly.",
-      changefreq: "monthly" as const,
-      priority: "0.8",
-      ogType: "article" as const,
-    },
-  ].map((route) => [route.path, route]),
+  PUBLIC_ROUTES.map((route) => [route.path, route]),
 ) as Record<string, (typeof PUBLIC_ROUTES)[number]>;
 
 // Phase 72.6 — /work structured data. Built from the shared public project
