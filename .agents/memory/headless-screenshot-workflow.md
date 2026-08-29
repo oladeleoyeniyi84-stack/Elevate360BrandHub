@@ -18,3 +18,4 @@ Mission Control sprints repeatedly require desktop+mobile screenshots with a cle
 - `replit.nix` CANNOT be deleted or edited directly (platform blocks it). `uninstallSystemDependencies` leaves an empty `deps = []` stub — that stub is the canonical revert; disclose it in the final diff.
 - `present_asset` the screenshots first, then `rm -rf screenshots/` so the final diff shows only deletions.
 - `uninstallSystemDependencies` takes `packages: [...]`, not `dependency_list`.
+- Media/package installs can also alter `.replit` and create language scaffold files. Restore exact tracked `.replit` bytes to a temp file, then use schema-validated replacement; decoded callback output can normalize CRLF and leave a false full-file diff.
