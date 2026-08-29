@@ -458,7 +458,11 @@ async function main() {
   r = await fetch(`${BASE}/work`);
   const rHome = await fetch(`${BASE}/`);
   ok(r.status === 200 && rHome.status === 200, "46. Phase 72.x pages unaffected (/ and /work 200)");
-  ok(/updateOrderStatus\(session\.id,\s*"paid"/.test(webhookBlock) && /mode === "subscription"/.test(webhookBlock), "47. one-time order webhook path intact (paid orders + subscription branch preserved)");
+  ok(
+    /reconcileOneTimeOrderCompletion\(\s*session\.id,\s*fullyRefunded/.test(webhookBlock) &&
+      /session\.mode === "subscription"/.test(webhookBlock),
+    "47. one-time order webhook path intact (transactional paid/refund reconciliation + subscription branch preserved)",
+  );
 
   // ── Cleanup test rows (dev DB) ──
   await pool.query("DELETE FROM stripe_processed_events WHERE event_id LIKE 'evt_727_%' OR event_id LIKE 'credit_grant:sub_727_%'");
