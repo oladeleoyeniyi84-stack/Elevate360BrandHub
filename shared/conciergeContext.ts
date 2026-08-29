@@ -52,11 +52,11 @@ export const CONCIERGE_PAGE_CONTEXTS: Record<string, ConciergePageContext> = {
     greeting:
       "Looking for meaningful relationships? I can help you explore BondedLove — what would you like to know?",
     knowledge:
-      "The visitor is on the BondedLove product page. BondedLove is a dating app focused on fostering genuine, lasting connections rather than endless swiping. App site: https://bondedlove.elevate360official.com. The related book 'Together: Let There Be Love' (https://www.amazon.com/dp/B0G5DWG61V) pairs well for couples building deeper connection.",
+      "The visitor is on the BondedLove product page. BondedLove is a dating app focused on fostering genuine, lasting connections rather than endless swiping. Product page: https://www.elevate360official.com/apps/bondedlove. The related book 'Together: Let There Be Love' (https://www.amazon.com/dp/B0G5DWG61V) pairs well for couples building deeper connection.",
     suggestedCta:
-      "Guide them to try BondedLove at https://bondedlove.elevate360official.com; mention the 'Together: Let There Be Love' book when relationship-building comes up.",
+      "Guide them to learn about BondedLove at https://www.elevate360official.com/apps/bondedlove; mention the 'Together: Let There Be Love' book when relationship-building comes up.",
     recommendedLinks: [
-      { label: "Visit BondedLove", url: "https://bondedlove.elevate360official.com" },
+      { label: "Explore BondedLove", url: "https://www.elevate360official.com/apps/bondedlove" },
       { label: "Together: Let There Be Love (book)", url: "https://www.amazon.com/dp/B0G5DWG61V" },
     ],
   },
@@ -67,11 +67,11 @@ export const CONCIERGE_PAGE_CONTEXTS: Record<string, ConciergePageContext> = {
     greeting:
       "Curious about HealthWise? I can explain how it works and who it's designed for.",
     knowledge:
-      "The visitor is on the HealthWise product page. Healthwisesupport is a comprehensive health & wellness companion for tracking a wellness journey and connecting with healthcare professionals. App site: https://health.elevate360official.com. Related books: 'Healthwise: Stay Healthy' (https://www.amazon.com/dp/B0GMBNPZC9) and 'One Clean Meal: A 7-Day Reset' (https://www.amazon.com/dp/B0FSDTPVJC).",
+      "The visitor is on the HealthWise product page. Healthwisesupport is a comprehensive health & wellness companion for tracking a wellness journey and connecting with healthcare professionals. Product page: https://www.elevate360official.com/apps/healthwise. Related books: 'Healthwise: Stay Healthy' (https://www.amazon.com/dp/B0GMBNPZC9) and 'One Clean Meal: A 7-Day Reset' (https://www.amazon.com/dp/B0FSDTPVJC).",
     suggestedCta:
-      "Guide them to https://health.elevate360official.com; recommend the Healthwise or One Clean Meal books for readers focused on daily health habits.",
+      "Guide them to https://www.elevate360official.com/apps/healthwise; recommend the Healthwise or One Clean Meal books for readers focused on daily health habits.",
     recommendedLinks: [
-      { label: "Visit HealthWise", url: "https://health.elevate360official.com" },
+      { label: "Explore HealthWise", url: "https://www.elevate360official.com/apps/healthwise" },
       { label: "Healthwise: Stay Healthy (book)", url: "https://www.amazon.com/dp/B0GMBNPZC9" },
       { label: "One Clean Meal (book)", url: "https://www.amazon.com/dp/B0FSDTPVJC" },
     ],
@@ -82,11 +82,11 @@ export const CONCIERGE_PAGE_CONTEXTS: Record<string, ConciergePageContext> = {
     product: "Video Crafter",
     greeting: "Let's build your next AI-powered video together. What are you creating?",
     knowledge:
-      "The visitor is on the Video Crafter product page. Video Crafter is an intuitive video editing suite with professional-grade tools made accessible for creators of all levels. App site: https://crafter.elevate360official.com.",
+      "The visitor is on the Video Crafter product page. Video Crafter is an intuitive video editing suite with professional-grade tools made accessible for creators of all levels. Product page: https://www.elevate360official.com/apps/video-crafter.",
     suggestedCta:
-      "Guide them to https://crafter.elevate360official.com; creators wanting content strategy can book an AI Content Consultation.",
+      "Guide them to https://www.elevate360official.com/apps/video-crafter; creators wanting content strategy can book an AI Content Consultation.",
     recommendedLinks: [
-      { label: "Visit Video Crafter", url: "https://crafter.elevate360official.com" },
+      { label: "Explore Video Crafter", url: "https://www.elevate360official.com/apps/video-crafter" },
       { label: "Book a Session", url: `${SITE}/#book-session` },
     ],
   },

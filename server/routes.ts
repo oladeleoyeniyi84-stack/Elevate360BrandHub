@@ -62,7 +62,8 @@ import { z } from "zod";
 import { WebhookHandlers } from "./webhookHandlers";
 import { getUncachableStripeClient, getStripePublishableKey, isStripeConfigured } from "./stripeClient";
 import { getCustomerId } from "./auth/customerAuth";
-import { consumeCredits } from "./billing/premiumService";
+import { consumeCredits, refundCredits } from "./billing/premiumService";
+import { scopeConciergeSessionId } from "./ai/promptSecurity";
 import { db } from "./db";
 import { sql, eq, desc } from "drizzle-orm";
 import { auditRuns, auditChecks, auditIssues, insertAuditIssueSchema, updateAuditIssueSchema, updateRevenueRecoveryActionSchema, updateContentOpportunitySchema, updateAutonomousAlertSchema } from "@shared/schema";
@@ -71,6 +72,14 @@ import { runRevenueRecoveryEngine } from "./automation/revenueRecoveryEngine";
 import { runContentOpportunityEngine } from "./automation/contentOpportunityEngine";
 import { generateFounderWeeklyBrief, generateMonthlyStrategyBrief } from "./automation/executiveDigestEngine";
 import { runAnomalyEngine } from "./automation/anomalyEngine";
+import {
+  getPaymentIntentMetadata,
+  isPaymentIntentFullyRefunded,
+  isSafeOneTimeCompletion,
+  resolveAllowedOffer,
+  shouldRetryUnmatchedFullRefund,
+  validateMarketplacePrice,
+} from "./billing/stripeTrust";
 
 const DASHBOARD_PIN = process.env.DASHBOARD_PIN;
 
@@ -93,7 +102,7 @@ async function listStripeOffers(): Promise<StripeOffer[]> {
     const products = await stripe.products.list({ active: true, limit: 20 });
     const offers = await Promise.all(
       products.data.map(async (product) => {
-        const prices = await stripe.prices.list({ product: product.id, active: true, limit: 1 });
+        const prices = await stripe.prices.list({ product: product.id, active: true, type: "one_time", limit: 1 });
         const price = prices.data[0];
         if (!price) return null;
         return {
@@ -107,7 +116,16 @@ async function listStripeOffers(): Promise<StripeOffer[]> {
         } as StripeOffer;
       })
     );
-    const validOffers = offers.filter((o): o is StripeOffer => o !== null);
+    let validOffers = offers.filter((o): o is StripeOffer => o !== null);
+    // Optional production allowlist. When configured, even another active
+    // product in the Stripe account cannot be selected through this website.
+    const configuredIds = new Set(
+      (process.env.STRIPE_ONE_TIME_OFFER_PRODUCT_IDS ?? "")
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean),
+    );
+    if (configuredIds.size > 0) validOffers = validOffers.filter((o) => configuredIds.has(o.productId));
     validOffers.sort((a, b) => {
       const ao = parseInt(a.metadata?.displayOrder ?? "999");
       const bo = parseInt(b.metadata?.displayOrder ?? "999");
@@ -156,6 +174,7 @@ function extractDashboardPin(req: any): string | null {
 }
 
 function isDashboardAuthed(req: any): boolean {
+  if (req.dashboardRequestAuthed === true) return true;
   if (req.session?.dashboardAuthed === true) return true;
   const candidate = extractDashboardPin(req);
   return candidate !== null && pinMatches(candidate);
@@ -191,6 +210,8 @@ export function rateLimit(maxReq: number, windowSec: number) {
     }
     bucket.count++;
     if (bucket.count > maxReq) {
+      const retryAfter = Math.max(1, Math.ceil((bucket.resetAt - now) / 1000));
+      res.set("Retry-After", String(retryAfter));
       return res.status(429).json({ message: "Too many requests. Please slow down." });
     }
     next();
@@ -206,6 +227,10 @@ const rateLimitPurgeTimer = setInterval(() => {
 }, 5 * 60 * 1000);
 if (typeof rateLimitPurgeTimer.unref === "function") rateLimitPurgeTimer.unref();
 
+export function stopRouteTimers(): void {
+  clearInterval(rateLimitPurgeTimer);
+}
+
 // ─── Bot Guard middleware ─────────────────────────────────────────────────────
 // Applied to all public-facing POST endpoints (newsletter, contact, chat).
 // Three layers:
@@ -213,24 +238,24 @@ if (typeof rateLimitPurgeTimer.unref === "function") rateLimitPurgeTimer.unref()
 //   2. User-Agent must be present — blocks the most primitive headless clients
 //   3. Honeypot field `website` must be empty — if filled, we silently "succeed"
 //      (returning 200 without saving anything) so bots don't know they're blocked
-// Every block is console.warn-logged with IP, path, and reason for visibility.
+// Every block is logged with path and reason. Never log network addresses or
+// honeypot values.
 function botGuard(req: any, res: any, next: any) {
-  const ip = getClientIp(req);
-
   // 1. Require application/json Content-Type
   const ct = req.headers["content-type"] ?? "";
   if (!ct.includes("application/json")) {
-    console.warn(`[botGuard] BLOCKED ip=${ip} path=${req.path} reason=bad_content_type ct="${ct}"`);
+    console.warn(`[botGuard] BLOCKED path=${req.path} reason=bad_content_type ct="${ct}"`);
     return res.status(415).json({ message: "Unsupported content type." });
   }
   // 2. Require a User-Agent header
   if (!req.headers["user-agent"]) {
-    console.warn(`[botGuard] BLOCKED ip=${ip} path=${req.path} reason=missing_user_agent`);
+    console.warn(`[botGuard] BLOCKED path=${req.path} reason=missing_user_agent`);
     return res.status(400).json({ message: "Invalid request." });
   }
   // 3. Honeypot: if the hidden `website` field is filled, pretend success
   if (req.body?.website) {
-    console.warn(`[botGuard] HONEYPOT ip=${ip} path=${req.path} website="${String(req.body.website).slice(0, 80)}"`);
+    // Do not log the honeypot value: automated submissions can contain PII.
+    console.warn(`[botGuard] HONEYPOT path=${req.path}`);
     return res.status(200).json({ ok: true });
   }
   next();
@@ -278,6 +303,12 @@ export async function registerRoutes(
     res.header("Content-Type", "text/plain; charset=utf-8");
     res.header("Cache-Control", "public, max-age=3600");
     res.send(buildLlmsTxt());
+  });
+
+  app.get("/robots.txt", (_req, res) => {
+    res.type("text/plain").send(
+      "User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /admin/\nDisallow: /dashboard\nDisallow: /ops\nDisallow: /authority\nDisallow: /marketplace-admin\nDisallow: /checkout/\nDisallow: /account\n\nSitemap: https://www.elevate360official.com/sitemap.xml\n",
+    );
   });
 
   app.post("/api/contact", rateLimit(5, 60), botGuard, async (req, res) => {
@@ -375,7 +406,8 @@ export async function registerRoutes(
         }
       }
     } catch (error) {
-      console.error("[lead-magnet] failed to save lead:", error);
+      // Never include request-derived values (including email) in server logs.
+      console.error("[lead-magnet] failed to save lead");
       return res.status(500).json({ message: "Could not save your request. Please try again." });
     }
 
@@ -389,10 +421,23 @@ export async function registerRoutes(
       .json({ id: lead.id, email: lead.email, source: lead.source, existing });
   });
 
-  app.post("/api/chat", rateLimit(15, 60), botGuard, async (req, res) => {
+  app.post("/api/chat", rateLimit(10, 60), botGuard, async (req, res) => {
+    let chargedCustomerId: string | null = null;
+    let providerCompleted = false;
     try {
-      const { sessionId, message, leadName, leadEmail, sessionMode, pageContext } =
+      const { sessionId: clientSessionId, message, leadName, leadEmail, sessionMode, pageContext } =
         chatRequestSchema.parse(req.body);
+      const expressSessionId = (req as any).sessionID;
+      if (!expressSessionId) {
+        return res.status(503).json({ message: "The concierge is temporarily unavailable. Please try again." });
+      }
+      // The signed, high-entropy Express session id is also a safe per-session
+      // fallback key in local/test environments where SESSION_SECRET is absent.
+      const sessionId = scopeConciergeSessionId(
+        expressSessionId,
+        clientSessionId,
+        process.env.SESSION_SECRET || expressSessionId,
+      );
 
       // Phase 68A — AI Concierge is the first live premium gate. Anonymous
       // visitors keep working unchanged; signed-in customers spend AI credits.
@@ -405,6 +450,7 @@ export async function registerRoutes(
             code: "insufficient_credits",
           });
         }
+        chargedCustomerId = customerId;
       }
 
       const conversation = await storage.getOrCreateChatSession(sessionId);
@@ -432,6 +478,7 @@ export async function registerRoutes(
         // looked up server-side in shared/conciergeContext.ts (never client text).
         pageSignal: pageContext ? { page: pageContext.page, sessionMode } : null,
       });
+      providerCompleted = true;
 
       await storage.appendChatMessage(sessionId, { role: "user", content: message });
       await storage.appendChatMessage(sessionId, { role: "assistant", content: reply });
@@ -470,30 +517,25 @@ export async function registerRoutes(
       if (error instanceof ZodError) {
         res.status(400).json({ message: fromZodError(error).message });
       } else {
-        console.error("Chat error:", error?.message ?? error);
+        if (chargedCustomerId && !providerCompleted) {
+          await refundCredits(chargedCustomerId, 1).catch(() => {});
+        }
+        console.error("Chat request failed");
         res.status(500).json({ message: "The concierge is temporarily unavailable. Please try again." });
       }
     }
   });
 
-  // Dashboard auth
-  app.post("/api/dashboard/auth", (req, res) => {
-    const { pin } = req.body ?? {};
-    if (!DASHBOARD_PIN) {
-      return res.status(500).json({ message: "Dashboard PIN not configured." });
-    }
-    if (pin === DASHBOARD_PIN) {
-      (req as any).session.dashboardAuthed = true;
-      storage.createAuditLog({ action: "dashboard_login", resourceType: "session", meta: { ip: getClientIp(req) } }).catch(() => {});
-      return res.json({ ok: true });
-    }
-    storage.createAuditLog({ action: "dashboard_login_failed", resourceType: "session", meta: { ip: getClientIp(req) } }).catch(() => {});
-    return res.status(401).json({ message: "Invalid PIN." });
-  });
-
   app.post("/api/dashboard/logout", (req, res) => {
-    (req as any).session.dashboardAuthed = false;
-    res.json({ ok: true });
+    const customerId = getCustomerId(req);
+    req.session.regenerate((error) => {
+      if (error) return res.status(500).json({ message: "Could not end dashboard session." });
+      if (customerId) (req.session as any).customerId = customerId;
+      req.session.save((saveError) => {
+        if (saveError) return res.status(500).json({ message: "Could not end dashboard session." });
+        res.json({ ok: true });
+      });
+    });
   });
 
   // Dashboard data routes (session-protected)
@@ -529,9 +571,13 @@ export async function registerRoutes(
       const contact = await storage.getContactMessageById(id);
       if (!contact) return res.status(404).json({ message: "Contact not found" });
 
-      await sendContactReply(contact.name, contact.email, replyText);
       const updated = await storage.replyContactMessage(id);
       res.json(updated);
+      // Persistence is authoritative. Provider availability must not turn a
+      // successfully recorded dashboard action into an API failure.
+      sendContactReply(contact.name, contact.email, replyText).catch(() => {
+        console.warn("[contact-reply] email delivery failed");
+      });
     } catch (error: any) {
       if (error instanceof ZodError) {
         res.status(400).json({ message: fromZodError(error).message });
@@ -557,8 +603,7 @@ export async function registerRoutes(
     brief: z.string().min(5).max(1000),
   });
 
-  app.post("/api/dashboard/generate", async (req, res) => {
-    if (!isDashboardAuthed(req)) return res.status(401).json({ message: "Unauthorized" });
+  app.post("/api/dashboard/generate", requireDashboardAuth, rateLimit(20, 900), async (req, res) => {
     try {
       const { contentType, brief } = generateSchema.parse(req.body);
       const copy = await generateBrandCopy(contentType as ContentType, brief);
@@ -852,7 +897,7 @@ export async function registerRoutes(
       const data = insertTestimonialSchema.parse(req.body);
       const item = await storage.createTestimonial(data);
       res.json(item);
-    } catch (err) {
+    } catch (err: any) {
       if (err instanceof ZodError) return res.status(400).json({ error: fromZodError(err).message });
       res.status(500).json({ error: "Server error" });
     }
@@ -882,7 +927,9 @@ export async function registerRoutes(
   });
 
   app.get("/api/blog/:slug", async (req, res) => {
-    const post = await storage.getBlogPostBySlug(req.params.slug);
+    const slug = req.params.slug;
+    if (!/^[a-z0-9-]{1,200}$/.test(slug)) return res.status(404).json({ error: "Not found" });
+    const post = await storage.getBlogPostBySlug(slug);
     if (!post || !post.published) return res.status(404).json({ error: "Not found" });
     res.json(post);
   });
@@ -899,8 +946,9 @@ export async function registerRoutes(
       const data = insertBlogPostSchema.parse(req.body);
       const post = await storage.createBlogPost(data);
       res.json(post);
-    } catch (err) {
+    } catch (err: any) {
       if (err instanceof ZodError) return res.status(400).json({ error: fromZodError(err).message });
+      if (String(err?.code) === "23505") return res.status(409).json({ error: "Slug already exists" });
       res.status(500).json({ error: "Server error" });
     }
   });
@@ -912,8 +960,9 @@ export async function registerRoutes(
       const post = await storage.updateBlogPost(Number(req.params.id), data);
       if (!post) return res.status(404).json({ error: "Not found" });
       res.json(post);
-    } catch (err) {
+    } catch (err: any) {
       if (err instanceof ZodError) return res.status(400).json({ error: fromZodError(err).message });
+      if (String(err?.code) === "23505") return res.status(409).json({ error: "Slug already exists" });
       res.status(500).json({ error: "Server error" });
     }
   });
@@ -1019,33 +1068,39 @@ export async function registerRoutes(
   });
 
   // Phase 36 — Public Booking Submission
-  app.post("/api/bookings", async (req, res) => {
+  app.post("/api/bookings", rateLimit(5, 60), botGuard, async (req, res) => {
     try {
       const { insertBookingSchema } = await import("@shared/schema");
       const data = insertBookingSchema.parse(req.body);
-      const booking = await storage.createBooking(data);
-
+      // A booking must refer to a currently available consultation. This prevents
+      // forged IDs and requests for offers that have been withdrawn.
       let consultationTitle: string | undefined;
       if (data.consultationId) {
         const consult = await storage.getConsultation(data.consultationId);
-        consultationTitle = consult?.title;
+        if (!consult || !consult.isActive) {
+          return res.status(404).json({ message: "This consultation is not available." });
+        }
+        consultationTitle = consult.title;
       }
+      const { booking, existing } = await storage.createBookingIdempotent(data);
 
       // Auto-move pipeline stage to "booked" if session exists
-      if (data.sessionId) {
+      if (!existing && data.sessionId) {
         storage.updateLeadPipelineStage(data.sessionId, "booked", "Booked via website").catch(() => {});
       }
 
       // Send notifications (non-blocking)
-      notifyNewBooking({
-        clientName: data.clientName,
-        clientEmail: data.clientEmail,
-        consultationTitle,
-        preferredDate: data.preferredDate,
-        message: data.message,
-      }).catch(() => {});
+      if (!existing) {
+        notifyNewBooking({
+          clientName: data.clientName,
+          clientEmail: data.clientEmail,
+          consultationTitle,
+          preferredDate: data.preferredDate,
+          message: data.message,
+        }).catch(() => {});
+      }
 
-      res.json({ success: true, id: booking.id });
+      res.status(existing ? 200 : 201).json({ success: true, id: booking.id, existing });
     } catch (e: any) {
       if (e instanceof ZodError) return res.status(400).json({ message: fromZodError(e).message });
       res.status(500).json({ message: "Booking failed. Please try again." });
@@ -1168,25 +1223,50 @@ export async function registerRoutes(
       if (event.type === "checkout.session.completed") {
         const session: any = event.data?.object;
         if (session?.id) {
+          // A signed Stripe event alone is not fulfillment authority: only a
+          // locally initiated order with the expected paid total may complete.
+          let oneTimeOrder: import("@shared/schema").Order | undefined;
+          if (session.mode === "payment") {
+            oneTimeOrder = await storage.getOrderByStripeSession(session.id);
+            if (oneTimeOrder && !isSafeOneTimeCompletion(session, oneTimeOrder)) {
+              console.warn(`[stripe] refusing unverified one-time fulfillment session=${session.id}`);
+              throw new Error("One-time checkout verification failed");
+            }
+            if (!oneTimeOrder) {
+              console.warn(`[stripe] refusing unknown one-time checkout session=${session.id}`);
+              throw new Error("One-time checkout order not found");
+            }
+            const paymentIntentId =
+              typeof session.payment_intent === "string" ? session.payment_intent : undefined;
+            if (!paymentIntentId) {
+              throw new Error("One-time checkout payment intent missing");
+            }
+            const fullyRefunded = await isPaymentIntentFullyRefunded(
+              await getUncachableStripeClient(),
+              paymentIntentId,
+            );
+            oneTimeOrder = await storage.reconcileOneTimeOrderCompletion(
+              session.id,
+              fullyRefunded,
+              {
+                stripePaymentIntentId: paymentIntentId,
+                amountPaid: session.amount_total ?? undefined,
+                customerName: session.customer_details?.name ?? undefined,
+                customerEmail: session.customer_details?.email ?? session.customer_email ?? undefined,
+              },
+            );
+            if (!oneTimeOrder) throw new Error("One-time checkout order disappeared");
+          }
+          if (session.mode !== "payment" || oneTimeOrder) {
           // Strategy session is a one-time product, NOT a subscription. Log clearly
           // and let the generic order-fulfillment path below mark it paid.
           if (session.metadata?.source === "strategy-session" || session.metadata?.offer === "ai-growth-strategy-session") {
             console.log("[strategy-session] checkout completed", { sessionId: session.id });
           }
-          await storage.updateOrderStatus(session.id, "paid", {
-            stripePaymentIntentId: session.payment_intent ?? undefined,
-            amountPaid: session.amount_total ?? undefined,
-            customerName: session.customer_details?.name ?? undefined,
-            customerEmail: session.customer_details?.email ?? session.customer_email ?? undefined,
-          });
-          // Marketplace digital products are fulfilled immediately on payment.
-          if (session.metadata?.marketplaceSlug) {
-            storage.setOrderFulfillment(session.id, "delivered").catch(() => {});
-          }
           // M02 fix — auto-advance pipeline to "won" + mark offer accepted
           // NOTE: do NOT pass wonValue here; revenue is already tracked via the orders table (M01 fix)
           const sessionChatId = session.metadata?.sessionId;
-          if (sessionChatId) {
+          if (sessionChatId && (session.mode !== "payment" || oneTimeOrder?.status === "paid")) {
             const amtLabel = session.amount_total ? `$${(session.amount_total / 100).toFixed(2)}` : "unknown amount";
             storage.updateLeadPipelineStage(
               sessionChatId,
@@ -1236,6 +1316,15 @@ export async function registerRoutes(
                   : undefined,
             }).catch((e: any) => console.error("[revenue-intel] payment_completed record failed:", e?.message));
           }
+          }
+        }
+      }
+
+      if (event.type === "checkout.session.expired") {
+        const session: any = event.data?.object;
+        if (session?.id && session.mode === "payment") {
+          const order = await storage.getOrderByStripeSession(session.id);
+          if (order?.status === "initiated") await storage.updateOrderStatus(session.id, "expired");
         }
       }
 
@@ -1246,6 +1335,23 @@ export async function registerRoutes(
         const charge: any = event.data?.object;
         const currency = typeof charge?.currency === "string" && /^[A-Za-z]{3}$/.test(charge.currency) ? charge.currency : "USD";
         const paymentIntentId = typeof charge?.payment_intent === "string" ? charge.payment_intent : undefined;
+        const fullyRefunded = charge?.refunded === true ||
+          (Number.isSafeInteger(charge?.amount) && Number(charge?.amount_refunded) >= Number(charge.amount));
+        if (paymentIntentId && fullyRefunded) {
+          const refundedOrder = await storage.refundOrderByPaymentIntent(paymentIntentId);
+          if (!refundedOrder) {
+            const paymentIntentMetadata = await getPaymentIntentMetadata(
+              await getUncachableStripeClient(),
+              paymentIntentId,
+            );
+            if (shouldRetryUnmatchedFullRefund(event.created, paymentIntentMetadata)) {
+              // Fail this event claim so Stripe retries after a concurrent
+              // completion persists the payment-intent mapping.
+              throw new Error("Refund order mapping not yet available");
+            }
+            console.warn(`[stripe] ignoring unmatched non-local/stale refund payment_intent=${paymentIntentId}`);
+          }
+        }
         const refunds: any[] = Array.isArray(charge?.refunds?.data) ? charge.refunds.data : [];
         if (refunds.length > 0) {
           // Per-refund rows keyed by the stable refund id: a second partial
@@ -1347,9 +1453,14 @@ export async function registerRoutes(
   });
 
   // Phase 37 — Create Stripe Checkout Session
-  app.post("/api/checkout/session", async (req, res) => {
-    const { priceId, customerEmail, sessionId: chatSessionId, productName, amount } = req.body;
-    if (!priceId) return res.status(400).json({ message: "priceId required" });
+  app.post("/api/checkout/session", rateLimit(5, 60), botGuard, async (req, res) => {
+    const parsedCheckout = z.object({
+      offerId: z.string().regex(/^prod_[A-Za-z0-9]+$/),
+      customerEmail: z.string().email().max(255).optional(),
+      sessionId: z.string().max(64).optional(),
+    }).strip().safeParse(req.body);
+    if (!parsedCheckout.success) return res.status(400).json({ message: "Invalid checkout request." });
+    const { offerId, customerEmail, sessionId: chatSessionId } = parsedCheckout.data;
 
     // Render-safe origin resolution: prefer explicit canonical config, then Render/Replit
     // platform vars, then localhost as last resort. Strips protocol/trailing slash defensively.
@@ -1364,16 +1475,19 @@ export async function registerRoutes(
 
     try {
       const stripe = await getUncachableStripeClient();
+      const catalogOffer = (await listStripeOffers()).find((candidate) => candidate.productId === offerId);
+      if (!catalogOffer) return res.status(400).json({ message: "Offer is not available." });
+      const offer = await resolveAllowedOffer(stripe, offerId);
 
       // Build rich success URL so the thank-you page can display confirmation details
       const successParams = new URLSearchParams({ source: "purchase" });
-      if (productName) successParams.set("plan", productName);
-      if (amount) successParams.set("amount", String(amount));
+      successParams.set("plan", offer.productName);
+      successParams.set("amount", String(offer.amount));
       successParams.set("session_id", "{CHECKOUT_SESSION_ID}");
 
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
-        line_items: [{ price: priceId, quantity: 1 }],
+        line_items: [{ price: offer.priceId, quantity: 1 }],
         mode: "payment",
         success_url: `${origin}/checkout/success?${successParams.toString()}`,
         cancel_url: `${origin}/#offers`,
@@ -1381,6 +1495,13 @@ export async function registerRoutes(
         metadata: {
           sessionId: chatSessionId ?? "",
           source: "elevate360-website",
+          offerId: offer.productId,
+        },
+        payment_intent_data: {
+          metadata: {
+            source: "elevate360-website",
+            offerId: offer.productId,
+          },
         },
       } as any);
 
@@ -1392,20 +1513,24 @@ export async function registerRoutes(
       }
 
       // Track as initiated order (abandoned checkout if never completed)
-      storage.createOrder({
+      await storage.createOrder({
         stripeSessionId: session.id,
-        stripePriceId: priceId,
-        productName: productName ?? "Offer",
+        stripeProductId: offer.productId,
+        stripePriceId: offer.priceId,
+        productName: offer.productName,
         customerEmail: customerEmail ?? "unknown",
         status: "initiated",
         fulfillmentStatus: "pending",
         sessionId: chatSessionId ?? undefined,
         metadata: {
           source: "elevate360-website",
+          offerId: offer.productId,
+          expectedAmountCents: offer.amount,
+          expectedCurrency: offer.currency,
           checkoutCreatedAt: new Date().toISOString(),
           acceptedByAi,
         },
-      }).catch(() => {});
+      });
 
       res.json({ url: session.url });
     } catch (e: any) {
@@ -1421,7 +1546,7 @@ export async function registerRoutes(
   // Phase 70.3 — AI Growth Strategy Session one-time checkout ($97).
   // Public (no login). Separate from subscription billing. Uses a dedicated
   // env price so it can never collide with Starter/Pro/Elite plans.
-  app.post("/api/checkout/strategy-session", async (req, res) => {
+  app.post("/api/checkout/strategy-session", rateLimit(5, 60), botGuard, async (req, res) => {
     const priceId = process.env.STRIPE_PRICE_STRATEGY_SESSION;
     if (!priceId) {
       return res.status(503).json({ message: "Strategy session checkout is not configured yet." });
@@ -1443,10 +1568,11 @@ export async function registerRoutes(
 
     try {
       const stripe = await getUncachableStripeClient();
+      const validatedPrice = await validateMarketplacePrice(stripe, priceId, 9_700, "usd");
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
         mode: "payment",
-        line_items: [{ price: priceId, quantity: 1 }],
+        line_items: [{ price: validatedPrice.priceId, quantity: 1 }],
         allow_promotion_codes: true,
         customer_email: customerEmail,
         success_url: `${origin}/checkout/success?source=strategy-session&session_id={CHECKOUT_SESSION_ID}`,
@@ -1455,12 +1581,19 @@ export async function registerRoutes(
           source: "strategy-session",
           offer: "ai-growth-strategy-session",
         },
+        payment_intent_data: {
+          metadata: {
+            source: "strategy-session",
+            offer: "ai-growth-strategy-session",
+          },
+        },
       } as any);
 
       // Track as an initiated order so the existing webhook marks it paid on completion.
-      storage.createOrder({
+      await storage.createOrder({
         stripeSessionId: session.id,
-        stripePriceId: priceId,
+        stripeProductId: validatedPrice.productId,
+        stripePriceId: validatedPrice.priceId,
         productName: "AI Growth Strategy Session",
         customerEmail: customerEmail ?? "unknown",
         status: "initiated",
@@ -1468,9 +1601,11 @@ export async function registerRoutes(
         metadata: {
           source: "strategy-session",
           offer: "ai-growth-strategy-session",
+          expectedAmountCents: validatedPrice.amount,
+          expectedCurrency: validatedPrice.currency,
           checkoutCreatedAt: new Date().toISOString(),
         },
-      }).catch(() => {});
+      });
 
       res.json({ url: session.url });
     } catch (e: any) {
@@ -1480,34 +1615,26 @@ export async function registerRoutes(
   });
 
   // Phase 37 — Public Order Status Lookup
+  // The high-entropy Checkout session id is a bearer capability returned by
+  // Stripe to that checkout only. Sequential internal order ids are never
+  // accepted here (they allowed cross-customer enumeration).
   // GET /api/orders/status?session_id=<stripe_checkout_session_id>
-  // GET /api/orders/status?order_id=<internal_order_id>
   app.get("/api/orders/status", async (req, res) => {
-    const { session_id, order_id } = req.query as Record<string, string | undefined>;
-    if (!session_id && !order_id) {
-      return res.status(400).json({ message: "Provide session_id or order_id as a query parameter." });
+    const { session_id } = req.query as Record<string, string | undefined>;
+    if (!session_id || !/^cs_(?:test_|live_)?[A-Za-z0-9_]+$/.test(session_id)) {
+      return res.status(400).json({ message: "Provide a valid session_id query parameter." });
     }
     try {
-      let order: import("@shared/schema").Order | undefined;
-      if (session_id) {
-        order = await storage.getOrderByStripeSession(session_id);
-      } else if (order_id) {
-        const numId = parseInt(order_id, 10);
-        if (isNaN(numId)) return res.status(400).json({ message: "order_id must be a number." });
-        order = await storage.getOrderById(numId);
-      }
+      const order = await storage.getOrderByStripeSession(session_id);
       if (!order) return res.status(404).json({ message: "Order not found." });
 
       const meta = (order.metadata as Record<string, any>) ?? {};
       return res.json({
-        id: order.id,
         productName: order.productName,
-        customerEmail: order.customerEmail,
         amountPaid: order.amountPaid,
         currency: order.currency,
         paymentStatus: order.status,
         fulfillmentStatus: order.fulfillmentStatus,
-        stripeSessionId: order.stripeSessionId,
         metadata: {
           acceptedByAi: meta.acceptedByAi ?? false,
           source: meta.source ?? "elevate360-website",
@@ -2321,7 +2448,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/admin/content-factory/generate", requireDashboardAuth, async (req, res) => {
+  app.post("/api/admin/content-factory/generate", requireDashboardAuth, rateLimit(10, 900), async (req, res) => {
     try {
       const { kind, topics, premium } = generateContentFactorySchema.parse(req.body);
       const created = [];
@@ -2330,15 +2457,15 @@ export async function registerRoutes(
         try {
           const draft = await generateContentDraft(kind, topic, !!premium);
           created.push(await storage.createContentDraft(draft));
-        } catch (err: any) {
-          console.error(`[content-factory] generate failed for "${topic}":`, err?.message);
+        } catch {
+          console.error("[content-factory] generation failed for one topic");
           failed.push(topic);
         }
       }
       res.json({ created, failed, generated: created.length });
     } catch (err) {
       if (err instanceof ZodError) return res.status(400).json({ message: fromZodError(err).message });
-      console.error("[content-factory] generate error:", err);
+      console.error("[content-factory] generation request failed");
       res.status(500).json({ message: "Generation failed." });
     }
   });
@@ -2493,7 +2620,7 @@ export async function registerRoutes(
   });
 
   // Create a Stripe Checkout session for a marketplace product.
-  app.post("/api/marketplace/checkout", async (req, res) => {
+  app.post("/api/marketplace/checkout", rateLimit(5, 60), botGuard, async (req, res) => {
     try {
       const { slug, customerEmail, sessionId: chatSessionId } = marketplaceCheckoutSchema.parse(req.body);
       const product = await storage.getMarketplaceProductBySlug(slug);
@@ -2513,11 +2640,17 @@ export async function registerRoutes(
 
       const stripe = await getUncachableStripeClient();
       const successParams = new URLSearchParams({ source: "marketplace", slug: product.slug });
+      const validatedPrice = await validateMarketplacePrice(
+        stripe,
+        product.stripePriceId,
+        product.priceCents,
+        product.currency,
+      );
       successParams.set("session_id", "{CHECKOUT_SESSION_ID}");
 
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
-        line_items: [{ price: product.stripePriceId, quantity: 1 }],
+        line_items: [{ price: validatedPrice.priceId, quantity: 1 }],
         mode: "payment",
         success_url: `${origin}/checkout/success?${successParams.toString()}`,
         cancel_url: `${origin}/marketplace`,
@@ -2528,11 +2661,19 @@ export async function registerRoutes(
           marketplaceSlug: product.slug,
           productName: product.name,
         },
+        payment_intent_data: {
+          metadata: {
+            source: "elevate360-marketplace",
+            marketplaceSlug: product.slug,
+            productName: product.name,
+          },
+        },
       } as any);
 
-      storage.createOrder({
+      await storage.createOrder({
         stripeSessionId: session.id,
-        stripePriceId: product.stripePriceId,
+        stripeProductId: validatedPrice.productId,
+        stripePriceId: validatedPrice.priceId,
         productName: product.name,
         customerEmail: customerEmail ?? "unknown",
         status: "initiated",
@@ -2541,9 +2682,11 @@ export async function registerRoutes(
         metadata: {
           source: "elevate360-marketplace",
           marketplaceSlug: product.slug,
+          expectedAmountCents: validatedPrice.amount,
+          expectedCurrency: validatedPrice.currency,
           checkoutCreatedAt: new Date().toISOString(),
         },
-      }).catch(() => {});
+      });
 
       res.json({ url: session.url });
     } catch (e: any) {
@@ -3375,19 +3518,11 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/health", async (_req, res) => {
-    const checks: Record<string, { ok: boolean; latencyMs?: number; detail?: string }> = {};
-
-    // DB ping
-    const dbStart = Date.now();
-    try {
-      await db.execute(sql`SELECT 1`);
-      checks.database = { ok: true, latencyMs: Date.now() - dbStart };
-    } catch (e: any) {
-      checks.database = { ok: false, detail: e.message };
-    }
-
-    // AI router + memory cache
+  app.get("/api/health", (_req, res) => {
+    // Liveness must remain constant-time and must not consume a DB connection
+    // or contact any external provider. Dependency status below is local
+    // configuration/in-process state only.
+    const checks: Record<string, { ok: boolean; detail?: string }> = {};
     const memStats = getMemoryStats();
     const aiStatus = getAIStatus();
     checks.openai = {
@@ -3415,8 +3550,12 @@ export async function registerRoutes(
       detail: stripeOk ? "configured" : "STRIPE_SECRET_KEY missing",
     };
 
-    const allOk = Object.values(checks).every((c) => c.ok);
-    res.status(allOk ? 200 : 503).json({ status: allOk ? "healthy" : "degraded", checks, timestamp: new Date().toISOString() });
+    res.status(200).json({
+      status: "healthy",
+      checks,
+      uptimeSec: Math.floor(process.uptime()),
+      timestamp: new Date().toISOString(),
+    });
   });
 
   // Phase 45 — Audit log routes

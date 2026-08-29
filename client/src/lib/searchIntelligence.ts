@@ -66,7 +66,9 @@ function getAttribution(): Attribution {
       source: params.get("utm_source") ?? undefined,
       medium: params.get("utm_medium") ?? undefined,
       campaign: params.get("utm_campaign") ?? undefined,
-      referrer: document.referrer || undefined,
+      // Classification only needs the host; retaining a complete referrer can
+      // leak query-string identifiers into session storage.
+      referrer: document.referrer ? new URL(document.referrer).origin : undefined,
       landingPage: window.location.pathname,
     };
     sessionStorage.setItem(ATTRIBUTION_KEY, JSON.stringify(attr));

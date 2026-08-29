@@ -461,9 +461,14 @@ function App() {
           <meta property="fb:app_id" content="122150153540988040" />
         </Helmet>
         <TooltipProvider>
+          <a className="skip-link" href="#main-content">
+            Skip to main content
+          </a>
           <Toaster />
           <ErrorBoundary scope="app">
-            <Router />
+            <main id="main-content" tabIndex={-1}>
+              <Router />
+            </main>
           </ErrorBoundary>
           <RouteTracker />
           <SearchLandingTracker />

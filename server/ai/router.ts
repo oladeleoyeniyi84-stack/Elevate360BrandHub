@@ -27,7 +27,11 @@ export interface ConciergeOutput {
 }
 
 export async function runConcierge(input: ConciergeInput): Promise<ConciergeOutput> {
-  const history = await getMemory(input.sessionId);
+  // Bound provider context even when a legacy/poisoned DB row contains an
+  // unexpectedly large transcript.
+  const history = (await getMemory(input.sessionId))
+    .slice(-20)
+    .map((m) => ({ ...m, content: m.content.slice(0, 4_000) }));
 
   const reply = await getConciergeReply(
     history,

@@ -6,6 +6,7 @@
 import { storage } from "../storage";
 import { canonicalPath, canonicalUrl, CANONICAL_ORIGIN } from "./canonical";
 import { getPublicProjects } from "@shared/flagshipProjects";
+import { KNOWLEDGE_ARTICLES, PUBLIC_ROUTES } from "@shared/publicRoutes";
 
 const SITE_NAME = "Elevate360Official";
 const DEFAULT_IMAGE = `${CANONICAL_ORIGIN}/social-preview/elevate360-logo-share.png`;
@@ -37,79 +38,20 @@ export interface ResolvedMeta {
   jsonLd?: unknown;
 }
 
-// Static public routes. Titles/descriptions for pages with a client <SEO>
-// component (/blog, /links, /press-kit, /marketplace, /founder) are verbatim
-// copies of those components' props.
-const STATIC_ROUTE_META: Record<string, { title: string; description: string; ogType?: "article" }> = {
-  "/": {
-    title: "Elevate360Official | Empowering Lives Through Technology & Words",
-    description:
-      "Elevate360Official by Oladele Oyeniyi — a digital brand ecosystem of mobile apps (Bondedlove, Healthwisesupport, Video Crafter), Amazon books, original music, and art. Empowering lives through technology and words.",
-  },
-  "/blog": {
-    title: "Blog | Elevate360Official",
-    description:
-      "Read insights, inspiration, and updates from Elevate360Official on technology, creativity, wellness, relationships, and intentional growth.",
-  },
-  "/links": {
-    title: "Links | Elevate360Official",
-    description:
-      "Explore all official Elevate360Official links — apps, books, music, art, and brand channels by Oladele Oyeniyi.",
-  },
-  "/press-kit": {
-    title: "Press Kit | Elevate360Official",
-    description:
-      "Official press kit for Elevate360Official — founder profile, brand overview, product portfolio, and media assets.",
-  },
-  "/marketplace": {
-    title: "Marketplace | Elevate360Official",
-    description:
-      "Premium digital products from Elevate360Official — tools, templates, and resources delivered instantly.",
-  },
-  "/founder": {
-    title: "Founder Authority | Oladele Oyeniyi — Elevate360Official",
-    description:
-      "Media features, milestones, credentials, and awards establishing the authority of Oladele Oyeniyi, founder of Elevate360Official.",
-    ogType: "article",
-  },
-  "/about-founder": {
-    title: "About Oladele Oyeniyi | Elevate360Official",
-    description:
-      "Meet Oladele Oyeniyi — founder of Elevate360Official, author, app developer, artist and music producer empowering lives through technology and words.",
-  },
-  "/ai-growth-guide": {
-    title: "Free AI Business Growth Blueprint 2026 | Elevate360Official",
-    description:
-      "Download Elevate360Official's free seven-page AI Business Growth Blueprint 2026 with 15 practical ways to save time, attract customers, and grow responsibly.",
-    ogType: "article",
-  },
-  "/guide": {
-    title: "Free AI Business Growth Blueprint 2026 | Elevate360Official",
-    description:
-      "Download Elevate360Official's free seven-page AI Business Growth Blueprint 2026 with 15 practical ways to save time, attract customers, and grow responsibly.",
-    ogType: "article",
-  },
-  "/knowledge": {
-    title: "Knowledge Center | Elevate360Official",
-    description:
-      "Browse the Elevate360Official knowledge center — articles and resources on wellness, relationships, creativity and technology.",
-  },
-  "/strategy-session": {
-    title: "Strategy Session | Elevate360Official",
-    description:
-      "Book a strategy session with Elevate360Official — personalized guidance on brand, content and digital product strategy.",
-  },
-  "/pricing": {
-    title: "Pricing | Elevate360Official",
-    description:
-      "Simple, transparent pricing for Elevate360Official products and services — apps, digital products and consultations.",
-  },
-  "/work": {
-    title: "Our Work, Collaborations & Digital Projects | Elevate360Official",
-    description:
-      "Explore Elevate360Official’s flagship platforms, AI systems, nonprofit collaborations, intelligent websites, digital experiences, analytics infrastructure, and current initiatives.",
-  },
-};
+const STATIC_ROUTE_META = Object.fromEntries(
+  [
+    ...PUBLIC_ROUTES.filter((route) => route.path !== "/guide"),
+    {
+      path: "/ai-growth-guide",
+      title: "Free AI Business Growth Blueprint 2026 | Elevate360Official",
+      description:
+        "Download Elevate360Official's free seven-page AI Business Growth Blueprint 2026 with 15 practical ways to save time, attract customers, and grow responsibly.",
+      changefreq: "monthly" as const,
+      priority: "0.8",
+      ogType: "article" as const,
+    },
+  ].map((route) => [route.path, route]),
+) as Record<string, (typeof PUBLIC_ROUTES)[number]>;
 
 // Phase 72.6 — /work structured data. Built from the shared public project
 // configuration (confidential records already excluded there). No fabricated
@@ -144,6 +86,20 @@ function buildWorkJsonLd(): Record<string, unknown> {
         },
       })),
     },
+  };
+}
+
+function buildWebPageJsonLd(path: string, title: string, description: string): Record<string, unknown> {
+  const canonical = canonicalUrl(path);
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "@id": `${canonical}#webpage`,
+    name: title,
+    description,
+    url: canonical,
+    isPartOf: { "@type": "WebSite", name: SITE_NAME, url: `${CANONICAL_ORIGIN}/` },
+    publisher: { "@type": "Organization", name: SITE_NAME, url: `${CANONICAL_ORIGIN}/` },
   };
 }
 
@@ -210,7 +166,9 @@ export async function resolveRouteMeta(rawUrl: string): Promise<ResolvedMeta | n
       canonical: canonicalUrl(path),
       ogType: staticMeta.ogType ?? "website",
       image: DEFAULT_IMAGE,
-      jsonLd: path === "/work" ? buildWorkJsonLd() : undefined,
+        jsonLd: path === "/work"
+          ? buildWorkJsonLd()
+          : buildWebPageJsonLd(path, staticMeta.title, staticMeta.description),
     };
   }
 
@@ -232,6 +190,33 @@ export async function resolveRouteMeta(rawUrl: string): Promise<ResolvedMeta | n
     } catch {
       return blogFallback();
     }
+  }
+
+  if (path.startsWith("/knowledge/")) {
+    const slug = path.slice("/knowledge/".length);
+    const article = KNOWLEDGE_ARTICLES.find(([articleSlug]) => articleSlug === slug);
+    if (!article) return null;
+    const [, title, description, datePublished] = article;
+    const canonical = canonicalUrl(path);
+    return {
+      title: `${title} | ${SITE_NAME}`,
+      description,
+      canonical,
+      ogType: "article",
+      image: DEFAULT_IMAGE,
+      jsonLd: {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "@id": `${canonical}#article`,
+        headline: title,
+        description,
+        datePublished,
+        dateModified: datePublished,
+        mainEntityOfPage: { "@type": "WebPage", "@id": canonical },
+        author: { "@type": "Person", name: "Oladele Oyeniyi", url: `${CANONICAL_ORIGIN}/about-founder` },
+        publisher: { "@type": "Organization", name: SITE_NAME, url: `${CANONICAL_ORIGIN}/` },
+      },
+    };
   }
 
   return null;

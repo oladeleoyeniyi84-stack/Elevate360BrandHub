@@ -4,8 +4,6 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 
 const GOLD = "#F4A62A";
 const BG = "hsl(220 50% 8%)";
-const AUTH_FLAG = "e360_dashboard_auth";
-const MESH_PIN = "e360_mesh_dashboard_pin";
 
 type Overview = {
   stats?: { idleAgents?: number; busyAgents?: number; queuedMissions?: number; runningMissions?: number; failedMissions24h?: number; completedMissions24h?: number };
@@ -15,29 +13,9 @@ type Overview = {
   providers?: { openai?: boolean; deepseek?: boolean };
 };
 
-function getStoredPin() {
-  try { return window.sessionStorage.getItem(MESH_PIN) || ""; } catch { return ""; }
-}
-
-function setStoredAuth(pin: string) {
-  try {
-    window.sessionStorage.setItem(AUTH_FLAG, "true");
-    window.sessionStorage.setItem(MESH_PIN, pin);
-  } catch {}
-}
-
-function clearStoredAuth() {
-  try {
-    window.sessionStorage.removeItem(AUTH_FLAG);
-    window.sessionStorage.removeItem(MESH_PIN);
-  } catch {}
-}
-
 function authHeaders(json = false): HeadersInit {
-  const pin = getStoredPin();
   return {
     ...(json ? { "Content-Type": "application/json" } : {}),
-    ...(pin ? { "x-dashboard-pin": pin, Authorization: `Bearer ${pin}` } : {}),
     Accept: "application/json",
   };
 }
@@ -47,17 +25,9 @@ async function protectedFetch(path: string, init: RequestInit = {}) {
   new Headers(init.headers || {}).forEach((value, key) => headers.set(key, value));
   const response = await fetch(path, { credentials: "include", ...init, headers });
   if (response.status === 401) {
-    clearStoredAuth();
     throw new Error("Unauthorized. Please sign in again.");
   }
   return response;
-}
-
-async function verifyPinDirectly(pin: string) {
-  return fetch("/api/admin/mesh/overview", {
-    credentials: "include",
-    headers: { "x-dashboard-pin": pin, Authorization: `Bearer ${pin}`, Accept: "application/json" },
-  });
 }
 
 function statusColor(status = "") {
@@ -82,14 +52,6 @@ function PinGate({ onAuth }: { onAuth: (overview?: Overview | null) => void }) {
     setErr("");
     setSubmitting(true);
     try {
-      const direct = await verifyPinDirectly(trimmed);
-      if (direct.ok) {
-        const overview = await direct.json().catch(() => null);
-        setStoredAuth(trimmed);
-        onAuth(overview);
-        return;
-      }
-
       const auth = await fetch("/api/dashboard/auth", {
         method: "POST",
         credentials: "include",
@@ -100,12 +62,8 @@ function PinGate({ onAuth }: { onAuth: (overview?: Overview | null) => void }) {
       let authBody: any = null;
       try { authBody = await auth.clone().json(); } catch {}
 
-      // If the PIN is valid but the persistent session store is down, the server
-      // may return a session-save message. Continue with the stateless admin PIN
-      // fallback already supported by protected mesh endpoints.
-      if (auth.ok || (auth.status >= 500 && String(authBody?.message || "").toLowerCase().includes("session"))) {
-        setStoredAuth(trimmed);
-        const verify = await verifyPinDirectly(trimmed).catch(() => null);
+      if (auth.ok) {
+        const verify = await protectedFetch("/api/admin/mesh/overview").catch(() => null);
         if (verify?.ok) {
           const overview = await verify.json().catch(() => null);
           onAuth(overview);
@@ -115,12 +73,10 @@ function PinGate({ onAuth }: { onAuth: (overview?: Overview | null) => void }) {
         return;
       }
 
-      clearStoredAuth();
       setErr(authBody?.message || "Invalid PIN.");
       setPin("");
     } catch (error) {
       console.error("[mesh] auth error", error);
-      clearStoredAuth();
       setErr("Could not verify the PIN. Please try again.");
     } finally {
       setSubmitting(false);
@@ -200,7 +156,7 @@ function Console({ seed, onLogout }: { seed?: Overview | null; onLogout: () => v
       <header className="sticky top-0 z-30 backdrop-blur-md bg-[hsl(220_50%_8%)]/90 border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0"><div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: GOLD }}><Network className="h-5 w-5 text-black" /></div><div className="min-w-0"><h1 className="text-base sm:text-lg font-semibold truncate">Execution Mesh</h1><p className="text-[11px] sm:text-xs text-white/40 truncate">Phase 62 · Distributed AI workforce · founder-supervised</p></div></div>
-          <div className="flex items-center gap-2"><button onClick={runTick} disabled={running} className="text-xs px-3 py-2 rounded-lg flex items-center gap-1.5 font-semibold disabled:opacity-50" style={{ background: GOLD, color: "#000" }}><RefreshCw className={`h-3.5 w-3.5 ${running ? "animate-spin" : ""}`} /> {running ? "Ticking…" : "Run tick"}</button><button onClick={() => { clearStoredAuth(); onLogout(); }} className="text-xs px-3 py-2 rounded-lg border border-white/10">Sign out</button></div>
+          <div className="flex items-center gap-2"><button onClick={runTick} disabled={running} className="text-xs px-3 py-2 rounded-lg flex items-center gap-1.5 font-semibold disabled:opacity-50" style={{ background: GOLD, color: "#000" }}><RefreshCw className={`h-3.5 w-3.5 ${running ? "animate-spin" : ""}`} /> {running ? "Ticking…" : "Run tick"}</button><button onClick={() => { void fetch("/api/dashboard/logout", { method: "POST", credentials: "include" }).finally(onLogout); }} className="text-xs px-3 py-2 rounded-lg border border-white/10">Sign out</button></div>
         </div>
         <div className="max-w-7xl mx-auto px-4 pb-3"><div className="flex items-start gap-2 text-[11px] text-white/50 bg-[#F4A62A]/5 border border-[#F4A62A]/20 rounded-lg px-3 py-2"><Shield className="h-3.5 w-3.5 mt-0.5 shrink-0" style={{ color: GOLD }} /><span>Workers operate under Phase 60 governance. They analyse, recommend, synthesize and queue safe work only.</span></div></div>
         <div className="max-w-7xl mx-auto px-4 pb-3 flex gap-1 overflow-x-auto">{(["overview", "agents", "missions", "topology"] as const).map((item) => <button key={item} onClick={() => setTab(item)} className={`text-xs px-3 py-1.5 rounded-full whitespace-nowrap transition ${tab === item ? "bg-[#F4A62A] text-black font-semibold" : "border border-white/10 text-white/60 hover:border-white/30"}`}>{item}</button>)}</div>
@@ -219,10 +175,19 @@ function Console({ seed, onLogout }: { seed?: Overview | null; onLogout: () => v
 
 export default function ExecutionMesh() {
   const [seed, setSeed] = useState<Overview | null>(null);
-  const [authed, setAuthed] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    try { return window.sessionStorage.getItem(AUTH_FLAG) === "true" && !!window.sessionStorage.getItem(MESH_PIN); } catch { return false; }
-  });
+  const [authed, setAuthed] = useState<boolean | null>(null);
+  useEffect(() => {
+    protectedFetch("/api/admin/mesh/overview")
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Unauthorized");
+        setSeed(await response.json());
+        setAuthed(true);
+      })
+      .catch(() => setAuthed(false));
+  }, []);
+  if (authed === null) {
+    return <div className="min-h-screen flex items-center justify-center text-white" style={{ background: BG }}><Loader2 className="h-6 w-6 animate-spin" aria-label="Checking dashboard session" /></div>;
+  }
   if (!authed) return <PinGate onAuth={(overview) => { setSeed(overview || null); setAuthed(true); }} />;
   return <Console seed={seed} onLogout={() => { setSeed(null); setAuthed(false); }} />;
 }

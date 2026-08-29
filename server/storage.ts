@@ -194,6 +194,7 @@ export interface IStorage {
   ensureAiCredits(userId: string, monthlyAllotment: number): Promise<AiCredits>;
   getAiCredits(userId: string): Promise<AiCredits | undefined>;
   consumeAiCredit(userId: string, cost: number): Promise<AiCredits | null>;
+  refundAiCredit(userId: string, cost: number): Promise<void>;
   setAiCreditAllotment(userId: string, monthlyAllotment: number, resetBalance: boolean): Promise<AiCredits>;
   listAiCreditAccounts(dueBefore?: Date): Promise<AiCredits[]>;
   setPremiumFeatures(userId: string, featureKeys: string[], source: string): Promise<void>;
@@ -256,7 +257,8 @@ export interface IStorage {
   // Phase 72.4R — Search Console snapshots
   /** Returns null when another 'running' sync holds the DB-enforced single-run slot. */
   createGscSyncRun(input: { source: string; daysRequested: number | null }): Promise<number | null>;
-  finishGscSyncRun(id: number, patch: GscSyncRunPatch): Promise<void>;
+  /** Compare-and-set completion: false means a stale/reaped run may not overwrite its terminal status. */
+  finishGscSyncRun(id: number, patch: GscSyncRunPatch): Promise<boolean>;
   hasActiveGscSyncRun(): Promise<boolean>;
   upsertGscQueryRows(rows: GscQueryUpsertRow[]): Promise<number>;
   upsertGscPageRows(rows: GscPageUpsertRow[]): Promise<number>;
@@ -342,6 +344,7 @@ export interface IStorage {
   seedDefaultConsultations(): Promise<void>;
   // Phase 36 — Bookings
   createBooking(data: InsertBooking): Promise<Booking>;
+  createBookingIdempotent(data: InsertBooking): Promise<{ booking: Booking; existing: boolean }>;
   getAllBookings(limit?: number): Promise<(Booking & { consultationTitle?: string })[]>;
   updateBookingStatus(id: number, status: string): Promise<Booking | undefined>;
   deleteBooking(id: number): Promise<void>;
@@ -349,7 +352,10 @@ export interface IStorage {
   createOrder(data: any): Promise<Order>;
   getOrderById(id: number): Promise<Order | undefined>;
   getOrderByStripeSession(stripeSessionId: string): Promise<Order | undefined>;
+  getOrderByStripePaymentIntent(stripePaymentIntentId: string): Promise<Order | undefined>;
   updateOrderStatus(stripeSessionId: string, status: string, extra?: any): Promise<Order | undefined>;
+  reconcileOneTimeOrderCompletion(stripeSessionId: string, fullyRefunded: boolean, extra: any): Promise<Order | undefined>;
+  refundOrderByPaymentIntent(stripePaymentIntentId: string): Promise<Order | undefined>;
   getAllOrders(limit?: number): Promise<Order[]>;
   getOrdersSince(since: Date): Promise<Order[]>;
   getOrderStats(): Promise<{ total: number; paid: number; revenue: number; abandoned: number }>;
@@ -891,6 +897,13 @@ export class DatabaseStorage implements IStorage {
     return row ?? null;
   }
 
+  async refundAiCredit(userId: string, cost: number): Promise<void> {
+    if (!Number.isInteger(cost) || cost <= 0) return;
+    await db.update(aiCredits)
+      .set({ balance: sql`${aiCredits.balance} + ${cost}`, updatedAt: new Date() })
+      .where(eq(aiCredits.userId, userId));
+  }
+
   async setAiCreditAllotment(userId: string, monthlyAllotment: number, resetBalance: boolean): Promise<AiCredits> {
     await this.ensureAiCredits(userId, monthlyAllotment);
     const set: any = { monthlyAllotment, updatedAt: new Date() };
@@ -1236,10 +1249,16 @@ export class DatabaseStorage implements IStorage {
   // ── Phase 72.2 — Strategy Session funnel analytics ─────────────────────────
 
   async recordFunnelEvent(input: FunnelAnalyticsRequest): Promise<void> {
+    // Never turn empty or storage-blocked anonymous identifiers into a shared
+    // journey.  NULL intentionally makes each event a separate anonymous row.
+    const anonymousId = (value: string | undefined) => {
+      const id = value?.trim();
+      return id && id !== "anon" ? id : null;
+    };
     await db.insert(strategyFunnelEvents).values({
       eventName: input.event,
-      sessionId: input.sessionId ?? null,
-      visitorId: input.visitorId ?? null,
+      sessionId: anonymousId(input.sessionId),
+      visitorId: anonymousId(input.visitorId),
       page: input.page ?? null,
       referrer: input.referrer ?? null,
       source: input.source ?? null,
@@ -1508,6 +1527,10 @@ export class DatabaseStorage implements IStorage {
   // dedupe key; the partial unique index makes duplicate inserts no-ops so a
   // retried Stripe webhook can never double-count revenue.
   async recordRevenueIntelEvent(input: RevenueAnalyticsRequest): Promise<{ inserted: boolean }> {
+    const anonymousId = (value: string | undefined) => {
+      const id = value?.trim();
+      return id && id !== "anon" ? id : null;
+    };
     const dedupeKey =
       input.dedupeKey ??
       (input.stripeSessionId && (input.event === "payment_completed" || input.event === "subscription_started")
@@ -1519,8 +1542,8 @@ export class DatabaseStorage implements IStorage {
       amountCents: input.amountCents ?? 0,
       currency: (input.currency ?? "USD").toUpperCase(),
       ...(input.occurredAt ? { occurredAt: new Date(input.occurredAt) } : {}),
-      visitorId: input.visitorId ?? null,
-      sessionId: input.sessionId ?? null,
+      visitorId: anonymousId(input.visitorId),
+      sessionId: anonymousId(input.sessionId),
       userId: input.userId ?? null,
       leadId: input.leadId ?? null,
       orderId: input.orderId ?? null,
@@ -2143,8 +2166,10 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async finishGscSyncRun(id: number, patch: GscSyncRunPatch): Promise<void> {
-    await db.update(gscSyncRuns).set({
+  async finishGscSyncRun(id: number, patch: GscSyncRunPatch): Promise<boolean> {
+    // A watchdog can reap a crashed run while its old worker is still alive.
+    // Only the holder of a still-running row may publish a terminal result.
+    const rows = await db.update(gscSyncRuns).set({
       status: patch.status,
       finishedAt: new Date(),
       startDate: patch.startDate ?? null,
@@ -2155,7 +2180,9 @@ export class DatabaseStorage implements IStorage {
       queryPageRows: patch.queryPageRows ?? 0,
       errorText: patch.errorText ?? null,
       detail: patch.detail ?? null,
-    }).where(eq(gscSyncRuns.id, id));
+    }).where(and(eq(gscSyncRuns.id, id), eq(gscSyncRuns.status, "running")))
+      .returning({ id: gscSyncRuns.id });
+    return rows.length === 1;
   }
 
   async hasActiveGscSyncRun(): Promise<boolean> {
@@ -2276,7 +2303,9 @@ export class DatabaseStorage implements IStorage {
   async getSearchConsoleStatusData(): Promise<SearchConsoleStatusData> {
     const recent = await db.select().from(gscSyncRuns).orderBy(desc(gscSyncRuns.startedAt)).limit(10);
     const lastSuccessRows = await db.select().from(gscSyncRuns)
-      .where(sql`${gscSyncRuns.status} IN ('success', 'partial')`)
+      // PARTIAL imports are explicitly not a data anchor.  A complete,
+      // successful snapshot is the only trustworthy dashboard baseline.
+      .where(eq(gscSyncRuns.status, "success"))
       .orderBy(desc(gscSyncRuns.startedAt)).limit(1);
     const countsRes = await db.execute(sql`
       SELECT
@@ -2296,20 +2325,30 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
+  /** A complete run is the sole analytics anchor; partial/error rows never move dashboard windows. */
+  private async getSuccessfulGscEndDate(): Promise<string | null> {
+    const rows = await db.select({ endDate: gscSyncRuns.endDate }).from(gscSyncRuns)
+      .where(and(eq(gscSyncRuns.status, "success"), sql`${gscSyncRuns.endDate} IS NOT NULL`))
+      .orderBy(desc(gscSyncRuns.startedAt)).limit(1);
+    return rows[0]?.endDate ?? null;
+  }
+
   async getGscWindowTotals(windowDays: number): Promise<{ current: GscWindowTotals; previous: GscWindowTotals; windowDays: number } | null> {
     const win = clampWindowDays(windowDays);
+    const endDate = await this.getSuccessfulGscEndDate();
+    if (!endDate) return null;
     // win is a clamped internal integer (closed constant) — safe to inline;
     // avoids the parameterized-GROUP-BY expression mismatch trap.
     const W = sql.raw(String(win));
     const W2 = sql.raw(String(win * 2));
     const res = await db.execute(sql`
       SELECT
-        CASE WHEN "date" >= CURRENT_DATE - ${W} THEN 'current' ELSE 'previous' END AS period,
+        CASE WHEN "date" > ${endDate}::date - ${W} THEN 'current' ELSE 'previous' END AS period,
         COALESCE(SUM(clicks), 0)::int AS clicks,
         COALESCE(SUM(impressions), 0)::int AS impressions,
         CASE WHEN SUM(impressions) > 0 THEN SUM("position" * impressions) / SUM(impressions) END AS avg_pos
       FROM gsc_query_daily
-      WHERE "date" >= CURRENT_DATE - ${W2}
+        WHERE "date" > ${endDate}::date - ${W2} AND "date" <= ${endDate}::date
       GROUP BY 1
     `);
     const rows = res.rows as Array<{ period: string; clicks: number; impressions: number; avg_pos: number | null }>;
@@ -2330,6 +2369,8 @@ export class DatabaseStorage implements IStorage {
 
   async getQueryIntelligence(windowDays: number): Promise<QueryIntelligence | null> {
     const win = clampWindowDays(windowDays);
+    const endDate = await this.getSuccessfulGscEndDate();
+    if (!endDate) return null;
     const W = sql.raw(String(win));
     const W2 = sql.raw(String(win * 2));
     const res = await db.execute(sql`
@@ -2337,13 +2378,13 @@ export class DatabaseStorage implements IStorage {
         SELECT "query", SUM(clicks)::int AS clicks, SUM(impressions)::int AS impressions,
                CASE WHEN SUM(impressions) > 0 THEN SUM("position" * impressions) / SUM(impressions) END AS avg_pos
         FROM gsc_query_daily
-        WHERE "date" >= CURRENT_DATE - ${W}
+        WHERE "date" > ${endDate}::date - ${W} AND "date" <= ${endDate}::date
         GROUP BY "query"
       ),
       prev AS (
         SELECT "query", SUM(clicks)::int AS clicks, SUM(impressions)::int AS impressions
         FROM gsc_query_daily
-        WHERE "date" >= CURRENT_DATE - ${W2} AND "date" < CURRENT_DATE - ${W}
+        WHERE "date" > ${endDate}::date - ${W2} AND "date" <= ${endDate}::date - ${W}
         GROUP BY "query"
       )
       SELECT COALESCE(c."query", p."query") AS query,
@@ -2447,6 +2488,8 @@ export class DatabaseStorage implements IStorage {
 
   async getLandingPageIntelligence(windowDays: number): Promise<LandingPageIntelligence | null> {
     const win = clampWindowDays(windowDays);
+    const endDate = await this.getSuccessfulGscEndDate();
+    if (!endDate) return null;
     const W = sql.raw(String(win));
     const W2 = sql.raw(String(win * 2));
     // Closed internal constants only — never user input (sql.raw rule).
@@ -2457,13 +2500,13 @@ export class DatabaseStorage implements IStorage {
         SELECT page, SUM(clicks)::int AS clicks, SUM(impressions)::int AS impressions,
                CASE WHEN SUM(impressions) > 0 THEN SUM("position" * impressions) / SUM(impressions) END AS avg_pos
         FROM gsc_page_daily
-        WHERE "date" >= CURRENT_DATE - ${W}
+        WHERE "date" > ${endDate}::date - ${W} AND "date" <= ${endDate}::date
         GROUP BY page
       ),
       prev AS (
         SELECT page, SUM(clicks)::int AS clicks, SUM(impressions)::int AS impressions
         FROM gsc_page_daily
-        WHERE "date" >= CURRENT_DATE - ${W2} AND "date" < CURRENT_DATE - ${W}
+        WHERE "date" > ${endDate}::date - ${W2} AND "date" <= ${endDate}::date - ${W}
         GROUP BY page
       ),
       gsc AS (
@@ -3435,18 +3478,49 @@ export class DatabaseStorage implements IStorage {
       { title: "Premium AI Brand Audit", description: "A premium diagnostic across your brand, content, and digital presence. You receive a written report with scores and a prioritized list of the highest-leverage improvements to elevate fast.", duration: 60, price: 19700, currency: "USD", isActive: true, sortOrder: 6 },
       { title: "Founder Growth Strategy Session", description: "A personalized founder growth roadmap built around your strengths — positioning, monetization, and the systems that scale you sustainably without burnout.", duration: 90, price: 24700, currency: "USD", isActive: true, sortOrder: 7 },
     ];
-    const existing = await db.select({ title: consultations.title }).from(consultations);
-    const existingTitles = new Set(existing.map((c) => c.title));
-    const missing = defaults.filter((d) => !existingTitles.has(d.title));
-    if (missing.length > 0) {
-      await db.insert(consultations).values(missing);
-    }
+    await db.transaction(async (tx) => {
+      // Serialize bootstrap across horizontally scaled instances without
+      // requiring a production schema migration.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('seed-default-consultations'))`);
+      const existing = await tx.select({ title: consultations.title }).from(consultations);
+      const existingTitles = new Set(existing.map((c) => c.title));
+      const missing = defaults.filter((d) => !existingTitles.has(d.title));
+      if (missing.length > 0) await tx.insert(consultations).values(missing);
+    });
   }
 
   // Phase 36 — Bookings
   async createBooking(data: InsertBooking): Promise<Booking> {
     const [row] = await db.insert(bookings).values(data).returning();
     return row;
+  }
+
+  async createBookingIdempotent(data: InsertBooking): Promise<{ booking: Booking; existing: boolean }> {
+    const identity = [
+      data.clientEmail.trim().toLowerCase(),
+      data.sessionId ?? "",
+      data.consultationId ?? "",
+      data.preferredDate?.trim() ?? "",
+    ].join("|");
+    return db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${identity}))`);
+      const conditions = [
+        eq(sql`lower(${bookings.clientEmail})`, data.clientEmail.trim().toLowerCase()),
+        data.sessionId ? eq(bookings.sessionId, data.sessionId) : isNull(bookings.sessionId),
+        data.consultationId ? eq(bookings.consultationId, data.consultationId) : isNull(bookings.consultationId),
+        data.preferredDate ? eq(bookings.preferredDate, data.preferredDate) : isNull(bookings.preferredDate),
+        gte(bookings.createdAt, new Date(Date.now() - 10 * 60 * 1000)),
+      ];
+      const [existing] = await tx
+        .select()
+        .from(bookings)
+        .where(and(...conditions))
+        .orderBy(desc(bookings.createdAt))
+        .limit(1);
+      if (existing) return { booking: existing, existing: true };
+      const [booking] = await tx.insert(bookings).values(data).returning();
+      return { booking, existing: false };
+    });
   }
 
   async getAllBookings(limit = 500): Promise<(Booking & { consultationTitle?: string })[]> {
@@ -3498,6 +3572,11 @@ export class DatabaseStorage implements IStorage {
     return row;
   }
 
+  async getOrderByStripePaymentIntent(stripePaymentIntentId: string): Promise<Order | undefined> {
+    const [row] = await db.select().from(orders).where(eq(orders.stripePaymentIntentId, stripePaymentIntentId));
+    return row;
+  }
+
   async updateOrderStatus(stripeSessionId: string, status: string, extra?: Partial<{
     stripePaymentIntentId: string;
     amountPaid: number;
@@ -3509,6 +3588,84 @@ export class DatabaseStorage implements IStorage {
       .where(eq(orders.stripeSessionId, stripeSessionId))
       .returning();
     return row;
+  }
+
+  async reconcileOneTimeOrderCompletion(
+    stripeSessionId: string,
+    fullyRefunded: boolean,
+    extra: Partial<{
+      stripePaymentIntentId: string;
+      amountPaid: number;
+      customerName: string;
+      customerEmail: string;
+    }>,
+  ): Promise<Order | undefined> {
+    return db.transaction(async (tx) => {
+      // Serialize completion/refund transitions for this order. The
+      // authoritative provider read is passed in so a refund that arrived
+      // before the payment-intent link existed still wins.
+      await tx.execute(sql`
+        SELECT id FROM orders
+        WHERE stripe_session_id = ${stripeSessionId}
+        FOR UPDATE
+      `);
+      const [current] = await tx
+        .select()
+        .from(orders)
+        .where(eq(orders.stripeSessionId, stripeSessionId));
+      if (!current) return undefined;
+
+      const refundWins = fullyRefunded || current.status === "refunded";
+      const isMarketplace = Boolean(
+        current.metadata &&
+        typeof current.metadata === "object" &&
+        (current.metadata as Record<string, unknown>).marketplaceSlug,
+      );
+      const [row] = await tx
+        .update(orders)
+        .set({
+          ...extra,
+          status: refundWins ? "refunded" : "paid",
+          fulfillmentStatus: isMarketplace
+            ? (refundWins ? "revoked" : "delivered")
+            : current.fulfillmentStatus,
+          updatedAt: new Date(),
+        })
+        .where(eq(orders.id, current.id))
+        .returning();
+      return row;
+    });
+  }
+
+  async refundOrderByPaymentIntent(stripePaymentIntentId: string): Promise<Order | undefined> {
+    return db.transaction(async (tx) => {
+      await tx.execute(sql`
+        SELECT id FROM orders
+        WHERE stripe_payment_intent_id = ${stripePaymentIntentId}
+        FOR UPDATE
+      `);
+      const [current] = await tx
+        .select()
+        .from(orders)
+        .where(eq(orders.stripePaymentIntentId, stripePaymentIntentId));
+      if (!current) return undefined;
+
+      const isMarketplace = Boolean(
+        current.metadata &&
+        typeof current.metadata === "object" &&
+        (current.metadata as Record<string, unknown>).marketplaceSlug,
+      );
+      const [row] = await tx
+        .update(orders)
+        .set({
+          status: "refunded",
+          fulfillmentStatus: isMarketplace ? "revoked" : current.fulfillmentStatus,
+          updatedAt: new Date(),
+        })
+        .where(eq(orders.id, current.id))
+        .returning();
+      return row;
+    });
   }
 
   async getAllOrders(limit = 1000): Promise<Order[]> {

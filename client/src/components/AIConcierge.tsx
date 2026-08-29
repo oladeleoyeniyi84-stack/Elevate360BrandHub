@@ -17,7 +17,7 @@ interface Message {
 
 type RecommendedAction =
   | { type: "booking"; consultationId: number; title: string; price: number; currency: string; ctaText: string; confidence: number }
-  | { type: "offer"; priceId: string; name: string; amount: number; currency: string; ctaText: string; confidence: number }
+  | { type: "offer"; offerId: string; name: string; amount: number; currency: string; ctaText: string; confidence: number }
   | { type: "book_session"; ctaText: string; confidence: number };
 
 interface ChatResponse {
@@ -26,7 +26,15 @@ interface ChatResponse {
 }
 
 function generateSessionId(): string {
-  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
+    return Array.from(crypto.getRandomValues(new Uint32Array(4)), (n) => n.toString(36)).join("");
+  }
+  // Very old browser fallback. Server-side HMAC namespacing still prevents a
+  // guessed identifier from crossing cookie sessions.
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
 function getOrCreateSessionId(): string {
@@ -70,6 +78,8 @@ export function AIConcierge() {
   const [outOfCredits, setOutOfCredits] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const launcherRef = useRef<HTMLButtonElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
 
   const queryClient = useQueryClient();
   const { isAuthenticated } = useCustomer();
@@ -109,6 +119,18 @@ export function AIConcierge() {
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [open, messages]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        returnFocusRef.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open]);
 
   // Listen for external mode changes from session card clicks
   useEffect(() => {
@@ -220,9 +242,7 @@ export function AIConcierge() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            priceId: a.priceId,
-            productName: a.name,
-            amount: a.amount,
+            offerId: a.offerId,
             sessionId,
             ...(leadEmail && { customerEmail: leadEmail }),
           }),
@@ -268,10 +288,16 @@ export function AIConcierge() {
     <>
       {/* Floating launcher — creator avatar */}
       <button
+          ref={launcherRef}
         data-testid="button-ai-concierge-launcher"
-        onClick={() => setOpen((v) => !v)}
-        aria-label="Open Elevate360 AI Concierge"
-        className="fixed bottom-6 right-6 z-50 e360-float e360-drawer-hide transition-all duration-300 hover:scale-105 active:scale-95"
+          onClick={() => {
+            if (!open) returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : launcherRef.current;
+            setOpen((v) => !v);
+          }}
+          aria-label={open ? "Close Elevate360 AI Concierge" : "Open Elevate360 AI Concierge"}
+          aria-expanded={open}
+          aria-controls="ai-concierge-dialog"
+          className="fixed bottom-6 right-6 z-50 e360-float e360-drawer-hide min-w-14 min-h-14 transition-all duration-300 hover:scale-105 active:scale-95"
         style={{ filter: "drop-shadow(0 8px 24px rgba(244,166,42,0.45))" }}
       >
         {open ? (
@@ -285,19 +311,23 @@ export function AIConcierge() {
 
       {/* Chat panel */}
       <div
+          id="ai-concierge-dialog"
+          role="dialog"
+          aria-modal="false"
+          aria-label="Elevate360 AI Concierge"
         className={`fixed bottom-24 right-6 z-50 e360-float-panel e360-drawer-hide w-[90vw] max-w-sm transition-all duration-300 ${
           open ? "opacity-100 translate-y-0 pointer-events-auto" : "opacity-0 translate-y-4 pointer-events-none"
         }`}
       >
         <div
           className="rounded-3xl overflow-hidden shadow-[0_32px_80px_rgba(0,0,0,0.55)] border border-white/10 flex flex-col"
-          style={{ maxHeight: "72vh", background: "hsl(220 50% 10%)" }}
+          style={{ maxHeight: "min(72dvh, calc(100dvh - 11rem - env(safe-area-inset-bottom, 0px)))", background: "hsl(220 50% 10%)" }}
         >
           {/* Founder-presence header */}
           <ConciergePresenceHeader mode={mode} live={isLive} speaking={speaking} />
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 scrollbar-thin">
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 scrollbar-thin" aria-live="polite" aria-relevant="additions text">
             {messages.map((msg, i) => (
               <div
                 key={i}
@@ -336,7 +366,9 @@ export function AIConcierge() {
                   I'd love to keep you updated on Elevate360 news and releases. Drop your name and email below!
                 </p>
                 <form onSubmit={handleLeadSubmit} className="space-y-2">
+                  <label className="sr-only" htmlFor="concierge-lead-name">Your name</label>
                   <input
+                    id="concierge-lead-name"
                     data-testid="input-lead-name"
                     type="text"
                     placeholder="Your name"
@@ -345,7 +377,9 @@ export function AIConcierge() {
                     required
                     className="w-full rounded-xl px-3 py-2 text-sm bg-white/8 border border-white/10 text-white placeholder-white/30 focus:outline-none focus:border-[#F4A62A]/50"
                   />
+                  <label className="sr-only" htmlFor="concierge-lead-email">Your email address</label>
                   <input
+                    id="concierge-lead-email"
                     data-testid="input-lead-email"
                     type="email"
                     placeholder="your@email.com"
@@ -479,7 +513,9 @@ export function AIConcierge() {
 
           {/* Input */}
           <form onSubmit={handleSubmit} className="flex items-center gap-2 px-4 py-3 border-t border-white/10">
+            <label className="sr-only" htmlFor="concierge-message">Message the Elevate360 AI Concierge</label>
             <input
+              id="concierge-message"
               ref={inputRef}
               data-testid="input-chat-message"
               type="text"
@@ -494,7 +530,7 @@ export function AIConcierge() {
               data-testid="button-chat-send"
               aria-label="Send message"
               disabled={!input.trim() || chatMutation.isPending}
-              className="w-9 h-9 rounded-full bg-[#F4A62A] flex items-center justify-center text-black disabled:opacity-40 hover:bg-[#ffb84d] transition flex-shrink-0"
+              className="w-11 h-11 rounded-full bg-[#F4A62A] flex items-center justify-center text-black disabled:opacity-40 hover:bg-[#ffb84d] transition flex-shrink-0"
             >
               <Send className="h-4 w-4" />
             </button>

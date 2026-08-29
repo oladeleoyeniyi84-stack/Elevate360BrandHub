@@ -81,9 +81,11 @@ function byImpressionsDesc(m: Map<string, QueryWindowRow>): Array<[string, Query
   return Array.from(m.entries()).sort((a, b) => b[1].impressions - a[1].impressions);
 }
 
-async function latestStoredDate(): Promise<string | null> {
-  const r = await db.execute(sql`SELECT MAX(date)::text AS max_date FROM gsc_query_daily`);
-  return (r.rows[0] as { max_date: string | null } | undefined)?.max_date ?? null;
+async function latestSuccessfulDate(): Promise<string | null> {
+  const [run] = await db.select({ endDate: gscSyncRuns.endDate }).from(gscSyncRuns)
+    .where(and(eq(gscSyncRuns.status, "success"), sql`${gscSyncRuns.endDate} IS NOT NULL`))
+    .orderBy(desc(gscSyncRuns.startedAt)).limit(1);
+  return run?.endDate ?? null;
 }
 
 /** Aggregate per-query metrics for [end-days+1 .. end] (inclusive, ISO dates). */
@@ -160,12 +162,21 @@ export async function generateSearchGrowthActions(trigger: { reason: "manual_syn
   if (!latestSuccess) {
     // ALL generation is gated on a successful sync — with none, nothing runs
     // (a newer partial/error import can never drive recommendations).
+    await storage.createAutomationJobLog({
+      jobKey: "phase72_5_action_generation",
+      status: "skipped",
+      summary: `${trigger.reason}: 0 candidates — no successful GSC sync run`,
+      meta: { trigger: trigger.reason, generated: 0, updated: 0, superseded: 0, syncRunId: null } as any,
+      finishedAt: new Date(),
+    }).catch(() => {});
     return { generated: 0, updated: 0, superseded: 0, skippedReason: "no successful GSC sync run — generation skipped" };
   }
   // Anchor every GSC window on the SUCCESSFUL run's own end date. Rows written
   // by a newer partial/error import carry later dates and therefore fall
   // outside these windows — they cannot influence generation.
-  const endDate = latestSuccess.endDate ?? (await latestStoredDate());
+  // A success without an explicit covered window is not a safe anchor.  Do not
+  // fall back to MAX(date), which could be a newer partial/error import.
+  const endDate = latestSuccess.endDate;
 
   const candidates: ActionCandidate[] = [];
   const syncRef = `gsc_sync_run:${latestSuccess.id}`;
@@ -437,7 +448,7 @@ export async function generateSearchGrowthActions(trigger: { reason: "manual_syn
   await storage.createAutomationJobLog({
     jobKey: "phase72_5_action_generation",
     status: "succeeded",
-    summary: `${trigger.reason}: ${generated} new, ${updated} refreshed, ${superseded} superseded`,
+    summary: `${trigger.reason}: ${candidates.length} candidates, ${generated} new, ${updated} refreshed, ${superseded} superseded`,
     meta: { trigger: trigger.reason, generated, updated, superseded, syncRunId: latestSuccess?.id ?? null } as any,
     finishedAt: new Date(),
   }).catch(() => {});
@@ -487,7 +498,7 @@ export async function transitionSearchGrowthAction(
     // Baseline = the 28 stored days BEFORE completion; measurement window
     // opens at completion. resultMetrics stays null until enough post data
     // exists (computed lazily, then persisted).
-    const endDate = await latestStoredDate();
+    const endDate = await latestSuccessfulDate();
     if (endDate) {
       patch.measurementStart = now.toISOString().slice(0, 10);
       patch.baselineMetrics = await captureMetrics(action, endDate, 28);
@@ -552,7 +563,10 @@ function classifyOutcome(baseline: any, result: any): "improved" | "declined" | 
 
 /** Lazily compute resultMetrics for completed actions once a full equivalent window of post-completion data exists. */
 export async function measureCompletedActions(): Promise<number> {
-  const endDate = await latestStoredDate();
+  const [latestSuccess] = await db.select({ endDate: gscSyncRuns.endDate }).from(gscSyncRuns)
+    .where(and(eq(gscSyncRuns.status, "success"), sql`${gscSyncRuns.endDate} IS NOT NULL`))
+    .orderBy(desc(gscSyncRuns.startedAt)).limit(1);
+  const endDate = latestSuccess?.endDate ?? null;
   if (!endDate) return 0;
   const pending = await db.select().from(searchGrowthActions).where(and(
     eq(searchGrowthActions.status, "completed"),
@@ -626,7 +640,7 @@ export async function getSearchGrowthSummary(): Promise<SearchGrowthSummary> {
     FROM search_growth_actions`);
   const c = countsRes.rows[0] as any;
 
-  const endDate = await latestStoredDate();
+  const endDate = await latestSuccessfulDate();
   let impressionsChangePct: number | null = null, clicksChangePct: number | null = null;
   if (endDate) {
     const r = await db.execute(sql`

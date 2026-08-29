@@ -13,6 +13,7 @@ export const AUTO_FOLLOWUP_DEFAULTS = {
 let lastRunAt: Date | null = null;
 let lastRunResult: { sent: number; skipped: number; errors: number } | null = null;
 let engineInterval: NodeJS.Timeout | null = null;
+let initialRunTimer: NodeJS.Timeout | null = null;
 
 export function getEngineStatus() {
   return {
@@ -111,8 +112,18 @@ export async function startFollowupEngine(): Promise<void> {
   engineInterval = setInterval(() => {
     runFollowupCycle().catch((e) => console.error("[followupEngine] cycle error:", e.message));
   }, hours * 60 * 60 * 1000);
+  engineInterval.unref();
 
-  setTimeout(() => {
+  initialRunTimer = setTimeout(() => {
+    initialRunTimer = null;
     runFollowupCycle().catch((e) => console.error("[followupEngine] initial cycle error:", e.message));
   }, 45_000);
+  initialRunTimer.unref();
+}
+
+export function stopFollowupEngine(): void {
+  if (engineInterval) clearInterval(engineInterval);
+  if (initialRunTimer) clearTimeout(initialRunTimer);
+  engineInterval = null;
+  initialRunTimer = null;
 }

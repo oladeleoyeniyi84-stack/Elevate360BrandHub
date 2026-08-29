@@ -108,3 +108,8 @@ export async function consumeCredits(userId: string, cost: number): Promise<numb
   const row = await storage.consumeAiCredit(userId, cost);
   return row ? row.balance : null;
 }
+
+/** Compensates a reserved credit only when no provider response was produced. */
+export async function refundCredits(userId: string, cost: number): Promise<void> {
+  await storage.refundAiCredit(userId, cost);
+}

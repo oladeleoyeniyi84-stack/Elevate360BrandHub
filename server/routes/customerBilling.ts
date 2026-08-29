@@ -34,6 +34,7 @@ import {
   applyTierWithGrant,
   featureCatalog,
 } from "../billing/premiumService";
+import { rateLimit } from "../routes";
 
 export const customerBillingRouter = Router();
 
@@ -72,8 +73,27 @@ function publicUser(u: { id: string; email: string | null; premiumTier: string }
   return { id: u.id, email: u.email, premiumTier: u.premiumTier };
 }
 
+function establishCustomerSession(req: any, res: any, user: { id: string; email: string | null; premiumTier: string }, status: number) {
+  const dashboardAuthed = (req.session as any)?.dashboardAuthed === true;
+  req.session.regenerate((regenerateError: unknown) => {
+    if (regenerateError) {
+      console.error("[customer-auth] session regeneration failed");
+      return res.status(500).json({ message: "Session error" });
+    }
+    req.session.customerId = user.id;
+    if (dashboardAuthed) (req.session as any).dashboardAuthed = true;
+    req.session.save((saveError: unknown) => {
+      if (saveError) {
+        console.error("[customer-auth] session save failed");
+        return res.status(500).json({ message: "Session error" });
+      }
+      return res.status(status).json({ user: publicUser(user) });
+    });
+  });
+}
+
 // ─── Auth ───────────────────────────────────────────────────────────────────
-customerBillingRouter.post("/api/auth/signup", async (req, res) => {
+customerBillingRouter.post("/api/auth/signup", rateLimit(5, 60 * 60), async (req, res) => {
   const parsed = customerSignupSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(422).json({ message: parsed.error.errors[0]?.message ?? "Invalid input" });
@@ -86,20 +106,10 @@ customerBillingRouter.post("/api/auth/signup", async (req, res) => {
   const user = await storage.createCustomer(email, passwordHash);
   await storage.ensureAiCredits(user.id, PLANS.free.monthlyCredits);
 
-  // Direct session save (no regenerate) — mirrors founder auth, which persists
-  // reliably in production. A regenerate() DELETE on the session store was the
-  // prod-only failure that returned "Session error".
-  (req.session as any).customerId = user.id;
-  req.session.save((err: any) => {
-    if (err) {
-      console.error("[customer-auth] session save failed (signup)", err?.message || err);
-      return res.status(500).json({ message: "Session error" });
-    }
-    return res.status(201).json({ user: publicUser(user) });
-  });
+  return establishCustomerSession(req, res, user, 201);
 });
 
-customerBillingRouter.post("/api/auth/login", async (req, res) => {
+customerBillingRouter.post("/api/auth/login", rateLimit(10, 15 * 60), async (req, res) => {
   const parsed = customerLoginSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(422).json({ message: parsed.error.errors[0]?.message ?? "Invalid input" });
@@ -108,21 +118,20 @@ customerBillingRouter.post("/api/auth/login", async (req, res) => {
   const ok = user && (await verifyPassword(parsed.data.password, user.passwordHash));
   if (!user || !ok) return res.status(401).json({ message: "Invalid email or password" });
 
-  // Direct session save (no regenerate) — see signup for rationale.
-  (req.session as any).customerId = user.id;
-  req.session.save((err: any) => {
-    if (err) {
-      console.error("[customer-auth] session save failed (login)", err?.message || err);
-      return res.status(500).json({ message: "Session error" });
-    }
-    return res.status(200).json({ user: publicUser(user) });
-  });
+  return establishCustomerSession(req, res, user, 200);
 });
 
 customerBillingRouter.post("/api/auth/logout", (req, res) => {
-  // Only clear the customer identity; preserve any founder dashboard auth.
-  if (req.session) (req.session as any).customerId = undefined;
-  req.session?.save(() => res.json({ ok: true }));
+  // Rotate the identifier while clearing only the customer principal.
+  const dashboardAuthed = (req.session as any)?.dashboardAuthed === true;
+  req.session.regenerate((error) => {
+    if (error) return res.status(500).json({ message: "Could not end customer session." });
+    if (dashboardAuthed) (req.session as any).dashboardAuthed = true;
+    req.session.save((saveError) => {
+      if (saveError) return res.status(500).json({ message: "Could not end customer session." });
+      res.json({ ok: true });
+    });
+  });
 });
 
 customerBillingRouter.get("/api/auth/me", async (req, res) => {
@@ -231,11 +240,12 @@ customerBillingRouter.post("/api/billing/portal", requireCustomerAuth, async (re
 
 // Resolve the internal user id for a Stripe subscription/customer.
 async function resolveUserId(metadataUserId: string | undefined, stripeCustomerId: string | undefined): Promise<string | null> {
-  if (metadataUserId) {
-    const u = await storage.getUser(metadataUserId);
-    if (u) return u.id;
-  }
-  // Fallback: not indexed, but customer id is stable; scan is acceptable at this volume.
+  if (!metadataUserId || !stripeCustomerId) return null;
+  const u = await storage.getUser(metadataUserId);
+  // Stripe metadata is routing context, not ownership authority. A lifecycle
+  // event may affect a user only when its customer matches the durable binding
+  // created by our authenticated checkout.
+  if (u?.stripeCustomerId === stripeCustomerId) return u.id;
   return null;
 }
 
@@ -250,15 +260,29 @@ export async function handleBillingEvent(event: any): Promise<void> {
     const userId = session.metadata?.userId ?? session.client_reference_id ?? undefined;
     const subId = session.subscription;
     if (!userId || !subId || !stripe) return;
+    const ownedUserId = await resolveUserId(
+      userId,
+      typeof session.customer === "string" ? session.customer : session.customer?.id,
+    );
+    if (!ownedUserId) {
+      console.warn(`[billing] checkout ownership mismatch session=${session.id}; skipping`);
+      return;
+    }
     const sub = await stripe.subscriptions.retrieve(subId);
-    await syncSubscription(userId, sub, eventCreated);
+    const subCustomerId = typeof sub.customer === "string" ? sub.customer : sub.customer?.id;
+    if (subCustomerId !== (typeof session.customer === "string" ? session.customer : session.customer?.id)) {
+      console.warn(`[billing] subscription ownership mismatch sub=${subId}; skipping`);
+      return;
+    }
+    await syncSubscription(ownedUserId, sub, eventCreated);
     return;
   }
 
   if (event.type === "customer.subscription.created" ||
       event.type === "customer.subscription.updated") {
     const sub = event.data?.object;
-    const userId = await resolveUserId(sub?.metadata?.userId, sub?.customer);
+    const customerId = typeof sub?.customer === "string" ? sub.customer : sub?.customer?.id;
+    const userId = await resolveUserId(sub?.metadata?.userId, customerId);
     if (!userId) return;
     await syncSubscription(userId, sub, eventCreated);
     return;
@@ -266,7 +290,8 @@ export async function handleBillingEvent(event: any): Promise<void> {
 
   if (event.type === "customer.subscription.deleted") {
     const sub = event.data?.object;
-    const userId = await resolveUserId(sub?.metadata?.userId, sub?.customer);
+    const customerId = typeof sub?.customer === "string" ? sub.customer : sub?.customer?.id;
+    const userId = await resolveUserId(sub?.metadata?.userId, customerId);
     if (!userId) return;
     const canceledTier: TierKey = isValidTier(sub.metadata?.tier) ? sub.metadata.tier : "free";
     // Atomic ordering-enforced write: the staleness decision and the state
@@ -313,14 +338,16 @@ async function applyEntitlementAfterLoss(userId: string, lostSubId: string | und
 
 async function syncSubscription(userId: string, sub: any, eventCreated: Date | null = null, isReconcile = false): Promise<void> {
   const priceId = sub.items?.data?.[0]?.price?.id ?? null;
-  const resolvedTier = tierFromPriceId(priceId) ?? sub.metadata?.tier ?? "starter";
+  // Price configuration is the commercial allowlist. Stripe metadata can help
+  // route an event but can never grant a tier for an unknown/arbitrary price.
+  const resolvedTier = tierFromPriceId(priceId);
 
   // Validate the resolved tier BEFORE any database write. An unknown tier (e.g. an
   // out-of-band Stripe subscription with metadata.tier="elite") is logged and
   // skipped — we never throw (which would 500 the webhook and trigger infinite
   // Stripe retries) and never write a partial subscription row that would leave
   // the user on a tier with no plan/credits/features.
-  if (!isValidTier(resolvedTier)) {
+  if (!resolvedTier || !isValidTier(resolvedTier)) {
     console.warn(
       `[billing] Unknown subscription tier "${resolvedTier}" for user ${userId} (sub ${sub?.id}); skipping sync (no DB write).`,
     );

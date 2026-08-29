@@ -9,6 +9,12 @@ type JobConfig = {
 };
 
 const timers = new Map<string, NodeJS.Timeout>();
+const activeJobKeys = new Set<string>();
+
+function trackTimer(jobKey: string, timer: NodeJS.Timeout): void {
+  timer.unref();
+  timers.set(jobKey, timer);
+}
 
 // Phase 69 — lightweight in-memory run counters for the memory endpoint.
 const runStats = new Map<string, { runs: number; failures: number; lastRunAt: string | null }>();
@@ -19,6 +25,15 @@ function bumpRunStats(jobKey: string, failed: boolean) {
   if (failed) s.failures++;
   s.lastRunAt = new Date().toISOString();
   runStats.set(jobKey, s);
+}
+
+function safeErrorSummary(error: unknown): string {
+  const raw = error instanceof Error ? error.message : "unknown error";
+  return raw
+    .replace(/https?:\/\/\S+/gi, "[url]")
+    .replace(/\b(bearer|api[_-]?key|token|secret|password)\b\s*[:=]?\s*\S+/gi, "$1=[redacted]")
+    .replace(/[\r\n]+/g, " ")
+    .slice(0, 500);
 }
 
 export function getJobRunnerStats(): {
@@ -39,6 +54,7 @@ const MAX_SAFE_DELAY_MS = 60 * 60 * 1000; // 1 hour
 const MIN_DELAY_MS = 1_000; // never sleep less than 1s
 
 export async function registerRecurringJob(config: JobConfig, bootDelayMs = 60_000) {
+  activeJobKeys.add(config.jobKey);
   const cadenceMs = config.cadenceMinutes * 60_000;
 
   // Phase 69 — duplicate-registration guard. Registering the same jobKey twice
@@ -107,13 +123,14 @@ export async function registerRecurringJob(config: JobConfig, bootDelayMs = 60_0
       bumpRunStats(config.jobKey, false);
     } catch (error: any) {
       const now = new Date();
+      const errorSummary = safeErrorSummary(error);
       nextRunAt = Date.now() + cadenceMs;
       const current = await storage.getAutomationJob(config.jobKey).catch(() => null);
       await storage.upsertAutomationJob(config.jobKey, {
         status: "failed",
         lastFinishedAt: now,
         lastFailedAt: now,
-        lastError: error?.message ?? "unknown error",
+        lastError: errorSummary,
         nextRunAt: new Date(nextRunAt),
         runCount: (current?.runCount ?? 0) + 1,
         failureCount: (current?.failureCount ?? 0) + 1,
@@ -122,12 +139,12 @@ export async function registerRecurringJob(config: JobConfig, bootDelayMs = 60_0
       await storage.createAutomationJobLog({
         jobKey: config.jobKey,
         status: "failed",
-        summary: error?.message ?? "unknown error",
-        meta: { stack: error?.stack ?? null } as any,
+        summary: errorSummary,
+        meta: null,
         finishedAt: now,
       });
 
-      console.error(`[jobRunner] ${config.jobKey} failed —`, error?.message);
+      console.error(`[jobRunner] ${config.jobKey} failed — ${errorSummary}`);
       bumpRunStats(config.jobKey, true);
     }
   };
@@ -142,6 +159,7 @@ export async function registerRecurringJob(config: JobConfig, bootDelayMs = 60_0
     // Long-cadence job: poll every hour, run only when actually due.
     // This avoids the 32-bit integer overflow that causes immediate infinite firing.
     const poll = async () => {
+      if (!activeJobKeys.has(config.jobKey)) return;
       const delay = Math.min(Math.max(nextRunAt - Date.now(), MIN_DELAY_MS), MAX_SAFE_DELAY_MS);
 
       const timer = setTimeout(async () => {
@@ -149,31 +167,34 @@ export async function registerRecurringJob(config: JobConfig, bootDelayMs = 60_0
           await invoke();
         }
         // Always re-schedule the next poll regardless
-        poll();
+        if (activeJobKeys.has(config.jobKey)) void poll();
       }, delay);
 
-      timers.set(config.jobKey, timer);
+      trackTimer(config.jobKey, timer);
     };
 
     // First poll uses resolvedNextRun (NOT boot delay override)
     const firstPollDelay = Math.min(initialDelayMs, MAX_SAFE_DELAY_MS);
     const initTimer = setTimeout(() => poll(), firstPollDelay);
-    timers.set(config.jobKey, initTimer);
+    trackTimer(config.jobKey, initTimer);
   } else {
     // Short-cadence job: standard setTimeout tick chain (safe, no overflow risk).
     // Use resolvedNextRun for first delay so stored schedule is respected on restart.
     const firstDelay = Math.min(initialDelayMs, MAX_SAFE_DELAY_MS);
     const timer = setTimeout(async function tick() {
       await invoke();
-      timers.set(config.jobKey, setTimeout(tick, cadenceMs));
+      if (activeJobKeys.has(config.jobKey)) {
+        trackTimer(config.jobKey, setTimeout(tick, cadenceMs));
+      }
     }, firstDelay);
-    timers.set(config.jobKey, timer);
+    trackTimer(config.jobKey, timer);
   }
 
   console.log(`[jobRunner] registered ${config.jobKey} (every ${config.cadenceMinutes}m, first run in ${firstRunLabel})`);
 }
 
 export function stopAllAutomationJobs() {
+  activeJobKeys.clear();
   for (const timer of Array.from(timers.values())) clearTimeout(timer);
   timers.clear();
 }

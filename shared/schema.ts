@@ -214,9 +214,9 @@ export type UserPremiumFeature = typeof userPremiumFeatures.$inferSelect;
 export type StripeProcessedEvent = typeof stripeProcessedEvents.$inferSelect;
 
 export const insertContactMessageSchema = createInsertSchema(contactMessages, {
-  name: z.string().min(1, "Name is required").max(200),
-  email: z.string().email("Please enter a valid email address"),
-  message: z.string().min(1, "Message is required").max(5000),
+  name: z.string().trim().min(1, "Name is required").max(200),
+  email: z.string().trim().toLowerCase().email("Please enter a valid email address").max(255),
+  message: z.string().trim().min(1, "Message is required").max(5000),
 }).pick({
   name: true,
   email: true,
@@ -224,15 +224,15 @@ export const insertContactMessageSchema = createInsertSchema(contactMessages, {
 });
 
 export const insertNewsletterSubscriberSchema = createInsertSchema(newsletterSubscribers, {
-  email: z.string().email("Please enter a valid email address"),
+  email: z.string().trim().toLowerCase().email("Please enter a valid email address").max(255),
 }).pick({
   email: true,
 });
 
 export const insertLeadMagnetLeadSchema = createInsertSchema(leadMagnetLeads, {
-  firstName: z.string().max(200).optional(),
-  email: z.string().email("Please enter a valid email address"),
-  source: z.string().max(80).optional(),
+  firstName: z.string().trim().min(1).max(200).optional(),
+  email: z.string().trim().toLowerCase().email("Please enter a valid email address").max(255),
+  source: z.string().trim().min(1).max(80).optional(),
 }).pick({
   firstName: true,
   email: true,
@@ -247,9 +247,9 @@ export const chatMessageSchema = z.object({
 });
 
 export const chatRequestSchema = z.object({
-  sessionId: z.string().min(1).max(64),
-  message: z.string().min(1).max(2000),
-  leadName: z.string().optional(),
+  sessionId: z.string().min(1).max(64).regex(/^[A-Za-z0-9_-]+$/, "Invalid session id"),
+  message: z.string().trim().min(1).max(2000),
+  leadName: z.string().trim().max(200).optional(),
   leadEmail: z.string().email().optional(),
   // Sprint 71.1 — context-aware concierge. Optional + additive: old clients
   // keep working. The server only trusts `page` (path lookup against the
@@ -293,7 +293,7 @@ export const consultations = pgTable("consultations", {
 
 export const insertConsultationSchema = createInsertSchema(consultations, {
   title: z.string().min(1).max(200),
-  description: z.string().min(1),
+  description: z.string().min(1).max(4000),
   duration: z.number().int().min(15).max(480).default(60),
   price: z.number().int().min(0).default(0),
   currency: z.string().max(10).default("USD"),
@@ -333,11 +333,11 @@ export const bookings = pgTable("bookings", {
 ]);
 
 export const insertBookingSchema = createInsertSchema(bookings, {
-  clientName: z.string().min(1, "Name required").max(200),
-  clientEmail: z.string().email("Valid email required"),
-  preferredDate: z.string().max(100).optional(),
-  message: z.string().max(2000).optional(),
-  sessionId: z.string().max(64).optional(),
+  clientName: z.string().trim().min(1, "Name required").max(200),
+  clientEmail: z.string().trim().toLowerCase().email("Valid email required").max(255),
+  preferredDate: z.string().trim().min(1).max(100).optional(),
+  message: z.string().trim().min(1).max(2000).optional(),
+  sessionId: z.string().trim().min(1).max(64).optional(),
   consultationId: z.number().int().positive().optional(),
 }).pick({ sessionId: true, consultationId: true, clientName: true, clientEmail: true, preferredDate: true, message: true });
 
@@ -422,6 +422,33 @@ export const insertClickEventSchema = createInsertSchema(clickEvents).pick({
 export type InsertClickEvent = z.infer<typeof insertClickEventSchema>;
 export type ClickEvent = typeof clickEvents.$inferSelect;
 
+// Public analytics must remain anonymous. In particular, an email address (or
+// an obvious PII-labelled metadata field) is not a valid anonymous identifier.
+const ANALYTICS_PII_KEY = /(?:^|[_-])(email|e-mail|phone|name|address|token|password|secret|authorization)(?:$|[_-])/i;
+const ANALYTICS_EMAIL = /[^\s@]+@[^\s@]+\.[^\s@]+/;
+function containsAnalyticsPii(value: unknown, depth = 0): boolean {
+  if (depth > 8) return true;
+  if (typeof value === "string") return ANALYTICS_EMAIL.test(value);
+  if (Array.isArray(value)) return value.some((item) => containsAnalyticsPii(item, depth + 1));
+  if (value && typeof value === "object") {
+    return Object.entries(value as Record<string, unknown>).some(
+      ([key, item]) => ANALYTICS_PII_KEY.test(key) || containsAnalyticsPii(item, depth + 1),
+    );
+  }
+  return false;
+}
+const analyticsMetadata = z.record(z.unknown()).superRefine((value, ctx) => {
+  if (containsAnalyticsPii(value)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Analytics metadata must not contain PII" });
+  }
+});
+const anonymousAnalyticsId = z.string().trim().max(300)
+  .refine((value) => !ANALYTICS_EMAIL.test(value), "Anonymous analytics IDs must not contain email addresses")
+  .optional();
+const analyticsPath = z.string().trim().max(600)
+  .refine((value) => !ANALYTICS_EMAIL.test(value) && !/[?#]/.test(value), "Analytics URLs must not contain PII or query fragments")
+  .optional();
+
 // ─── Phase 72.1: Homepage analytics events ──────────────────────────────────
 // Closed event vocabulary — the collection endpoint rejects anything else (400).
 export const HOMEPAGE_ANALYTICS_EVENTS = [
@@ -467,7 +494,7 @@ export const homepageEvents = pgTable("homepage_events", {
 
 export const homepageAnalyticsRequestSchema = z.object({
   event: z.enum(HOMEPAGE_ANALYTICS_EVENTS),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: analyticsMetadata.optional(),
 }).strip();
 
 export type HomepageAnalyticsRequest = z.infer<typeof homepageAnalyticsRequestSchema>;
@@ -525,20 +552,20 @@ export const strategyFunnelEvents = pgTable("strategy_funnel_events", {
   index("strategy_funnel_events_visitor_id_idx").on(t.visitorId),
 ]);
 
-const funnelAttr = z.string().trim().max(300).optional();
+const funnelAttr = anonymousAnalyticsId;
 
 export const funnelAnalyticsRequestSchema = z.object({
   event: z.enum(STRATEGY_FUNNEL_EVENTS),
   sessionId: funnelAttr,
   visitorId: funnelAttr,
-  page: z.string().trim().max(600).optional(),
-  referrer: z.string().trim().max(600).optional(),
+  page: analyticsPath,
+  referrer: analyticsPath,
   source: funnelAttr,
   medium: funnelAttr,
   campaign: funnelAttr,
   device: funnelAttr,
   browser: funnelAttr,
-  metadata: z.record(z.unknown()).optional(),
+  metadata: analyticsMetadata.optional(),
 }).strip();
 
 export type FunnelAnalyticsRequest = z.infer<typeof funnelAnalyticsRequestSchema>;
@@ -675,8 +702,8 @@ export const revenueIntelligenceEvents = pgTable("revenue_intelligence_events", 
   uniqueIndex("revenue_intel_dedupe_key_uq").on(t.dedupeKey).where(sql`dedupe_key IS NOT NULL`),
 ]);
 
-const revAttr = z.string().trim().max(300).optional();
-const revPath = z.string().trim().max(600).optional();
+const revAttr = anonymousAnalyticsId;
+const revPath = analyticsPath;
 
 export const revenueAnalyticsRequestSchema = z.object({
   event: z.enum(REVENUE_EVENT_TYPES),
@@ -707,7 +734,7 @@ export const revenueAnalyticsRequestSchema = z.object({
   conciergeSessionId: revAttr,
   attributionModel: z.enum(ATTRIBUTION_MODELS).optional(),
   dedupeKey: revAttr,
-  metadata: z.record(z.unknown()).optional(),
+  metadata: analyticsMetadata.optional(),
 }).strip();
 
 export type RevenueAnalyticsRequest = z.infer<typeof revenueAnalyticsRequestSchema>;
@@ -798,8 +825,8 @@ export const searchIntelligenceEvents = pgTable("search_intelligence_events", {
   uniqueIndex("search_intel_dedupe_key_uq").on(t.dedupeKey).where(sql`dedupe_key IS NOT NULL`),
 ]);
 
-const searchAttr = z.string().trim().max(300).optional();
-const searchPath = z.string().trim().max(600).optional();
+const searchAttr = anonymousAnalyticsId;
+const searchPath = analyticsPath;
 
 // NOTE: dedupeKey is intentionally NOT part of this schema — clients can never
 // set or squat idempotency keys; storage derives them deterministically.
@@ -821,7 +848,7 @@ export const searchIntelRequestSchema = z.object({
   utmCampaign: searchAttr,
   device: searchAttr,
   browser: searchAttr,
-  metadata: z.record(z.unknown()).optional(),
+  metadata: analyticsMetadata.optional(),
 }).strip().superRefine((val, ctx) => {
   if (val.event === "search_landing" && !val.trafficSource) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["trafficSource"], message: "trafficSource is required for search_landing" });
@@ -872,7 +899,7 @@ export const insertBlogPostSchema = createInsertSchema(blogPosts, {
   title: z.string().min(1, "Title required").max(300),
   slug: z.string().min(1).max(200).regex(/^[a-z0-9-]+$/, "Slug: lowercase letters, numbers, hyphens only"),
   excerpt: z.string().min(1, "Excerpt required").max(500),
-  body: z.string().min(1, "Body required"),
+  body: z.string().min(1, "Body required").max(100_000, "Body too large"),
   category: z.string().max(60).optional(),
 }).pick({ title: true, slug: true, excerpt: true, body: true, category: true });
 
@@ -903,7 +930,7 @@ export const insertContentDraftSchema = createInsertSchema(contentDrafts, {
   topic: z.string().min(1).max(300),
   title: z.string().min(1).max(300),
   excerpt: z.string().max(1000).optional(),
-  body: z.string().min(1),
+  body: z.string().min(1).max(100_000, "Body too large"),
   category: z.string().max(60).optional(),
   provider: z.string().max(40).optional(),
 }).pick({ kind: true, topic: true, title: true, excerpt: true, body: true, category: true, provider: true });
@@ -911,7 +938,7 @@ export const insertContentDraftSchema = createInsertSchema(contentDrafts, {
 export const updateContentDraftSchema = z.object({
   title: z.string().min(1).max(300).optional(),
   excerpt: z.string().max(1000).optional(),
-  body: z.string().min(1).optional(),
+  body: z.string().min(1).max(100_000, "Body too large").optional(),
   category: z.string().max(60).optional(),
 }).strict();
 

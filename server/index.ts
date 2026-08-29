@@ -8,12 +8,12 @@ process.on("warning", (w) => {
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import ConnectPgSimple from "connect-pg-simple";
-import { Pool } from "pg";
 import { timingSafeEqual } from "crypto";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { canonicalRedirect } from "./canonicalRedirect";
+import { pool as databasePool } from "./db";
 
 const app = express();
 const httpServer = createServer(app);
@@ -23,18 +23,22 @@ const httpServer = createServer(app);
 // Rate-limiting uses CF-Connecting-IP (see getClientIp in routes.ts) which
 // Cloudflare injects and the client cannot spoof, so the proxy count here
 // matters only for req.ip fallback paths (e.g. cookie secure, canonical redirect).
-app.set("trust proxy", 1);
+app.set("trust proxy", process.env.NODE_ENV === "production" ? 1 : false);
 app.use(canonicalRedirect);
 
 const PgSession = ConnectPgSimple(session);
-const sessionPool = new Pool({ connectionString: process.env.DATABASE_URL });
+const sessionPool = databasePool;
+let requestShutdown: ((signal: string) => void) | null = null;
 
 app.use(
   session({
+    name: "e360.sid",
     store: new PgSession({
       pool: sessionPool,
       tableName: "user_sessions",
-      createTableIfMissing: true,
+      // Production schema changes are deployment concerns, never web-process
+      // startup side effects.
+      createTableIfMissing: process.env.NODE_ENV !== "production",
     }),
     secret: process.env.NODE_ENV === "production"
       ? (process.env.SESSION_SECRET ?? (() => { throw new Error("SESSION_SECRET required in production"); })())
@@ -58,13 +62,14 @@ declare module "http" {
 
 app.use(
   express.json({
+    limit: "256kb",
     verify: (req, _res, buf) => {
       req.rawBody = buf;
     },
   }),
 );
 
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({ extended: false, limit: "64kb", parameterLimit: 100 }));
 
 function normalizeDashboardPin(value: unknown): string {
   if (typeof value !== "string") return "";
@@ -101,6 +106,43 @@ function extractDashboardPin(req: Request): string | null {
   return null;
 }
 
+function getClientIp(req: Request): string {
+  const cf = req.headers["cf-connecting-ip"];
+  if (typeof cf === "string" && cf.trim()) return cf.trim();
+  return req.ip || req.socket.remoteAddress || "unknown";
+}
+
+// PIN authentication is deliberately much tighter than general API limiting.
+// Failed header attempts are included so attackers cannot avoid the login
+// limiter by trying a different admin URL.
+const dashboardAuthAttempts = new Map<string, { count: number; resetAt: number }>();
+const DASHBOARD_AUTH_LIMIT = 5;
+const DASHBOARD_AUTH_WINDOW_MS = 15 * 60 * 1000;
+function consumeDashboardAuthAttempt(req: Request, res: Response): boolean {
+  const key = getClientIp(req);
+  const now = Date.now();
+  const current = dashboardAuthAttempts.get(key);
+  if (!current || now >= current.resetAt) {
+    dashboardAuthAttempts.set(key, { count: 1, resetAt: now + DASHBOARD_AUTH_WINDOW_MS });
+    return true;
+  }
+  if (current.count >= DASHBOARD_AUTH_LIMIT) {
+    res.setHeader("Retry-After", String(Math.ceil((current.resetAt - now) / 1000)));
+    res.status(429).json({ message: "Too many authentication attempts. Please try again later." });
+    return false;
+  }
+  current.count++;
+  return true;
+}
+
+const dashboardAttemptPurge = setInterval(() => {
+  const now = Date.now();
+  dashboardAuthAttempts.forEach((value, key) => {
+    if (now >= value.resetAt) dashboardAuthAttempts.delete(key);
+  });
+}, DASHBOARD_AUTH_WINDOW_MS);
+dashboardAttemptPurge.unref();
+
 // Centralized dashboard login shim registered before route modules. It fixes
 // production env formatting issues (accidental whitespace/quotes) and ensures
 // every admin surface, including /mesh, uses the same timing-safe PIN matcher.
@@ -109,30 +151,54 @@ app.post("/api/dashboard/auth", (req: any, res: Response) => {
     return res.status(500).json({ message: "Dashboard PIN not configured." });
   }
 
+  if (!consumeDashboardAuthAttempt(req, res)) return;
   const candidate = extractDashboardPin(req);
   if (pinMatches(candidate)) {
-    req.session.dashboardAuthed = true;
-    return req.session.save((error: unknown) => {
-      if (error) {
-        console.error("[dashboardAuth] session save failed");
-        return res.status(500).json({ message: "Could not save dashboard session." });
+    // Rotate the identifier at the privilege boundary to prevent fixation.
+    // Preserve an independently authenticated customer identity, but never
+    // treat it as founder authorization.
+    const customerId = typeof req.session?.customerId === "string" ? req.session.customerId : undefined;
+    return req.session.regenerate((regenerateError: unknown) => {
+      if (regenerateError) {
+        console.error("[dashboardAuth] session regeneration failed");
+        return res.status(500).json({ message: "Could not establish dashboard session." });
       }
-      return res.json({ ok: true });
+      req.session.dashboardAuthed = true;
+      if (customerId) req.session.customerId = customerId;
+      return req.session.save((error: unknown) => {
+        if (error) {
+          console.error("[dashboardAuth] session save failed");
+          return res.status(500).json({ message: "Could not save dashboard session." });
+        }
+        return res.json({ ok: true });
+      });
     });
   }
 
   return res.status(401).json({ message: "Invalid PIN." });
 });
 
-// Pre-authorize protected admin APIs before server/routes.ts legacy guards run.
-// routes.ts first trusts req.session.dashboardAuthed; this normalized middleware
-// sets that flag for any valid x-dashboard-pin/Bearer/body PIN so all admin
-// surfaces share one production-safe matcher without exposing secrets.
-app.use((req: any, _res, next) => {
-  if ((req.path.startsWith("/api/admin") || req.path.startsWith("/api/dashboard")) && pinMatches(extractDashboardPin(req))) {
-    req.session.dashboardAuthed = true;
+// Fail-closed prefix guard. This protects every present and future route below
+// /api/admin and /api/dashboard, including mounted routers. A valid request PIN
+// authorizes this request only; it must not silently upgrade the session.
+app.use((req: any, res, next) => {
+  const protectedPath =
+    req.path === "/api/admin" ||
+    req.path.startsWith("/api/admin/") ||
+    req.path === "/api/dashboard" ||
+    req.path.startsWith("/api/dashboard/");
+  if (!protectedPath || req.path === "/api/dashboard/logout") return next();
+  if (req.session?.dashboardAuthed === true) return next();
+
+  const candidate = extractDashboardPin(req);
+  if (candidate !== null) {
+    if (pinMatches(candidate)) {
+      req.dashboardRequestAuthed = true;
+      return next();
+    }
+    if (!consumeDashboardAuthAttempt(req, res)) return;
   }
-  next();
+  return res.status(401).json({ message: "Unauthorized" });
 });
 
 app.use((_req, res, next) => {
@@ -173,21 +239,27 @@ app.use((req, res, next) => {
 (async () => {
   await registerRoutes(httpServer, app);
 
+  // Unknown API routes must remain machine-readable and must never become the
+  // SPA's HTML document.
+  app.use("/api", (_req, res) => {
+    res.status(404).json({ message: "API route not found." });
+  });
+
   // Phase 69 — start RSS/heap sampling (1/min ring buffer, unref'd timer).
   const { startMemoryMonitor } = await import("./telemetry/memoryMonitor");
   startMemoryMonitor();
 
   // Seed default consultation offerings if none exist
   const { storage } = await import("./storage");
-  storage.seedDefaultConsultations().catch((e) => console.error("[seed] consultations:", e));
+  await storage.seedDefaultConsultations();
 
   // Phase 48 — Start automated lead follow-up engine
   const { startFollowupEngine } = await import("./automation/followupEngine");
-  startFollowupEngine().catch((e: Error) => console.error("[followupEngine] start error:", e.message));
+  await startFollowupEngine();
 
   // Phase 49 — Start autonomous operation jobs
   const { startAutomationJobs } = await import("./automation");
-  startAutomationJobs().catch((e: Error) => console.error("[automationJobs] start error:", e.message));
+  await startAutomationJobs();
 
   // Phase 37 — Stripe init (native SDK only; no Replit connector / managed sync)
   // Webhook URL must be registered manually in the Stripe Dashboard pointing at
@@ -204,16 +276,20 @@ app.use((req, res, next) => {
   }
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
+    const status = Number(err.status || err.statusCode) || 500;
+    const safeStatus = status >= 400 && status < 600 ? status : 500;
+    const message =
+      safeStatus < 500 && typeof err.message === "string"
+        ? err.message
+        : "Internal Server Error";
 
-    console.error("Internal Server Error:", err);
+    console.error(`[express] request failed status=${safeStatus} type=${err?.type ?? err?.name ?? "unknown"}`);
 
     if (res.headersSent) {
       return next(err);
     }
 
-    return res.status(status).json({ message });
+    return res.status(safeStatus).json({ message });
   });
 
   // importantly only setup vite in development and after
@@ -263,6 +339,13 @@ app.use((req, res, next) => {
       try {
         const { stopAllAutomationJobs } = await import("./automation/jobRunner");
         stopAllAutomationJobs();
+        const { stopFollowupEngine } = await import("./automation/followupEngine");
+        stopFollowupEngine();
+        const { stopMemoryMonitor } = await import("./telemetry/memoryMonitor");
+        stopMemoryMonitor();
+        const { stopRouteTimers } = await import("./routes");
+        stopRouteTimers();
+        clearInterval(dashboardAttemptPurge);
       } catch (e: any) {
         console.error("[shutdown] stopping jobs failed:", e?.message);
       }
@@ -274,6 +357,22 @@ app.use((req, res, next) => {
       });
     })();
   };
+  requestShutdown = shutdown;
   process.on("SIGTERM", () => shutdown("SIGTERM"));
   process.on("SIGINT", () => shutdown("SIGINT"));
-})();
+})().catch((error: unknown) => {
+  console.error("[startup] fatal initialization failure", error instanceof Error ? error.message : "unknown error");
+  void Promise.allSettled([
+    import("./automation/jobRunner").then(({ stopAllAutomationJobs }) => stopAllAutomationJobs()),
+    import("./automation/followupEngine").then(({ stopFollowupEngine }) => stopFollowupEngine()),
+    import("./telemetry/memoryMonitor").then(({ stopMemoryMonitor }) => stopMemoryMonitor()),
+    sessionPool.end(),
+  ]).finally(() => process.exit(1));
+});
+
+process.on("unhandledRejection", (reason) => {
+  // Keep a concise record without dumping provider payloads, tokens, or PII.
+  console.error("[process] unhandled rejection:", reason instanceof Error ? reason.message : "non-Error rejection");
+  if (requestShutdown) requestShutdown("unhandledRejection");
+  else process.exitCode = 1;
+});

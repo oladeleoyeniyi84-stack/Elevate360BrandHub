@@ -6,8 +6,6 @@ import { useCustomer } from "@/hooks/useCustomer";
 import appHealthwise from "@/assets/images/app-healthwise.png";
 
 const GOLD = "#F4A62A";
-const APP_URL = "https://health.elevate360official.com";
-
 const FEATURES = [
   { icon: HeartPulse, title: "Wellness tracking", body: "Monitor your health journey with simple, daily check-ins." },
   { icon: Activity, title: "Healthy habits", body: "Build routines that keep you consistent and motivated." },
@@ -40,16 +38,14 @@ export default function HealthWiseProduct() {
               and stay supported every step of the way.
             </p>
             <div className="flex flex-wrap gap-3 mt-8">
-              <a
-                href={APP_URL}
-                target="_blank"
-                rel="noopener noreferrer"
+              <Link
+                href="/#apps"
                 className="inline-flex items-center gap-2 text-sm font-semibold rounded-xl px-5 py-3"
                 style={{ background: GOLD, color: "#0a1124" }}
                 data-testid="link-open-app"
               >
-                Open the app <ArrowRight className="h-4 w-4" />
-              </a>
+                Explore our apps <ArrowRight className="h-4 w-4" />
+              </Link>
               <Link
                 href="/pricing"
                 className="inline-flex items-center gap-2 text-sm font-semibold rounded-xl px-5 py-3 border border-white/20 hover:bg-white/5"

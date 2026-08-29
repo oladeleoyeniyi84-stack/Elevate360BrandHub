@@ -6,6 +6,7 @@ import fs from "fs";
 import path from "path";
 import { nanoid } from "nanoid";
 import { applySeoHead } from "./seo/injectHead";
+import { isKnownSpaRoute } from "./seo/spaRoutes";
 
 const viteLogger = createLogger();
 
@@ -33,9 +34,13 @@ export async function setupVite(server: Server, app: Express) {
   app.use(vite.middlewares);
 
   app.use("/{*path}", async (req, res, next) => {
+    if ((req.method !== "GET" && req.method !== "HEAD") || req.path === "/api" || req.path.startsWith("/api/")) {
+      return next();
+    }
     const url = req.originalUrl;
 
     try {
+      if (!(await isKnownSpaRoute(url))) return res.sendStatus(404);
       const clientTemplate = path.resolve(
         import.meta.dirname,
         "..",
