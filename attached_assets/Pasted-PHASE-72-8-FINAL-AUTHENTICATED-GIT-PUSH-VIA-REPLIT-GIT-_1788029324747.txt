@@ -1,0 +1,207 @@
+PHASE 72.8 — FINAL AUTHENTICATED GIT PUSH VIA REPLIT GIT PANE
+
+Mission Control has reviewed the Release Execution Status.
+
+SAFETY VERDICT: PASS
+RELEASE STATUS: BLOCKED ONLY BY SHELL/API GIT AUTHENTICATION
+
+Current certified local HEAD:
+
+d38670fea9b7418e965348dbded1e4d1942bb01d
+
+Current GitHub main:
+
+df74d8dd7bf7380bfc85da6d206772e568402837
+
+Both certified histories are already preserved inside d38670f.
+
+OBJECTIVE
+
+Use Replit’s normal authenticated Git/GitHub repository sync interface to push the existing certified integration history to GitHub main without rewriting any commits.
+
+DO NOT:
+
+create another commit
+stage attached_assets
+modify source code
+amend d38670f
+rebase
+squash
+force push
+use REST file writes
+use Git Database object-upload workarounds
+create replacement commits
+modify Stripe
+modify Render configuration
+modify production database
+deploy through Replit
+
+A. VERIFY LOCAL HEAD BEFORE USING GIT PANE
+
+Confirm:
+
+git rev-parse HEAD
+
+Expected:
+
+d38670fea9b7418e965348dbded1e4d1942bb01d
+
+Confirm:
+
+git status –short
+
+Required:
+
+no tracked modifications
+no staged changes
+
+Only the current untracked directive attachment is acceptable.
+
+If HEAD changes again because of an automatic attachment checkpoint:
+
+verify that checkpoint contains only attached_assets directive material
+remove it under the already approved attachment-only cleanup rule
+return HEAD to d38670f
+
+Do not create another cleanup commit.
+
+B. REFRESH REMOTE STATE
+
+Before pushing through the Git pane, confirm GitHub main is still:
+
+df74d8dd7bf7380bfc85da6d206772e568402837
+
+If GitHub main has changed:
+
+STOP.
+
+Do not push.
+
+Report the new remote commit.
+
+C. USE REPLIT GIT PANE
+
+Open the Replit Git / Version Control pane.
+
+Use its authenticated Push or Sync operation.
+
+Push the existing local integration history to the repository’s main branch.
+
+Required behavior:
+
+normal non-force update
+preserve existing commit SHAs
+upload the existing Git objects
+do not create a generated replacement commit
+
+If the interface asks whether to force push:
+
+DECLINE.
+
+If the interface proposes rebasing or overwriting remote changes:
+
+STOP.
+
+D. VERIFY GITHUB MAIN
+
+After the Git pane reports success, verify GitHub main through authenticated read-only GitHub access.
+
+Required:
+
+GitHub main =
+d38670fea9b7418e965348dbded1e4d1942bb01d
+
+Do not rely only on the Replit success message.
+
+E. VERIFY COMMIT GRAPH
+
+Confirm that both remain ancestors of GitHub main:
+
+866da76134e40a48a3d5d1ad75d5b91949f3a553
+
+df74d8dd7bf7380bfc85da6d206772e568402837
+
+The merge history must remain intact.
+
+F. RENDER
+
+Once GitHub main is independently confirmed at d38670f:
+
+allow the normal GitHub-to-Render deployment to begin
+
+do not deploy through Replit
+
+wait for Render to finish
+
+Then verify the Render service is running:
+
+d38670f
+
+G. PRODUCTION CERTIFICATION
+
+Only after Render deploys the exact commit, execute the previously approved read-only production checklist:
+
+production HTTP 200
+Render commit parity
+Phase 72.7 tables present
+no database bootstrap unless unexpectedly missing, in which case STOP
+unknown /api/* returns JSON 404
+unknown public route returns 404
+/guide returns 404
+/ai-growth-guide returns 200
+guide canonical is correct
+PDF download works
+sitemap contains /ai-growth-guide once
+sitemap contains /guide zero times
+llms.txt contains canonical guide route
+admin/dashboard endpoints fail closed
+Starter $9
+Pro $29
+Strategy Session $97
+Elite $99
+no Replit StripeSync fallback in Render logs
+webhook route safely rejects unsigned request
+subscription continuity
+last_event_at continuity
+event-ledger continuity
+credit-grant continuity
+zero duplicate Stripe events
+/work healthy
+Books/Amazon healthy
+Concierge healthy
+320/390/430 mobile smoke tests
+Search Intelligence remains protected
+Render logs clean
+
+No live Stripe payment.
+No Stripe event resend.
+No destructive database action.
+No secrets or PII.
+
+H. STOP CONDITION
+
+If the Replit Git pane cannot perform a normal authenticated push of the existing history:
+
+STOP.
+
+Do not use another workaround.
+
+Report exactly what the Git pane shows.
+
+If push and Render deployment succeed, return:
+
+PHASE 72.8 — FINAL PRODUCTION RELEASE & CERTIFICATION REPORT
+
+Final verdict:
+
+PASS
+
+or
+
+ROLLBACK REQUIRED
+
+Do not close Phase 72.8 yourself.
+
+Mission Control will issue final closure.
+
+The engineering work itself is certified. We are now dealing with a repository transport problem, not a code-quality problem.
