@@ -118,7 +118,7 @@ async function main() {
   section("C. Canonical policy");
   check("home keeps trailing slash", canonicalUrl("/") === `${CANONICAL_ORIGIN}/`);
   check("strips query + tracking params", canonicalUrl("/blog?utm_source=x&fbclid=1") === `${CANONICAL_ORIGIN}/blog`);
-  check("strips fragments", canonicalUrl("/guide#top") === `${CANONICAL_ORIGIN}/guide`);
+  check("strips fragments", canonicalUrl("/ai-growth-guide#top") === `${CANONICAL_ORIGIN}/ai-growth-guide`);
   check("strips trailing slash on non-home", canonicalUrl("/blog/") === `${CANONICAL_ORIGIN}/blog`);
   check("collapses duplicate slashes", canonicalPath("//blog///post") === "/blog/post");
   check("never canonicalizes a route to homepage", canonicalUrl("/about-founder") === `${CANONICAL_ORIGIN}/about-founder`);
@@ -141,7 +141,7 @@ async function main() {
     ["/blog", "Blog | Elevate360Official"],
     ["/about-founder", "About the Founder — Oladele Oyeniyi | Elevate360Official"],
     ["/founder", "Founder Authority | Elevate360Official"],
-    ["/guide", "Free AI Growth Playbook | Elevate360Official"],
+    ["/ai-growth-guide", "Free AI Business Growth Blueprint 2026 | Elevate360Official"],
     ["/knowledge", "Knowledge Center | Elevate360Official"],
     ["/links", "Links | Elevate360Official"],
     ["/press-kit", "Press Kit | Elevate360Official"],
@@ -199,7 +199,7 @@ async function main() {
 
   const sm = await get("/sitemap.xml");
   check("sitemap has no #fragment URLs", !sm.text.includes("#"));
-  check("sitemap gained /about-founder and /guide", sm.text.includes(`${CANONICAL_ORIGIN}/about-founder`) && sm.text.includes(`${CANONICAL_ORIGIN}/guide`));
+  check("sitemap includes /about-founder and /ai-growth-guide", sm.text.includes(`${CANONICAL_ORIGIN}/about-founder`) && sm.text.includes(`${CANONICAL_ORIGIN}/ai-growth-guide`));
   check("sitemap includes published article", sm.text.includes(canonical));
   check("all sitemap locs on canonical origin", (sm.text.match(/<loc>([^<]+)<\/loc>/g) ?? []).every((l) => l.includes(CANONICAL_ORIGIN)));
 
