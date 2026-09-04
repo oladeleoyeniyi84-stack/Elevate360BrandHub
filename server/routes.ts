@@ -63,7 +63,7 @@ import { WebhookHandlers } from "./webhookHandlers";
 import { getUncachableStripeClient, getStripePublishableKey, isStripeConfigured } from "./stripeClient";
 import { getCustomerId } from "./auth/customerAuth";
 import { consumeCredits, refundCredits } from "./billing/premiumService";
-import { scopeConciergeSessionId } from "./ai/promptSecurity";
+import { initializeConciergeSession, scopeConciergeSessionId } from "./ai/promptSecurity";
 import { db } from "./db";
 import { sql, eq, desc } from "drizzle-orm";
 import { auditRuns, auditChecks, auditIssues, insertAuditIssueSchema, updateAuditIssueSchema, updateRevenueRecoveryActionSchema, updateContentOpportunitySchema, updateAutonomousAlertSchema } from "@shared/schema";
@@ -80,6 +80,7 @@ import {
   shouldRetryUnmatchedFullRefund,
   validateMarketplacePrice,
 } from "./billing/stripeTrust";
+import { persistInitiatedOrderOrExpire } from "./billing/checkoutSafety";
 
 const DASHBOARD_PIN = process.env.DASHBOARD_PIN;
 
@@ -431,6 +432,7 @@ export async function registerRoutes(
       if (!expressSessionId) {
         return res.status(503).json({ message: "The concierge is temporarily unavailable. Please try again." });
       }
+      initializeConciergeSession((req as any).session);
       // The signed, high-entropy Express session id is also a safe per-session
       // fallback key in local/test environments where SESSION_SECRET is absent.
       const sessionId = scopeConciergeSessionId(
@@ -1513,24 +1515,27 @@ export async function registerRoutes(
       }
 
       // Track as initiated order (abandoned checkout if never completed)
-      await storage.createOrder({
-        stripeSessionId: session.id,
-        stripeProductId: offer.productId,
-        stripePriceId: offer.priceId,
-        productName: offer.productName,
-        customerEmail: customerEmail ?? "unknown",
-        status: "initiated",
-        fulfillmentStatus: "pending",
-        sessionId: chatSessionId ?? undefined,
-        metadata: {
-          source: "elevate360-website",
-          offerId: offer.productId,
-          expectedAmountCents: offer.amount,
-          expectedCurrency: offer.currency,
-          checkoutCreatedAt: new Date().toISOString(),
-          acceptedByAi,
-        },
-      });
+      await persistInitiatedOrderOrExpire(
+        () => storage.createOrder({
+          stripeSessionId: session.id,
+          stripeProductId: offer.productId,
+          stripePriceId: offer.priceId,
+          productName: offer.productName,
+          customerEmail: customerEmail ?? "unknown",
+          status: "initiated",
+          fulfillmentStatus: "pending",
+          sessionId: chatSessionId ?? undefined,
+          metadata: {
+            source: "elevate360-website",
+            offerId: offer.productId,
+            expectedAmountCents: offer.amount,
+            expectedCurrency: offer.currency,
+            checkoutCreatedAt: new Date().toISOString(),
+            acceptedByAi,
+          },
+        }),
+        () => stripe.checkout.sessions.expire(session.id),
+      );
 
       res.json({ url: session.url });
     } catch (e: any) {
@@ -1590,22 +1595,25 @@ export async function registerRoutes(
       } as any);
 
       // Track as an initiated order so the existing webhook marks it paid on completion.
-      await storage.createOrder({
-        stripeSessionId: session.id,
-        stripeProductId: validatedPrice.productId,
-        stripePriceId: validatedPrice.priceId,
-        productName: "AI Growth Strategy Session",
-        customerEmail: customerEmail ?? "unknown",
-        status: "initiated",
-        fulfillmentStatus: "pending",
-        metadata: {
-          source: "strategy-session",
-          offer: "ai-growth-strategy-session",
-          expectedAmountCents: validatedPrice.amount,
-          expectedCurrency: validatedPrice.currency,
-          checkoutCreatedAt: new Date().toISOString(),
-        },
-      });
+      await persistInitiatedOrderOrExpire(
+        () => storage.createOrder({
+          stripeSessionId: session.id,
+          stripeProductId: validatedPrice.productId,
+          stripePriceId: validatedPrice.priceId,
+          productName: "AI Growth Strategy Session",
+          customerEmail: customerEmail ?? "unknown",
+          status: "initiated",
+          fulfillmentStatus: "pending",
+          metadata: {
+            source: "strategy-session",
+            offer: "ai-growth-strategy-session",
+            expectedAmountCents: validatedPrice.amount,
+            expectedCurrency: validatedPrice.currency,
+            checkoutCreatedAt: new Date().toISOString(),
+          },
+        }),
+        () => stripe.checkout.sessions.expire(session.id),
+      );
 
       res.json({ url: session.url });
     } catch (e: any) {
@@ -2670,23 +2678,26 @@ export async function registerRoutes(
         },
       } as any);
 
-      await storage.createOrder({
-        stripeSessionId: session.id,
-        stripeProductId: validatedPrice.productId,
-        stripePriceId: validatedPrice.priceId,
-        productName: product.name,
-        customerEmail: customerEmail ?? "unknown",
-        status: "initiated",
-        fulfillmentStatus: "pending",
-        sessionId: chatSessionId ?? undefined,
-        metadata: {
-          source: "elevate360-marketplace",
-          marketplaceSlug: product.slug,
-          expectedAmountCents: validatedPrice.amount,
-          expectedCurrency: validatedPrice.currency,
-          checkoutCreatedAt: new Date().toISOString(),
-        },
-      });
+      await persistInitiatedOrderOrExpire(
+        () => storage.createOrder({
+          stripeSessionId: session.id,
+          stripeProductId: validatedPrice.productId,
+          stripePriceId: validatedPrice.priceId,
+          productName: product.name,
+          customerEmail: customerEmail ?? "unknown",
+          status: "initiated",
+          fulfillmentStatus: "pending",
+          sessionId: chatSessionId ?? undefined,
+          metadata: {
+            source: "elevate360-marketplace",
+            marketplaceSlug: product.slug,
+            expectedAmountCents: validatedPrice.amount,
+            expectedCurrency: validatedPrice.currency,
+            checkoutCreatedAt: new Date().toISOString(),
+          },
+        }),
+        () => stripe.checkout.sessions.expire(session.id),
+      );
 
       res.json({ url: session.url });
     } catch (e: any) {
@@ -3519,42 +3530,10 @@ export async function registerRoutes(
   });
 
   app.get("/api/health", (_req, res) => {
-    // Liveness must remain constant-time and must not consume a DB connection
-    // or contact any external provider. Dependency status below is local
-    // configuration/in-process state only.
-    const checks: Record<string, { ok: boolean; detail?: string }> = {};
-    const memStats = getMemoryStats();
-    const aiStatus = getAIStatus();
-    checks.openai = {
-      ok: aiStatus.openai === "configured",
-      detail: aiStatus.openai,
-    };
-    checks.ai = {
-      ok: aiStatus.openai === "configured" || aiStatus.deepseek === "configured",
-      detail: `router=${aiStatus.router} premium=${aiStatus.defaultPremiumModel} automation=${aiStatus.defaultAutomationModel}`,
-      ...aiStatus,
-    };
-    checks.memory = {
-      ok: true,
-      detail: `${memStats.activeSessions} sessions, oldest ${memStats.oldestEntryAgeMs ?? 0}ms`,
-      ...memStats,
-    };
-
-    // Resend env var
-    checks.resend = { ok: !!process.env.RESEND_API_KEY, detail: process.env.RESEND_API_KEY ? "key present" : "RESEND_API_KEY missing" };
-
-    // Stripe connectivity (native SDK — checks STRIPE_SECRET_KEY env var only)
-    const stripeOk = isStripeConfigured();
-    checks.stripe = {
-      ok: stripeOk,
-      detail: stripeOk ? "configured" : "STRIPE_SECRET_KEY missing",
-    };
-
+    // Public liveness only: constant-time, no dependency probes, configuration
+    // state, topology, customer metrics, or in-process memory details.
     res.status(200).json({
       status: "healthy",
-      checks,
-      uptimeSec: Math.floor(process.uptime()),
-      timestamp: new Date().toISOString(),
     });
   });
 
@@ -3851,14 +3830,34 @@ export async function registerRoutes(
   });
 
   // Phase 41 — Mark offer accepted (called from checkout success)
-  app.post("/api/checkout/offer-accepted", async (req, res) => {
-    const { sessionId, offerSlug, source } = req.body;
-    if (!sessionId || !offerSlug) return res.status(400).json({ message: "sessionId and offerSlug required" });
+  app.post("/api/checkout/offer-accepted", async (req: any, res) => {
+    const parsed = z.object({
+      sessionId: z.string().min(1).max(160),
+      offerSlug: z.string().min(1).max(120),
+      source: z.string().min(1).max(40).optional(),
+    }).strip().safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "Invalid offer acceptance request." });
+    if (!req.sessionID) return res.status(503).json({ message: "Session unavailable." });
+
+    const scopedSessionId = scopeConciergeSessionId(
+      req.sessionID,
+      parsed.data.sessionId,
+      process.env.SESSION_SECRET || req.sessionID,
+    );
     try {
-      await storage.markOfferAccepted(sessionId, offerSlug, source ?? "page");
+      const conversation = await storage.getChatSession(scopedSessionId);
+      if (!conversation) return res.status(404).json({ message: "Conversation not found." });
+      if (conversation.recommendedOffer !== parsed.data.offerSlug) {
+        return res.status(409).json({ message: "Offer does not match the active recommendation." });
+      }
+      await storage.markOfferAccepted(
+        scopedSessionId,
+        parsed.data.offerSlug,
+        parsed.data.source ?? "page",
+      );
       res.json({ ok: true });
     } catch {
-      res.json({ ok: false });
+      res.status(500).json({ ok: false });
     }
   });
 

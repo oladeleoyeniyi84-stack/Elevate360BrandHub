@@ -24,6 +24,37 @@ const httpServer = createServer(app);
 // Cloudflare injects and the client cannot spoof, so the proxy count here
 // matters only for req.ip fallback paths (e.g. cookie secure, canonical redirect).
 app.set("trust proxy", process.env.NODE_ENV === "production" ? 1 : false);
+
+const cspReportOnly = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "object-src 'none'",
+  "frame-ancestors 'none'",
+  "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' data: https://fonts.gstatic.com",
+  "img-src 'self' data: https:",
+  "connect-src 'self' https://www.google-analytics.com https://*.google-analytics.com https://www.googletagmanager.com",
+  "frame-src 'self' https://audiomack.com",
+  "form-action 'self' https://checkout.stripe.com",
+].join("; ");
+
+// Install browser protections before any middleware that can terminate a
+// request so 401/429/500 responses receive the same baseline headers.
+app.use((_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+  res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
+  res.setHeader("Content-Security-Policy-Report-Only", cspReportOnly);
+  if (process.env.NODE_ENV === "production") {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
+  next();
+});
+
 app.use(canonicalRedirect);
 
 const PgSession = ConnectPgSimple(session);
@@ -199,14 +230,6 @@ app.use((req: any, res, next) => {
     if (!consumeDashboardAuthAttempt(req, res)) return;
   }
   return res.status(401).json({ message: "Unauthorized" });
-});
-
-app.use((_req, res, next) => {
-  res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-Frame-Options", "DENY");
-  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
-  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
-  next();
 });
 
 export function log(message: string, source = "express") {

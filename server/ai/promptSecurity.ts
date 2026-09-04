@@ -2,6 +2,18 @@ import { createHmac } from "node:crypto";
 
 const MAX_CONTEXT_CHARS = 8_000;
 
+type ConciergeSessionState = {
+  conciergeInitialized?: boolean;
+};
+
+/**
+ * Marks an anonymous concierge session as initialized so express-session
+ * persists its cookie even though saveUninitialized is disabled.
+ */
+export function initializeConciergeSession(session: ConciergeSessionState): void {
+  session.conciergeInitialized = true;
+}
+
 /** Treat recalled/knowledge text as inert data and prevent delimiter breakout. */
 export function wrapUntrustedPromptData(label: string, value: string, maxChars = MAX_CONTEXT_CHARS): string {
   const safeLabel = label.replace(/[^a-z0-9_-]/gi, "").slice(0, 40) || "data";
