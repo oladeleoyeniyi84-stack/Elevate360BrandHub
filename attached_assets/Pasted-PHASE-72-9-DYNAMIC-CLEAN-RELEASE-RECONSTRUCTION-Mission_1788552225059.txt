@@ -1,0 +1,513 @@
+PHASE 72.9 — DYNAMIC CLEAN RELEASE RECONSTRUCTION
+
+Mission Control authorization:
+APPROVED FOR CONTROLLED LOCAL GIT HYGIENE AND CLEAN COMMIT RECONSTRUCTION ONLY.
+
+IMPORTANT:
+Replit has repeatedly auto-created local commits containing pasted Mission Control directives.
+
+Therefore this directive MUST NOT hard-code the current local HEAD as a release prerequisite.
+
+Instead:
+1. Dynamically capture the current HEAD when execution begins.
+2. Verify the known security implementation commit 556cec9 is still in its ancestry.
+3. Verify every commit after 556cec9 changes ONLY non-release governance/documentation artifacts.
+4. If and only if those conditions hold, reconstruct one clean Phase 72.9 release commit containing exactly seven approved files.
+
+NO PUSH.
+NO DEPLOYMENT.
+NO PRODUCTION MUTATION.
+
+CERTIFIED REMOTE BASELINE
+
+origin/main must remain exactly:
+
+d38670fea9b7418e965348dbded1e4d1942bb01d
+
+VALIDATED SECURITY IMPLEMENTATION COMMIT
+
+556cec946f351aa069f70bbdee2328abd6ed43f2
+
+APPROVED PHASE 72.9 RELEASE FILES
+
+package.json
+package-lock.json
+scripts/phase72_9_security_tests.ts
+server/ai/promptSecurity.ts
+server/billing/checkoutSafety.ts
+server/index.ts
+server/routes.ts
+
+No other file is authorized for the Phase 72.9 release commit.
+
+DO NOT:
+
+- push
+- deploy
+- modify Render
+- modify Stripe
+- modify DNS
+- modify production database
+- run migrations
+- run db:push
+- rotate secrets
+- install packages
+- modify application source
+- modify tests
+- modify dependency versions
+- delete governance files merely to hide them
+- use git reset --hard
+- use git add .
+- use git add -A
+- force push
+- amend origin/main
+- change the seven approved files
+
+STEP 1 — CAPTURE THE LIVE LOCAL STATE
+
+At the instant execution begins, run:
+
+CURRENT_HEAD=$(git rev-parse HEAD)
+
+Then:
+
+echo "$CURRENT_HEAD"
+git branch --show-current
+git rev-parse origin/main
+git status --short
+git log --oneline --decorate -10
+
+Do not compare CURRENT_HEAD to a previously supplied local SHA.
+
+Required conditions:
+
+branch = main
+
+origin/main =
+d38670fea9b7418e965348dbded1e4d1942bb01d
+
+If either condition fails:
+STOP.
+
+STEP 2 — VERIFY THE VALIDATED SECURITY COMMIT IS STILL AN ANCESTOR
+
+Run:
+
+git merge-base --is-ancestor 556cec946f351aa069f70bbdee2328abd6ed43f2 "$CURRENT_HEAD"
+
+Capture the exit code.
+
+Required:
+
+exit code 0
+
+If nonzero:
+STOP.
+
+This proves the validated Phase 72.9 implementation has not disappeared from the current history.
+
+STEP 3 — IDENTIFY ALL LOCAL COMMITS AHEAD OF origin/main
+
+Run:
+
+git log --oneline --graph --decorate origin/main.."$CURRENT_HEAD"
+
+Then:
+
+git rev-list --count origin/main.."$CURRENT_HEAD"
+
+Return the exact count and commit list.
+
+Do not assume there are three commits.
+Do not assume the current HEAD message.
+
+STEP 4 — FORENSICALLY CLASSIFY EVERYTHING AFTER 556cec9
+
+Run:
+
+git log --reverse --format='%H %s' 556cec946f351aa069f70bbdee2328abd6ed43f2.."$CURRENT_HEAD"
+
+For every commit returned, run read-only inspection equivalent to:
+
+git show --stat --oneline <SHA>
+
+git show --name-status --format= <SHA>
+
+Classify every changed path as one of:
+
+NON-RELEASE GOVERNANCE ARTIFACT
+APPROVED PHASE 72.9 RELEASE FILE
+UNEXPECTED RUNTIME DRIFT
+UNEXPECTED TEST DRIFT
+UNEXPECTED DEPENDENCY DRIFT
+UNEXPECTED CONFIGURATION DRIFT
+
+Expected safe pattern:
+
+All commits after 556cec9 change only files such as:
+
+attached_assets/Pasted-*.txt
+
+or equivalent Mission Control/Replit governance documentation artifacts.
+
+If ANY commit after 556cec9 modifies:
+
+package.json
+package-lock.json
+scripts/phase72_9_security_tests.ts
+server/ai/promptSecurity.ts
+server/billing/checkoutSafety.ts
+server/index.ts
+server/routes.ts
+
+or any other runtime/test/dependency/configuration file:
+
+STOP.
+
+Return:
+
+BLOCK — POST-CERTIFICATION SOURCE DRIFT PRESENT
+
+Do not reconstruct.
+
+STEP 5 — VERIFY APPROVED FILE CONTENT STILL MATCHES 556cec9
+
+Run:
+
+git diff --quiet 556cec946f351aa069f70bbdee2328abd6ed43f2 "$CURRENT_HEAD" -- package.json package-lock.json scripts/phase72_9_security_tests.ts server/ai/promptSecurity.ts server/billing/checkoutSafety.ts server/index.ts server/routes.ts
+
+Capture exit code.
+
+Required:
+
+0
+
+If nonzero:
+STOP.
+
+This is a mandatory security gate.
+
+The seven approved release files at CURRENT_HEAD must be byte-equivalent in Git content to the previously validated 556cec9 versions.
+
+STEP 6 — CREATE A LOCAL SAFETY BRANCH
+
+Only after Steps 1–5 pass:
+
+Create:
+
+git branch "phase72-9-precleanup-${CURRENT_HEAD:0:7}" "$CURRENT_HEAD"
+
+This branch is LOCAL ONLY.
+
+Do not push it.
+
+Verify:
+
+git rev-parse "phase72-9-precleanup-${CURRENT_HEAD:0:7}"
+
+It must equal CURRENT_HEAD.
+
+STEP 7 — RECONSTRUCT FROM THE CERTIFIED REMOTE BASE
+
+Run:
+
+git reset --mixed origin/main
+
+DO NOT use --hard.
+
+Purpose:
+
+- local main moves back to d38670f
+- changes introduced by the local Phase 72.9 commits become working-tree changes
+- governance artifacts remain outside the clean release commit
+- validated source contents remain available
+
+Immediately run:
+
+git rev-parse HEAD
+git status --short
+git diff --stat
+git diff --name-status
+git diff --check
+
+Required HEAD now:
+
+d38670fea9b7418e965348dbded1e4d1942bb01d
+
+STEP 8 — VERIFY THE WORKING TREE BEFORE STAGING
+
+The intended tracked release changes must correspond only to these seven files:
+
+package.json
+package-lock.json
+scripts/phase72_9_security_tests.ts
+server/ai/promptSecurity.ts
+server/billing/checkoutSafety.ts
+server/index.ts
+server/routes.ts
+
+Governance files under attached_assets may be visible as untracked files.
+
+That is acceptable.
+
+They MUST NOT be staged.
+
+If any additional tracked runtime/test/dependency/configuration file differs from origin/main:
+
+STOP.
+
+Do not stage anything.
+
+STEP 9 — STAGE EXACTLY SEVEN FILES
+
+Run these individually:
+
+git add package.json
+
+git add package-lock.json
+
+git add scripts/phase72_9_security_tests.ts
+
+git add server/ai/promptSecurity.ts
+
+git add server/billing/checkoutSafety.ts
+
+git add server/index.ts
+
+git add server/routes.ts
+
+Do not run:
+
+git add .
+git add -A
+
+STEP 10 — VERIFY STAGED RELEASE BOUNDARY
+
+Run:
+
+git status --short
+
+git diff --cached --stat
+
+git diff --cached --name-status
+
+git diff --cached --check
+
+The cached release must contain exactly:
+
+M package-lock.json
+M package.json
+A scripts/phase72_9_security_tests.ts
+M server/ai/promptSecurity.ts
+A server/billing/checkoutSafety.ts
+M server/index.ts
+M server/routes.ts
+
+No attached_assets path may be staged.
+
+No eighth file may be staged.
+
+git diff --cached --check must PASS.
+
+If not:
+STOP.
+
+STEP 11 — PROVE STAGED SECURITY CONTENT IS IDENTICAL TO 556cec9
+
+This is mandatory.
+
+Compare the staged candidate's seven approved files against commit:
+
+556cec946f351aa069f70bbdee2328abd6ed43f2
+
+The content must be identical.
+
+Use an appropriate Git index/tree comparison that does not modify files.
+
+Report PASS/FAIL per file.
+
+All seven must PASS.
+
+If any differ:
+STOP.
+
+Do not repair or edit them.
+
+STEP 12 — MINIMAL REVALIDATION
+
+Because this reconstruction is not authorized to change source content, run:
+
+npm run check
+
+npm test
+
+Run the exact existing Phase 72.9 security suite using its already-defined command.
+
+Do not modify package scripts if an npm alias does not exist.
+
+Then run:
+
+npm run build
+
+git diff --cached --check
+
+Required:
+
+TypeScript = PASS
+Unit tests = PASS
+Phase 72.9 security = PASS
+Build = PASS
+Cached diff check = PASS
+
+Do not silently fix a failure.
+
+STEP 13 — CREATE THE CLEAN LOCAL RELEASE COMMIT
+
+Only after every prior gate passes:
+
+Create one local commit with message:
+
+Phase 72.9: close security assurance findings
+
+The commit must contain exactly seven files.
+
+No attached_assets file.
+No directive.
+No report.
+No temporary artifact.
+
+DO NOT PUSH.
+
+STEP 14 — VERIFY THE CLEAN COMMIT
+
+Capture:
+
+NEW_HEAD=$(git rev-parse HEAD)
+
+Then run:
+
+echo "$NEW_HEAD"
+
+git status --short
+
+git log --oneline --graph --decorate origin/main..HEAD
+
+git rev-list --count origin/main..HEAD
+
+git diff --stat origin/main..HEAD
+
+git diff --name-status origin/main..HEAD
+
+git diff --check origin/main..HEAD
+
+Requirements:
+
+- exactly 1 commit ahead of origin/main
+- exactly 7 release files
+- no attached_assets files
+- no governance files
+- no unexpected runtime files
+- origin/main remains d38670f
+- git diff --check passes
+
+STEP 15 — FINAL CONTENT-EQUIVALENCE PROOF
+
+Run:
+
+git diff --quiet 556cec946f351aa069f70bbdee2328abd6ed43f2 HEAD -- package.json package-lock.json scripts/phase72_9_security_tests.ts server/ai/promptSecurity.ts server/billing/checkoutSafety.ts server/index.ts server/routes.ts
+
+Required exit code:
+
+0
+
+This proves the final clean release contains the same seven validated security files as 556cec9.
+
+STEP 16 — CONFIRM REMOTE REMAINS UNCHANGED
+
+Run:
+
+git rev-parse origin/main
+
+Required:
+
+d38670fea9b7418e965348dbded1e4d1942bb01d
+
+Do not fetch/pull/sync if unnecessary.
+
+Do not push.
+
+STEP 17 — FINAL REPORT
+
+Return:
+
+PHASE 72.9 — DYNAMIC CLEAN RELEASE RECONSTRUCTION REPORT
+
+Include:
+
+1. Branch
+2. Dynamically captured starting HEAD
+3. origin/main
+4. Validated security commit
+5. Was 556cec9 ancestor of starting HEAD?
+6. Starting local commit count ahead of origin/main
+7. Complete starting local commit list
+8. Every commit after 556cec9
+9. Files changed by every post-556cec9 commit
+10. Post-556cec9 classification
+11. Did any post-certification source file change?
+12. Approved-file equivalence before reconstruction
+13. Safety branch name
+14. Safety branch SHA
+15. Reset base
+16. Pre-stage status
+17. Exact staged file list
+18. Cached diff-check result
+19. Staged content equivalence to 556cec9
+20. TypeScript result
+21. Unit-test result
+22. Phase 72.9 security-suite result
+23. Build result
+24. New clean commit SHA
+25. New clean commit message
+26. Number of commits now ahead of origin/main
+27. Exact origin/main..HEAD file list
+28. origin/main..HEAD diff-check result
+29. Final approved-file equivalence to 556cec9
+30. Exact untracked governance artifacts remaining
+31. Confirmation no attached_assets file is committed in release delta
+32. Confirmation no source code was edited during reconstruction
+33. Production DB migration required: NO
+34. Production schema change required: NO
+35. Stripe mutation occurred: NO
+36. Render mutation occurred: NO
+37. Production mutation occurred: NO
+38. Push occurred: NO
+39. Deployment occurred: NO
+40. Final recommendation
+
+FINAL RECOMMENDATION MUST BE:
+
+APPROVE PUSH — CLEAN PHASE 72.9 RELEASE COMMIT
+
+or
+
+BLOCK PUSH — POST-CERTIFICATION SOURCE DRIFT PRESENT
+
+or
+
+BLOCK PUSH — RELEASE DELTA NOT CLEAN
+
+or
+
+BLOCK PUSH — CONTENT EQUIVALENCE FAILURE
+
+or
+
+BLOCK PUSH — VERIFICATION FAILURE
+
+STOP after the report.
+
+Do not push.
+Do not deploy.
+
+Await CEO/Founder + Mission Control review.

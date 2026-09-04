@@ -1,0 +1,270 @@
+PHASE 72.9 — CLEAN RELEASE COMMIT RECONSTRUCTION
+
+Mission Control authorization:
+APPROVED FOR LOCAL GIT HYGIENE ONLY.
+
+Objective:
+Reconstruct the existing local Phase 72.9 commit so that it contains ONLY the seven validated release files.
+
+This is NOT authorization to push or deploy.
+
+Current state:
+- origin/main = d38670fea9b7418e965348dbded1e4d1942bb01d
+- local HEAD = 556cec946f351aa069f70bbdee2328abd6ed43f2
+- 556cec9 contains the validated Phase 72.9 implementation plus one unintended committed attached_assets authorization file.
+- Another attached_assets directive file is currently untracked.
+
+DO NOT:
+- push
+- deploy
+- modify production
+- modify Stripe
+- modify Render
+- modify DNS
+- modify the production database
+- change application source
+- change tests
+- change dependencies
+- install packages
+- run migrations
+- delete governance files from disk merely to hide them
+- create new checkpoint files
+
+The only authorized operation is reconstruction of the local commit.
+
+STEP 1 — CAPTURE CURRENT STATE
+
+Run:
+
+git branch --show-current
+git rev-parse HEAD
+git rev-parse origin/main
+git status --short
+
+Expected:
+branch = main
+HEAD = 556cec946f351aa069f70bbdee2328abd6ed43f2
+origin/main = d38670fea9b7418e965348dbded1e4d1942bb01d
+
+If any value differs, STOP.
+
+STEP 2 — CREATE A SAFETY REFERENCE
+
+Before rewriting the local commit, create a local-only backup branch:
+
+git branch phase72-9-precleanup-556cec9 556cec946f351aa069f70bbdee2328abd6ed43f2
+
+Do not push this branch.
+
+Verify:
+
+git rev-parse phase72-9-precleanup-556cec9
+
+Expected:
+556cec946f351aa069f70bbdee2328abd6ed43f2
+
+STEP 3 — MOVE MAIN BACK TO ORIGIN/MAIN WHILE PRESERVING THE PHASE 72.9 FILE CHANGES
+
+Use:
+
+git reset --mixed origin/main
+
+This must:
+- move local main back to d38670f
+- preserve the Phase 72.9 tracked modifications in the working tree
+- leave the attached_assets files untracked rather than staged
+
+Do NOT use --hard.
+
+STEP 4 — INSPECT BEFORE STAGING
+
+Run:
+
+git status --short
+git diff --stat
+git diff --name-status
+git diff --check
+
+The intended release set must be exactly:
+
+package.json
+package-lock.json
+scripts/phase72_9_security_tests.ts
+server/ai/promptSecurity.ts
+server/billing/checkoutSafety.ts
+server/index.ts
+server/routes.ts
+
+The attached_assets authorization/review directive files must NOT appear as staged release files.
+
+If any additional tracked file appears, STOP.
+
+git diff --check must PASS.
+
+STEP 5 — STAGE ONLY THE SEVEN APPROVED RELEASE FILES
+
+Explicitly stage these paths only:
+
+git add package.json
+git add package-lock.json
+git add scripts/phase72_9_security_tests.ts
+git add server/ai/promptSecurity.ts
+git add server/billing/checkoutSafety.ts
+git add server/index.ts
+git add server/routes.ts
+
+Do not use:
+
+git add .
+git add -A
+
+STEP 6 — VERIFY THE STAGED RELEASE
+
+Run:
+
+git status --short
+git diff --cached --stat
+git diff --cached --name-status
+git diff --cached --check
+
+The cached file list must contain exactly seven files.
+
+Expected:
+
+M package-lock.json
+M package.json
+A scripts/phase72_9_security_tests.ts
+M server/ai/promptSecurity.ts
+A server/billing/checkoutSafety.ts
+M server/index.ts
+M server/routes.ts
+
+No attached_assets path may appear.
+
+git diff --cached --check must return exit code 0.
+
+STEP 7 — VERIFY NO SECURITY CONTENT CHANGED DURING RECONSTRUCTION
+
+Compare the seven staged files against the previous certified local commit 556cec9.
+
+For each approved release file confirm that the content at the staged candidate is identical to the corresponding content in 556cec9.
+
+Do not modify source code to achieve this.
+
+If any approved release file differs from 556cec9, STOP and report the difference.
+
+STEP 8 — MINIMAL REVALIDATION
+
+Because this operation should change only Git packaging and not source content, run:
+
+npm run check
+npm test
+npm run phase72_9_security_tests --if-present
+
+If that exact npm script does not exist, run the same previously certified Phase 72.9 test command. Do not invent or modify package scripts.
+
+Then:
+
+npm run build
+git diff --cached --check
+
+Release requirements:
+
+TypeScript = PASS
+General tests = PASS
+Phase 72.9 = PASS
+Build = PASS
+Cached diff check = PASS
+
+Do not silently fix failures.
+
+STEP 9 — CREATE ONE CLEAN LOCAL COMMIT
+
+Only after all above checks pass, create one local commit containing exactly the seven approved files.
+
+Recommended message:
+
+Phase 72.9: close security assurance findings
+
+Do not add governance files.
+
+Do not push.
+
+STEP 10 — POST-COMMIT VERIFICATION
+
+Run:
+
+git rev-parse HEAD
+git status --short
+git diff origin/main..HEAD --stat
+git diff origin/main..HEAD --name-status
+git diff origin/main..HEAD --check
+
+Then verify:
+
+git log --oneline origin/main..HEAD
+
+Requirements:
+- exactly one release commit ahead of origin/main
+- exactly seven release files
+- no attached_assets files in origin/main..HEAD
+- git diff origin/main..HEAD --check = PASS
+- untracked governance directive may remain visible in git status; that is acceptable and must not be committed
+
+Also run:
+
+git diff --quiet 556cec946f351aa069f70bbdee2328abd6ed43f2 -- package.json package-lock.json scripts/phase72_9_security_tests.ts server/ai/promptSecurity.ts server/billing/checkoutSafety.ts server/index.ts server/routes.ts
+
+Expected exit code:
+0
+
+This proves the clean release commit contains the same validated security implementation as 556cec9.
+
+STEP 11 — FINAL REPORT
+
+Return:
+
+PHASE 72.9 — CLEAN RELEASE COMMIT REPORT
+
+Include:
+
+1. Branch
+2. Previous local commit
+3. Safety backup branch SHA
+4. origin/main SHA
+5. New clean commit SHA
+6. git status --short
+7. Exact committed file list
+8. Exact untracked file list
+9. git diff origin/main..HEAD --stat
+10. git diff origin/main..HEAD --name-status
+11. git diff origin/main..HEAD --check result
+12. Approved-file equivalence to 556cec9
+13. TypeScript result
+14. Unit-test result
+15. Phase 72.9 test result
+16. Build result
+17. Number of commits ahead of origin/main
+18. Confirmation attached_assets absent from release delta
+19. Confirmation no source code was changed during reconstruction
+20. Confirmation no production mutation occurred
+21. Confirmation no push occurred
+22. Confirmation no deployment occurred
+23. Recommendation
+
+Final recommendation must be one of:
+
+APPROVE PUSH — CLEAN PHASE 72.9 RELEASE COMMIT
+
+BLOCK PUSH — RELEASE DELTA NOT CLEAN
+
+BLOCK PUSH — VALIDATED SOURCE CONTENT CHANGED
+
+BLOCK PUSH — VERIFICATION FAILURE
+
+STOP.
+
+Do not push.
+Do not deploy.
+
+Await CEO/Founder + Mission Control review.

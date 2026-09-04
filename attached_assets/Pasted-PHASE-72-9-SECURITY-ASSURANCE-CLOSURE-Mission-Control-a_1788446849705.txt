@@ -1,0 +1,610 @@
+PHASE 72.9 — SECURITY ASSURANCE CLOSURE
+
+Mission Control authorization status: APPROVED FOR READ-ONLY AUDIT + VERIFIED DEFECT REMEDIATION ONLY
+
+CEO/Founder governance rule applies:
+
+No finding is accepted without exact evidence.
+No fix is accepted without before/after proof.
+No commit, push, deploy, or production mutation occurs until Mission Control review.
+
+CURRENT PRODUCTION BASELINE
+
+Production commit:
+
+d38670fea9b7418e965348dbded1e4d1942bb01d
+
+Production host:
+
+[https://www.elevate360official.com](https://www.elevate360official.com)
+
+Known current production evidence:
+
+* Render deployment parity: PASS
+* Production HTTP health: PASS
+* Unknown /api/* fails closed with JSON 404
+* Unknown public routes return real 404
+* Search Intelligence rejects anonymous access
+* Stripe webhook signature boundary enforced
+* Phase 72.7 event ledger exists
+* subscriptions table exists
+* last_event_at exists
+* Active subscriptions survived deployment
+* Live Stripe events process successfully
+* Duplicate event IDs = 0
+* Credit grants recorded successfully
+* /work healthy
+* /ai-growth-guide canonical route healthy
+* /guide retired with 404
+* Guide PDF healthy
+* Critical/High dependency findings were zero at Phase 72.8 certification
+* Phase 72.1–72.8 regression suites passed before deployment
+
+PHASE 72.9 OBJECTIVE
+
+Close the remaining assurance gaps without broad speculative refactoring.
+
+Focus only on:
+
+1. Founder authentication assurance
+2. RBAC / authorization matrix
+3. Customer-bound paid-content delivery
+4. Session and chat isolation
+5. CSP and browser-security headers
+6. Dependency freshness/security
+7. Backup and restore assurance
+8. Final production security evidence
+
+OPERATING MODE
+
+START WITH READ-ONLY DIAGNOSIS.
+
+You may fix only a defect that is:
+
+* reproducible
+* tied to an exact route/function/file
+* severity-classified
+* supported by a failing test or equivalent evidence
+
+DO NOT make speculative architecture changes.
+
+DO NOT:
+
+* commit
+* push
+* deploy
+* modify Render environment variables
+* modify Stripe
+* modify DNS
+* modify production database
+* run db:push
+* run destructive migrations
+* rotate secrets
+* expose secret values
+* expose PII
+* weaken authentication
+* weaken authorization
+* delete tests to obtain green status
+* introduce broad dependency upgrades unrelated to a verified security issue
+
+A. FOUNDER AUTHENTICATION ASSURANCE
+
+Audit the actual founder authentication implementation at commit d38670f.
+
+Verify:
+
+* DASHBOARD_PIN is never exposed to browser code
+* PIN is never stored in localStorage/sessionStorage
+* comparison is timing-safe
+* login endpoint is rate-limited
+* failed attempts do not leak timing or detailed auth state
+* successful login rotates the session identifier
+* logout invalidates/rotates the founder session
+* founder identity is distinct from customer identity
+* session cookies use secure production settings
+* HttpOnly
+* Secure
+* SameSite policy explicitly justified
+* no session fixation path
+* no privilege escalation from customer session to founder session
+
+Then assess MFA.
+
+Do not automatically implement MFA.
+
+Return one of:
+
+MFA REQUIRED BEFORE SECURITY CLOSURE
+MFA STRONGLY RECOMMENDED BUT NOT RELEASE-BLOCKING
+MFA NOT MATERIAL FOR CURRENT THREAT MODEL
+
+Support the conclusion with actual code and attack-surface evidence.
+
+If a reproducible authentication flaw exists, create a failing test before fixing it.
+
+B. RBAC / AUTHORIZATION MATRIX
+
+Create an exact authorization inventory for sensitive namespaces.
+
+At minimum inspect:
+
+/api/admin/*
+/api/dashboard/*
+/api/founder/*
+/api/automation/*
+/api/execution/*
+/api/strategy/*
+/api/system/*
+premium/customer APIs
+content-draft APIs
+marketplace/order APIs
+Stripe customer billing APIs
+
+For each route classify:
+
+PUBLIC
+CUSTOMER AUTHENTICATED
+FOUNDER ONLY
+SYSTEM/INTERNAL
+WEBHOOK-SIGNED
+
+Verify every route matches its intended classification.
+
+Check for:
+
+* missing middleware
+* middleware ordering defects
+* inline auth bypasses
+* IDOR
+* object ownership failures
+* role confusion
+* customer-to-founder escalation
+* founder-only router mounted under public namespace
+* authorization checks that depend only on user-controlled IDs
+
+Produce:
+
+PHASE 72.9 AUTHORIZATION MATRIX
+
+Columns:
+
+method
+route
+classification
+auth mechanism
+ownership check
+mutation?
+verified result
+
+Any founder/admin data route accessible anonymously is Critical/High.
+
+C. CUSTOMER-BOUND PAID-CONTENT DELIVERY
+
+This is a primary closure gate.
+
+Audit:
+
+orders
+one-time checkout
+checkout success
+download/delivery routes
+thank-you routes
+entitlement checks
+marketplace delivery
+digital products
+strategy-session purchase access
+any token-based download link
+
+Verify:
+
+* purchase access is bound to authoritative server-side order/customer state
+* browser cannot supply arbitrary order ID and access another customer's content
+* browser cannot supply arbitrary email to claim another order
+* paid flag cannot be forged via query string
+* success URL does not itself grant entitlement
+* access tokens are unguessable
+* expired tokens fail closed
+* refunded orders cannot retain paid delivery if policy requires revocation
+* canceled/failed payments cannot produce delivery
+* server trusts Stripe/webhook state, not browser state
+* delivery route enforces ownership or secure possession proof
+* IDOR attempts fail
+
+Create explicit adversarial tests.
+
+Examples:
+
+Customer A cannot access Customer B's order.
+Random order ID cannot access delivery.
+Forged success query cannot unlock content.
+Refunded order cannot re-open delivery.
+Unknown token returns 404/403.
+Expired token returns 403/410 according to policy.
+
+If any defect exists:
+
+write failing test
+apply minimal fix
+rerun full related suite
+
+D. SESSION AND CHAT ISOLATION
+
+Audit:
+
+AI Concierge
+customer chat/session storage
+anonymous session IDs
+conversation state
+lead state
+founder AI surfaces
+premium AI surfaces
+
+Verify:
+
+* one browser session cannot read another user's conversation
+* anonymous IDs cannot be replaced with arbitrary victim identifiers
+* customer identity cannot be selected through request body fields
+* session-bound data always derives from server session where required
+* founder-only AI endpoints reject customer/anonymous callers
+* draft/internal prompts are not returned to visitors
+* system prompts are not exposed
+* conversation memory is scoped correctly
+* chat transcripts do not leak across sessions
+* email/PII is not used as an anonymous identifier
+* prompt injection cannot gain admin/system capabilities
+
+Add isolation tests using two independent sessions.
+
+Required:
+
+Session A cannot read or mutate Session B state.
+
+E. CSP AND BROWSER SECURITY HEADERS
+
+Audit actual production headers and source configuration.
+
+Verify:
+
+Content-Security-Policy
+or explicitly documented reason for CSP-Report-Only / absence
+
+Also inspect:
+
+Strict-Transport-Security
+X-Content-Type-Options
+Referrer-Policy
+Permissions-Policy
+frame-ancestors or X-Frame-Options
+Cross-Origin-Opener-Policy if appropriate
+Cross-Origin-Resource-Policy if appropriate
+
+Do not add a CSP blindly.
+
+First inventory required production origins:
+
+Google Tag Manager
+Google Analytics
+Stripe
+Amazon links
+YouTube
+fonts
+images
+AI/API requests
+Render/static assets
+any other legitimate third-party resources
+
+If CSP is absent, build a policy based on actual dependencies.
+
+Preferred rollout:
+
+1. test locally
+2. CSP-Report-Only if compatibility uncertainty exists
+3. verify no critical asset/script breakage
+4. only then recommend enforcement
+
+Do not deploy CSP during Phase 72.9 without Mission Control approval after compatibility evidence.
+
+F. DEPENDENCY SECURITY
+
+Run a fresh dependency audit against the exact Phase 72.9 working tree.
+
+External dependency metadata transmission for npm audit is AUTHORIZED for this security-assurance task.
+
+Run:
+
+npm audit --json
+
+or equivalent.
+
+Also run the project's existing dependency/security scanners.
+
+Report:
+
+Critical
+High
+Moderate
+Low
+
+For every Critical/High:
+
+* package
+* dependency path
+* advisory
+* reachable runtime surface?
+* production/dev dependency?
+* patched version
+* compatibility impact
+
+Fix Critical/High only if a compatible patch exists.
+
+Do not perform major framework/library upgrades unless necessary to fix a verified Critical/High vulnerability.
+
+After dependency change:
+
+npm install / lock validation
+npm run check
+npm test
+full relevant Phase suites
+npm run build
+
+G. BACKUP AND RESTORE ASSURANCE
+
+READ-ONLY FIRST.
+
+Determine the actual production database hosting/backups used by Render production.
+
+Do not infer Replit Neon backup state.
+
+Verify:
+
+* actual Render DATABASE_URL database provider
+* automated backup capability
+* retention policy if discoverable
+* latest successful backup timestamp if accessible
+* whether point-in-time recovery exists
+* whether application-critical tables are included
+* whether restore instructions exist
+
+Do NOT perform a production restore.
+
+Instead prepare a restore drill plan.
+
+If a safe isolated staging database exists and restoration can be done without production mutation, you may recommend a controlled restore test, but do not execute without explicit approval.
+
+Required output:
+
+BACKUP STATUS:
+VERIFIED
+PARTIALLY VERIFIED
+NOT VERIFIED
+
+Also provide:
+
+RPO
+RTO
+restore prerequisites
+restore procedure
+validation checklist
+
+If backup existence cannot be independently proven, this remains an open assurance item.
+
+H. SECURITY TELEMETRY REVIEW
+
+Inspect whether public `/api/health` leaks sensitive operational information.
+
+Verify its exact response.
+
+Allowed public health response should be minimal, e.g.:
+
+status
+version/commit if intentionally public
+
+It should not expose:
+
+database hostname
+provider credentials
+internal service topology
+queue names if sensitive
+customer counts
+private infrastructure identifiers
+stack traces
+secret configuration state
+
+If the endpoint leaks sensitive telemetry, classify and fix minimally.
+
+I. LEGACY SUBDOMAIN REVIEW
+
+Recheck known legacy product destinations:
+
+BondedLove
+HealthWise
+Video Crafter
+
+Distinguish:
+
+1. dead but no longer referenced
+2. publicly linked and broken
+3. DNS takeover risk
+4. intentionally retired
+
+Do not restore obsolete destinations automatically.
+
+Check whether any dangling DNS/custom-domain configuration creates subdomain-takeover risk.
+
+If no public source references remain and DNS is safely retired, classify as informational.
+
+J. ADVERSARIAL SECURITY TEST SUITE
+
+Create or extend Phase 72.9 tests for:
+
+founder login brute-force boundary
+session fixation
+customer/founder identity separation
+admin namespace protection
+RBAC matrix
+IDOR
+order ownership
+paid-content entitlement
+refunded-order delivery
+chat/session isolation
+anonymous identifier tampering
+prompt injection boundary
+CSRF-sensitive mutations
+XSS
+SQL injection
+open redirect
+canonical host injection
+path traversal
+security headers
+health telemetry
+rate limits
+
+All tests must be hermetic.
+
+No real payment.
+No real email.
+No production writes.
+
+K. FULL REGRESSION AFTER ANY FIX
+
+If ANY source or dependency file changes, rerun:
+
+npm run check
+npm test
+
+Phase 72.1
+Phase 72.2
+Phase 72.3
+Phase 72.4
+Phase 72.4.1
+Phase 72.4.2
+Phase 72.4.3
+Phase 72.5
+Phase 72.6
+Phase 72.7
+Phase 72.8 auth
+Phase 72.8 security
+Phase 72.8 Stripe
+Phase 72.8 regression
+Phase 72.9 security assurance
+
+Use fresh processes for rate-limit-sensitive suites.
+
+Then:
+
+npm audit
+SAST
+secret scan
+npm run build
+git diff --check
+
+Required release threshold:
+
+Critical = 0
+High = 0
+TypeScript = PASS
+Build = PASS
+All security suites = PASS
+
+L. FINDING EVIDENCE STANDARD
+
+Every finding must include:
+
+Finding ID
+Severity
+Exact commit SHA
+Environment
+File
+Function/route
+Reproduction
+Expected behavior
+Actual behavior
+Exploitability
+Impact
+Fix status
+Regression test
+
+Do not use generic statements such as:
+
+"shared PIN is insecure"
+"RBAC may be weak"
+"dependencies vulnerable"
+
+without concrete evidence.
+
+M. PHASE 72.9 STOP GATE
+
+Do not commit.
+
+Do not push.
+
+Do not deploy.
+
+Stop after completing the audit and any locally verified minimal fixes.
+
+Return:
+
+PHASE 72.9 — SECURITY ASSURANCE CLOSURE REPORT
+
+Include:
+
+1. Executive verdict
+2. Exact audited commit
+3. Environment map
+4. Founder authentication verdict
+5. MFA determination
+6. Session-cookie result
+7. Session fixation result
+8. RBAC matrix result
+9. Unprotected sensitive routes count
+10. IDOR result
+11. Customer-bound paid-content result
+12. Refund/revocation result
+13. Session/chat isolation result
+14. Founder AI isolation result
+15. Prompt-injection boundary result
+16. CSP status
+17. Browser security-header result
+18. Dependency audit result
+19. Critical dependencies
+20. High dependencies
+21. Health telemetry result
+22. Legacy subdomain result
+23. Backup status
+24. Backup retention evidence
+25. RPO
+26. RTO
+27. Restore drill readiness
+28. Phase 72.9 test result
+29. npm run check
+30. npm test
+31. Historical regression result if code changed
+32. SAST result
+33. Secret scan result
+34. Production build result
+35. Remaining Medium/Low findings
+36. Verified defects fixed
+37. Files changed
+38. Confirmation no production mutation
+39. Confirmation no Stripe mutation
+40. Confirmation no secret/PII disclosure
+41. Recommendation for commit/push/deploy
+42. Remaining assurance items
+
+FINAL VERDICT MUST BE ONE OF:
+
+PASS — SECURITY ASSURANCE CLOSED
+
+PASS WITH GOVERNANCE RECOMMENDATIONS
+
+BLOCKED — VERIFIED HIGH/CRITICAL DEFECT REMAINS
+
+INCONCLUSIVE — REQUIRED ASSURANCE EVIDENCE UNAVAILABLE
+
+STOP after the report.
+
+Do not commit.
+Do not push.
+Do not deploy.
+
+Await CEO/Founder + Mission Control review.

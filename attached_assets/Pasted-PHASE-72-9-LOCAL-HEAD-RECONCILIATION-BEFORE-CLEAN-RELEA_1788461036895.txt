@@ -1,0 +1,210 @@
+PHASE 72.9 — LOCAL HEAD RECONCILIATION BEFORE CLEAN RELEASE RECONSTRUCTION
+
+Mission Control authorization:
+READ-ONLY GIT FORENSICS FIRST.
+NO RESET, NO COMMIT, NO PUSH, NO DEPLOYMENT until the local HEAD delta is understood.
+
+Current known state:
+- branch: main
+- local HEAD: f043e5acfabc63a507ac209bc5ff5b521cfb1721
+- previous reviewed local commit: 556cec946f351aa069f70bbdee2328abd6ed43f2
+- origin/main: d38670fea9b7418e965348dbded1e4d1942bb01d
+- GitHub does not contain f043e5a, so it is local-only.
+- current untracked file:
+  attached_assets/Pasted-PHASE-72-9-CLEAN-RELEASE-COMMIT-RECONSTRUCTION-Mission-_1788458385927.txt
+
+OBJECTIVE
+
+Determine exactly what changed between:
+d38670f → 556cec9 → f043e5a
+
+Do not alter history until the delta is classified.
+
+STEP 1 — VERIFY EXACT STATE
+
+Run:
+
+git branch --show-current
+git rev-parse HEAD
+git rev-parse origin/main
+git status --short
+git log --oneline --decorate -5
+
+Expected:
+branch = main
+HEAD = f043e5acfabc63a507ac209bc5ff5b521cfb1721
+origin/main = d38670fea9b7418e965348dbded1e4d1942bb01d
+
+If different, STOP.
+
+STEP 2 — IDENTIFY THE NEW LOCAL COMMIT
+
+Run:
+
+git show --stat --oneline --decorate f043e5acfabc63a507ac209bc5ff5b521cfb1721
+
+git show --name-status --format=fuller f043e5acfabc63a507ac209bc5ff5b521cfb1721
+
+git diff --stat 556cec946f351aa069f70bbdee2328abd6ed43f2..f043e5acfabc63a507ac209bc5ff5b521cfb1721
+
+git diff --name-status 556cec946f351aa069f70bbdee2328abd6ed43f2..f043e5acfabc63a507ac209bc5ff5b521cfb1721
+
+git diff --check 556cec946f351aa069f70bbdee2328abd6ed43f2..f043e5acfabc63a507ac209bc5ff5b521cfb1721
+
+Return raw output.
+
+STEP 3 — REVIEW CONTENT OF f043e5a
+
+For every file changed by f043e5a, report:
+
+- exact path
+- added / modified / deleted
+- whether it is runtime code
+- test code
+- dependency metadata
+- governance artifact
+- temporary artifact
+- unrelated drift
+- whether it changes any of the seven validated Phase 72.9 release files
+- whether it changes security behavior
+- whether it changes test behavior
+- whether it changes package versions
+- whether it changes any environment/configuration file
+
+If f043e5a changes any approved release file, show the exact diff against 556cec9.
+
+Do not modify anything.
+
+STEP 4 — COMPARE ENTIRE RELEASE CANDIDATE TO origin/main
+
+Run:
+
+git diff --stat origin/main..HEAD
+git diff --name-status origin/main..HEAD
+git diff --check origin/main..HEAD
+
+Then list all files in the complete local release delta.
+
+Classify each as:
+
+APPROVED PHASE 72.9 RELEASE FILE
+NON-RELEASE GOVERNANCE ARTIFACT
+UNEXPECTED DRIFT
+
+The approved release files remain exactly:
+
+package.json
+package-lock.json
+scripts/phase72_9_security_tests.ts
+server/ai/promptSecurity.ts
+server/billing/checkoutSafety.ts
+server/index.ts
+server/routes.ts
+
+Any additional committed path must be explicitly identified.
+
+STEP 5 — CHECK COMMIT GRAPH
+
+Run:
+
+git log --oneline --graph --decorate origin/main..HEAD
+
+Report:
+
+- how many local commits are ahead of origin/main
+- parent SHA of f043e5a
+- whether f043e5a directly descends from 556cec9
+- whether any merge commit exists
+- whether any branch switch/rebase appears in the local graph
+
+STEP 6 — CONTENT EQUIVALENCE CHECK
+
+For the seven approved Phase 72.9 release files, compare:
+
+556cec946f351aa069f70bbdee2328abd6ed43f2
+vs
+f043e5acfabc63a507ac209bc5ff5b521cfb1721
+
+Run:
+
+git diff --quiet 556cec946f351aa069f70bbdee2328abd6ed43f2 f043e5acfabc63a507ac209bc5ff5b521cfb1721 -- package.json package-lock.json scripts/phase72_9_security_tests.ts server/ai/promptSecurity.ts server/billing/checkoutSafety.ts server/index.ts server/routes.ts
+
+Report the exit code.
+
+Expected safe result:
+0
+
+If nonzero:
+STOP.
+Do not reconstruct.
+Return the exact approved-file differences.
+
+STEP 7 — DETERMINE SAFE RECONSTRUCTION BASE
+
+Only after the above evidence, choose one of these conclusions:
+
+A. f043e5a changed only governance/non-release artifacts
+→ SAFE TO RECONSTRUCT FROM f043e5a after preserving a safety branch.
+
+B. f043e5a changed approved Phase 72.9 files but content is still independently validated
+→ BLOCK reconstruction pending Mission Control review.
+
+C. f043e5a introduced unrelated runtime/config/dependency drift
+→ BLOCK reconstruction.
+
+D. evidence is ambiguous
+→ INCONCLUSIVE.
+
+DO NOT proceed to reset/stage/commit in this run.
+
+STEP 8 — REPORT
+
+Return:
+
+PHASE 72.9 — LOCAL HEAD RECONCILIATION REPORT
+
+Include:
+
+1. Branch
+2. HEAD
+3. Previous local commit
+4. origin/main
+5. git status --short
+6. Latest five commits
+7. f043e5a commit message
+8. f043e5a parent SHA
+9. f043e5a changed-file list
+10. f043e5a diff stat
+11. f043e5a diff-check result
+12. Complete origin/main..HEAD changed-file list
+13. Complete origin/main..HEAD diff-check result
+14. Local commits ahead of origin/main
+15. Approved-file equivalence result
+16. Governance artifacts present
+17. Unexpected drift present
+18. Runtime code changed by f043e5a: YES/NO
+19. Dependency files changed by f043e5a: YES/NO
+20. Test files changed by f043e5a: YES/NO
+21. Environment/config files changed by f043e5a: YES/NO
+22. Production mutation occurred: YES/NO
+23. Push occurred: YES/NO
+24. Deployment occurred: YES/NO
+25. Recommendation
+
+Final recommendation must be one of:
+
+SAFE TO ISSUE REVISED CLEAN-RECONSTRUCTION DIRECTIVE
+
+BLOCK — APPROVED SECURITY CONTENT CHANGED
+
+BLOCK — UNRELATED DRIFT PRESENT
+
+INCONCLUSIVE — LOCAL COMMIT REQUIRES FURTHER REVIEW
+
+STOP after the report.
+
+Do not reset.
+Do not stage.
+Do not commit.
+Do not push.
+Do not deploy.

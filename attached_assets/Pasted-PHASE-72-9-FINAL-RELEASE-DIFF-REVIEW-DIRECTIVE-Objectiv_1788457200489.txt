@@ -1,0 +1,405 @@
+PHASE 72.9 — FINAL RELEASE-DIFF REVIEW DIRECTIVE
+
+Objective:
+Perform the final controlled review of the Phase 72.9 local security candidate before any commit, push, deployment, or production change.
+
+This is a review-only gate.
+
+Do not commit.
+Do not push.
+Do not deploy.
+Do not modify production.
+Do not modify Render settings.
+Do not modify Stripe.
+Do not modify DNS.
+Do not modify production database state.
+Do not run any migration or schema bootstrap.
+Do not create unrelated files.
+Do not create checkpoint artifacts.
+Do not alter or delete the existing Phase 72.9 security regression coverage.
+
+Certified production baseline:
+d38670fea9b7418e965348dbded1e4d1942bb01d
+
+Current Phase 72.9 status:
+PASS WITH GOVERNANCE RECOMMENDATIONS
+
+Known locally remediated areas include:
+
+* Early-response security headers.
+* CSP Report-Only policy.
+* Minimal public health response.
+* Server-scoped offer acceptance.
+* Anonymous Concierge session persistence.
+* Stripe Checkout compensation.
+* browserslist dependency override.
+* Phase 72.9 hermetic regression tests.
+
+Your task is to prove that the local working tree contains only the intended Phase 72.9 security changes and no unrelated or unsafe drift.
+
+STEP 1 — CONFIRM GIT BASELINE
+
+Run:
+
+git branch –show-current
+
+git rev-parse HEAD
+
+git rev-parse origin/main
+
+Expected baseline relationship:
+
+* Current branch should be main unless there is a specifically documented Phase 72.9 review branch.
+* origin/main must still point to:
+    d38670fea9b7418e965348dbded1e4d1942bb01d
+* No push must occur.
+
+Report the exact values.
+
+STEP 2 — FINAL WORKING-TREE EVIDENCE
+
+Run exactly:
+
+git status –short
+
+git diff –stat
+
+git diff –name-status
+
+git diff –check
+
+Return the raw results.
+
+Do not omit untracked files.
+
+STEP 3 — ENUMERATE ALL PHASE 72.9 FILES
+
+Produce an exact list of every modified, added, deleted, or untracked file associated with Phase 72.9.
+
+For each file provide:
+
+* path
+* status: modified / added / deleted / untracked
+* purpose
+* security finding addressed
+* whether runtime code, test code, dependency metadata, documentation, or temporary artifact
+* whether required for the release
+
+No file may be described generically.
+
+STEP 4 — UNRELATED-CHANGE AUDIT
+
+Explicitly check for and report whether any of the following have changed:
+
+.replit
+replit.nix
+render.yaml
+Dockerfile
+environment files
+.env
+.env.*
+secret files
+credential files
+database migration files
+schema files
+generated build output
+dist/
+node_modules/
+screenshots
+browser-test artifacts
+temporary files
+attached_assets/
+Pasted-* files
+Git files accidentally created at repository root
+logs
+diagnostic dumps
+security reports not required by runtime/tests
+editor metadata
+OS metadata
+package manager cache files
+
+If any exist, classify them as:
+
+REQUIRED RELEASE FILE
+NON-RELEASE ARTIFACT
+UNEXPECTED DRIFT
+
+Do not delete anything yet.
+Report first.
+
+STEP 5 — SECURITY-DIFF REVIEW
+
+Review the actual diff for every changed runtime file.
+
+For each change verify:
+
+1. It maps directly to a documented Phase 72.9 finding.
+2. It is the smallest reasonable change.
+3. It does not weaken any existing security control.
+4. It does not expose secrets, PII, session identifiers, Stripe data, or internal configuration.
+5. It does not introduce a new public route unintentionally.
+6. It does not broaden authentication or authorization.
+7. It does not trust new browser-controlled identity fields.
+8. It does not bypass existing server-side ownership checks.
+9. It does not introduce new database writes unrelated to the intended fix.
+10. It does not introduce debug logging containing sensitive data.
+
+Report PASS/FAIL for each runtime file.
+
+STEP 6 — HEADER CHANGES REVIEW
+
+Verify the header-ordering and policy changes specifically.
+
+Confirm:
+
+* Security headers execute before authentication and early terminating middleware.
+* Existing public and authenticated responses retain intended headers.
+* CSP remains Report-Only, not enforced.
+* HSTS is production-only.
+* HSTS max-age is one year.
+* includeSubDomains is intentional.
+* COOP and CORP do not obviously break known application flows.
+* X-Frame-Options remains DENY.
+* Referrer-Policy remains strict-origin-when-cross-origin.
+* Permissions-Policy remains restrictive.
+* No CSP origin was added without an identified production use.
+
+List all CSP directives and allowed external origins.
+
+Do not change CSP during this review.
+
+STEP 7 — PUBLIC HEALTH RESPONSE REVIEW
+
+Verify the local /api/health response contains only:
+
+{“status”:“healthy”}
+
+Confirm it does not expose:
+
+* AI provider names
+* model names
+* database state
+* memory statistics
+* uptime
+* session counts
+* Stripe configuration
+* Resend configuration
+* internal service names
+* environment names
+* stack traces
+* hostnames
+* credentials or configuration flags
+
+STEP 8 — OFFER-ACCEPTANCE FIX REVIEW
+
+Review /api/checkout/offer-accepted.
+
+Verify:
+
+* Browser chat ID is never used alone as the authoritative database key.
+* req.sessionID participates in the scoped identifier.
+* Existing scoped conversation is required.
+* Submitted offer must match the active server-side recommendation.
+* Cross-session replay fails.
+* Arbitrary chat ID fails.
+* Unknown offer fails.
+* No customer or founder privilege is derived from request-body identity.
+
+Confirm the corresponding Phase 72.9 regression tests cover the defect.
+
+STEP 9 — STRIPE CHECKOUT COMPENSATION REVIEW
+
+Review all affected one-time checkout flows.
+
+Verify ordering is now:
+
+1. Validate request.
+2. Resolve server-owned offer/product/price.
+3. Create Stripe Checkout session.
+4. Persist required local order state.
+5. Return Checkout URL only after local persistence succeeds.
+
+If persistence fails:
+
+* the Checkout session is expired on a best-effort basis;
+* the original persistence error remains the authoritative failure;
+* no Checkout URL is returned;
+* cleanup failure does not mask the original failure;
+* no successful local order is fabricated.
+
+Confirm this is covered by hermetic tests.
+
+STEP 10 — ANONYMOUS CHAT SESSION REVIEW
+
+Verify:
+
+* Anonymous chat initializes/saves the Express session when needed.
+* saveUninitialized: false remains in effect.
+* Session isolation still uses server-controlled session state.
+* Cookie persistence survives the expected checkout-return path.
+* No arbitrary client-provided session ID becomes authoritative.
+* Founder and customer session namespaces remain separate.
+
+STEP 11 — DEPENDENCY CHANGE REVIEW
+
+Review package.json and package-lock.json.
+
+Confirm:
+
+* browserslist override is exactly the intended patched version.
+* No unrelated direct dependency was introduced.
+* No major framework upgrade occurred.
+* No dependency was downgraded.
+* Lockfile integrity hashes remain valid.
+* No Replit-local package registry URL remains.
+* Public npm registry URLs are used where expected.
+
+Report final audit counts:
+
+Critical
+High
+Moderate
+Low
+
+Release requirement:
+
+Critical = 0
+High = 0
+
+STEP 12 — PHASE 72.9 TEST FILE REVIEW
+
+Verify the Phase 72.9 security test coverage includes evidence for:
+
+* early-response headers
+* CSP Report-Only
+* HSTS configuration
+* health minimization
+* cross-session offer acceptance rejection
+* chat/session persistence
+* checkout persistence failure
+* Stripe Checkout compensation
+* vulnerable dependency regression
+
+Confirm tests are hermetic.
+
+No:
+
+* live Stripe mutation
+* real payment
+* real email
+* production write
+* production database mutation
+
+STEP 13 — DATABASE MIGRATION GATE
+
+Explicitly determine whether the Phase 72.9 candidate requires any:
+
+* database migration
+* schema migration
+* db:push
+* bootstrap
+* backfill
+* new table
+* new column
+* production SQL mutation
+
+The expected answer based on the current Phase 72.9 report is:
+
+NO PRODUCTION DATABASE MIGRATION REQUIRED
+
+If that is not true, STOP and classify the release as BLOCKED.
+
+Do not run any migration.
+
+STEP 14 — MINIMAL FINAL VALIDATION
+
+Do not redo broad exploratory engineering.
+
+Run only the minimum release-candidate verification necessary to ensure the reviewed tree is still valid:
+
+npm run check
+
+npm test
+
+Phase 72.9 security assurance suite
+
+npm audit –json
+
+npm run build
+
+git diff –check
+
+If any source/dependency file changed after the previous full regression certification, state that explicitly and STOP for Mission Control review before commit.
+
+Do not silently fix new failures.
+
+STEP 15 — FINAL RELEASE-DIFF REPORT
+
+Return:
+
+PHASE 72.9 — FINAL RELEASE-DIFF REVIEW REPORT
+
+Include exactly:
+
+1. Current branch
+2. HEAD SHA
+3. origin/main SHA
+4. git status –short
+5. git diff –stat
+6. git diff –name-status
+7. git diff –check
+8. Exact changed-file list
+9. Exact untracked-file list
+10. Runtime files changed
+11. Test files changed
+12. Dependency files changed
+13. Documentation files changed
+14. Temporary/non-release artifacts found
+15. Unexpected drift found
+16. Security-header diff result
+17. CSP review result
+18. Health-response review result
+19. Offer-acceptance fix review result
+20. Stripe compensation review result
+21. Anonymous-session review result
+22. Founder/customer session separation result
+23. Dependency review result
+24. npm audit Critical count
+25. npm audit High count
+26. npm audit Moderate count
+27. npm audit Low count
+28. Phase 72.9 suite result
+29. TypeScript result
+30. General unit-test result
+31. Production build result
+32. git diff –check result
+33. Production DB migration required: YES/NO
+34. Production schema change required: YES/NO
+35. Stripe production mutation required: YES/NO
+36. Render configuration change required: YES/NO
+37. Secret rotation required: YES/NO
+38. Confirmation no production mutation occurred
+39. Confirmation no commit occurred
+40. Confirmation no push occurred
+41. Confirmation no deployment occurred
+42. Release recommendation
+
+FINAL RELEASE RECOMMENDATION MUST BE ONE OF:
+
+APPROVE COMMIT — CLEAN PHASE 72.9 RELEASE DIFF
+
+BLOCK COMMIT — UNRELATED OR UNSAFE CHANGES PRESENT
+
+BLOCK COMMIT — TEST OR SECURITY FAILURE
+
+BLOCK COMMIT — DATABASE/PRODUCTION MUTATION REQUIRED
+
+INCONCLUSIVE — REQUIRED EVIDENCE UNAVAILABLE
+
+STOP after the report.
+
+Do not commit.
+Do not push.
+Do not deploy.
+
+Await CEO/Founder + Mission Control authorization.
