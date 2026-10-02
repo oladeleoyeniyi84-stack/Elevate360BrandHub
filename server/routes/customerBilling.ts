@@ -34,7 +34,8 @@ import {
   applyTierWithGrant,
   featureCatalog,
 } from "../billing/premiumService";
-import { rateLimit } from "../routes";
+import { pool } from "../db";
+import { persistentLoginLimit } from "../auth/persistentThrottle";
 
 export const customerBillingRouter = Router();
 
@@ -99,7 +100,7 @@ function establishCustomerSession(req: any, res: any, user: { id: string; email:
 }
 
 // ─── Auth ───────────────────────────────────────────────────────────────────
-customerBillingRouter.post("/api/auth/signup", rateLimit(5, 60 * 60), async (req, res) => {
+customerBillingRouter.post("/api/auth/signup", persistentLoginLimit(pool, "customer-signup", 5, 60 * 60, true), async (req, res) => {
   const parsed = customerSignupSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(422).json({ message: parsed.error.errors[0]?.message ?? "Invalid input" });
@@ -115,7 +116,7 @@ customerBillingRouter.post("/api/auth/signup", rateLimit(5, 60 * 60), async (req
   return establishCustomerSession(req, res, user, 201);
 });
 
-customerBillingRouter.post("/api/auth/login", rateLimit(10, 15 * 60), async (req, res) => {
+customerBillingRouter.post("/api/auth/login", persistentLoginLimit(pool, "customer-login", 10, 15 * 60, true), async (req, res) => {
   const parsed = customerLoginSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(422).json({ message: parsed.error.errors[0]?.message ?? "Invalid input" });

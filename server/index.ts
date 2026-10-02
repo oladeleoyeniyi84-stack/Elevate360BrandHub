@@ -16,6 +16,7 @@ import { canonicalRedirect } from "./canonicalRedirect";
 import { pool as databasePool } from "./db";
 import { trustedWriteOrigin } from "./auth/requestOrigin";
 import { dashboardSessionPermitted } from "./auth/dashboardSession";
+import { persistentLoginLimit } from "./auth/persistentThrottle";
 
 const app = express();
 const httpServer = createServer(app);
@@ -154,52 +155,14 @@ app.use((req, res, next) => {
   return next();
 });
 
-function getClientIp(req: Request): string {
-  const cf = req.headers["cf-connecting-ip"];
-  if (typeof cf === "string" && cf.trim()) return cf.trim();
-  return req.ip || req.socket.remoteAddress || "unknown";
-}
-
-// PIN authentication is deliberately much tighter than general API limiting.
-// Failed header attempts are included so attackers cannot avoid the login
-// limiter by trying a different admin URL.
-const dashboardAuthAttempts = new Map<string, { count: number; resetAt: number }>();
-const DASHBOARD_AUTH_LIMIT = 5;
-const DASHBOARD_AUTH_WINDOW_MS = 15 * 60 * 1000;
-function consumeDashboardAuthAttempt(req: Request, res: Response): boolean {
-  const key = getClientIp(req);
-  const now = Date.now();
-  const current = dashboardAuthAttempts.get(key);
-  if (!current || now >= current.resetAt) {
-    dashboardAuthAttempts.set(key, { count: 1, resetAt: now + DASHBOARD_AUTH_WINDOW_MS });
-    return true;
-  }
-  if (current.count >= DASHBOARD_AUTH_LIMIT) {
-    res.setHeader("Retry-After", String(Math.ceil((current.resetAt - now) / 1000)));
-    res.status(429).json({ message: "Too many authentication attempts. Please try again later." });
-    return false;
-  }
-  current.count++;
-  return true;
-}
-
-const dashboardAttemptPurge = setInterval(() => {
-  const now = Date.now();
-  dashboardAuthAttempts.forEach((value, key) => {
-    if (now >= value.resetAt) dashboardAuthAttempts.delete(key);
-  });
-}, DASHBOARD_AUTH_WINDOW_MS);
-dashboardAttemptPurge.unref();
-
 // Centralized dashboard login shim registered before route modules. It fixes
 // production env formatting issues (accidental whitespace/quotes) and ensures
 // every admin surface, including /mesh, uses the same timing-safe PIN matcher.
-app.post("/api/dashboard/auth", (req: any, res: Response) => {
+app.post("/api/dashboard/auth", persistentLoginLimit(databasePool, "founder-login", 5, 15 * 60), (req: any, res: Response) => {
   if (!normalizeDashboardPin(process.env.DASHBOARD_PIN)) {
     return res.status(500).json({ message: "Dashboard PIN not configured." });
   }
 
-  if (!consumeDashboardAuthAttempt(req, res)) return;
   const candidate = extractDashboardLoginPin(req);
   if (pinMatches(candidate)) {
     // Rotate the identifier at the privilege boundary to prevent fixation.
@@ -379,7 +342,6 @@ app.use((req, res, next) => {
         stopMemoryMonitor();
         const { stopRouteTimers } = await import("./routes");
         stopRouteTimers();
-        clearInterval(dashboardAttemptPurge);
       } catch (e: any) {
         console.error("[shutdown] stopping jobs failed:", e?.message);
       }
