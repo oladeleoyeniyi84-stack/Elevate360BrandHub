@@ -111,8 +111,16 @@ export default function CheckoutSuccess() {
   }>({
     queryKey: ["marketplace-delivery", sessionId],
     queryFn: async () => {
-      const res = await fetch(`/api/marketplace/delivery?session_id=${encodeURIComponent(sessionId || "")}`);
-      if (!res.ok) throw new Error("Failed to fetch delivery");
+      const access = await fetch(`/api/marketplace/delivery-access?session_id=${encodeURIComponent(sessionId || "")}`, { credentials: "same-origin" });
+      if (!access.ok) throw new Error("Return in the checkout browser or contact support for purchase recovery.");
+      const state = await access.json();
+      if (state.status !== "paid") return state;
+      const res = await fetch("/api/marketplace/delivery", {
+        method: "POST", credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: sessionId, token: state.deliveryToken }),
+      });
+      if (!res.ok) throw new Error("Delivery access expired or was revoked.");
       return res.json();
     },
     enabled: isMarketplace && !!sessionId,
@@ -262,6 +270,10 @@ export default function CheckoutSuccess() {
                       </div>
                     )}
                   </div>
+                ) : deliveryQuery.isError ? (
+                  <p className="text-sm text-amber-200" role="alert">
+                    Return in the browser used for checkout. If your purchase predates this update or you need access from another device, contact support for verified purchase recovery.
+                  </p>
                 ) : (
                   <div className="flex items-center gap-2 text-slate-300 text-sm" data-testid="block-delivery-pending">
                     <Loader2 className="h-4 w-4 animate-spin" />

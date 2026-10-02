@@ -75,13 +75,19 @@ function publicUser(u: { id: string; email: string | null; premiumTier: string }
 
 function establishCustomerSession(req: any, res: any, user: { id: string; email: string | null; premiumTier: string }, status: number) {
   const dashboardAuthed = (req.session as any)?.dashboardAuthed === true;
+  const dashboardRole = (req.session as any)?.dashboardRole;
+  const deliveryOwner = (req.session as any)?.deliveryOwner;
   req.session.regenerate((regenerateError: unknown) => {
     if (regenerateError) {
       console.error("[customer-auth] session regeneration failed");
       return res.status(500).json({ message: "Session error" });
     }
     req.session.customerId = user.id;
-    if (dashboardAuthed) (req.session as any).dashboardAuthed = true;
+    if (deliveryOwner) (req.session as any).deliveryOwner = deliveryOwner;
+    if (dashboardAuthed) {
+      (req.session as any).dashboardAuthed = true;
+      (req.session as any).dashboardRole = dashboardRole;
+    }
     req.session.save((saveError: unknown) => {
       if (saveError) {
         console.error("[customer-auth] session save failed");
@@ -124,9 +130,13 @@ customerBillingRouter.post("/api/auth/login", rateLimit(10, 15 * 60), async (req
 customerBillingRouter.post("/api/auth/logout", (req, res) => {
   // Rotate the identifier while clearing only the customer principal.
   const dashboardAuthed = (req.session as any)?.dashboardAuthed === true;
+  const dashboardRole = (req.session as any)?.dashboardRole;
   req.session.regenerate((error) => {
     if (error) return res.status(500).json({ message: "Could not end customer session." });
-    if (dashboardAuthed) (req.session as any).dashboardAuthed = true;
+    if (dashboardAuthed) {
+      (req.session as any).dashboardAuthed = true;
+      (req.session as any).dashboardRole = dashboardRole;
+    }
     req.session.save((saveError) => {
       if (saveError) return res.status(500).json({ message: "Could not end customer session." });
       res.json({ ok: true });

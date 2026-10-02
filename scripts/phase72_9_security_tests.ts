@@ -39,6 +39,20 @@ check("CSP is staged in report-only mode", () => {
 
 check("production HSTS is configured", () => {
   assert.match(indexSource, /Strict-Transport-Security/);
+  assert.doesNotMatch(indexSource, /Strict-Transport-Security[^\n]*includeSubDomains/);
+});
+
+check("founder secret is accepted only by the login endpoint", () => {
+  assert.doesNotMatch(indexSource, /req\.headers\["x-dashboard-pin"\]/);
+  assert.doesNotMatch(indexSource, /req\.headers\.authorization/);
+  assert.doesNotMatch(routesSource, /x-dashboard-pin/);
+  assert.doesNotMatch(routesSource, /dashboardRequestAuthed/);
+});
+
+check("browser writes reject hostile origins", () => {
+  assert.match(indexSource, /sec-fetch-site/);
+  assert.match(indexSource, /Cross-origin request rejected/);
+  assert.match(indexSource, /req\.path === "\/api\/stripe\/webhook"/);
 });
 
 check("public health response is minimal", () => {
@@ -120,6 +134,19 @@ try {
 check("checkout persistence failure expires inaccessible Stripe sessions", () => {
   const matches = routesSource.match(/persistInitiatedOrderOrExpire/g) ?? [];
   assert.ok(matches.length >= 4, `expected helper import plus three guarded checkout flows, found ${matches.length}`);
+});
+
+check("public order and delivery responses are bounded", () => {
+  const orderStart = routesSource.indexOf('app.get("/api/orders/status"');
+  const deliveryStart = routesSource.indexOf('app.get("/api/marketplace/delivery"');
+  const deliveryEnd = routesSource.indexOf('app.get("/api/admin/marketplace"', deliveryStart);
+  assert.ok(orderStart >= 0 && deliveryStart > orderStart && deliveryEnd > deliveryStart);
+  const orderRoute = routesSource.slice(orderStart, deliveryStart);
+  const deliveryRoute = routesSource.slice(deliveryStart, deliveryEnd);
+  assert.match(orderRoute, /rateLimit\(30, 60\)/);
+  assert.match(deliveryRoute, /rateLimit\(20, 60\)/);
+  assert.match(deliveryRoute, /Cache-Control", "no-store/);
+  assert.doesNotMatch(deliveryRoute, /setOrderFulfillment/);
 });
 
 let expirationCalled = false;

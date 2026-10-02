@@ -14,9 +14,14 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import { canonicalRedirect } from "./canonicalRedirect";
 import { pool as databasePool } from "./db";
+import { trustedWriteOrigin } from "./auth/requestOrigin";
+import { dashboardSessionPermitted } from "./auth/dashboardSession";
 
 const app = express();
 const httpServer = createServer(app);
+
+// Avoid advertising the framework/version family to unauthenticated clients.
+app.disable("x-powered-by");
 
 // trust proxy: 1 trusts exactly one hop from the right of X-Forwarded-For.
 // In production: Client → Cloudflare → Replit proxy → Express.
@@ -50,7 +55,10 @@ app.use((_req, res, next) => {
   res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
   res.setHeader("Content-Security-Policy-Report-Only", cspReportOnly);
   if (process.env.NODE_ENV === "production") {
-    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+    // Keep HSTS host-scoped until every legacy subdomain is inventoried and
+    // confirmed HTTPS-ready. includeSubDomains can otherwise make abandoned
+    // or third-party-managed names unreachable.
+    res.setHeader("Strict-Transport-Security", "max-age=31536000");
   }
   next();
 });
@@ -121,21 +129,30 @@ function pinMatches(provided: unknown): boolean {
   return timingSafeEqual(ap, bp) && a.length === b.length;
 }
 
-function extractDashboardPin(req: Request): string | null {
-  const headerPin = req.headers["x-dashboard-pin"];
-  if (typeof headerPin === "string" && headerPin.trim()) return headerPin;
-
-  const auth = req.headers.authorization;
-  if (typeof auth === "string" && auth.toLowerCase().startsWith("bearer ")) {
-    const token = auth.slice(7).trim();
-    if (token) return token;
-  }
-
+function extractDashboardLoginPin(req: Request): string | null {
   const body = req.body as any;
   if (typeof body?.pin === "string" && body.pin.trim()) return body.pin;
   if (typeof body?.dashboardPin === "string" && body.dashboardPin.trim()) return body.dashboardPin;
   return null;
 }
+
+// Browser writes must be same-origin. Stripe's signed webhook and non-browser
+// clients normally omit these browser headers and remain subject to their own
+// authentication/signature checks.
+app.use((req, res, next) => {
+  if (["GET", "HEAD", "OPTIONS"].includes(req.method) || req.path === "/api/stripe/webhook") {
+    return next();
+  }
+  const configuredOrigin = process.env.PUBLIC_BASE_URL || process.env.CANONICAL_HOST ||
+    (process.env.NODE_ENV !== "production" ? `${req.protocol}://${req.get("host")}` : undefined);
+  const state = req.session as any;
+  if (!trustedWriteOrigin({ origin: req.get("origin"), referer: req.get("referer"),
+    fetchSite: req.get("sec-fetch-site"), configuredOrigin,
+    authenticated: state?.dashboardAuthed === true || !!state?.customerId || !!state?.deliveryOwner })) {
+    return res.status(403).json({ message: "Cross-origin request rejected." });
+  }
+  return next();
+});
 
 function getClientIp(req: Request): string {
   const cf = req.headers["cf-connecting-ip"];
@@ -183,11 +200,12 @@ app.post("/api/dashboard/auth", (req: any, res: Response) => {
   }
 
   if (!consumeDashboardAuthAttempt(req, res)) return;
-  const candidate = extractDashboardPin(req);
+  const candidate = extractDashboardLoginPin(req);
   if (pinMatches(candidate)) {
     // Rotate the identifier at the privilege boundary to prevent fixation.
     // Preserve an independently authenticated customer identity, but never
     // treat it as founder authorization.
+    const deliveryOwner = req.session?.deliveryOwner;
     const customerId = typeof req.session?.customerId === "string" ? req.session.customerId : undefined;
     return req.session.regenerate((regenerateError: unknown) => {
       if (regenerateError) {
@@ -195,6 +213,8 @@ app.post("/api/dashboard/auth", (req: any, res: Response) => {
         return res.status(500).json({ message: "Could not establish dashboard session." });
       }
       req.session.dashboardAuthed = true;
+      req.session.dashboardRole = "founder";
+      if (deliveryOwner) req.session.deliveryOwner = deliveryOwner;
       if (customerId) req.session.customerId = customerId;
       return req.session.save((error: unknown) => {
         if (error) {
@@ -210,8 +230,9 @@ app.post("/api/dashboard/auth", (req: any, res: Response) => {
 });
 
 // Fail-closed prefix guard. This protects every present and future route below
-// /api/admin and /api/dashboard, including mounted routers. A valid request PIN
-// authorizes this request only; it must not silently upgrade the session.
+// /api/admin and /api/dashboard, including mounted routers. The founder secret
+// is accepted only by the login endpoint; privileged routes require the
+// rotated server-side session and never accept it as a reusable bearer token.
 app.use((req: any, res, next) => {
   const protectedPath =
     req.path === "/api/admin" ||
@@ -219,16 +240,7 @@ app.use((req: any, res, next) => {
     req.path === "/api/dashboard" ||
     req.path.startsWith("/api/dashboard/");
   if (!protectedPath || req.path === "/api/dashboard/logout") return next();
-  if (req.session?.dashboardAuthed === true) return next();
-
-  const candidate = extractDashboardPin(req);
-  if (candidate !== null) {
-    if (pinMatches(candidate)) {
-      req.dashboardRequestAuthed = true;
-      return next();
-    }
-    if (!consumeDashboardAuthAttempt(req, res)) return;
-  }
+  if (dashboardSessionPermitted(req.session, req.method)) return next();
   return res.status(401).json({ message: "Unauthorized" });
 });
 
@@ -334,7 +346,6 @@ app.use((req, res, next) => {
     {
       port,
       host: "0.0.0.0",
-      reusePort: true,
     },
     () => {
       log(`serving on port ${port}`);

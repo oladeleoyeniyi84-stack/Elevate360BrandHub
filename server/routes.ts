@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { timingSafeEqual, createHmac } from "crypto";
+import { createHmac } from "crypto";
 import { storage } from "./storage";
 import {
   insertContactMessageSchema,
@@ -62,6 +62,8 @@ import { z } from "zod";
 import { WebhookHandlers } from "./webhookHandlers";
 import { getUncachableStripeClient, getStripePublishableKey, isStripeConfigured } from "./stripeClient";
 import { getCustomerId } from "./auth/customerAuth";
+import { dashboardSessionPermitted } from "./auth/dashboardSession";
+import { initializeDeliveryOwner, deliveryOwnerHash, ownsDelivery, signDeliveryToken, validDeliveryToken } from "./billing/deliveryAccess";
 import { consumeCredits, refundCredits } from "./billing/premiumService";
 import { initializeConciergeSession, scopeConciergeSessionId } from "./ai/promptSecurity";
 import { db } from "./db";
@@ -82,7 +84,6 @@ import {
 } from "./billing/stripeTrust";
 import { persistInitiatedOrderOrExpire } from "./billing/checkoutSafety";
 
-const DASHBOARD_PIN = process.env.DASHBOARD_PIN;
 
 // Shared Stripe offer listing — used by the public /api/offers route and by the
 // Concierge 2.0 recommendation resolver. Degrades to [] when Stripe is
@@ -141,44 +142,8 @@ async function listStripeOffers(): Promise<StripeOffer[]> {
   }
 }
 
-// Timing-safe PIN comparison. Never logs PIN values or echoes them in errors.
-function pinMatches(provided: unknown): boolean {
-  if (!DASHBOARD_PIN || typeof provided !== "string" || provided.length === 0) return false;
-  // crypto.timingSafeEqual requires equal-length buffers; pad to longest so a
-  // length mismatch still runs through the comparison rather than short-circuiting.
-  const a = Buffer.from(provided);
-  const b = Buffer.from(DASHBOARD_PIN);
-  const len = Math.max(a.length, b.length);
-  const ap = Buffer.alloc(len);
-  const bp = Buffer.alloc(len);
-  a.copy(ap);
-  b.copy(bp);
-  return timingSafeEqual(ap, bp) && a.length === b.length;
-}
-
-// Accepts the dashboard PIN from any of:
-//   - x-dashboard-pin header
-//   - Authorization: Bearer <pin>
-//   - body.dashboardPin (POST/PUT JSON only)
-// Returns the candidate string (or null), never logged.
-function extractDashboardPin(req: any): string | null {
-  const hdrPin = req.headers?.["x-dashboard-pin"];
-  if (typeof hdrPin === "string" && hdrPin) return hdrPin;
-  const auth = req.headers?.authorization;
-  if (typeof auth === "string" && auth.toLowerCase().startsWith("bearer ")) {
-    const token = auth.slice(7).trim();
-    if (token) return token;
-  }
-  const bodyPin = req.body?.dashboardPin;
-  if (typeof bodyPin === "string" && bodyPin) return bodyPin;
-  return null;
-}
-
 function isDashboardAuthed(req: any): boolean {
-  if (req.dashboardRequestAuthed === true) return true;
-  if (req.session?.dashboardAuthed === true) return true;
-  const candidate = extractDashboardPin(req);
-  return candidate !== null && pinMatches(candidate);
+  return dashboardSessionPermitted(req.session, req.method);
 }
 
 export function requireDashboardAuth(req: any, res: any, next: any) {
@@ -720,7 +685,7 @@ export async function registerRoutes(
   // (engagement signals) and NEVER carry money — amountCents is forced to 0 and
   // every economic/identity field (dedupeKey, occurredAt, order/Stripe/user/lead
   // ids) is stripped. All other event types carry economic authority and
-  // require dashboard auth (session or x-dashboard-pin) → 403 otherwise.
+  // require the rotated dashboard session → 403 otherwise.
   // Stripe remains the money authority; server-side webhook recording below.
   app.post("/api/analytics/revenue", rateLimit(60, 60), async (req, res) => {
     try {
@@ -1627,7 +1592,8 @@ export async function registerRoutes(
   // Stripe to that checkout only. Sequential internal order ids are never
   // accepted here (they allowed cross-customer enumeration).
   // GET /api/orders/status?session_id=<stripe_checkout_session_id>
-  app.get("/api/orders/status", async (req, res) => {
+  app.get("/api/orders/status", rateLimit(30, 60), async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     const { session_id } = req.query as Record<string, string | undefined>;
     if (!session_id || !/^cs_(?:test_|live_)?[A-Za-z0-9_]+$/.test(session_id)) {
       return res.status(400).json({ message: "Provide a valid session_id query parameter." });
@@ -2646,6 +2612,8 @@ export async function registerRoutes(
       const cleanHost = rawHost.replace(/^https?:\/\//, "").replace(/\/$/, "") || "localhost:5000";
       const origin = cleanHost.startsWith("localhost") ? `http://${cleanHost}` : `https://${cleanHost}`;
 
+      const owner = initializeDeliveryOwner((req as any).session);
+      await new Promise<void>((resolve, reject) => (req as any).session.save((error: unknown) => error ? reject(error) : resolve()));
       const stripe = await getUncachableStripeClient();
       const successParams = new URLSearchParams({ source: "marketplace", slug: product.slug });
       const validatedPrice = await validateMarketplacePrice(
@@ -2694,6 +2662,7 @@ export async function registerRoutes(
             expectedAmountCents: validatedPrice.amount,
             expectedCurrency: validatedPrice.currency,
             checkoutCreatedAt: new Date().toISOString(),
+            deliveryOwnerHash: deliveryOwnerHash(owner),
           },
         }),
         () => stripe.checkout.sessions.expire(session.id),
@@ -2710,35 +2679,48 @@ export async function registerRoutes(
     }
   });
 
-  // Post-purchase digital delivery. Only returns the deliverable once the order is paid.
-  app.get("/api/marketplace/delivery", async (req, res) => {
-    const sessionId = (req.query.session_id as string | undefined)?.trim();
-    if (!sessionId) return res.status(400).json({ message: "session_id required" });
+  // A Checkout session ID alone never grants digital access. New purchases
+  // are bound to a cryptographically random owner in the server-side session.
+  // Historic orders without that binding require verified support recovery.
+  app.get("/api/marketplace/delivery", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    return res.status(410).json({ message: "Use the secure delivery flow." });
+  });
+
+  app.get("/api/marketplace/delivery-access", rateLimit(20, 60), async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    const sessionId = typeof req.query.session_id === "string" ? req.query.session_id.trim() : "";
+    if (!/^cs_(?:test_|live_)?[A-Za-z0-9_]+$/.test(sessionId)) return res.status(400).json({ message: "Valid session_id required" });
     const order = await storage.getOrderByStripeSession(sessionId);
-    if (!order) return res.status(404).json({ message: "Order not found." });
-
-    const slug = (order.metadata as any)?.marketplaceSlug as string | undefined;
-    if (!slug) return res.status(404).json({ message: "Not a marketplace order." });
-
-    if (order.status !== "paid") {
-      return res.json({ status: order.status, fulfillmentStatus: order.fulfillmentStatus, productName: order.productName });
+    const owner = (req as any).session?.deliveryOwner;
+    if (!order || !ownsDelivery(owner, (order.metadata as any)?.deliveryOwnerHash)) {
+      return res.status(403).json({ message: "Return in the browser used for checkout, or contact support for verified purchase recovery." });
     }
+    const secret = process.env.SESSION_SECRET;
+    if (!secret) return res.status(503).json({ message: "Delivery unavailable." });
+    return res.json({ status: order.status, productName: order.productName,
+      deliveryToken: order.status === "paid" ? signDeliveryToken(sessionId, owner, secret) : undefined });
+  });
 
+  app.post("/api/marketplace/delivery", rateLimit(20, 60), async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    const { session_id: sessionId, token } = req.body ?? {};
+    const owner = (req as any).session?.deliveryOwner;
+    const secret = process.env.SESSION_SECRET;
+    if (typeof sessionId !== "string" || !/^cs_(?:test_|live_)?[A-Za-z0-9_]+$/.test(sessionId) ||
+        !secret || !validDeliveryToken(token, sessionId, owner, secret)) {
+      return res.status(403).json({ message: "Invalid or expired delivery access." });
+    }
+    const order = await storage.getOrderByStripeSession(sessionId);
+    if (!order || !ownsDelivery(owner, (order.metadata as any)?.deliveryOwnerHash)) return res.status(403).json({ message: "Access denied." });
+    // Always re-check authoritative payment state, including refund revocation.
+    if (order.status !== "paid") return res.status(403).json({ message: "Paid access required." });
+    const slug = (order.metadata as any)?.marketplaceSlug;
+    if (typeof slug !== "string") return res.status(404).json({ message: "Not a marketplace order." });
     const product = await storage.getMarketplaceProductBySlug(slug);
     if (!product) return res.status(404).json({ message: "Product no longer available." });
-
-    // Mark delivered for admin visibility (idempotent).
-    if (order.fulfillmentStatus !== "delivered") {
-      await storage.setOrderFulfillment(sessionId, "delivered").catch(() => {});
-    }
-
-    res.json({
-      status: "paid",
-      fulfillmentStatus: "delivered",
-      productName: product.name,
-      deliveryType: product.deliveryType,
-      deliveryContent: product.deliveryContent,
-    });
+    return res.json({ status: "paid", fulfillmentStatus: order.fulfillmentStatus,
+      productName: product.name, deliveryType: product.deliveryType, deliveryContent: product.deliveryContent });
   });
 
   app.get("/api/admin/marketplace", requireDashboardAuth, async (_req, res) => {
