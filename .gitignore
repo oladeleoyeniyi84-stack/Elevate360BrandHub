@@ -9,3 +9,15 @@ vite.config.ts.*
 .env
 .env.local
 .env.*.local
+.env.production
+.env.production.*
+.env.staging
+.env.staging.*
+*.pem
+*.key
+*.p12
+*.pfx
+*.sql
+*.sql.gz
+*.dump
+*.backup
