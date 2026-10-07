@@ -17,6 +17,7 @@ import {
   type WorkFilter,
 } from "@shared/flagshipProjects";
 import { trackWorkEvent } from "@/lib/workAnalytics";
+import SEO from "@/components/SEO";
 
 const BG = "#0B1526";
 const GOLD = "#F4A62A";
@@ -202,6 +203,11 @@ export default function Work() {
 
   return (
     <div className="min-h-screen" style={{ background: BG }}>
+      <SEO
+        title="Our Work, Collaborations & Digital Projects | Elevate360Official"
+        description="Explore Elevate360Official’s flagship platforms, AI systems, nonprofit collaborations, intelligent websites, digital experiences, analytics infrastructure, and current initiatives."
+        path="/work"
+      />
       {/* Hero */}
       <header className="pt-10 pb-16 px-4">
         <div className="max-w-6xl mx-auto">
@@ -245,7 +251,7 @@ export default function Work() {
         </div>
       </header>
 
-      <main className="px-4 pb-[calc(6rem+var(--safe-bottom))]">
+      <div className="px-4 pb-[calc(6rem+var(--safe-bottom))]" role="region" aria-label="Elevate360Official work portfolio">
         <div className="max-w-6xl mx-auto space-y-24">
           {/* Filters */}
           <div className="flex gap-2 flex-wrap" role="group" aria-label="Filter projects">
@@ -369,7 +375,7 @@ export default function Work() {
             </>
           )}
         </div>
-      </main>
+      </div>
     </div>
   );
 }
