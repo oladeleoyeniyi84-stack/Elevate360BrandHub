@@ -88,6 +88,8 @@ async function main() {
   check("8. Wedding links to https://rantianddele.com", wedding?.externalUrl === "https://rantianddele.com" && wedding?.ctaRoute === "https://rantianddele.com");
 
   // 9-10. Status honesty for named projects
+  const weddingProject = FLAGSHIP_PROJECTS.find((p) => p.id === "ranti-dele-wedding");
+  check("8b. Wedding project marked Completed after September 2026 launch", weddingProject?.status === "Completed" && weddingProject?.startDateLabel === "Launched September 2026");
   check("9. Project Nehemiah labeled In Development", FLAGSHIP_PROJECTS.find((p) => p.id === "project-nehemiah")?.status === "In Development");
   check("10. Operation ASCEND labeled Active Collaboration", FLAGSHIP_PROJECTS.find((p) => p.id === "operation-ascend")?.status === "Active Collaboration");
 
