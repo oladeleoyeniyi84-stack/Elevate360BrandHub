@@ -256,7 +256,7 @@ export const FLAGSHIP_PROJECTS: FlagshipProject[] = [
       "A personalized wedding-planning and guest-experience platform combining an interactive invitation, event details, travel guidance, accommodation information, registry access, and branded social sharing.",
     fullDescription:
       "The Ranti & Dele Wedding Digital Experience demonstrates how Elevate360Official applies technology, design, logistics, branding, and storytelling to a major personal event. The platform brings invitation presentation, ceremony and reception information, travel recommendations, hotel guidance, registry access, guest communication, and social-preview optimization into one cohesive experience.",
-    status: "Active",
+    status: "Completed",
     visibility: "public",
     featured: true,
     homepageFeatured: true,
@@ -268,7 +268,7 @@ export const FLAGSHIP_PROJECTS: FlagshipProject[] = [
       "Custom domain configuration",
     ],
     externalUrl: "https://rantianddele.com",
-    startDateLabel: "Launching September 2026",
+    startDateLabel: "Launched September 2026",
     disclaimer:
       "Private addresses, schedules, guest information, and planning details are not published.",
     ctaLabel: "Visit Wedding Experience",
@@ -340,7 +340,7 @@ export const CURRENT_INITIATIVES: CurrentInitiative[] = [
     focus: "Shaping the ministry-focused information architecture and content structure with church leadership input.",
     nextMilestone: "Leadership review of the proposed platform design.",
     collaborationType: "In development",
-    lastUpdatedLabel: "August 2026",
+    lastUpdatedLabel: "October 2026",
   },
   {
     projectId: "operation-ascend",
@@ -348,7 +348,7 @@ export const CURRENT_INITIATIVES: CurrentInitiative[] = [
     focus: "Exploring practical, responsible pathways for internal knowledge access and staff support.",
     nextMilestone: "Alignment on prioritized implementation pathways with organizational leadership.",
     collaborationType: "Collaboration",
-    lastUpdatedLabel: "August 2026",
+    lastUpdatedLabel: "October 2026",
   },
   {
     projectId: "south-shore-ai",
@@ -356,7 +356,7 @@ export const CURRENT_INITIATIVES: CurrentInitiative[] = [
     focus: "Platform strategy, AI-tool evaluation, and responsible implementation guidance.",
     nextMilestone: "Continued advisory support for the initiative's public learning experience.",
     collaborationType: "Technical advisory",
-    lastUpdatedLabel: "August 2026",
+    lastUpdatedLabel: "October 2026",
   },
   {
     projectId: "search-intelligence",
@@ -364,7 +364,7 @@ export const CURRENT_INITIATIVES: CurrentInitiative[] = [
     focus: "Enhancing scheduled search operations, evidence-based growth actions, and measurement discipline.",
     nextMilestone: "Continued iteration on growth-operations capabilities.",
     collaborationType: "Internal product",
-    lastUpdatedLabel: "August 2026",
+    lastUpdatedLabel: "October 2026",
   },
 ];
 
