@@ -152,6 +152,8 @@ async function main() {
 
   // 21. Mobile layout: responsive grid classes, no fixed widths forcing overflow
   check("21. Responsive 1/2-col grids, no fixed pixel widths", /grid-cols-1 md:grid-cols-2/.test(WORK_PAGE) && !/w-\[\d{3,}px\]/.test(WORK_PAGE + HOME_SECTION));
+  check("21b. Work page uses client-side SEO metadata", WORK_PAGE.includes("<SEO") && WORK_PAGE.includes('path="/work"'));
+  check("21c. Work page does not nest a second <main> landmark", !/<main className="px-4 pb-/.test(WORK_PAGE));
 
   // 22. Buttons meet 44px minimum target size
   check("22. Interactive elements use min-h-[44px]",
