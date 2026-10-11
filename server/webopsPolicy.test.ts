@@ -14,6 +14,7 @@ test("WebOps accepts exact public HTTPS origins only", () => {
   assert.throws(() => normalizeApprovedOrigins(["http://example.com"]));
   assert.throws(() => normalizeApprovedOrigins(["https://localhost"]));
   assert.throws(() => normalizeApprovedOrigins(["https://127.0.0.1"]));
+  assert.throws(() => normalizeApprovedOrigins(["https://[::1]"]));
   assert.throws(() => normalizeApprovedOrigins(["https://example.com/admin"]));
 });
 
