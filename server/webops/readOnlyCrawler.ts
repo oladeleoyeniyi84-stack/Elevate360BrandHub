@@ -212,7 +212,7 @@ export async function crawlApprovedPublicPages(
         }
       }
 
-      if (!(response.ok && contentType && /text\\/html|application\\/xhtml\\+xml/i.test(contentType))) {
+      if (!(response.ok && contentType && /text\/html|application\/xhtml\+xml/i.test(contentType))) {
         if (response.body) await response.body.cancel().catch(() => undefined);
       }
       pages.push(page);
