@@ -1,0 +1,43 @@
+name: WebOps Phase 1 validation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "server/webops/**"
+      - "server/webopsPolicy.test.ts"
+      - "docs/autonomous-webops-phase1-baseline.md"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - ".github/workflows/webops-validation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Typecheck, tests, and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run check
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build production bundle
+        run: npm run build
