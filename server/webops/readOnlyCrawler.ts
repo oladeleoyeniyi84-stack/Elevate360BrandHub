@@ -50,7 +50,10 @@ function isRedirect(status: number): boolean {
 
 async function readTextWithLimit(response: Response, maxBytes: number): Promise<string> {
   const declaredLength = Number(response.headers.get("content-length") ?? 0);
-  if (declaredLength > maxBytes) throw new Error("response_too_large");
+  if (declaredLength > maxBytes) {
+    if (response.body) await response.body.cancel().catch(() => undefined);
+    throw new Error("response_too_large");
+  }
 
   if (!response.body) return "";
   const reader = response.body.getReader();
@@ -167,6 +170,7 @@ export async function crawlApprovedPublicPages(
       };
 
       if (isRedirect(response.status)) {
+        if (response.body) await response.body.cancel().catch(() => undefined);
         const location = response.headers.get("location");
         if (location) {
           const decision = validateCrawlTarget(location, approvedOrigins, item.url);
@@ -208,6 +212,9 @@ export async function crawlApprovedPublicPages(
         }
       }
 
+      if (!(response.ok && contentType && /text\\/html|application\\/xhtml\\+xml/i.test(contentType))) {
+        if (response.body) await response.body.cancel().catch(() => undefined);
+      }
       pages.push(page);
     } catch {
       pages.push({
