@@ -13,9 +13,10 @@ export type CrawlTargetDecision =
 
 function isUnsafeHostname(hostname: string): boolean {
   const host = hostname.toLowerCase().replace(/\.$/, "");
+  const ipCandidate = host.startsWith("[") && host.endsWith("]") ? host.slice(1, -1) : host;
   return (
     !host ||
-    isIP(host) !== 0 ||
+    isIP(ipCandidate) !== 0 ||
     host === "localhost" ||
     host.endsWith(".localhost") ||
     host.endsWith(".local") ||
