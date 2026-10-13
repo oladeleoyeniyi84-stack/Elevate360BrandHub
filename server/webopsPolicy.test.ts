@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { normalizeApprovedOrigins, validateCrawlTarget } from "./webops/crawlPolicy";
 import { assertPublicDnsResolution, isPublicIpAddress } from "./webops/networkGuard";
+import { assertPinnedHostname, selectPinnedDnsRecord } from "./webops/pinnedHttpsTransport";
 import { crawlApprovedPublicPages } from "./webops/readOnlyCrawler";
 
 const publicDnsResolver = async () => [{ address: "93.184.216.34", family: 4 }];
@@ -71,6 +72,26 @@ test("WebOps DNS guard accepts public addresses and rejects private/reserved res
   await assert.rejects(
     () => assertPublicDnsResolution("private.example", async () => [{ address: "10.10.0.5", family: 4 }]),
     /dns_resolution_unsafe/,
+  );
+});
+
+test("WebOps pinned HTTPS transport accepts only the validated public target and original hostname", () => {
+  const selected = selectPinnedDnsRecord([
+    { address: "2001:4860:4860::8888", family: 6 },
+    { address: "93.184.216.34", family: 4 },
+  ]);
+  assert.deepEqual(selected, { address: "93.184.216.34", family: 4 });
+  assert.deepEqual(
+    assertPinnedHostname("www.elevate360official.com", "www.elevate360official.com", selected),
+    selected,
+  );
+  assert.throws(
+    () => assertPinnedHostname("attacker.example", "www.elevate360official.com", selected),
+    /pinned_lookup_hostname_mismatch/,
+  );
+  assert.throws(
+    () => selectPinnedDnsRecord([{ address: "169.254.169.254", family: 4 }]),
+    /pinned_dns_record_invalid/,
   );
 });
 
