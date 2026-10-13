@@ -10,6 +10,7 @@ export type WebOpsFindingCode =
   | "request_timeout"
   | "response_too_large"
   | "redirect_target_rejected"
+  | "dns_resolution_rejected"
   | "http_4xx"
   | "http_5xx"
   | "slow_response"
@@ -107,6 +108,13 @@ function diagnosePage(page: WebOpsCrawlPage): WebOpsFinding[] {
       "A redirect attempted to leave the approved origin boundary or otherwise violated crawl policy.",
       { url: page.url, status: page.status, durationMs: page.durationMs, error: page.error },
     ));
+  } else if (page.error === "dns_resolution_rejected") {
+    findings.push(makeFinding(
+      "dns_resolution_rejected",
+      "high",
+      "DNS preflight rejected the target because resolution failed or returned a non-public address.",
+      { url: page.url, status: page.status, durationMs: page.durationMs, error: page.error },
+    ));
   }
 
   if (page.status !== null && page.status >= 500) {
@@ -175,7 +183,7 @@ export function diagnoseCrawlReport(report: WebOpsCrawlReport): WebOpsDiagnosis 
     findings.push(makeFinding(
       "rejected_seed_or_redirect",
       "medium",
-      "A seed or redirect target was rejected by the crawl policy.",
+      "A seed, redirect, or DNS target was rejected by WebOps safety policy.",
       { target: rejected.target, reason: rejected.reason },
     ));
   }
