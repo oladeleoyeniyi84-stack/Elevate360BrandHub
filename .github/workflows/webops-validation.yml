@@ -43,6 +43,9 @@ jobs:
           # unreachable CI-local database, never production. Tests must not
           # require a live database unless a dedicated test service is added.
           DATABASE_URL: postgres://webops_test:webops_test@127.0.0.1:5432/webops_test
+          # Placeholder only so import-time OpenAI client construction succeeds.
+          # This is not a real credential and must never be used for network calls.
+          OPENAI_API_KEY: ci-placeholder-not-a-real-openai-key
         run: |
           set -o pipefail
           npm test 2>&1 | tee test-output.log
