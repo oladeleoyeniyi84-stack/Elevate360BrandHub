@@ -1,12 +1,17 @@
-name: WebOps Phase 1 validation
+name: WebOps validation
 
 on:
   pull_request:
-    branches: [main]
+    branches:
+      - main
+      - webops/phase-2-diagnostics-policy
     paths:
       - "server/webops/**"
       - "server/webopsPolicy.test.ts"
+      - "server/webopsDiagnostics.test.ts"
       - "docs/autonomous-webops-phase1-baseline.md"
+      - "docs/autonomous-webops-phase1-completion-report.md"
+      - "docs/autonomous-webops-phase2-plan.md"
       - "package.json"
       - "package-lock.json"
       - "tsconfig.json"
