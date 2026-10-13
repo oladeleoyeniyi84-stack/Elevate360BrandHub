@@ -30,7 +30,7 @@ export interface WebOpsAuditSink {
  * No database, filesystem, network, or production writes are performed.
  */
 export class InMemoryWebOpsAuditSink implements WebOpsAuditSink {
-  #events: WebOpsAuditEvent[] = [];
+  private readonly events: WebOpsAuditEvent[] = [];
 
   append(input: WebOpsAuditEventInput): WebOpsAuditEvent {
     if (!input.correlationId.trim()) throw new Error("correlationId_required");
@@ -41,15 +41,15 @@ export class InMemoryWebOpsAuditSink implements WebOpsAuditSink {
     const event = Object.freeze({
       ...input,
       details: input.details ? Object.freeze({ ...input.details }) : undefined,
-      sequence: this.#events.length + 1,
+      sequence: this.events.length + 1,
       immutable: true as const,
     });
-    this.#events.push(event);
+    this.events.push(event);
     return event;
   }
 
   list(): readonly WebOpsAuditEvent[] {
-    return Object.freeze([...this.#events]);
+    return Object.freeze([...this.events]);
   }
 }
 
