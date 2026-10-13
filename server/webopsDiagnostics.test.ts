@@ -66,6 +66,29 @@ test("WebOps diagnostics deterministically classify offline crawl evidence", () 
   assert.equal(Object.isFrozen(diagnosis.findings[0]?.evidence), true);
 });
 
+test("WebOps DNS safety rejection is high severity and requires Founder approval", () => {
+  const diagnosis = diagnoseCrawlReport(report({
+    pages: [{
+      url: "https://www.elevate360official.com/",
+      depth: 0,
+      status: null,
+      contentType: null,
+      durationMs: 1,
+      linksDiscovered: 0,
+      error: "dns_resolution_rejected",
+    }],
+    rejectedTargets: [{
+      target: "https://www.elevate360official.com/",
+      reason: "dns_resolution_unsafe",
+    }],
+  }));
+
+  const dnsFinding = diagnosis.findings.find((finding) => finding.code === "dns_resolution_rejected");
+  assert.equal(dnsFinding?.severity, "high");
+  assert.equal(dnsFinding?.productionApprovalRequired, true);
+  assert.equal(dnsFinding?.automaticRemediationAllowed, false);
+});
+
 test("WebOps dry-run diagnosis records immutable append-only audit evidence without remediation", () => {
   const sink = new InMemoryWebOpsAuditSink();
   const result = runWebOpsDryDiagnosis({
