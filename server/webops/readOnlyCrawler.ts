@@ -1,4 +1,5 @@
 import { normalizeApprovedOrigins, validateCrawlTarget } from "./crawlPolicy";
+import { assertPublicDnsResolution, systemDnsResolver, type DnsResolver } from "./networkGuard";
 
 export interface WebOpsCrawlPage {
   url: string;
@@ -8,7 +9,12 @@ export interface WebOpsCrawlPage {
   durationMs: number;
   linksDiscovered: number;
   redirectTarget?: string;
-  error?: "request_failed" | "timeout" | "response_too_large" | "redirect_target_rejected";
+  error?:
+    | "request_failed"
+    | "timeout"
+    | "response_too_large"
+    | "redirect_target_rejected"
+    | "dns_resolution_rejected";
 }
 
 export interface WebOpsRejectedTarget {
@@ -32,6 +38,7 @@ export interface ReadOnlyCrawlerOptions {
   maxResponseBytes?: number;
   userAgent?: string;
   fetcher?: (url: string, init: RequestInit) => Promise<Response>;
+  dnsResolver?: DnsResolver;
 }
 
 interface QueueItem {
@@ -102,12 +109,14 @@ function extractReferences(html: string): string[] {
  *
  * Safety properties:
  * - exact-origin allowlist; redirects are never followed automatically;
+ * - DNS preflight rejects private/reserved/non-public resolved addresses;
  * - bounded page count, depth, response size and per-request timeout;
  * - sequential requests (concurrency is fixed at one);
  * - only GET requests; no cookies or production credentials;
  * - no database writes, code changes, or remediation actions.
  *
- * Network-level egress controls should still be used when this runs in a worker.
+ * The DNS guard is application-layer defense in depth. A worker-level network
+ * policy is still required to prevent DNS rebinding/TOCTOU bypass at runtime.
  */
 export async function crawlApprovedPublicPages(
   options: ReadOnlyCrawlerOptions,
@@ -118,7 +127,8 @@ export async function crawlApprovedPublicPages(
   const timeoutMs = boundedInteger(options.timeoutMs, 8000, 1000, 15000);
   const maxResponseBytes = boundedInteger(options.maxResponseBytes, 512_000, 1024, 1_000_000);
   const fetcher = options.fetcher ?? fetch;
-  const userAgent = options.userAgent ?? "Elevate360WebOps/0.1 (read-only site health crawler)";
+  const dnsResolver = options.dnsResolver ?? systemDnsResolver;
+  const userAgent = options.userAgent ?? "Elevate360WebOps/0.2 (read-only site health crawler)";
 
   const queue: QueueItem[] = [];
   const visited = new Set<string>();
@@ -150,8 +160,19 @@ export async function crawlApprovedPublicPages(
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     timer.unref?.();
+    let dnsRejected = false;
 
     try {
+      const hostname = new URL(item.url).hostname;
+      try {
+        await assertPublicDnsResolution(hostname, dnsResolver);
+      } catch (error) {
+        dnsRejected = true;
+        const reason = error instanceof Error ? error.message : "dns_resolution_failed";
+        rejectedTargets.push({ target: item.url, reason });
+        throw error;
+      }
+
       const response = await fetcher(item.url, {
         method: "GET",
         redirect: "manual",
@@ -224,7 +245,7 @@ export async function crawlApprovedPublicPages(
         contentType: null,
         durationMs: Date.now() - startedAt,
         linksDiscovered: 0,
-        error: controller.signal.aborted ? "timeout" : "request_failed",
+        error: dnsRejected ? "dns_resolution_rejected" : controller.signal.aborted ? "timeout" : "request_failed",
       });
     } finally {
       clearTimeout(timer);
