@@ -70,7 +70,7 @@ function makeFinding(
     title: code.replaceAll("_", " "),
     summary,
     disposition,
-    productionApprovalRequired: disposition === "requires_founder_approval",
+    productionApprovalRequired: disposition !== "observe_only",
     automaticRemediationAllowed: false as const,
     evidence: Object.freeze({ ...evidence }),
   });
