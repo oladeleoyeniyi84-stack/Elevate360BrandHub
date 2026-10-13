@@ -12,6 +12,8 @@ on:
       - "docs/autonomous-webops-phase1-baseline.md"
       - "docs/autonomous-webops-phase1-completion-report.md"
       - "docs/autonomous-webops-phase2-plan.md"
+      - "docs/autonomous-webops-phase2-implementation-report.md"
+      - "docs/autonomous-webops-dependency-audit-plan.md"
       - "package.json"
       - "package-lock.json"
       - "tsconfig.json"
@@ -37,6 +39,20 @@ jobs:
 
       - name: Install locked dependencies
         run: npm ci
+
+      - name: Capture dependency audit
+        shell: bash
+        run: |
+          npm audit --json > npm-audit.json || true
+
+      - name: Preserve dependency audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: webops-npm-audit
+          path: npm-audit.json
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Typecheck
         run: npm run check
