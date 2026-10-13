@@ -38,6 +38,17 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Generate lockfile for authorized security pins
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
+      - name: Preserve generated lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: webops-security-package-lock
+          path: package-lock.json
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Install locked dependencies
         run: npm ci
 
@@ -61,12 +72,7 @@ jobs:
       - name: Run tests
         shell: bash
         env:
-          # Import-time configuration only. This points at an intentionally
-          # unreachable CI-local database, never production. Tests must not
-          # require a live database unless a dedicated test service is added.
           DATABASE_URL: postgres://webops_test:webops_test@127.0.0.1:5432/webops_test
-          # Placeholder only so import-time OpenAI client construction succeeds.
-          # This is not a real credential and must never be used for network calls.
           OPENAI_API_KEY: ci-placeholder-not-a-real-openai-key
         run: |
           set -o pipefail
