@@ -121,6 +121,8 @@
     "docx": {
       "nanoid": "5.1.16"
     },
-    "path-to-regexp": "8.4.2"
+    "path-to-regexp": "8.4.2",
+    "proxy-addr": "2.0.8",
+    "source-map-js": "1.2.2"
   }
 }
