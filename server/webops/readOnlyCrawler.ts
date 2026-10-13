@@ -1,5 +1,6 @@
 import { normalizeApprovedOrigins, validateCrawlTarget } from "./crawlPolicy";
 import { assertPublicDnsResolution, systemDnsResolver, type DnsResolver } from "./networkGuard";
+import { pinnedHttpsGet } from "./pinnedHttpsTransport";
 
 export interface WebOpsCrawlPage {
   url: string;
@@ -109,14 +110,16 @@ function extractReferences(html: string): string[] {
  *
  * Safety properties:
  * - exact-origin allowlist; redirects are never followed automatically;
- * - DNS preflight rejects private/reserved/non-public resolved addresses;
+ * - DNS validation rejects private/reserved/non-public resolved addresses;
+ * - the default HTTPS transport pins the connection to the validated address,
+ *   preventing a second DNS lookup between validation and connection;
  * - bounded page count, depth, response size and per-request timeout;
  * - sequential requests (concurrency is fixed at one);
  * - only GET requests; no cookies or production credentials;
  * - no database writes, code changes, or remediation actions.
  *
- * The DNS guard is application-layer defense in depth. A worker-level network
- * policy is still required to prevent DNS rebinding/TOCTOU bypass at runtime.
+ * Infrastructure-level outbound firewall/egress policy remains an independent
+ * defense-in-depth control before a production autonomous pilot.
  */
 export async function crawlApprovedPublicPages(
   options: ReadOnlyCrawlerOptions,
@@ -126,9 +129,8 @@ export async function crawlApprovedPublicPages(
   const maxDepth = boundedInteger(options.maxDepth, 2, 0, 3);
   const timeoutMs = boundedInteger(options.timeoutMs, 8000, 1000, 15000);
   const maxResponseBytes = boundedInteger(options.maxResponseBytes, 512_000, 1024, 1_000_000);
-  const fetcher = options.fetcher ?? fetch;
   const dnsResolver = options.dnsResolver ?? systemDnsResolver;
-  const userAgent = options.userAgent ?? "Elevate360WebOps/0.2 (read-only site health crawler)";
+  const userAgent = options.userAgent ?? "Elevate360WebOps/0.3 (read-only site health crawler)";
 
   const queue: QueueItem[] = [];
   const visited = new Set<string>();
@@ -164,8 +166,9 @@ export async function crawlApprovedPublicPages(
 
     try {
       const hostname = new URL(item.url).hostname;
+      let dnsRecords;
       try {
-        await assertPublicDnsResolution(hostname, dnsResolver);
+        dnsRecords = await assertPublicDnsResolution(hostname, dnsResolver);
       } catch (error) {
         dnsRejected = true;
         const reason = error instanceof Error ? error.message : "dns_resolution_failed";
@@ -173,12 +176,15 @@ export async function crawlApprovedPublicPages(
         throw error;
       }
 
-      const response = await fetcher(item.url, {
+      const requestInit: RequestInit = {
         method: "GET",
         redirect: "manual",
         signal: controller.signal,
         headers: { "user-agent": userAgent, accept: "text/html,application/xhtml+xml;q=0.9" },
-      });
+      };
+      const response = options.fetcher
+        ? await options.fetcher(item.url, requestInit)
+        : await pinnedHttpsGet(item.url, requestInit, dnsRecords);
       const durationMs = Date.now() - startedAt;
       const contentType = response.headers.get("content-type");
       const page: WebOpsCrawlPage = {
