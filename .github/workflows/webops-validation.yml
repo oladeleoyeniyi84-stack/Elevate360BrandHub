@@ -27,7 +27,7 @@ on:
       - ".github/workflows/webops-validation.yml"
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   validate:
@@ -37,41 +37,6 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref }}
-
-      - name: Apply one-time retired guide cleanup
-        if: github.head_ref == 'webops/phase-2-guide-retirement-cleanup'
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import re
-
-          app_path = Path("client/src/App.tsx")
-          app = app_path.read_text()
-          target = '      <Route path="/guide" component={Guide} />\n'
-          if target in app:
-              app = app.replace(target, "", 1)
-              app_path.write_text(app)
-
-          context_path = Path("shared/conciergeContext.ts")
-          context = context_path.read_text()
-          pattern = re.compile(r'\n  "/guide": \{.*?\n  \},\n  "/press-kit": \{', re.S)
-          updated, count = pattern.subn('\n  "/press-kit": {', context, count=1)
-          if count:
-              context_path.write_text(updated)
-          PY
-
-          if git diff --quiet -- client/src/App.tsx shared/conciergeContext.ts; then
-            echo "Stale /guide references already absent."
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add client/src/App.tsx shared/conciergeContext.ts
-            git commit -m "cleanup(routes): remove retired guide alias references"
-            git push origin HEAD:${{ github.head_ref }}
-          fi
 
       - name: Verify retired guide references are absent
         shell: bash
