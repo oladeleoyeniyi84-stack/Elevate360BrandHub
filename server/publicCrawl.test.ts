@@ -6,6 +6,7 @@ import { resolveRouteMeta } from "./seo/meta";
 import { isKnownSpaRoute } from "./seo/spaRoutes";
 import { buildLlmsTxt } from "./seo/llms";
 import { generateSitemap } from "./sitemap";
+import { resolveConciergePagePath } from "@shared/conciergeContext";
 import { KNOWLEDGE_ARTICLES, PUBLIC_ROUTES } from "@shared/publicRoutes";
 
 const TEMPLATE = "<!doctype html><html><head><!-- seo:head:start --><!-- seo:head:end --></head><body></body></html>";
@@ -37,6 +38,8 @@ test("hermetic public-route crawl: retired guide alias stays 404 while canonical
   assert.equal(await isKnownSpaRoute("/guide"), false);
   assert.equal(PUBLIC_ROUTES.some((route) => route.path === "/ai-growth-guide"), true);
   assert.equal(PUBLIC_ROUTES.some((route) => route.path === "/guide"), false);
+  assert.equal(resolveConciergePagePath("/ai-growth-guide"), "/ai-growth-guide");
+  assert.equal(resolveConciergePagePath("/guide"), null);
 });
 
 test("hermetic public-route crawl: unknown pages and draft-shaped blog URLs are not SPA successes", async () => {
