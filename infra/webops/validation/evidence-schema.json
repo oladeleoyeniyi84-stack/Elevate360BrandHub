@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://elevate360official.com/schemas/webops-phase3-network-evidence.json",
+  "title": "WebOps Phase 3 Network Validation Evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "runId",
+    "startedAt",
+    "completedAt",
+    "hostIdentity",
+    "policyVersion",
+    "approvedOrigin",
+    "results",
+    "overallPass"
+  ],
+  "properties": {
+    "runId": { "type": "string", "minLength": 1 },
+    "startedAt": { "type": "string", "format": "date-time" },
+    "completedAt": { "type": "string", "format": "date-time" },
+    "hostIdentity": { "type": "string", "minLength": 1 },
+    "policyVersion": { "type": "string", "minLength": 1 },
+    "approvedOrigin": { "const": "https://www.elevate360official.com" },
+    "results": {
+      "type": "array",
+      "minItems": 5,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["control", "passed", "evidenceFiles"],
+        "properties": {
+          "control": {
+            "enum": [
+              "worker_direct_egress_blocked",
+              "private_reserved_metadata_blocked",
+              "approved_origin_via_gateway",
+              "gateway_independent_blocking",
+              "gateway_outage_fail_closed",
+              "audit_evidence_durable"
+            ]
+          },
+          "passed": { "type": "boolean" },
+          "detail": { "type": "string" },
+          "evidenceFiles": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "overallPass": { "type": "boolean" },
+    "sha256Manifest": { "type": "string" },
+    "operator": { "type": "string" }
+  }
+}
