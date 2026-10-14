@@ -40,9 +40,6 @@ function responseHeaders(headers: Record<string, string | string[] | undefined>)
  * GET-only HTTPS transport that connects to the exact public IP selected from
  * the immediately preceding DNS validation. TLS verification and SNI continue
  * to use the original hostname, so certificate validation is not weakened.
- *
- * This removes the second resolver lookup that otherwise creates a DNS
- * rebinding/TOCTOU window between validation and connection establishment.
  */
 export async function pinnedHttpsGet(
   url: string,
@@ -58,13 +55,17 @@ export async function pinnedHttpsGet(
   const agent = new Agent({
     keepAlive: false,
     maxSockets: 1,
-    lookup: (requestedHostname, _options, callback) => {
+    lookup: (requestedHostname: string, options: any, callback: any) => {
       try {
         const pinned = assertPinnedHostname(requestedHostname, expectedHostname, record);
-        callback(null, pinned.address, pinned.family as 4 | 6);
+        if (options && typeof options === "object" && options.all === true) {
+          callback(null, [{ address: pinned.address, family: pinned.family as 4 | 6 }]);
+        } else {
+          callback(null, pinned.address, pinned.family as 4 | 6);
+        }
       } catch (error) {
         const lookupError = error instanceof Error ? error : new Error("pinned_lookup_failed");
-        callback(lookupError, "", 4);
+        callback(lookupError);
       }
     },
   });
@@ -80,16 +81,15 @@ export async function pinnedHttpsGet(
         signal: init.signal ?? undefined,
         agent,
         servername: expectedHostname,
+        family: record.family as 4 | 6,
+        autoSelectFamily: false,
       },
       (incoming) => {
         const status = incoming.statusCode ?? 502;
         const noBody = status === 204 || status === 304;
         if (noBody) incoming.resume();
 
-        const body = noBody
-          ? null
-          : (Readable.toWeb(incoming) as ReadableStream<Uint8Array>);
-
+        const body = noBody ? null : (Readable.toWeb(incoming) as ReadableStream<Uint8Array>);
         const response = new Response(body, {
           status,
           statusText: incoming.statusMessage ?? "",
