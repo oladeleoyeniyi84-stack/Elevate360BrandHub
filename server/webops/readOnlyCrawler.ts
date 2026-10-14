@@ -1,4 +1,6 @@
 import { normalizeApprovedOrigins, validateCrawlTarget } from "./crawlPolicy";
+import { assertPublicDnsResolution, systemDnsResolver, type DnsResolver } from "./networkGuard";
+import { pinnedHttpsGet } from "./pinnedHttpsTransport";
 
 export interface WebOpsCrawlPage {
   url: string;
@@ -8,7 +10,13 @@ export interface WebOpsCrawlPage {
   durationMs: number;
   linksDiscovered: number;
   redirectTarget?: string;
-  error?: "request_failed" | "timeout" | "response_too_large" | "redirect_target_rejected";
+  error?:
+    | "request_failed"
+    | "timeout"
+    | "response_too_large"
+    | "redirect_target_rejected"
+    | "dns_resolution_rejected";
+  errorDetail?: string;
 }
 
 export interface WebOpsRejectedTarget {
@@ -32,6 +40,7 @@ export interface ReadOnlyCrawlerOptions {
   maxResponseBytes?: number;
   userAgent?: string;
   fetcher?: (url: string, init: RequestInit) => Promise<Response>;
+  dnsResolver?: DnsResolver;
 }
 
 interface QueueItem {
@@ -46,6 +55,11 @@ function boundedInteger(value: number | undefined, fallback: number, min: number
 
 function isRedirect(status: number): boolean {
   return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
+}
+
+function safeErrorDetail(error: unknown): string {
+  const raw = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+  return raw.replace(/[\r\n\t]+/g, " ").slice(0, 240);
 }
 
 async function readTextWithLimit(response: Response, maxBytes: number): Promise<string> {
@@ -97,18 +111,6 @@ function extractReferences(html: string): string[] {
   return references;
 }
 
-/**
- * Read-only crawler for approved public HTTPS origins.
- *
- * Safety properties:
- * - exact-origin allowlist; redirects are never followed automatically;
- * - bounded page count, depth, response size and per-request timeout;
- * - sequential requests (concurrency is fixed at one);
- * - only GET requests; no cookies or production credentials;
- * - no database writes, code changes, or remediation actions.
- *
- * Network-level egress controls should still be used when this runs in a worker.
- */
 export async function crawlApprovedPublicPages(
   options: ReadOnlyCrawlerOptions,
 ): Promise<WebOpsCrawlReport> {
@@ -117,8 +119,8 @@ export async function crawlApprovedPublicPages(
   const maxDepth = boundedInteger(options.maxDepth, 2, 0, 3);
   const timeoutMs = boundedInteger(options.timeoutMs, 8000, 1000, 15000);
   const maxResponseBytes = boundedInteger(options.maxResponseBytes, 512_000, 1024, 1_000_000);
-  const fetcher = options.fetcher ?? fetch;
-  const userAgent = options.userAgent ?? "Elevate360WebOps/0.1 (read-only site health crawler)";
+  const dnsResolver = options.dnsResolver ?? systemDnsResolver;
+  const userAgent = options.userAgent ?? "Elevate360WebOps/0.3 (read-only site health crawler)";
 
   const queue: QueueItem[] = [];
   const visited = new Set<string>();
@@ -127,11 +129,8 @@ export async function crawlApprovedPublicPages(
 
   for (const seed of options.seedUrls) {
     const decision = validateCrawlTarget(seed, approvedOrigins);
-    if (decision.allowed) {
-      queue.push({ url: decision.url, depth: 0 });
-    } else {
-      rejectedTargets.push({ target: seed, reason: decision.reason });
-    }
+    if (decision.allowed) queue.push({ url: decision.url, depth: 0 });
+    else rejectedTargets.push({ target: seed, reason: decision.reason });
   }
 
   let truncated = false;
@@ -150,14 +149,29 @@ export async function crawlApprovedPublicPages(
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     timer.unref?.();
+    let dnsRejected = false;
 
     try {
-      const response = await fetcher(item.url, {
+      const hostname = new URL(item.url).hostname;
+      let dnsRecords;
+      try {
+        dnsRecords = await assertPublicDnsResolution(hostname, dnsResolver);
+      } catch (error) {
+        dnsRejected = true;
+        const reason = error instanceof Error ? error.message : "dns_resolution_failed";
+        rejectedTargets.push({ target: item.url, reason });
+        throw error;
+      }
+
+      const requestInit: RequestInit = {
         method: "GET",
         redirect: "manual",
         signal: controller.signal,
         headers: { "user-agent": userAgent, accept: "text/html,application/xhtml+xml;q=0.9" },
-      });
+      };
+      const response = options.fetcher
+        ? await options.fetcher(item.url, requestInit)
+        : await pinnedHttpsGet(item.url, requestInit, dnsRecords);
       const durationMs = Date.now() - startedAt;
       const contentType = response.headers.get("content-type");
       const page: WebOpsCrawlPage = {
@@ -179,9 +193,7 @@ export async function crawlApprovedPublicPages(
             rejectedTargets.push({ target: location, reason: decision.reason });
           } else {
             page.redirectTarget = decision.url;
-            if (item.depth < maxDepth && !visited.has(decision.url)) {
-              queue.push({ url: decision.url, depth: item.depth + 1 });
-            }
+            if (item.depth < maxDepth && !visited.has(decision.url)) queue.push({ url: decision.url, depth: item.depth + 1 });
           }
         }
         pages.push(page);
@@ -201,14 +213,11 @@ export async function crawlApprovedPublicPages(
           throw error;
         }
 
-        const refs = extractReferences(html);
-        for (const ref of refs) {
+        for (const ref of extractReferences(html)) {
           const decision = validateCrawlTarget(ref, approvedOrigins, item.url);
           if (!decision.allowed) continue;
           page.linksDiscovered++;
-          if (item.depth < maxDepth && !visited.has(decision.url)) {
-            queue.push({ url: decision.url, depth: item.depth + 1 });
-          }
+          if (item.depth < maxDepth && !visited.has(decision.url)) queue.push({ url: decision.url, depth: item.depth + 1 });
         }
       }
 
@@ -216,7 +225,7 @@ export async function crawlApprovedPublicPages(
         if (response.body) await response.body.cancel().catch(() => undefined);
       }
       pages.push(page);
-    } catch {
+    } catch (error) {
       pages.push({
         url: item.url,
         depth: item.depth,
@@ -224,7 +233,8 @@ export async function crawlApprovedPublicPages(
         contentType: null,
         durationMs: Date.now() - startedAt,
         linksDiscovered: 0,
-        error: controller.signal.aborted ? "timeout" : "request_failed",
+        error: dnsRejected ? "dns_resolution_rejected" : controller.signal.aborted ? "timeout" : "request_failed",
+        errorDetail: safeErrorDetail(error),
       });
     } finally {
       clearTimeout(timer);
