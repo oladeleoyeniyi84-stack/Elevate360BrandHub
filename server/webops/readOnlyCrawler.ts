@@ -16,6 +16,7 @@ export interface WebOpsCrawlPage {
     | "response_too_large"
     | "redirect_target_rejected"
     | "dns_resolution_rejected";
+  errorDetail?: string;
 }
 
 export interface WebOpsRejectedTarget {
@@ -54,6 +55,11 @@ function boundedInteger(value: number | undefined, fallback: number, min: number
 
 function isRedirect(status: number): boolean {
   return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
+}
+
+function safeErrorDetail(error: unknown): string {
+  const raw = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+  return raw.replace(/[\r\n\t]+/g, " ").slice(0, 240);
 }
 
 async function readTextWithLimit(response: Response, maxBytes: number): Promise<string> {
@@ -105,22 +111,6 @@ function extractReferences(html: string): string[] {
   return references;
 }
 
-/**
- * Read-only crawler for approved public HTTPS origins.
- *
- * Safety properties:
- * - exact-origin allowlist; redirects are never followed automatically;
- * - DNS validation rejects private/reserved/non-public resolved addresses;
- * - the default HTTPS transport pins the connection to the validated address,
- *   preventing a second DNS lookup between validation and connection;
- * - bounded page count, depth, response size and per-request timeout;
- * - sequential requests (concurrency is fixed at one);
- * - only GET requests; no cookies or production credentials;
- * - no database writes, code changes, or remediation actions.
- *
- * Infrastructure-level outbound firewall/egress policy remains an independent
- * defense-in-depth control before a production autonomous pilot.
- */
 export async function crawlApprovedPublicPages(
   options: ReadOnlyCrawlerOptions,
 ): Promise<WebOpsCrawlReport> {
@@ -139,11 +129,8 @@ export async function crawlApprovedPublicPages(
 
   for (const seed of options.seedUrls) {
     const decision = validateCrawlTarget(seed, approvedOrigins);
-    if (decision.allowed) {
-      queue.push({ url: decision.url, depth: 0 });
-    } else {
-      rejectedTargets.push({ target: seed, reason: decision.reason });
-    }
+    if (decision.allowed) queue.push({ url: decision.url, depth: 0 });
+    else rejectedTargets.push({ target: seed, reason: decision.reason });
   }
 
   let truncated = false;
@@ -206,9 +193,7 @@ export async function crawlApprovedPublicPages(
             rejectedTargets.push({ target: location, reason: decision.reason });
           } else {
             page.redirectTarget = decision.url;
-            if (item.depth < maxDepth && !visited.has(decision.url)) {
-              queue.push({ url: decision.url, depth: item.depth + 1 });
-            }
+            if (item.depth < maxDepth && !visited.has(decision.url)) queue.push({ url: decision.url, depth: item.depth + 1 });
           }
         }
         pages.push(page);
@@ -228,14 +213,11 @@ export async function crawlApprovedPublicPages(
           throw error;
         }
 
-        const refs = extractReferences(html);
-        for (const ref of refs) {
+        for (const ref of extractReferences(html)) {
           const decision = validateCrawlTarget(ref, approvedOrigins, item.url);
           if (!decision.allowed) continue;
           page.linksDiscovered++;
-          if (item.depth < maxDepth && !visited.has(decision.url)) {
-            queue.push({ url: decision.url, depth: item.depth + 1 });
-          }
+          if (item.depth < maxDepth && !visited.has(decision.url)) queue.push({ url: decision.url, depth: item.depth + 1 });
         }
       }
 
@@ -243,7 +225,7 @@ export async function crawlApprovedPublicPages(
         if (response.body) await response.body.cancel().catch(() => undefined);
       }
       pages.push(page);
-    } catch {
+    } catch (error) {
       pages.push({
         url: item.url,
         depth: item.depth,
@@ -252,6 +234,7 @@ export async function crawlApprovedPublicPages(
         durationMs: Date.now() - startedAt,
         linksDiscovered: 0,
         error: dnsRejected ? "dns_resolution_rejected" : controller.signal.aborted ? "timeout" : "request_failed",
+        errorDetail: safeErrorDetail(error),
       });
     } finally {
       clearTimeout(timer);
