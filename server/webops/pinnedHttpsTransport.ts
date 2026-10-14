@@ -36,11 +36,6 @@ function responseHeaders(headers: Record<string, string | string[] | undefined>)
   return result;
 }
 
-/**
- * GET-only HTTPS transport that connects to the exact public IP selected from
- * the immediately preceding DNS validation. TLS verification and SNI continue
- * to use the original hostname, so certificate validation is not weakened.
- */
 export async function pinnedHttpsGet(
   url: string,
   init: RequestInit,
@@ -82,7 +77,6 @@ export async function pinnedHttpsGet(
         agent,
         servername: expectedHostname,
         family: record.family as 4 | 6,
-        autoSelectFamily: false,
       },
       (incoming) => {
         const status = incoming.statusCode ?? 502;
