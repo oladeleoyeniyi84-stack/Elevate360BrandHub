@@ -8,20 +8,20 @@ export interface AppendOnlyGatewayAudit {
 }
 
 export class InMemoryAppendOnlyGatewayAudit implements AppendOnlyGatewayAudit {
-  readonly #events: GatewayAuditEvent[] = [];
+  private readonly events: GatewayAuditEvent[] = [];
 
   append(event: NewGatewayAuditEvent): GatewayAuditEvent {
     const stored = Object.freeze({
       ...event,
       resolvedAddresses: Object.freeze([...event.resolvedAddresses]),
-      sequence: this.#events.length + 1,
+      sequence: this.events.length + 1,
       immutable: true as const,
     });
-    this.#events.push(stored);
+    this.events.push(stored);
     return stored;
   }
 
   snapshot(): readonly GatewayAuditEvent[] {
-    return Object.freeze([...this.#events]);
+    return Object.freeze([...this.events]);
   }
 }
