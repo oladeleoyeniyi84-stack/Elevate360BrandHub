@@ -38,8 +38,10 @@ export class Phase3DiagnoseWorker {
   async run(targets: readonly string[]): Promise<DiagnoseJobResult> {
     const limit = boundedMaxTargets(this.options.maxTargets);
     const results: DiagnoseTargetResult[] = [];
+    const selectedTargets = targets.slice(0, limit);
 
-    for (const [index, url] of targets.slice(0, limit).entries()) {
+    for (let index = 0; index < selectedTargets.length; index++) {
+      const url = selectedTargets[index]!;
       const requestId = `phase3-diagnose-${index + 1}`;
       try {
         const gatewayResult = await this.options.gateway.request({
