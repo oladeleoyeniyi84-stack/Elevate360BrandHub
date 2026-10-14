@@ -152,16 +152,6 @@ export const CONCIERGE_PAGE_CONTEXTS: Record<string, ConciergePageContext> = {
     suggestedCta: "Encourage the free PDF download. Mention the paid strategy session only as a clearly optional next step.",
     recommendedLinks: [{ label: "Book a Session", url: `${SITE}/#book-session` }],
   },
-  "/guide": {
-    pageTitle: "AI Business Growth Blueprint 2026",
-    section: "Lead Magnet",
-    greeting:
-      "Downloading the free AI Business Growth Blueprint? I can help you apply any of its 15 practical actions.",
-    knowledge:
-      "The visitor is on the free AI Business Growth Blueprint 2026 download page. The seven-page PDF is available immediately with no payment or email required.",
-    suggestedCta: "Encourage the free PDF download. Mention the paid strategy session only as a clearly optional next step.",
-    recommendedLinks: [{ label: "Book a Session", url: `${SITE}/#book-session` }],
-  },
   "/press-kit": {
     pageTitle: "Press Kit",
     section: "Brand",
