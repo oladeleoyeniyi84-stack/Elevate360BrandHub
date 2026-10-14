@@ -93,3 +93,12 @@ Before scheduling:
 - prove only approved origins can be requested;
 - preserve audit evidence;
 - Founder separately approves schedule, origin registry and per-run/spend limits.
+
+## Source notes (verified 2026-10-14)
+
+- Render compute pricing: https://render.com/pricing
+- Render background workers: https://render.com/docs/background-workers
+- DigitalOcean Droplet pricing: https://www.digitalocean.com/pricing/droplets
+- DigitalOcean Cloud Firewall outbound behavior: https://docs.digitalocean.com/products/networking/firewalls/getting-started/quickstart/
+- AWS Fargate pricing: https://aws.amazon.com/fargate/pricing/
+- AWS security-group egress guidance: https://docs.aws.amazon.com/prescriptive-guidance/latest/aws-startup-security-baseline/wkld-11.html
