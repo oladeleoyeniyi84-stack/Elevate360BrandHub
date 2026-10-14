@@ -11,7 +11,6 @@ const routeSeeds = [
   "/about-founder",
   "/strategy-session",
   "/ai-growth-guide",
-  "/guide",
   "/press-kit",
   "/pricing",
   "/work",
@@ -48,6 +47,7 @@ async function main(): Promise<void> {
     startedAt: new Date().toISOString(),
     approvedOrigins: [approvedOrigin],
     routeSeeds,
+    retiredRoutes: ["/guide"],
     limits: {
       maxPages: 40,
       maxDepth: 1,
