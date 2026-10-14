@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - webops/phase-2-diagnostics-policy
+      - webops/phase-2-prepilot-hardening
     paths:
       - "server/webops/**"
       - "server/webopsPolicy.test.ts"
@@ -95,5 +96,20 @@ jobs:
         with:
           name: webops-live-pilot
           path: webops-live-pilot.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Run Founder-authorized read-only route health pilot
+        if: github.head_ref == 'webops/phase-2-route-health-pilot'
+        shell: bash
+        run: |
+          npx tsx server/webops/routeHealthPilot.ts > webops-route-health-pilot.json
+
+      - name: Preserve route health pilot report
+        if: always() && github.head_ref == 'webops/phase-2-route-health-pilot'
+        uses: actions/upload-artifact@v4
+        with:
+          name: webops-route-health-pilot
+          path: webops-route-health-pilot.json
           if-no-files-found: error
           retention-days: 7
