@@ -1,0 +1,25 @@
+#cloud-config
+package_update: false
+package_upgrade: false
+
+write_files:
+  - path: /etc/sysctl.d/99-webops.conf
+    permissions: '0644'
+    content: |
+      net.ipv4.ip_forward=1
+      net.ipv4.conf.all.accept_redirects=0
+      net.ipv4.conf.default.accept_redirects=0
+      net.ipv4.conf.all.send_redirects=0
+      net.ipv4.conf.default.send_redirects=0
+
+runcmd:
+  # Force Ubuntu package sources to HTTPS before any package retrieval.
+  - [ bash, -lc, "if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then sed -i 's#http://archive.ubuntu.com#https://archive.ubuntu.com#g; s#http://security.ubuntu.com#https://security.ubuntu.com#g' /etc/apt/sources.list.d/ubuntu.sources; fi" ]
+  - [ bash, -lc, "if [ -f /etc/apt/sources.list ]; then sed -i 's#http://archive.ubuntu.com#https://archive.ubuntu.com#g; s#http://security.ubuntu.com#https://security.ubuntu.com#g' /etc/apt/sources.list; fi" ]
+  - [ bash, -lc, "apt-get update" ]
+  - [ bash, -lc, "DEBIAN_FRONTEND=noninteractive apt-get install -y docker.io docker-compose-v2 nftables ca-certificates" ]
+  - [ bash, -lc, "systemctl enable --now docker" ]
+  - [ bash, -lc, "install -d -m 0750 /opt/elevate360-webops" ]
+  - [ bash, -lc, "sysctl --system" ]
+
+final_message: "Elevate360 WebOps Phase 3 host bootstrap complete. Worker remains disabled until separate validation/activation."
