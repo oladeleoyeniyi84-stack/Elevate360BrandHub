@@ -21,6 +21,8 @@ on:
       - "docs/autonomous-webops-dependency-audit-plan.md"
       - "docs/autonomous-webops-phase2-hardening-report.md"
       - "docs/autonomous-webops-phase2-prepilot-report.md"
+      - "docs/autonomous-webops-phase2-integration-plan.md"
+      - "docs/autonomous-webops-phase2-release-readiness.md"
       - "package.json"
       - "package-lock.json"
       - "tsconfig.json"
