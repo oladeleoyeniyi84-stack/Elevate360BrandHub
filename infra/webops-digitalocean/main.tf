@@ -12,6 +12,12 @@ provider "digitalocean" {
   token = var.digitalocean_token
 }
 
+locals {
+  cloud_init = templatefile("${path.module}/cloud-init.yaml", {
+    nftables_config = indent(6, file("${path.module}/nftables.conf"))
+  })
+}
+
 resource "digitalocean_droplet" "webops_phase3" {
   name       = "elevate360-webops-phase3"
   region     = var.region
@@ -22,7 +28,7 @@ resource "digitalocean_droplet" "webops_phase3" {
   backups    = false
   ipv6       = false
   tags       = ["elevate360", "webops-phase3", "isolated-worker"]
-  user_data  = file("${path.module}/cloud-init.yaml")
+  user_data  = local.cloud_init
 
   lifecycle {
     prevent_destroy = true
@@ -39,7 +45,6 @@ resource "digitalocean_firewall" "webops_phase3" {
     source_addresses = var.admin_cidrs
   }
 
-  # DNS for package/bootstrap and gateway resolution.
   outbound_rule {
     protocol              = "udp"
     port_range            = "53"
@@ -52,14 +57,12 @@ resource "digitalocean_firewall" "webops_phase3" {
     destination_addresses = ["0.0.0.0/0"]
   }
 
-  # HTTPS only for bootstrap/package retrieval and later gateway inspection traffic.
   outbound_rule {
     protocol              = "tcp"
     port_range            = "443"
     destination_addresses = ["0.0.0.0/0"]
   }
 
-  # Time synchronization.
   outbound_rule {
     protocol              = "udp"
     port_range            = "123"
