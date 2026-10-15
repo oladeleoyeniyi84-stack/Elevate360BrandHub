@@ -7,6 +7,8 @@ on:
       - webops/phase-2-diagnostics-policy
       - webops/phase-2-prepilot-hardening
       - webops/phase-2-route-health-pilot
+      - webops/phase-3-implementation
+      - webops/phase-3-digitalocean-provisioning
     paths:
       - "server/webops/**"
       - "server/webopsPolicy.test.ts"
@@ -14,6 +16,8 @@ on:
       - "server/publicCrawl.test.ts"
       - "client/src/App.tsx"
       - "shared/conciergeContext.ts"
+      - "infra/webops-digitalocean/**"
+      - "infra/webops/validation/**"
       - "docs/autonomous-webops-phase1-baseline.md"
       - "docs/autonomous-webops-phase1-completion-report.md"
       - "docs/autonomous-webops-phase2-plan.md"
@@ -23,6 +27,7 @@ on:
       - "docs/autonomous-webops-phase2-prepilot-report.md"
       - "docs/autonomous-webops-phase2-integration-plan.md"
       - "docs/autonomous-webops-phase2-release-readiness.md"
+      - "docs/autonomous-webops-phase3-*.md"
       - "package.json"
       - "package-lock.json"
       - "tsconfig.json"
@@ -33,9 +38,9 @@ permissions:
 
 jobs:
   validate:
-    name: Typecheck, tests, and build
+    name: Typecheck, tests, build, and Phase 3 infra checks
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -51,6 +56,50 @@ jobs:
             echo "Retired /guide concierge context is still present" >&2
             exit 1
           fi
+
+      - name: Phase 3 infrastructure static safety checks
+        if: startsWith(github.head_ref, 'webops/phase-3-')
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f infra/webops-digitalocean/main.tf
+          test -f infra/webops-digitalocean/cloud-init.yaml
+          test -f infra/webops-digitalocean/compose.yaml
+          test -f infra/webops-digitalocean/nftables.conf
+          if [ -f infra/webops/validation/validate-network.sh ]; then
+            bash -n infra/webops/validation/validate-network.sh
+          fi
+          if [ -f infra/webops/validation/evidence-schema.json ]; then
+            node -e "JSON.parse(require('fs').readFileSync('infra/webops/validation/evidence-schema.json','utf8'))"
+            grep -F '"minItems": 6' infra/webops/validation/evidence-schema.json
+            grep -F '"maxItems": 6' infra/webops/validation/evidence-schema.json
+          fi
+          if grep -R --line-number --fixed-strings 'flush ruleset' infra/webops-digitalocean; then
+            echo "Broad nftables flush ruleset is forbidden" >&2
+            exit 1
+          fi
+          grep -F 'templatefile(' infra/webops-digitalocean/main.tf
+          grep -F 'nftables_config' infra/webops-digitalocean/main.tf
+          grep -F '/etc/nftables.d/webops.nft' infra/webops-digitalocean/cloud-init.yaml
+          grep -F 'webops-nftables.service' infra/webops-digitalocean/cloud-init.yaml
+          grep -F 'internal: true' infra/webops-digitalocean/compose.yaml
+          grep -F 'iifname "br-webops-worker" oifname != "br-webops-worker" drop' infra/webops-digitalocean/nftables.conf
+
+      - name: Set up Terraform
+        if: startsWith(github.head_ref, 'webops/phase-3-')
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - name: Validate Phase 3 Terraform
+        if: startsWith(github.head_ref, 'webops/phase-3-')
+        working-directory: infra/webops-digitalocean
+        shell: bash
+        run: |
+          set -euo pipefail
+          terraform fmt -check -recursive
+          terraform init -backend=false -input=false
+          terraform validate
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
