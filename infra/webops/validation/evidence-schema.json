@@ -12,7 +12,8 @@
     "policyVersion",
     "approvedOrigin",
     "results",
-    "overallPass"
+    "overallPass",
+    "sha256Manifest"
   ],
   "properties": {
     "runId": { "type": "string", "minLength": 1 },
@@ -23,7 +24,16 @@
     "approvedOrigin": { "const": "https://www.elevate360official.com" },
     "results": {
       "type": "array",
-      "minItems": 5,
+      "minItems": 6,
+      "maxItems": 6,
+      "allOf": [
+        { "contains": { "properties": { "control": { "const": "worker_direct_egress_blocked" } }, "required": ["control"] } },
+        { "contains": { "properties": { "control": { "const": "private_reserved_metadata_blocked" } }, "required": ["control"] } },
+        { "contains": { "properties": { "control": { "const": "approved_origin_via_gateway" } }, "required": ["control"] } },
+        { "contains": { "properties": { "control": { "const": "gateway_independent_blocking" } }, "required": ["control"] } },
+        { "contains": { "properties": { "control": { "const": "gateway_outage_fail_closed" } }, "required": ["control"] } },
+        { "contains": { "properties": { "control": { "const": "audit_evidence_durable" } }, "required": ["control"] } }
+      ],
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -39,17 +49,18 @@
               "audit_evidence_durable"
             ]
           },
-          "passed": { "type": "boolean" },
+          "passed": { "const": true },
           "detail": { "type": "string" },
           "evidenceFiles": {
             "type": "array",
+            "minItems": 1,
             "items": { "type": "string", "minLength": 1 }
           }
         }
       }
     },
-    "overallPass": { "type": "boolean" },
-    "sha256Manifest": { "type": "string" },
+    "overallPass": { "const": true },
+    "sha256Manifest": { "type": "string", "minLength": 1 },
     "operator": { "type": "string" }
   }
 }
