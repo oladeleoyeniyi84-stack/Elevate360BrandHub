@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://elevate360official.com/schemas/webops-phase3-network-evidence.json",
+  "title": "WebOps Phase 3 Network Validation Evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "runId",
+    "startedAt",
+    "completedAt",
+    "hostIdentity",
+    "policyVersion",
+    "approvedOrigin",
+    "results",
+    "overallPass",
+    "sha256Manifest"
+  ],
+  "properties": {
+    "runId": { "type": "string", "minLength": 1 },
+    "startedAt": { "type": "string", "format": "date-time" },
+    "completedAt": { "type": "string", "format": "date-time" },
+    "hostIdentity": { "type": "string", "minLength": 1 },
+    "policyVersion": { "type": "string", "minLength": 1 },
+    "approvedOrigin": { "const": "https://www.elevate360official.com" },
+    "results": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "allOf": [
+        { "contains": { "properties": { "control": { "const": "worker_direct_egress_blocked" } }, "required": ["control"] } },
+        { "contains": { "properties": { "control": { "const": "private_reserved_metadata_blocked" } }, "required": ["control"] } },
+        { "contains": { "properties": { "control": { "const": "approved_origin_via_gateway" } }, "required": ["control"] } },
+        { "contains": { "properties": { "control": { "const": "gateway_independent_blocking" } }, "required": ["control"] } },
+        { "contains": { "properties": { "control": { "const": "gateway_outage_fail_closed" } }, "required": ["control"] } },
+        { "contains": { "properties": { "control": { "const": "audit_evidence_durable" } }, "required": ["control"] } }
+      ],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["control", "passed", "evidenceFiles"],
+        "properties": {
+          "control": {
+            "enum": [
+              "worker_direct_egress_blocked",
+              "private_reserved_metadata_blocked",
+              "approved_origin_via_gateway",
+              "gateway_independent_blocking",
+              "gateway_outage_fail_closed",
+              "audit_evidence_durable"
+            ]
+          },
+          "passed": { "const": true },
+          "detail": { "type": "string" },
+          "evidenceFiles": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "overallPass": { "const": true },
+    "sha256Manifest": { "type": "string", "minLength": 1 },
+    "operator": { "type": "string" }
+  }
+}

@@ -12,14 +12,38 @@ write_files:
       net.ipv4.conf.all.send_redirects=0
       net.ipv4.conf.default.send_redirects=0
 
+  - path: /etc/nftables.d/webops.nft
+    permissions: '0644'
+    content: |
+${nftables_config}
+
+  - path: /etc/systemd/system/webops-nftables.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=Elevate360 WebOps isolated nftables policy
+      After=network-pre.target
+      Before=docker.service
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      ExecStart=/bin/sh -c 'nft list table inet webops_filter >/dev/null 2>&1 && nft delete table inet webops_filter || true; nft -f /etc/nftables.d/webops.nft'
+      ExecReload=/bin/sh -c 'nft list table inet webops_filter >/dev/null 2>&1 && nft delete table inet webops_filter || true; nft -f /etc/nftables.d/webops.nft'
+
+      [Install]
+      WantedBy=multi-user.target
+
 runcmd:
-  # Force Ubuntu package sources to HTTPS before any package retrieval.
   - [ bash, -lc, "if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then sed -i 's#http://archive.ubuntu.com#https://archive.ubuntu.com#g; s#http://security.ubuntu.com#https://security.ubuntu.com#g' /etc/apt/sources.list.d/ubuntu.sources; fi" ]
   - [ bash, -lc, "if [ -f /etc/apt/sources.list ]; then sed -i 's#http://archive.ubuntu.com#https://archive.ubuntu.com#g; s#http://security.ubuntu.com#https://security.ubuntu.com#g' /etc/apt/sources.list; fi" ]
   - [ bash, -lc, "apt-get update" ]
   - [ bash, -lc, "DEBIAN_FRONTEND=noninteractive apt-get install -y docker.io docker-compose-v2 nftables ca-certificates" ]
-  - [ bash, -lc, "systemctl enable --now docker" ]
   - [ bash, -lc, "install -d -m 0750 /opt/elevate360-webops" ]
   - [ bash, -lc, "sysctl --system" ]
+  - [ bash, -lc, "systemctl daemon-reload" ]
+  - [ bash, -lc, "systemctl enable --now webops-nftables.service" ]
+  - [ bash, -lc, "systemctl enable --now docker" ]
+  - [ bash, -lc, "nft list table inet webops_filter >/dev/null" ]
 
 final_message: "Elevate360 WebOps Phase 3 host bootstrap complete. Worker remains disabled until separate validation/activation."
