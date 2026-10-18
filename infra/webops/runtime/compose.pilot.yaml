@@ -1,0 +1,49 @@
+services:
+  webops-worker:
+    build:
+      context: ../../..
+      dockerfile: infra/webops/runtime/Dockerfile
+    image: elevate360-webops-pilot:local
+    container_name: webops-worker
+    command: ["node", "-e", "setInterval(()=>{},2147483647)"]
+    restart: "no"
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 128m
+    cpus: 0.25
+    pids_limit: 64
+    networks: [worker_internal]
+    profiles: [manual-pilot]
+  webops-egress-gateway:
+    image: elevate360-webops-pilot:local
+    container_name: webops-egress-gateway
+    restart: "no"
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 192m
+    cpus: 0.5
+    pids_limit: 64
+    volumes:
+      - /var/lib/elevate360-webops/audit:/audit
+    networks:
+      worker_internal:
+        ipv4_address: 172.30.0.2
+      gateway_egress: {}
+    profiles: [manual-pilot]
+networks:
+  worker_internal:
+    internal: true
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: br-webops-wkr
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+  gateway_egress:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: br-webops-out
