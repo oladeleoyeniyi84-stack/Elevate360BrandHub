@@ -14,11 +14,14 @@ services:
     mem_limit: 128m
     cpus: 0.25
     pids_limit: 64
-    networks: [worker_internal]
+    networks:
+      worker_internal:
+        ipv4_address: 172.30.0.3
     profiles: [manual-pilot]
   webops-egress-gateway:
     image: elevate360-webops-pilot:local
     container_name: webops-egress-gateway
+    dns: [1.1.1.1, 1.0.0.1]
     restart: "no"
     user: "1000:1000"
     read_only: true
