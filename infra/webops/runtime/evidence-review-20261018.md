@@ -60,3 +60,30 @@ supplemental checks and checksum repair. The operator workflow was unnecessarily
 fragmented, including an assistant DNS edit correction. Future host work should be
 batched into a reviewed, error-checked procedure and limited to essential deployment
 and evidence collection. Repository fixes should be handled directly.
+
+## Development checkpoint — 2026-10-19 UTC
+Added monitor.mjs and monitor.test.mjs. This is an unconnected manual orchestration
+module, not a deployed worker or scheduler. It accepts explicit paths on the single
+approved origin, validates the entire input before any gateway request, runs
+sequentially, and caps requests at 14, elapsed time at 30 seconds, and requested
+aggregate response bytes at 2 MiB. Caller may lower those ceilings. It reports
+diagnostic findings without raw exception/denial text and stops on failure.
+It has no networking imports, repair hooks, persistence, scheduler, or credential use.
+
+Validation: Node v24.19.0, node --test monitor.test.mjs: 8 passed, 0 failed.
+Cases cover sequential calls/read-only flags, invalid paths, request budget,
+byte overrun, gateway exception, non-settling deadline, pre-cancellation, and
+malformed/denied results. No live requests or host operations performed.
+
+Important integration contract: gateway(target, {signal,maxBytes}) must enforce
+the remaining byte budget during transport and respect cancellation. The monitor
+also detects a gateway overrun after return, which alone cannot enforce a hard
+network-byte ceiling. The existing live gateway endpoint does not yet implement
+this per-run remaining-byte contract. Do not wire the new module into Compose
+until that contract is implemented and tested.
+
+Next work: integrate a bounded gateway client and enforce its response budget
+server-side; connect an explicit manual worker command with sanitized JSON output;
+extend the image build and hermetic integration tests. Then reconcile deployment
+and collect revised host evidence in one reviewed operator procedure. Existing
+production, paid-resource and activation gates remain unchanged.
