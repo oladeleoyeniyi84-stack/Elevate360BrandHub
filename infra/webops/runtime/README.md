@@ -43,13 +43,11 @@ docker exec webops-worker /app/webops-gateway-check https://www.elevate360offici
 WEBOPS_GATEWAY_AUDIT_EXPORT=/var/lib/elevate360-webops/audit/gateway.jsonl bash infra/webops/validation/validate-network.sh
 ```
 
-The live gate still needs stronger checks beyond the original validation script:
-prove worker-to-gateway request failure during gateway outage (not just direct egress),
-compare audit prefix before/after replacement, inspect worker mount isolation, collect
-the cloud firewall snapshot and image identity, and record the host's bridge-name patch.
-The original script modifies summary.txt after hashing it; regenerate and verify the
-manifest after the final summary is complete. Do not claim V1–V6 PASS until the complete
-evidence is reviewed. A successful image build is not a network-validation PASS.
+The validation script now tests the worker's explicit gateway path during outage,
+checks the audit prefix and worker mount isolation, and hashes the completed summary
+with portable relative filenames. Shell syntax was checked; these script revisions
+have not yet been executed on the Droplet. See evidence-review-20261018.md for the
+review of the earlier live run and outstanding activation requirements.
 
 Stop after validation; restart policies remain disabled:
 
