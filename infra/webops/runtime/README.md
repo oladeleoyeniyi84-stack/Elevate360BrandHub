@@ -58,3 +58,34 @@ docker compose -f infra/webops/runtime/compose.pilot.yaml --profile manual-pilot
 Do not delete host audit evidence. Scheduling and routine execution require a separate
 Founder decision after all live controls pass. No main-branch merge or deployment is
 part of this draft.
+
+## Manual route monitor (new image required)
+
+After rebuilding and validating the updated image, an operator can explicitly run:
+```sh
+docker exec webops-worker node /app/monitor-cli.mjs / /work
+```
+This does not start a schedule or repair anything. It returns sanitized JSON and
+exits 0 only if all explicit paths pass, 1 for an unhealthy/incomplete run, and 2
+for invalid configuration. No arguments is an error; no default crawl starts.
+
+The monitor allows at most 14 sequential checks, 30 seconds elapsed, and 2 MiB
+of accepted successful response bodies. Each gateway request is capped at 1 MiB
+or the remaining run budget, whichever is smaller. Invalid budgets are rejected
+before outbound transport. Overflow cancels body consumption, denies the request,
+and stops the run. Denied-body bytes are not included in the successful-byte
+total; a denied request always stops further checks. These are application body
+limits, not exact network billing/wire-byte limits: headers, TLS, socket buffering,
+redirect traffic, and an overflow chunk can consume additional traffic.
+Disconnecting the internal client aborts the gateway transport signal.
+
+The new client is fixed to the internal gateway endpoint, refuses redirects,
+bounds gateway JSON replies to 4096 bytes, and strips arbitrary denial text.
+The worker stays idle until explicitly invoked. New files are copied into the
+image, but no rebuilt image or live deployment is claimed here.
+
+Hermetic validation (Node 24):
+```sh
+node infra/webops/runtime/build.mjs
+node --test infra/webops/runtime/gateway.test.mjs infra/webops/runtime/gateway-client.test.mjs infra/webops/runtime/monitor.test.mjs infra/webops/runtime/monitor-integration.test.mjs
+```
