@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { checkTarget, durableAudit } from './gateway.mjs';
+import { checkTarget, durableAudit, startGateway } from './gateway.mjs';
 import { assertPublicDnsResolution } from './generated/networkGuard.mjs';
 const approved = 'https://www.elevate360official.com/';
 const publicRecords = [{address:'1.1.1.1',family:4}];
@@ -72,3 +72,33 @@ test('audit appends survive reopening and contain timestamps', () => {
     assert.ok(events.every(e => Number.isFinite(Date.parse(e.timestamp))));
   } finally {rmSync(dir,{recursive:true});}
 });
+test('request byte budget rejects excess body and accepts an exact fit', async () => {
+  for (const [body, ok] of [['1234', true], ['12345', false]]) {
+    const f = fixture(async () => new Response(body));
+    assert.equal((await checkTarget(approved, {...f.options,maxBytes:4})).ok,ok);
+    assert.equal(f.events.at(-1).decision,ok?'allow':'deny');
+  }
+});
+test('invalid budgets and pre-cancellation never reach transport', async () => {
+  for (const maxBytes of [0,-1,1.5,1048577,NaN]) {
+    const f=fixture();assert.equal((await checkTarget(approved,{...f.options,maxBytes})).ok,false);
+    assert.equal(f.calls,0);
+  }
+  const f=fixture();assert.equal((await checkTarget(approved,{...f.options,signal:AbortSignal.abort()})).ok,false);
+  assert.equal(f.calls,0);
+});
+test('HTTP endpoint validates and forwards the request budget', async () => {
+  const seen=[];
+  const server=startGateway(()=>{}, {check:async (url,options)=>{
+    seen.push(options.maxBytes); return {ok:true,status:200,bytes:2};
+  }});
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  const endpoint='http://127.0.0.1:'+server.address().port+'/check?url='+encodeURIComponent(approved);
+  try {
+    assert.equal((await fetch(endpoint+'&maxBytes=4')).status,200);
+    for(const suffix of ['&maxBytes=0','&maxBytes=1.5','&maxBytes=1048577','&maxBytes=4&maxBytes=5','&unknown=x'])
+      assert.equal((await fetch(endpoint+suffix)).status,400);
+    assert.deepEqual(seen,[4]);
+  } finally { await new Promise(resolve=>server.close(resolve)); }
+});
+
