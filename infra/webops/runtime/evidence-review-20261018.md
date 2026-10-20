@@ -87,3 +87,37 @@ server-side; connect an explicit manual worker command with sanitized JSON outpu
 extend the image build and hermetic integration tests. Then reconcile deployment
 and collect revised host evidence in one reviewed operator procedure. Existing
 production, paid-resource and activation gates remain unchanged.
+
+## Development checkpoint — 2026-10-20 UTC
+Completed the previous checkpoint's manual integration in the draft source:
+- gateway checkTarget accepts validated maxBytes and caller cancellation;
+- HTTP endpoint validates the optional budget (including duplicate/unknown fields),
+  forwards it, and aborts transport when the internal response connection closes;
+- gateway-client.mjs contacts only the fixed internal endpoint, forwards the remaining
+  budget, caps each request at 1 MiB, bounds JSON replies to 4096 bytes, refuses
+  redirects and strips arbitrary denial metadata;
+- monitor-cli.mjs invokes explicit operator-supplied paths and outputs sanitized
+  diagnose-only JSON; Dockerfile now includes the monitor and client modules.
+The Compose worker still idles; no monitoring schedule or repairs were enabled.
+
+Validation: Node v24.19.0; build.mjs succeeded; all 23 tests passed, none failed or
+skipped. Includes the previous eight monitor tests, eleven gateway tests, three
+client tests, and one local HTTP integration test proving remaining-budget
+propagation and denial before a third route. Tests used injected transport and
+loopback HTTP only, with no requests to production. No-argument CLI smoke check
+returned sanitized configuration error and exit 2 as expected.
+
+Byte accounting clarification: this enforces accepted successful body-byte budgets,
+not a strict wire-traffic/spend cap. Headers/TLS, buffering, redirects and the chunk
+that triggers overflow may add traffic. An overflow is denied and stops the run;
+failed-body bytes are not added to the successful-byte total. Do not describe this
+as an exact network byte ceiling.
+
+No Docker image build or host deployment was performed this run. The earlier
+uploaded live evidence certifies the earlier image only. Remaining: integration
+into CI, cancellation/disconnect regression coverage, persistent report/audit
+delivery and controlled remediation proposals, immutable retention design, one
+safe host reconciliation/validation procedure, firewall snapshot, reboot check,
+schema-complete final evidence and Founder activation settings. Production
+merge/deploy and scheduler gates are unchanged. No user terminal action needed
+until the consolidated host procedure is ready.
