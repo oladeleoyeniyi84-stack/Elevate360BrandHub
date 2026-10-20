@@ -22,9 +22,10 @@ export function durableAudit(path) {
   };
 }
 
-export async function checkTarget(raw, { audit, resolve = assertPublicDnsResolution, transport = pinnedHttpsGet } = {}) {
+export async function checkTarget(raw, { audit, resolve = assertPublicDnsResolution, transport = pinnedHttpsGet,
+  maxBytes = 1048576, signal: callerSignal } = {}) {
   const requestId = randomUUID();
-  const signal = AbortSignal.timeout(10000);
+  const signal = callerSignal ? AbortSignal.any([callerSignal, AbortSignal.timeout(10000)]) : AbortSignal.timeout(10000);
   let addresses = [];
   // Record no query strings, userinfo, response bodies, or arbitrary exception messages.
   let origin = 'invalid';
@@ -32,6 +33,8 @@ export async function checkTarget(raw, { audit, resolve = assertPublicDnsResolut
   let reason = 'target_rejected';
   try {
     audit({requestId, origin, decision: 'attempt'}); // audit failure blocks transport
+    if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 1048576 || signal.aborted)
+      throw new Error('invalid_request_budget');
     let target = assertApprovedGatewayTarget(raw, registry);
     if (target.search || target.hash || raw.length > 2048) throw new Error('target_rejected');
     for (let hop = 0; hop <= 3; hop++) {
@@ -63,7 +66,7 @@ export async function checkTarget(raw, { audit, resolve = assertPublicDnsResolut
             const next = await reader.read();
             if (next.done) break;
             bytes += next.value.byteLength;
-            if (bytes > 1048576) throw new Error('response_too_large');
+            if (bytes > maxBytes) throw new Error('response_too_large');
           }
         } finally { await reader.cancel().catch(() => {}); }
       }
@@ -78,19 +81,30 @@ export async function checkTarget(raw, { audit, resolve = assertPublicDnsResolut
   }
 }
 
-export function startGateway(audit) {
+export function startGateway(audit, { check = checkTarget } = {}) {
   let busy = false;
   const server = createServer(async (req, res) => {
     res.setHeader('content-type', 'application/json');
     if (req.method !== 'GET' || !req.url.startsWith('/check?url=')) { res.writeHead(405).end('{}'); return; }
     if (busy) { res.writeHead(429).end('{}'); return; }
     busy = true;
+    const controller = new AbortController();
+    const disconnected = () => { if (!res.writableEnded) controller.abort(); };
+    res.once('close', disconnected);
     try {
-      const url = new URL(req.url, 'http://gateway').searchParams.get('url');
-      const result = await checkTarget(url, {audit});
+      const params = new URL(req.url, 'http://gateway').searchParams;
+      const rawBudget = params.get('maxBytes');
+      const maxBytes = rawBudget === null ? 1048576 : /^[1-9][0-9]{0,6}$/.test(rawBudget) ? Number(rawBudget) : NaN;
+      if (params.getAll('url').length !== 1 || params.getAll('maxBytes').length > 1 ||
+          [...params.keys()].some(k => !['url', 'maxBytes'].includes(k)) ||
+          !Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 1048576) {
+        res.writeHead(400).end('{"ok":false,"reason":"invalid_request_budget"}'); return;
+      }
+      const url = params.get('url');
+      const result = await check(url, {audit, maxBytes, signal: controller.signal});
       res.writeHead(result.ok ? 200 : 403).end(JSON.stringify(result));
     } catch { res.writeHead(503).end('{"ok":false,"reason":"audit_unavailable"}'); }
-    finally { busy = false; }
+    finally { res.removeListener('close', disconnected); busy = false; }
   });
   server.requestTimeout = 12000;
   server.headersTimeout = 5000;
@@ -105,3 +119,4 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   server.listen(8080, '172.30.0.2');
   process.on('SIGTERM', () => server.close(() => process.exit(0)));
 }
+
