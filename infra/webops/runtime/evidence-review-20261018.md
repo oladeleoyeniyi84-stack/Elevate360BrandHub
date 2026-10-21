@@ -121,3 +121,30 @@ safe host reconciliation/validation procedure, firewall snapshot, reboot check,
 schema-complete final evidence and Founder activation settings. Production
 merge/deploy and scheduler gates are unchanged. No user terminal action needed
 until the consolidated host procedure is ready.
+
+
+## Development checkpoint — 2026-10-21 UTC
+Closed the manual-runtime CI coverage gap. Draft PR #22 targets
+`webops/phase-3-network-validation`, but the WebOps pull-request workflow did not
+listen to that base branch and did not include `infra/webops/runtime/**` in its
+path filter. The workflow now covers both, asserts the corrected 15-character
+`br-webops-wkr` bridge name, and adds a separate Phase 3 manual-runtime job.
+
+That job uses Node 24 to regenerate the vendored runtime modules, runs every
+`infra/webops/runtime/*.test.mjs` test, validates the manual Compose model, and
+builds the pilot image. It does not start containers, contact the approved public
+origin, deploy, use production credentials, schedule monitoring, or enable
+remediation. Repository workflow permissions remain `contents: read`.
+
+Validation: the full 23-test runtime suite passed again locally (0 failed), and
+GitHub Actions WebOps validation run 48 completed successfully for commit
+`7d247a2622c258e0b31ba80cc9f2b21b9b933402`. This provides an independent
+container-build and Compose-validation result that was previously missing from
+the preparation environment.
+
+Remaining work is unchanged in authority: repository-side monitoring/reporting,
+proposal-only remediation and activation controls can continue in draft code.
+Host reconciliation, revised live validation, firewall capture, reboot
+persistence and final evidence still require a later consolidated operator step.
+No production deployment, merge, scheduler, database/file write, or automatic
+remediation was activated.
