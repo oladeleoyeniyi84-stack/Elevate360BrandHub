@@ -9,6 +9,7 @@ on:
       - webops/phase-2-route-health-pilot
       - webops/phase-3-implementation
       - webops/phase-3-digitalocean-provisioning
+      - webops/phase-3-network-validation
     paths:
       - "server/webops/**"
       - "server/webopsPolicy.test.ts"
@@ -18,6 +19,7 @@ on:
       - "shared/conciergeContext.ts"
       - "infra/webops-digitalocean/**"
       - "infra/webops/validation/**"
+      - "infra/webops/runtime/**"
       - "docs/autonomous-webops-phase1-baseline.md"
       - "docs/autonomous-webops-phase1-completion-report.md"
       - "docs/autonomous-webops-phase2-plan.md"
@@ -83,7 +85,7 @@ jobs:
           grep -F '/etc/nftables.d/webops.nft' infra/webops-digitalocean/cloud-init.yaml
           grep -F 'webops-nftables.service' infra/webops-digitalocean/cloud-init.yaml
           grep -F 'internal: true' infra/webops-digitalocean/compose.yaml
-          grep -F 'iifname "br-webops-worker" oifname != "br-webops-worker" drop' infra/webops-digitalocean/nftables.conf
+          grep -F 'iifname "br-webops-wkr" oifname != "br-webops-wkr" drop' infra/webops-digitalocean/nftables.conf
 
       - name: Set up Terraform
         if: startsWith(github.head_ref, 'webops/phase-3-')
@@ -180,3 +182,29 @@ jobs:
           path: webops-route-health-pilot.json
           if-no-files-found: error
           retention-days: 7
+
+  manual-runtime:
+    name: Manual runtime build and hermetic tests
+    if: startsWith(github.head_ref, 'webops/phase-3-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Build generated runtime modules
+        run: node infra/webops/runtime/build.mjs
+
+      - name: Run manual runtime tests
+        run: node --test infra/webops/runtime/*.test.mjs
+
+      - name: Validate manual Compose definition
+        run: docker compose -f infra/webops/runtime/compose.pilot.yaml --profile manual-pilot config --quiet
+
+      - name: Build manual runtime image
+        run: docker build --file infra/webops/runtime/Dockerfile --tag elevate360-webops-pilot:ci .
