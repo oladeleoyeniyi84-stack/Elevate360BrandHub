@@ -148,3 +148,31 @@ Host reconciliation, revised live validation, firewall capture, reboot
 persistence and final evidence still require a later consolidated operator step.
 No production deployment, merge, scheduler, database/file write, or automatic
 remediation was activated.
+
+
+## Development checkpoint — 2026-10-22 UTC
+Added a versioned proposal-only diagnostic report contract to the manual runtime.
+The monitor CLI now wraps its bounded observations in a schema-versioned envelope
+with a UUID, UTC timestamp, outcome, safety controls and deduplicated proposals.
+
+The report builder fails closed unless the monitor asserts read-only operation,
+no direct network access, no production writes and no remediation execution. It
+accepts only the monitor's fixed finding vocabulary, copies only allowlisted fields,
+and rejects invalid metadata or unsafe claims. Each proposal is non-executable and
+hard-codes `productionApprovalRequired: true`,
+`automaticRemediationAllowed: false` and `execution: not_executed`.
+No patch, command, scheduler, database operation or repair interface was added.
+
+Validation: Node v24; build generation succeeded; all 28 hermetic runtime tests
+passed, 0 failed or skipped. Five report tests cover healthy output, proposal
+deduplication, unsafe-claim and arbitrary-field rejection, field sanitization and
+run-level limit proposals. The no-argument CLI still returns the fixed sanitized
+configuration error with exit 2. GitHub Actions will independently rebuild the
+image, validate Compose and rerun the complete repository gate for this checkpoint.
+
+Output remains standard output only. An operator can capture it during a later
+supervised validation, but the worker has no host mount and this change does not
+claim durable or immutable external retention. Host reconciliation, revised live
+validation, cloud firewall evidence, reboot persistence, retention design and
+activation settings remain outstanding. Existing merge, deployment, scheduling,
+write and remediation approval gates are unchanged.
