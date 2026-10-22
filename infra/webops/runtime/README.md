@@ -89,3 +89,20 @@ Hermetic validation (Node 24):
 node infra/webops/runtime/build.mjs
 node --test infra/webops/runtime/gateway.test.mjs infra/webops/runtime/gateway-client.test.mjs infra/webops/runtime/monitor.test.mjs infra/webops/runtime/monitor-integration.test.mjs
 ```
+
+
+## Diagnostic report and remediation proposals
+
+The manual monitor now emits a versioned diagnostic envelope. Each run receives a
+UUID and UTC generation time, and contains only bounded observations, outcome
+metadata, immutable safety controls, and deduplicated proposal records.
+
+Proposals are labels for operator review, not executable instructions. Every proposal
+sets `productionApprovalRequired: true`, `automaticRemediationAllowed: false`, and
+`execution: "not_executed"`. The report builder rejects monitor results that claim
+production writes, direct networking, or remediation execution, and it does not copy
+arbitrary gateway fields or exception text.
+
+Reports are written to standard output only. An operator may redirect that output
+into the evidence folder during an approved supervised run. The worker still has no
+host mount, so this change does not establish durable or immutable report retention.
