@@ -209,3 +209,28 @@ This closes the repository-side activation-preflight gap, not the operational
 evidence gaps. The candidate must remain blocked until the host is reconciled and
 the required live, firewall, reboot, retention and rollback evidence exists, followed
 by each separate Founder approval. No production state was changed.
+
+## Founder authorization — 2026-10-23 (America/New_York)
+
+Oladele Oyeniyi explicitly stated in the active conversation:
+“Full Approval and authorization for merge, deployment , scheduling and activation”.
+
+This clears the human authorization requirement for the discussed WebOps release:
+merge, deployment, scheduling and activation of the bounded read-only monitoring
+scope. It does not constitute evidence that the implementation is complete or that
+the live operational checks passed. No additional paid resources, credential
+rotation, scope expansion, or automatic production remediation is inferred.
+
+Execution remains pending technical readiness: reconcile the host with the exact
+candidate, rerun revised live validation, obtain current firewall and reboot
+persistence evidence, establish retention and rollback, and implement/review the
+actual production scheduler. The present runtime is manual-only; a preflight
+evaluator is not a scheduler or an authenticated approval service.
+
+The activation JSON remains a blocked draft, not a trustworthy authorization store.
+Its current reference-string checks do not authenticate approval provenance or bind
+approval/evidence to a release digest; the previous test about development authority
+only demonstrated a missing deployment record, not semantic verification of approval.
+That limitation must be fixed before treating this evaluator as a release control.
+This authorization record preserves the user's decision without inventing passed
+evidence or claiming any merge, deployment or activation occurred.
