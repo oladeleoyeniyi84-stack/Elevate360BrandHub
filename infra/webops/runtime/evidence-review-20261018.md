@@ -176,3 +176,36 @@ claim durable or immutable external retention. Host reconciliation, revised live
 validation, cloud firewall evidence, reboot persistence, retention design and
 activation settings remain outstanding. Existing merge, deployment, scheduling,
 write and remediation approval gates are unchanged.
+
+
+## Development checkpoint — 2026-10-23 UTC
+Added a fail-closed, machine-verifiable activation preflight. It is a pure evaluator
+with no I/O or ability to deploy, schedule, start processes, write production data
+or execute remediation. The checked-in activation candidate is deliberately blocked:
+controls are unset and all evidence and approval records are empty.
+
+Readiness requires referenced passed evidence for source reconciliation, the exact
+candidate image, revised live validation, the cloud firewall, host reboot
+persistence, audit retention and rollback. It separately requires recorded Founder
+approvals for merge to main, production deployment and a read-only schedule. The
+daily development authorization is explicitly tested as insufficient for production
+deployment/scheduling approval.
+
+Safe controls are bounded to the single approved origin, read-only monitoring,
+60 minutes to 7 days between runs, at most 14 routes, 2 MiB accepted body data and
+30 seconds per run. Production writes, automatic remediation, production
+credentials, additional paid resources and additional monthly spend must remain
+disabled. The kill switch must disable the schedule and stop the runtime. Even a
+complete manifest only returns readiness for manual activation; it performs nothing.
+
+Validation: Node v24; generated runtime build succeeded; all 35 hermetic tests
+passed, 0 failed or skipped. Seven activation tests cover complete-but-nonexecuting
+readiness, missing evidence/approvals, separation of development authority, unsafe
+control expansion, malformed records, invalid manifests and the blocked checked-in
+candidate. GitHub Actions will independently rerun the full repository, Compose and
+image-build gates.
+
+This closes the repository-side activation-preflight gap, not the operational
+evidence gaps. The candidate must remain blocked until the host is reconciled and
+the required live, firewall, reboot, retention and rollback evidence exists, followed
+by each separate Founder approval. No production state was changed.
