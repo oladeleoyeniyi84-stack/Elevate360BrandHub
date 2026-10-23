@@ -106,3 +106,25 @@ arbitrary gateway fields or exception text.
 Reports are written to standard output only. An operator may redirect that output
 into the evidence folder during an approved supervised run. The worker still has no
 host mount, so this change does not establish durable or immutable report retention.
+
+
+## Activation gate
+
+`activation-gate.mjs` is a pure preflight evaluator; it has no activation,
+deployment, scheduler, network, process or file-writing capability. The checked-in
+`activation-candidate.json` is deliberately blocked with no controls, evidence or
+approvals populated.
+
+A candidate cannot become ready for manual activation review until it references
+passed evidence for source reconciliation, the candidate image, revised live
+validation, the cloud firewall, host reboot persistence, audit retention and
+rollback. Separate recorded approvals are required for merge to `main`, production
+deployment and the read-only schedule.
+
+The accepted operating envelope is limited to the single approved origin, read-only
+monitoring, at least a 60-minute cadence, 14 routes, 2 MiB accepted body data and
+30 seconds per run. Production writes, automatic remediation, production
+credentials, additional paid resources and additional monthly spend are forbidden.
+The kill switch must disable the schedule and stop the runtime. Even a fully valid
+candidate returns only `readyForManualActivation: true`; it always returns
+`activationPerformed: false` and changes nothing.
