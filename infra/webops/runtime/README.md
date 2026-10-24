@@ -55,9 +55,9 @@ Stop after validation; restart policies remain disabled:
 docker compose -f infra/webops/runtime/compose.pilot.yaml --profile manual-pilot down
 ```
 
-Do not delete host audit evidence. Scheduling and routine execution require a separate
-Founder decision after all live controls pass. No main-branch merge or deployment is
-part of this draft.
+Do not delete host audit evidence. Founder release authorization was recorded on
+2026-10-23 in evidence-review-20261018.md. Execution still depends on completing
+the release implementation and operational validation.
 
 ## Manual route monitor (new image required)
 
@@ -115,8 +115,7 @@ deployment, scheduler, network, process or file-writing capability. The checked-
 `activation-candidate.json` is deliberately blocked with no controls, evidence or
 approvals populated.
 
-A candidate cannot become ready for manual activation review until it references
-passed evidence for source reconciliation, the candidate image, revised live
+The checklist requires references claiming passed evidence for source reconciliation, the candidate image, revised live
 validation, the cloud firewall, host reboot persistence, audit retention and
 rollback. Separate recorded approvals are required for merge to `main`, production
 deployment and the read-only schedule.
@@ -125,6 +124,17 @@ The accepted operating envelope is limited to the single approved origin, read-o
 monitoring, at least a 60-minute cadence, 14 routes, 2 MiB accepted body data and
 30 seconds per run. Production writes, automatic remediation, production
 credentials, additional paid resources and additional monthly spend are forbidden.
-The kill switch must disable the schedule and stop the runtime. Even a fully valid
-candidate returns only `readyForManualActivation: true`; it always returns
-`activationPerformed: false` and changes nothing.
+The kill switch must disable the schedule and stop the runtime.
+
+The evaluator validates reference syntax only. A complete checklist returns
+`checklistComplete: true`, while `authorizationVerified`, `evidenceVerified`, and
+`readyForManualActivation` always remain false. The blocker
+`independent_release_verification_required` cannot be cleared by adding fields to
+this JSON. This is an advisory checklist, not an authentication or release service.
+
+The release operator must verify approval provenance and scope, current evidence
+and its binding to the candidate commit/image/configuration, and rollback readiness
+through trusted sources before execution. Recorded Founder authorization remains
+valid; this correction does not request it again. A future execution integration
+must enforce those checks independently instead of using checklist completeness
+as an activation signal.
