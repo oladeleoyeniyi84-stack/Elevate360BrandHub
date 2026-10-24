@@ -234,3 +234,30 @@ only demonstrated a missing deployment record, not semantic verification of appr
 That limitation must be fixed before treating this evaluator as a release control.
 This authorization record preserves the user's decision without inventing passed
 evidence or claiming any merge, deployment or activation occurred.
+
+## Development correction — 2026-10-23 (America/New_York)
+
+Corrected the activation evaluator's false readiness signal. Previously arbitrary
+well-formed reference strings could produce readyForManualActivation=true.
+The earlier development-authority test removed the deployment record and therefore
+did not test authentication. It has been replaced with a regression keeping all
+records present and substituting a development-only reference.
+
+The evaluator now reports checklistComplete separately and always returns
+authorizationVerified=false, evidenceVerified=false, readyForManualActivation=false,
+and independent_release_verification_required. Caller-supplied verified/readiness
+flags cannot bypass this result. It remains a pure advisory checklist. This closes
+the false-positive readiness bug; it does not implement approval authentication,
+evidence authenticity, revocation, or binding to a deployed release.
+
+Validation: eight focused activation tests passed, zero failed. The branch workflow
+will run the full application/runtime suite and image build after this checkpoint.
+Founder authorization recorded above remains in effect and need not be requested
+again. Operational evidence and executable scheduler/retention work remain pending;
+no host deployment, merge or activation was performed.
+
+Next work: implement the consolidated host reconciliation/evidence procedure,
+preserving existing local changes, and inspect remaining runtime cancellation and
+report consistency gaps. Execution integration must independently verify the
+candidate commit, image and configuration against trusted evidence and the recorded
+Founder authorization before starting the production schedule.
