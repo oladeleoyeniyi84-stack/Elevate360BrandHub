@@ -69,9 +69,16 @@ export function evaluateActivation(manifest) {
     }
   }
 
+  // Reference strings are untrusted claims. This pure checklist cannot verify
+  // provenance, revocation, freshness, or binding to the deployed release.
+  const checklistComplete = blockers.length === 0;
+  blockers.push('independent_release_verification_required');
   return Object.freeze({
     schemaVersion: 1,
-    readyForManualActivation: blockers.length === 0,
+    checklistComplete,
+    authorizationVerified: false,
+    evidenceVerified: false,
+    readyForManualActivation: false,
     activationPerformed: false,
     schedulerChanged: false,
     productionWritesPerformed: false,
