@@ -19,9 +19,13 @@ const complete = {
   approvals:Object.fromEntries(REQUIRED_APPROVALS.map(name=>[name,approval(name)])),
 };
 
-test('complete manifest is only ready for manual activation and performs nothing',()=>{
+test('complete reference checklist never authenticates evidence or authorizes activation',()=>{
   const result=evaluateActivation(complete);
-  assert.equal(result.readyForManualActivation,true);
+  assert.equal(result.checklistComplete,true);
+  assert.equal(result.authorizationVerified,false);
+  assert.equal(result.evidenceVerified,false);
+  assert.equal(result.readyForManualActivation,false);
+  assert.deepEqual(result.blockers,['independent_release_verification_required']);
   assert.equal(result.activationPerformed,false);
   assert.equal(result.schedulerChanged,false);
   assert.equal(result.productionWritesPerformed,false);
@@ -32,18 +36,30 @@ test('complete manifest is only ready for manual activation and performs nothing
 test('missing evidence and approvals produce explicit blockers',()=>{
   const result=evaluateActivation({schemaVersion:1,controls:safeControls,evidence:{},approvals:{}});
   assert.equal(result.readyForManualActivation,false);
-  assert.equal(result.blockers.length,REQUIRED_EVIDENCE.length+REQUIRED_APPROVALS.length);
+  assert.equal(result.checklistComplete,false);
+  assert.equal(result.blockers.length,REQUIRED_EVIDENCE.length+REQUIRED_APPROVALS.length+1);
   assert.ok(result.blockers.includes('evidence_missing:cloud_firewall_snapshot'));
   assert.ok(result.blockers.includes('approval_missing:read_only_schedule'));
 });
 
-test('development authorization is not accepted as production scheduling approval',()=>{
+test('development reference cannot activate even when every approval field is populated',()=>{
   const input=structuredClone(complete);
   input.approvals.read_only_schedule={decision:'approved',reference:'daily-development-task',recordedAt};
-  delete input.approvals.production_deployment;
   const result=evaluateActivation(input);
   assert.equal(result.readyForManualActivation,false);
-  assert.ok(result.blockers.includes('approval_missing:production_deployment'));
+  assert.equal(result.checklistComplete,true);
+  assert.equal(result.authorizationVerified,false);
+  assert.ok(result.blockers.includes('independent_release_verification_required'));
+});
+
+test('caller supplied verification and readiness flags cannot bypass verification',()=>{
+  const input=structuredClone(complete);
+  Object.assign(input,{authorizationVerified:true,evidenceVerified:true,readyForManualActivation:true});
+  for(const record of Object.values(input.approvals)) record.verified=true;
+  const result=evaluateActivation(input);
+  assert.equal(result.readyForManualActivation,false);
+  assert.equal(result.authorizationVerified,false);
+  assert.equal(result.evidenceVerified,false);
 });
 
 test('unsafe control expansion fails closed',()=>{
