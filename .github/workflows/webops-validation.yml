@@ -203,6 +203,9 @@ jobs:
       - name: Run manual runtime tests
         run: node --test infra/webops/runtime/*.test.mjs
 
+      - name: Test read-only host evidence collector
+        run: python3 -m unittest discover -s infra/webops/runtime -p 'test_*.py' -v
+
       - name: Validate manual Compose definition
         run: docker compose -f infra/webops/runtime/compose.pilot.yaml --profile manual-pilot config --quiet
 
