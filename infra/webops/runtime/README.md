@@ -138,3 +138,12 @@ through trusted sources before execution. Recorded Founder authorization remains
 valid; this correction does not request it again. A future execution integration
 must enforce those checks independently instead of using checklist completeness
 as an activation signal.
+
+## Host reconciliation snapshot
+
+See [host-reconciliation.md](host-reconciliation.md) for the single-command,
+read-only collector and review procedure. It preserves selected local configuration
+changes, captures candidate comparisons and host/container state, and hashes a
+private evidence bundle. It never changes the checkout or running services.
+Collection success does not establish deployment readiness. Python 3 standard-library
+tests run in CI; the collector has not yet been executed on the Droplet.
