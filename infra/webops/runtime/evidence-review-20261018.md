@@ -261,3 +261,36 @@ preserving existing local changes, and inspect remaining runtime cancellation an
 report consistency gaps. Execution integration must independently verify the
 candidate commit, image and configuration against trusted evidence and the recorded
 Founder authorization before starting the production schedule.
+
+## Development checkpoint — 2026-10-24 (America/New_York)
+
+Added collect-host-evidence.py and host-reconciliation.md to replace fragmented
+pre-deployment inspection with one read-only collection command. It preserves
+selected staged/unstaged configuration changes and the untracked DNS override,
+captures candidate configuration without checkout, and collects DNS, dedicated
+firewall, service, sysctl, boot-ID and projected container state. It produces a
+private directory with per-operation outcomes and a complete relative hash manifest.
+
+Collection failures, unavailable candidate objects, timeouts, symlinks, oversized
+files and truncated outputs cannot report collectionComplete=true. Even successful
+collection always reports readyForDeployment=false. No source reset, fetch, service
+restart, container lifecycle, firewall/DNS mutation or activation is performed.
+The collector is not a general backup of every untracked file and does not prove
+cloud policy, reboot persistence, evidence authenticity or atomic host state.
+
+Validation: eight Python standard-library tests passed locally. A real temporary
+Git repository test confirms staged and unstaged changes appear in the saved diff,
+the untracked override is copied, candidate content is captured and original Git
+status is unchanged. Other tests cover private permissions, complete checksums,
+partial failures, rejected paths/candidate IDs, unsafe files, truncation, timeouts
+and separate repeated bundles. CI now runs this suite alongside the existing runtime,
+application, Compose and Docker checks. No live host execution is claimed.
+
+Next: finish clean release preparation/replacement and rollback implementation,
+bounded scheduler and retention, plus remaining cancellation/report validation gaps.
+Then deliver the verified collector and selected candidate through the authenticated
+operator channel, reconcile the old dirty host checkout, and perform revised live,
+cloud firewall and controlled reboot validation. No direct host session is available
+in this run; do not ask for private keys. Authorization remains recorded above.
+No production merge/deployment/activation occurred and no user terminal action is
+needed until the concrete release procedure is ready.
