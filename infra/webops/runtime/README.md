@@ -103,6 +103,12 @@ sets `productionApprovalRequired: true`, `automaticRemediationAllowed: false`, a
 production writes, direct networking, or remediation execution, and it does not copy
 arbitrary gateway fields or exception text.
 
+Report validation also enforces the sequential monitor contract: unique canonical
+paths, exact byte totals, no observations after a failure, matching stop reasons,
+and consistent healthy/complete flags. A healthy empty run is rejected. Run IDs
+must have the UUID v4 format emitted by the CLI. These checks detect malformed
+results; they do not authenticate evidence or prove a live observation occurred.
+
 Reports are written to standard output only. An operator may redirect that output
 into the evidence folder during an approved supervised run. The worker still has no
 host mount, so this change does not establish durable or immutable report retention.
