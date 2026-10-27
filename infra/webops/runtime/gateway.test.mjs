@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { getEventListeners } from 'node:events';
+import { get } from 'node:http';
 import { checkTarget, durableAudit, startGateway } from './gateway.mjs';
 import { assertPublicDnsResolution } from './generated/networkGuard.mjs';
 const approved = 'https://www.elevate360official.com/';
@@ -100,5 +102,119 @@ test('HTTP endpoint validates and forwards the request budget', async () => {
       assert.equal((await fetch(endpoint+suffix)).status,400);
     assert.deepEqual(seen,[4]);
   } finally { await new Promise(resolve=>server.close(resolve)); }
+});
+
+function deferred() {
+  let resolve;
+  const promise = new Promise(done => { resolve = done; });
+  return { promise, resolve };
+}
+
+test('cancellation bounds unresolved DNS and never starts transport', {timeout: 1000}, async () => {
+  const entered = deferred();
+  const controller = new AbortController();
+  const f = fixture();
+  f.options.resolve = () => { entered.resolve(); return new Promise(() => {}); };
+  const pending = checkTarget(approved, {...f.options, signal: controller.signal});
+  await entered.promise;
+  controller.abort();
+  assert.equal((await pending).ok, false);
+  assert.equal(f.calls, 0);
+  assert.equal(f.events.at(-1).decision, 'deny');
+});
+
+test('cancellation bounds transport and disposes a late response', {timeout: 1000}, async () => {
+  const entered = deferred(), response = deferred(), cancelled = deferred();
+  const controller = new AbortController();
+  const f = fixture(() => { entered.resolve(); return response.promise; });
+  const pending = checkTarget(approved, {...f.options, signal: controller.signal});
+  await entered.promise;
+  controller.abort();
+  assert.equal((await pending).ok, false);
+  response.resolve({body: {cancel: () => { cancelled.resolve(); }}});
+  await cancelled.promise;
+  assert.deepEqual(f.events.map(e => e.decision), ['attempt', 'deny']);
+});
+
+test('cancellation bounds stalled body read and stalled cancellation cleanup', {timeout: 1000}, async () => {
+  const entered = deferred(), cancelled = deferred();
+  const controller = new AbortController();
+  const reader = {
+    read: () => { entered.resolve(); return new Promise(() => {}); },
+    cancel: () => { cancelled.resolve(); return new Promise(() => {}); },
+  };
+  const f = fixture(async () => ({ok: true, status: 200, body: {getReader: () => reader}}));
+  const pending = checkTarget(approved, {...f.options, signal: controller.signal});
+  await entered.promise;
+  controller.abort();
+  assert.equal((await pending).ok, false);
+  await cancelled.promise;
+  assert.equal(f.events.at(-1).decision, 'deny');
+});
+
+test('cancellation bounds redirect cleanup without following another hop', {timeout: 1000}, async () => {
+  const entered = deferred();
+  const controller = new AbortController();
+  const f = fixture(async () => ({status: 302, headers: new Headers({location: '/next'}),
+    body: {cancel: () => {entered.resolve(); return new Promise(() => {});}}}));
+  const pending = checkTarget(approved, {...f.options, signal: controller.signal});
+  await entered.promise;
+  controller.abort();
+  assert.equal((await pending).ok, false);
+  assert.equal(f.calls, 1);
+});
+
+test('completed stages remove cancellation listeners', async () => {
+  let signal;
+  const f = fixture(async (url, init) => {signal = init.signal; return new Response('ok');});
+  assert.equal((await checkTarget(approved, f.options)).ok, true);
+  assert.deepEqual(getEventListeners(signal, 'abort'), []);
+});
+
+test('fixed gateway deadline rejects a stalled transport without caller cancellation', {timeout: 15000}, async () => {
+  // AbortSignal.timeout is unref'ed; keep the test process alive while waiting.
+  const keepAlive = setTimeout(() => {}, 14000);
+  const f = fixture(() => new Promise(() => {}));
+  try {
+    const result = await checkTarget(approved, f.options);
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, 'transport_failed');
+    assert.deepEqual(f.events.map(e => e.decision), ['attempt', 'deny']);
+  } finally { clearTimeout(keepAlive); }
+});
+
+test('HTTP disconnect cancels a stalled check and releases the request slot', {timeout: 2000}, async () => {
+  const entered = deferred(), completed = deferred();
+  let calls = 0;
+  const events = [];
+  const server = startGateway(e => events.push(e), {check: async (url, options) => {
+    calls++;
+    const result = await checkTarget(url, {...options, resolve: async () => publicRecords,
+      transport: calls === 1 ? () => {entered.resolve(); return new Promise(() => {});}
+        : async () => new Response('ok')});
+    if (calls === 1) completed.resolve();
+    return result;
+  }});
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const endpoint = 'http://127.0.0.1:' + server.address().port + '/check?url=' + encodeURIComponent(approved);
+  const client = get(endpoint);
+  client.on('error', () => {});
+  try {
+    await entered.promise;
+    assert.equal((await fetch(endpoint)).status, 429);
+    client.destroy();
+    await completed.promise;
+    // Let the server's await/finally complete before the next HTTP request.
+    await new Promise(resolve => setImmediate(resolve));
+    const response = await fetch(endpoint);
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).ok, true);
+    assert.equal(calls, 2);
+    assert.deepEqual(events.map(e => e.decision), ['attempt', 'deny', 'attempt', 'allow']);
+  } finally {
+    client.destroy();
+    server.closeAllConnections();
+    await new Promise(resolve => server.close(resolve));
+  }
 });
 
