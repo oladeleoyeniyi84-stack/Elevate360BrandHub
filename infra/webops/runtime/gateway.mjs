@@ -22,6 +22,36 @@ export function durableAudit(path) {
   };
 }
 
+// Bound each asynchronous stage even if an adapter ignores its abort signal.
+// The underlying pinned transport still owns socket cancellation.
+function untilAborted(operation, signal, disposeLate = () => {}) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (callback, value) => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener('abort', abort);
+      callback(value);
+    };
+    const abort = () => finish(reject, new Error('deadline'));
+    signal.addEventListener('abort', abort, {once: true});
+    if (signal.aborted) { abort(); return; }
+    Promise.resolve().then(() => {
+      if (signal.aborted) throw new Error('deadline');
+      return operation();
+    }).then(value => {
+      if (settled) {
+        Promise.resolve().then(() => disposeLate(value)).catch(() => {});
+      } else finish(resolve, value);
+    }, error => finish(reject, error));
+  });
+}
+
+function cancelWithoutWaiting(body) {
+  // A broken stream's cancellation promise must not keep the gateway busy forever.
+  Promise.resolve().then(() => body?.cancel()).catch(() => {});
+}
+
 export async function checkTarget(raw, { audit, resolve = assertPublicDnsResolution, transport = pinnedHttpsGet,
   maxBytes = 1048576, signal: callerSignal } = {}) {
   const requestId = randomUUID();
@@ -39,17 +69,16 @@ export async function checkTarget(raw, { audit, resolve = assertPublicDnsResolut
     if (target.search || target.hash || raw.length > 2048) throw new Error('target_rejected');
     for (let hop = 0; hop <= 3; hop++) {
       reason = 'dns_rejected';
-      addresses = await Promise.race([resolve(target.hostname), new Promise((_, reject) => {
-        signal.addEventListener('abort', () => reject(new Error('deadline')), {once: true});
-      })]);
+      addresses = await untilAborted(() => resolve(target.hostname), signal);
       if (signal.aborted) throw new Error('deadline');
       reason = 'transport_failed';
-      const response = await transport(target.href, {
+      const response = await untilAborted(() => transport(target.href, {
         method: 'GET', redirect: 'manual', signal,
         headers: { accept: 'text/html', 'user-agent': 'Elevate360-WebOps-Manual-Pilot/1' },
-      }, addresses);
+      }, addresses), signal, response => cancelWithoutWaiting(response.body));
       if ([301,302,303,307,308].includes(response.status)) {
-        await response.body?.cancel();
+        await untilAborted(() => response.body?.cancel(), signal);
+        if (signal.aborted) throw new Error('deadline');
         reason = 'redirect_rejected';
         const location = response.headers.get('location');
         if (!location || hop === 3) throw new Error('redirect_rejected');
@@ -63,13 +92,14 @@ export async function checkTarget(raw, { audit, resolve = assertPublicDnsResolut
         const reader = response.body.getReader();
         try {
           while (true) {
-            const next = await reader.read();
+            const next = await untilAborted(() => reader.read(), signal);
             if (next.done) break;
             bytes += next.value.byteLength;
             if (bytes > maxBytes) throw new Error('response_too_large');
           }
-        } finally { await reader.cancel().catch(() => {}); }
+        } finally { cancelWithoutWaiting(reader); }
       }
+      if (signal.aborted) throw new Error('deadline');
       if (!response.ok) throw new Error('response_rejected');
       audit({requestId, origin, addresses: addresses.map(r => r.address), decision: 'allow', status: response.status, bytes});
       return {ok: true, requestId, status: response.status, bytes};
