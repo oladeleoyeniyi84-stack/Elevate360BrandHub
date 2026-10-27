@@ -77,7 +77,13 @@ and stops the run. Denied-body bytes are not included in the successful-byte
 total; a denied request always stops further checks. These are application body
 limits, not exact network billing/wire-byte limits: headers, TLS, socket buffering,
 redirect traffic, and an overflow chunk can consume additional traffic.
-Disconnecting the internal client aborts the gateway transport signal.
+Disconnecting the internal client aborts the gateway transport signal. DNS,
+transport, redirect cleanup and body-read waits also race cancellation, so an
+asynchronous adapter that ignores the signal cannot hold the request slot forever.
+Completed waits remove their abort listeners; late transport responses are cancelled.
+Body cleanup is best-effort and does not block request completion. This bounds
+asynchronous waits, not synchronous event-loop blocking or an uncooperative adapter's
+underlying resources; the pinned HTTPS transport remains responsible for socket cleanup.
 
 The new client is fixed to the internal gateway endpoint, refuses redirects,
 bounds gateway JSON replies to 4096 bytes, and strips arbitrary denial text.
