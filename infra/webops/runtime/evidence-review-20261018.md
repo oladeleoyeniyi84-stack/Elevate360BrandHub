@@ -322,3 +322,35 @@ coverage, host reconciliation and revised live/cloud firewall/reboot validation
 remain unfinished. The release authorization remains in effect. No production
 merge, deployment, scheduling or automatic repair occurred in this run. No user
 terminal commands are needed for these repository-side corrections.
+
+## Development checkpoint — 2026-10-26 (America/New_York)
+
+Confirmed full WebOps validation run 63 succeeded for
+1f331ce4e1f44ea5d89a1b1460c7f80d33858927.
+
+Closed the outstanding gateway cancellation regression gap and fixed the waits it
+exposed. The earlier implementation raced DNS only and retained DNS abort listeners;
+transport, body reads and stream cleanup could remain pending when an adapter
+ignored cancellation. DNS, transport, redirect cleanup and body reads now race the
+combined caller/deadline signal and remove listeners on settlement. Late transport
+responses receive best-effort cancellation. Body-reader cleanup cannot indefinitely
+hold the request slot. Aborted work cannot emit an allow result.
+
+Validation: all 46 Node runtime tests passed locally, zero failures or skips.
+Seven added tests cover unresolved DNS, stalled transport and late response disposal,
+stalled body reads and cleanup, redirect cleanup, listener removal, the actual
+ten-second deadline, and a real loopback HTTP disconnect. The disconnect test
+confirms concurrent requests get 429 while busy, cancellation records denial, and a
+subsequent request succeeds after the slot is released. No production site requests
+or Droplet changes occurred. CI will rerun the application/runtime/collector suites,
+Compose validation and Docker build for this revision.
+
+Limits: racing a promise bounds the asynchronous wait; it cannot force arbitrary
+uncooperative adapters to release resources or interrupt synchronous blocking.
+The pinned HTTPS transport still owns socket cancellation. Local tests do not
+replace revised live validation against the deployed candidate.
+
+Next release work remains the bounded scheduler, report/audit retention, clean
+deployment replacement and rollback, followed by host reconciliation, current cloud
+firewall evidence and controlled reboot/live validation. Existing release approval
+remains recorded. No production merge, deployment, scheduling or repair was activated.
