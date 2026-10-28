@@ -159,3 +159,37 @@ changes, captures candidate comparisons and host/container state, and hashes a
 private evidence bundle. It never changes the checkout or running services.
 Collection success does not establish deployment readiness. Python 3 standard-library
 tests run in CI; the collector has not yet been executed on the Droplet.
+
+## Bounded host report store (not yet connected)
+
+report-store.mjs exports storeDiagnosticReport(monitor, metadata, {directory,
+maxReports}). It rebuilds the sanitized diagnostic envelope through report.mjs
+before any storage. It has no network, scheduler, Docker or remediation operations.
+
+The caller must supply an existing absolute directory owned by the current Unix
+user with mode 0700, in a trusted operator-controlled path without symlink
+components. Use a dedicated report directory, never the gateway audit or historical
+evidence directory. Existing foreign files, symlink entries and unsafe permissions
+block storage. The directory and its ancestors must not be replaced by another
+process while writing; this does not defend against the trusted owner or root.
+
+The default and maximum capacity is 720 reports, each at most 64 KiB (45 MiB of
+report payload, excluding filesystem metadata and a temporary write). At an hourly
+cadence that is 30 days of slots, not a time-based expiry guarantee. The caller can
+lower capacity. Full storage throws report_store_full; nothing is automatically
+deleted. A future runner must stop scheduling and surface storage failures rather
+than silently discard monitoring results.
+
+An exclusive directory lock serializes cooperating writers. A private temporary
+file is fsynced, published by a hard link that cannot overwrite an existing run ID,
+and the directory is fsynced before successful return. The receipt contains filename,
+byte length, SHA-256 and remaining capacity. Hashes are not signatures and local
+files are not immutable. The worker still has no host mount; neither its CLI nor
+Docker image imports this module. Host delivery integration remains unfinished.
+
+Crash recovery requires the operator to stop writers, inspect any lock/pending
+file and final report, and preserve/export evidence before clearing leftovers.
+Do not automatically remove a lock based only on age. A failure after publication
+can leave a complete report; reconcile the run ID and bytes before retrying.
+Archive/export verification and an external retention destination are still needed
+before any removal policy or unattended production schedule is enabled.
