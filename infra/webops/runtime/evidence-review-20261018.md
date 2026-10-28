@@ -354,3 +354,38 @@ Next release work remains the bounded scheduler, report/audit retention, clean
 deployment replacement and rollback, followed by host reconciliation, current cloud
 firewall evidence and controlled reboot/live validation. Existing release approval
 remains recorded. No production merge, deployment, scheduling or repair was activated.
+
+## Development checkpoint — 2026-10-27 (America/New_York)
+
+Confirmed full WebOps validation run 64 succeeded for
+ad6c2e6ab16fcbd337eb2354c7cf351e628e481a.
+
+Added report-store.mjs as a host-side local retention primitive. It validates and
+sanitizes monitor results through the existing report builder before writing,
+requires a dedicated private operator-owned directory, rejects unsafe entries,
+serializes cooperating writers with an exclusive lock, and atomically publishes
+fsynced files without replacing an existing run ID. It returns a SHA-256 receipt.
+The default/maximum is 720 reports of at most 64 KiB each; full storage rejects
+additional writes without pruning evidence. No gateway audit file is rotated or
+deleted. Lock/pending-file recovery is deliberately an operator procedure.
+
+Validation: all 54 Node runtime tests and eight Python collector tests passed
+locally, zero failures. Eight new storage tests cover sanitized contents, private
+permissions/digest, duplicate protection, capacity, retained locks, unsafe directory
+paths, foreign/symlink entries, invalid inputs and a three-process race for the
+last storage slot. Tests use temporary local directories only. CI will independently
+run the full repository and container gates.
+
+This is not complete retention deployment: the worker CLI remains stdout-only and
+has no host mount; the storage primitive is not copied into the worker image.
+A host runner/delivery adapter must connect validated output to the store, halt on
+storage failure and enforce the authorized cadence. External immutable retention,
+archive verification/removal policy, scheduler and operator alert delivery remain
+unfinished. Local hashes do not authenticate evidence or protect against owner/root
+modification. No paid storage or production resources were added.
+
+Next: implement the bounded host runner and schedule integration using this store,
+then clean deployment/replacement/rollback and the consolidated host reconciliation,
+live network, cloud firewall and reboot checks. Release authorization remains valid;
+technical evidence is still incomplete. No production activation or user terminal
+action occurred in this run.
