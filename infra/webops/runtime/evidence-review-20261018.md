@@ -389,3 +389,36 @@ then clean deployment/replacement/rollback and the consolidated host reconciliat
 live network, cloud firewall and reboot checks. Release authorization remains valid;
 technical evidence is still incomplete. No production activation or user terminal
 action occurred in this run.
+
+## Development checkpoint — 2026-10-28 (America/New_York)
+
+Confirmed full WebOps validation run 66 succeeded for
+2e4b8928681e01e57196b9875d7c980510368511.
+
+Connected serialized worker report output to the local report store through
+report-ingest.mjs and report-ingest-cli.mjs. The host-side receiver bounds delivery
+to 64 KiB and 45 seconds, validates UTF-8/JSON, reconstructs the diagnostic report
+and compares the entire canonical envelope before storing. Changed origins,
+controls, proposals, schema, inconsistent outcomes and extra fields are rejected.
+Healthy and unhealthy reports are both retained; exit 0/1 identifies their health,
+while exit 2 denotes ingestion/configuration/storage failure with a sanitized error.
+
+Validation: 61 Node runtime tests and eight Python collector tests passed locally,
+zero failures. Seven new tests cover exact healthy/unhealthy handoff, tampered
+envelopes, malformed/oversized input, chunked delivery and listener cleanup, timeout
+and premature closure, real CLI process storage/exit behavior, and duplicate-run
+failure without overwrite. All storage tests use temporary local directories.
+No production network request, host setup or deployment occurred.
+
+The worker still has no host mount. No Docker invocation or scheduler is built
+into the receiver. The documented manual pipe requires a verified deployment,
+Node 24 on the host and a dedicated private report directory; those prerequisites
+have not been established on the Droplet. Input validation is not producer
+authentication, freshness or release binding.
+
+Next: implement the host execution wrapper that verifies candidate container/image
+and route scope, preserves both worker and receiver outcomes, prevents overlap,
+enforces cadence and halts visibly on storage failure. Then finish scheduling,
+external retention/export, deployment/rollback and the consolidated live/firewall/
+reboot evidence. Existing Founder authorization remains valid; production is not
+activated and no user terminal action is requested for this code-only checkpoint.
