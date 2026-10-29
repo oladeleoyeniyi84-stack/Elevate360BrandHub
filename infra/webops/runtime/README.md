@@ -185,7 +185,8 @@ file is fsynced, published by a hard link that cannot overwrite an existing run 
 and the directory is fsynced before successful return. The receipt contains filename,
 byte length, SHA-256 and remaining capacity. Hashes are not signatures and local
 files are not immutable. The worker still has no host mount; neither its CLI nor
-Docker image imports this module. Host delivery integration remains unfinished.
+Docker image imports this module. The stdin ingestion adapter below connects validated output to this store;
+automated host execution and schedule integration remain unfinished.
 
 Crash recovery requires the operator to stop writers, inspect any lock/pending
 file and final report, and preserve/export evidence before clearing leftovers.
@@ -193,3 +194,32 @@ Do not automatically remove a lock based only on age. A failure after publicatio
 can leave a complete report; reconcile the run ID and bytes before retrying.
 Archive/export verification and an external retention destination are still needed
 before any removal policy or unattended production schedule is enabled.
+
+## Host-side report ingestion
+
+report-ingest-cli.mjs accepts one absolute report-directory argument and reads
+exactly one worker report from standard input. Input is limited to 64 KiB and
+must finish within 45 seconds. It rejects malformed UTF-8, incomplete delivery,
+multiple JSON documents and any envelope differing from the canonical report
+builder output, including changed origin, proposals, controls or extra fields.
+This validates structure and consistency, not the authenticity of the producer.
+
+Exit status is 0 for a stored healthy report, 1 for a stored unhealthy report, and
+2 for input/configuration/storage failure. Successful storage prints only the
+receipt; failures print a fixed sanitized error. A receipt is never emitted before
+the storage function completes. Duplicate run IDs cannot replace earlier evidence.
+
+After verified deployment, on a host with Node 24 and a prepared private directory,
+the manual handoff has this shape (not an activation command):
+```sh
+set -o pipefail
+docker exec webops-worker node /app/monitor-cli.mjs / /work |
+  node infra/webops/runtime/report-ingest-cli.mjs /var/lib/elevate360-webops/reports
+```
+The worker receives no host mount. No host Node installation, directory setup or
+live execution has been performed here. Keep stderr separate from the report pipe.
+A future host runner must preserve both producer and receiver exit statuses: a
+single pipeline status cannot fully diagnose which component failed. It must
+verify the producer container/image and expected route scope, prevent overlapping
+runs, stop on storage failure, enforce cadence and provide operator-visible errors.
+This adapter neither invokes Docker nor enables any scheduler.
