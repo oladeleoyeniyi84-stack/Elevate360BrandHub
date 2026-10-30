@@ -223,3 +223,44 @@ single pipeline status cannot fully diagnose which component failed. It must
 verify the producer container/image and expected route scope, prevent overlapping
 runs, stop on storage failure, enforce cadence and provide operator-visible errors.
 This adapter neither invokes Docker nor enables any scheduler.
+
+## Verified single-run host execution API
+
+host-runner.mjs exports runMonitorOnce(options). A trusted release operator supplies
+the exact containerId, imageId, networkId, explicit paths, runDirectory and
+reportDirectory. IDs must come from the reviewed release and live evidence, not
+from worker output or an arbitrary readiness JSON. This API is not a scheduler,
+approval service or installation command and has no automatic entry point.
+
+The default adapter invokes /usr/bin/docker against the local Unix socket with
+argument arrays, no shell and a minimal environment. It inspects only a projection
+that omits environment variables. Before and after the worker command it checks
+the expected image/container/network IDs, running state, isolated worker address,
+non-root user, read-only root, dropped capabilities, no-new-privileges, absence of
+mounts/published ports, disabled restart and bounded CPU/memory/PIDs.
+It executes by full container ID rather than a replaceable name.
+
+Docker inspection is limited to 10 seconds, execution to 35 seconds and buffered
+stdout/stderr to 64 KiB each. Reports must match the requested route prefix (all
+routes for a complete run), canonical envelope, healthy/unhealthy worker exit code
+and the invocation's clock window with five seconds tolerance. No report is stored
+after a failed post-run check. The result preserves workerExitCode separately from
+ingestionExitCode and includes the storage receipt and selected IDs.
+
+runDirectory must be a distinct private owner-controlled directory, with trusted
+ancestors. An exclusive run.lock directory is fsynced before work and removed only
+after successful report storage, including a valid unhealthy report. Any failure
+or crash leaves the lock in place, blocking further cooperating invocations.
+Stop writers and reconcile the container's process state and stored reports before
+clearing this lock. Never clear it automatically based on age. Killing a timed-out
+Docker client does not prove its in-container exec has stopped; this is why retries
+remain blocked. No container stop or automatic repair is attempted.
+
+Limits: pre/post inspection is not continuous attestation. It does not verify the
+cloud firewall, host firewall, internal-network policy or gateway image/configuration,
+and it cannot protect against a compromised Docker daemon/host. These remain live
+release evidence requirements. Clock-window validation is not cryptographic freshness.
+Storage is checked on delivery; a storage failure can follow a completed probe and
+will leave the failure lock. Caller-visible exceptions still require a future
+operator-facing wrapper. Cadence enforcement, kill-switch integration, scheduling,
+installation and live execution of this API remain unfinished.
