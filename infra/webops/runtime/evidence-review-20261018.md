@@ -422,3 +422,38 @@ enforces cadence and halts visibly on storage failure. Then finish scheduling,
 external retention/export, deployment/rollback and the consolidated live/firewall/
 reboot evidence. Existing Founder authorization remains valid; production is not
 activated and no user terminal action is requested for this code-only checkpoint.
+
+## Development checkpoint — 2026-10-29 (America/New_York)
+
+Confirmed full WebOps validation run 68 succeeded for
+fe35fc30374d4725d300f242272ae5a517874966.
+
+Added host-runner.mjs: an explicit single-invocation API joining worker execution
+to validated report storage. It executes by full container ID, checks the expected
+image/network and worker isolation/resource settings before and after execution,
+bounds Docker subprocess output/time, and rejects wrong route scope, stale report
+timestamps or exit/health contradictions. A private durable run lock prevents
+overlap. Valid healthy and unhealthy results are stored with separate worker and
+ingestion statuses; any failure leaves the lock for operator reconciliation.
+No scheduler, automatic entry point, Docker lifecycle change or repair was added.
+
+Validation: all 69 Node runtime tests and eight Python collector tests passed
+locally, zero failures. Eight new tests cover healthy/unhealthy delivery, image/
+isolation mismatch before exec, scope/freshness/exit mismatches, post-run drift,
+ambiguous execution with retry blocking, storage failure, invalid configuration,
+and the Docker adapter's fixed socket/executable, output/time bounds and exit-one
+handling. Tests inject Docker responses and use temporary local directories; no
+real Docker command, production request or Droplet operation was performed.
+
+This API expects trusted release IDs and is not approval authentication. Pre/post
+inspection is not continuous attestation and does not prove gateway/cloud/host
+firewall correctness. A killed Docker client may leave an in-container exec alive;
+retained failure locks intentionally prevent automatic retries. Storage errors can
+occur after the probe. The operator wrapper must surface errors and recover locks
+only after checking process/evidence state.
+
+Remaining implementation: cadence and kill switch, operator-facing invocation and
+schedule integration, external retention/export, clean deployment and rollback.
+Live reconciliation, updated validation, cloud firewall and reboot evidence are
+still pending. Founder release authorization remains valid. No production merge,
+deployment, schedule activation or automatic remediation occurred this run.
