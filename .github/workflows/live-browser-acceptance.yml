@@ -21,10 +21,17 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - name: Install locked production project dependencies
-        run: npm ci
-      - name: Install temporary Playwright test runner
-        run: npm install --no-save --package-lock=false --ignore-scripts playwright@1.56.1
+      # This suite visits the live site only; it imports no app packages.
+      # Install Playwright outside the project to avoid re-resolving the app's
+      # lockfile (which can pull unrelated unavailable optional artifacts).
+      - name: Install browser test runner in an isolated directory
+        shell: bash
+        run: |
+          mkdir -p /tmp/e360-playwright-runner
+          npm install --prefix /tmp/e360-playwright-runner --no-save --ignore-scripts --no-audit --no-fund playwright@1.56.1
+          mkdir -p node_modules
+          ln -s /tmp/e360-playwright-runner/node_modules/playwright node_modules/playwright
+          ln -s /tmp/e360-playwright-runner/node_modules/playwright-core node_modules/playwright-core
       - name: Execute read-only browser journey checks
         shell: bash
         run: |
