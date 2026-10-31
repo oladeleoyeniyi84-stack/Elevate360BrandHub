@@ -71,6 +71,7 @@ test("homepage and press kit do not advertise unsupported trust metrics", () => 
   const faq = readFileSync(resolve("client/src/components/FAQSection.tsx"), "utf8");
   const audience = readFileSync(resolve("client/src/components/WhoWeHelpSection.tsx"), "utf8");
   const work = readFileSync(resolve("client/src/pages/Work.tsx"), "utf8");
+  const newsletter = readFileSync(resolve("client/src/components/NewsletterForm.tsx"), "utf8");
 
   for (const page of [home, pressKit]) {
     assert.doesNotMatch(page, /10,000\+|10K\+|4\.9 average rating|Trusted by Thousands|Amazon Verified Purchase/);
@@ -89,4 +90,6 @@ test("homepage and press kit do not advertise unsupported trust metrics", () => 
   assert.doesNotMatch(home, /href="#book-session"|href: "#book-session"/);
   assert.doesNotMatch(work, /href="\/#contact"/);
   assert.match(work, /<ContactDialog>/);
+  assert.match(newsletter, /htmlFor=\{emailId\}/);
+  assert.match(newsletter, /id=\{emailId\}/);
 });
