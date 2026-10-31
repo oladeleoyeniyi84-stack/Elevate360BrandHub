@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Helmet } from "react-helmet-async";
-import type { Testimonial } from "@shared/schema";
 import SEO from "@/components/SEO";
 import { useScrollReveal } from "@/hooks/useScrollReveal";
 import { useCountUp } from "@/hooks/useCountUp";
@@ -23,7 +22,6 @@ import {
   ExternalLink,
   Menu,
   X,
-  Star,
   Handshake,
   Mic,
   TrendingUp,
@@ -243,14 +241,6 @@ export default function Home() {
     ],
   };
 
-  const { data: testimonialData = [] } = useQuery<Testimonial[]>({
-    queryKey: ["/api/testimonials"],
-    queryFn: async () => {
-      const res = await fetch("/api/testimonials");
-      if (!res.ok) return [];
-      return res.json();
-    },
-  });
   // Phase 37 — Stripe offers
   const { data: offers = [], isLoading: offersLoading } = useQuery<{
     productId: string; priceId: string; name: string; description: string | null;
@@ -844,163 +834,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Testimonials Section */}
-      <section className="py-20 border-t border-white/10 overflow-hidden">
-        <div className="container mx-auto px-4 md:px-6">
-          <div className="text-center max-w-2xl mx-auto mb-14 space-y-3 reveal">
-            <p className="text-xs font-bold tracking-widest text-primary uppercase">What People Are Saying</p>
-            <h2 className="text-3xl md:text-5xl font-heading font-bold tracking-tight">Trusted by Thousands</h2>
-            <p className="text-muted-foreground text-lg">Real reviews from real users across our apps, books, and creative work.</p>
-          </div>
-
-          {/* Scrollable row on mobile, 3-col grid on md+ */}
-          <div className="flex md:grid md:grid-cols-3 gap-5 overflow-x-auto pb-4 md:pb-0 snap-x snap-mandatory md:overflow-visible scrollbar-hide">
-
-            {/* Testimonial 1 — Bondedlove */}
-            <div className="lux-card rounded-3xl p-7 flex-none w-[82vw] sm:w-[60vw] md:w-auto snap-start reveal reveal-delay-1">
-              <div className="flex items-center gap-1 mb-4">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="w-4 h-4 fill-primary text-primary" />
-                ))}
-              </div>
-              <blockquote className="text-base leading-relaxed text-foreground/90 mb-6">
-                "Bondedlove helped me reconnect with my partner in a way I didn't expect from an app. The prompts are thoughtful and the interface feels warm — not cold and clinical like most dating apps."
-              </blockquote>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-rose-500/20 flex items-center justify-center text-rose-400 font-bold text-sm select-none">AM</div>
-                <div>
-                  <p className="font-semibold text-sm">Amara M.</p>
-                  <p className="text-xs text-muted-foreground">Bondedlove User · Lagos, Nigeria</p>
-                </div>
-              </div>
-              <span className="mt-5 inline-block text-xs font-semibold tracking-wide text-primary/80 bg-primary/10 px-3 py-1 rounded-full">📱 Bondedlove</span>
-            </div>
-
-            {/* Testimonial 2 — Healthwisesupport */}
-            <div className="lux-card rounded-3xl p-7 flex-none w-[82vw] sm:w-[60vw] md:w-auto snap-start reveal reveal-delay-2">
-              <div className="flex items-center gap-1 mb-4">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="w-4 h-4 fill-primary text-primary" />
-                ))}
-              </div>
-              <blockquote className="text-base leading-relaxed text-foreground/90 mb-6">
-                "I've been using Healthwisesupport for my daily wellness tracking and it has changed how I think about self-care. Simple, effective, and genuinely encouraging."
-              </blockquote>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-teal-500/20 flex items-center justify-center text-teal-400 font-bold text-sm select-none">TK</div>
-                <div>
-                  <p className="font-semibold text-sm">Tunde K.</p>
-                  <p className="text-xs text-muted-foreground">Healthwisesupport User · Abuja, Nigeria</p>
-                </div>
-              </div>
-              <span className="mt-5 inline-block text-xs font-semibold tracking-wide text-teal-400/80 bg-teal-500/10 px-3 py-1 rounded-full">🌿 Healthwisesupport</span>
-            </div>
-
-            {/* Testimonial 3 — Healthwise book */}
-            <div className="lux-card rounded-3xl p-7 flex-none w-[82vw] sm:w-[60vw] md:w-auto snap-start reveal reveal-delay-3">
-              <div className="flex items-center gap-1 mb-4">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="w-4 h-4 fill-primary text-primary" />
-                ))}
-              </div>
-              <blockquote className="text-base leading-relaxed text-foreground/90 mb-6">
-                "Healthwise: Stay Healthy is one of the clearest, most practical health books I've read. It cuts through the noise and gives you real, actionable guidance. A must-read."
-              </blockquote>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-400 font-bold text-sm select-none">SC</div>
-                <div>
-                  <p className="font-semibold text-sm">Sarah C.</p>
-                  <p className="text-xs text-muted-foreground">Amazon Verified Purchase · UK</p>
-                </div>
-              </div>
-              <span className="mt-5 inline-block text-xs font-semibold tracking-wide text-amber-400/80 bg-amber-500/10 px-3 py-1 rounded-full">📚 Healthwise: Stay Healthy</span>
-            </div>
-
-            {/* Testimonial 4 — Together book */}
-            <div className="lux-card rounded-3xl p-7 flex-none w-[82vw] sm:w-[60vw] md:w-auto snap-start md:col-start-1 reveal">
-              <div className="flex items-center gap-1 mb-4">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="w-4 h-4 fill-primary text-primary" />
-                ))}
-              </div>
-              <blockquote className="text-base leading-relaxed text-foreground/90 mb-6">
-                "Together: Let There Be Love spoke to something my partner and I had been struggling to put into words for months. We've been using it as a conversation guide and it's been transformative."
-              </blockquote>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-rose-500/20 flex items-center justify-center text-rose-400 font-bold text-sm select-none">JO</div>
-                <div>
-                  <p className="font-semibold text-sm">Jide & Ola</p>
-                  <p className="text-xs text-muted-foreground">Amazon Verified Purchase · Canada</p>
-                </div>
-              </div>
-              <span className="mt-5 inline-block text-xs font-semibold tracking-wide text-rose-400/80 bg-rose-500/10 px-3 py-1 rounded-full">❤️ Together: Let There Be Love</span>
-            </div>
-
-            {/* Testimonial 5 — Video Crafter */}
-            <div className="lux-card rounded-3xl p-7 flex-none w-[82vw] sm:w-[60vw] md:w-auto snap-start reveal reveal-delay-1">
-              <div className="flex items-center gap-1 mb-4">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="w-4 h-4 fill-primary text-primary" />
-                ))}
-              </div>
-              <blockquote className="text-base leading-relaxed text-foreground/90 mb-6">
-                "Video Crafter gave me the tools I needed to produce content that actually looks professional. I went from shaky clips to polished reels in a week. My followers noticed immediately."
-              </blockquote>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400 font-bold text-sm select-none">DN</div>
-                <div>
-                  <p className="font-semibold text-sm">David N.</p>
-                  <p className="text-xs text-muted-foreground">Video Crafter User · Atlanta, USA</p>
-                </div>
-              </div>
-              <span className="mt-5 inline-block text-xs font-semibold tracking-wide text-indigo-400/80 bg-indigo-500/10 px-3 py-1 rounded-full">🎬 Video Crafter</span>
-            </div>
-
-            {/* Testimonial 6 — One Clean Meal */}
-            <div className="lux-card rounded-3xl p-7 flex-none w-[82vw] sm:w-[60vw] md:w-auto snap-start reveal reveal-delay-2">
-              <div className="flex items-center gap-1 mb-4">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="w-4 h-4 fill-primary text-primary" />
-                ))}
-              </div>
-              <blockquote className="text-base leading-relaxed text-foreground/90 mb-6">
-                "One Clean Meal is the most honest nutrition reset book I've ever read. No guilt, no extreme diets — just practical steps that actually fit into a busy lifestyle. I feel completely different after the 7 days."
-              </blockquote>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 font-bold text-sm select-none">FB</div>
-                <div>
-                  <p className="font-semibold text-sm">Fatima B.</p>
-                  <p className="text-xs text-muted-foreground">Amazon Verified Purchase · Dubai, UAE</p>
-                </div>
-              </div>
-              <span className="mt-5 inline-block text-xs font-semibold tracking-wide text-emerald-400/80 bg-emerald-500/10 px-3 py-1 rounded-full">🥗 One Clean Meal</span>
-            </div>
-
-          </div>
-
-          {/* Trust badges row */}
-          <div className="flex flex-wrap justify-center items-center gap-6 mt-14 reveal">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <div className="flex -space-x-2">
-                {["AM","TK","SC","JO","DN","FB"].map((initials, i) => (
-                  <div key={i} className="w-7 h-7 rounded-full border-2 border-background bg-primary/20 flex items-center justify-center text-[9px] font-bold text-primary">
-                    {initials}
-                  </div>
-                ))}
-              </div>
-              <span className="ml-1 font-medium text-foreground">10,000+ happy users</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-sm font-medium text-foreground">
-              <div className="flex">
-                {[...Array(5)].map((_, i) => <Star key={i} className="w-3.5 h-3.5 fill-primary text-primary" />)}
-              </div>
-              <span>4.9 average rating</span>
-            </div>
-            <div className="badge-gold text-xs px-4 py-1.5">⭐ Amazon Best Seller Picks</div>
-          </div>
-        </div>
-      </section>
-
       {/* YouTube Section */}
       <section id="youtube" className="py-20 border-t border-white/8" style={{ background: "hsl(220 50% 7%)" }}>
         <div className="container mx-auto px-4 md:px-6">
@@ -1529,7 +1362,7 @@ export default function Home() {
                     rel="noopener noreferrer"
                     className="text-muted-foreground text-sm font-medium hover:text-primary transition-colors"
                   >
-                    Rated on Amazon
+                    View on Amazon
                   </a>
                 </div>
 
@@ -1598,21 +1431,21 @@ export default function Home() {
                     loading="lazy"
                   />
                   <div className="absolute -top-4 -left-4">
-                    <span className="badge-gold shadow-lg transform -rotate-12 inline-block">Reader Favorite</span>
+                    <span className="badge-gold shadow-lg transform -rotate-12 inline-block">Relationship Guide</span>
                   </div>
                 </div>
               </div>
 
               <div className="w-full md:w-2/3 space-y-6">
                 <div className="flex items-center gap-3 mb-2">
-                  <span className="badge-gold">Reader Favorite</span>
+                  <span className="badge-gold">Relationship Guide</span>
                   <a
                     href="https://www.amazon.com/dp/B0G5DWG61V"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-muted-foreground text-sm font-medium hover:text-primary transition-colors"
                   >
-                    Rated on Amazon
+                    View on Amazon
                   </a>
                 </div>
 
@@ -1754,11 +1587,10 @@ export default function Home() {
               </thead>
               <tbody>
                 {[
-                  { feature: "Free to use", vals: ["✓", "✓", "✓", "Kindle Unlim.", "—", "Free stream"] },
-                  { feature: "Platform", vals: ["Web/iOS/Android", "Web/iOS/Android", "Web/iOS/Android", "Amazon", "Etsy", "Audiomack"] },
+                  { feature: "Free to use", vals: ["✓", "✓", "✓", "See listing", "—", "Free stream"] },
+                  { feature: "Platform", vals: ["Web / App", "Web / App", "Web / App", "Amazon", "Etsy", "Audiomack"] },
                   { feature: "Category", vals: ["Dating", "Health", "Video edit", "Books", "Digital art", "Music"] },
                   { feature: "In-app purchase", vals: ["Optional", "Optional", "Optional", "Purchase", "Purchase", "—"] },
-                  { feature: "Rating", vals: ["4.8 ★", "4.9 ★", "4.7 ★", "4.8 ★", "5.0 ★", "—"] },
                   { feature: "Language", vals: ["Multi-lang", "Multi-lang", "Multi-lang", "English", "English", "Various"] },
                 ].map((row, i) => (
                   <tr key={i} className={`border-b border-white/5 ${i % 2 === 0 ? "bg-white/[0.02]" : ""}`}>
@@ -1802,7 +1634,7 @@ export default function Home() {
                 </div>
                 {/* verified badge */}
                 <div className="absolute -bottom-3 -right-3 bg-primary text-[#070b13] text-xs font-bold px-3 py-1.5 rounded-full shadow-lg">
-                  ✦ Verified Creator
+                  ✦ Founder & Creator
                 </div>
               </div>
 
@@ -1868,7 +1700,7 @@ export default function Home() {
                   { year: "2023", event: "Founded Elevate360Official and launched the first mobile app, Bondedlove." },
                   { year: "2024", event: "Published first Amazon KDP book. Opened the Elevate360 Art Studio on Etsy." },
                   { year: "2025", event: "Released two more apps — Healthwisesupport & Video Crafter. Published 2 additional books. Launched Audiomack music channel." },
-                  { year: "2026", event: "Scaling the brand globally. 10,000+ users across all products and growing." },
+                  { year: "2026", event: "Scaling the brand globally — growing across apps, books, and music." },
                 ].map(({ year, event }) => (
                   <div key={year} className="relative pb-7 last:pb-0">
                     <div className="absolute -left-[1.65rem] top-1 w-4 h-4 rounded-full bg-primary/30 border-2 border-primary flex items-center justify-center">
@@ -1885,7 +1717,7 @@ export default function Home() {
                 {[
                   { n: "3", label: "Apps Built" },
                   { n: "3", label: "Books Published" },
-                  { n: "10K+", label: "Lives Reached" },
+                  { n: "1", label: "Founder" },
                 ].map(({ n, label }) => (
                   <div key={label} className="lux-card rounded-2xl p-4 text-center">
                     <p className="text-2xl font-heading font-extrabold text-primary">{n}</p>
@@ -1911,11 +1743,11 @@ export default function Home() {
           },
           {
             q: "Are the mobile apps free to use?",
-            a: "Yes, all three apps — Bondedlove, Healthwisesupport, and Video Crafter — are free to download and use. Some premium features may require an in-app upgrade.",
+            a: "Visit each app page for current free and paid options. Some premium features may require payment.",
           },
           {
             q: "What platforms are the apps available on?",
-            a: "The apps are available on both iOS (iPhone) and Android devices. Visit the app pages through the links on this site to download from the App Store or Google Play.",
+            a: "Visit each app page on this website for current access options and confirmed download links.",
           },
           {
             q: "Where can I buy Elevate360 books?",
@@ -2293,65 +2125,6 @@ export default function Home() {
 
         </div>
       </section>
-
-      {/* Testimonials Section */}
-      {testimonialData.length > 0 && (() => {
-        const PRODUCT_COLORS: Record<string, { bg: string; color: string }> = {
-          Bondedlove:         { bg: "rgba(244,166,42,0.12)",  color: "#F4A62A" },
-          Healthwisesupport:  { bg: "rgba(34,197,94,0.12)",   color: "#22c55e" },
-          "Video Crafter":    { bg: "rgba(56,189,248,0.12)",  color: "#38bdf8" },
-          "Amazon KDP":       { bg: "rgba(251,146,60,0.12)",  color: "#fb923c" },
-          Etsy:               { bg: "rgba(167,139,250,0.12)", color: "#a78bfa" },
-          Music:              { bg: "rgba(244,166,42,0.10)",  color: "#F4A62A" },
-        };
-        return (
-          <section id="reviews" className="py-20 border-t border-white/8" style={{ background: "hsl(220 50% 7%)" }}>
-            <div className="container mx-auto px-4 md:px-6">
-              <div className="text-center mb-14 reveal">
-                <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold tracking-widest uppercase mb-4"
-                  style={{ background: "rgba(244,166,42,0.12)", color: "#F4A62A", border: "1px solid rgba(244,166,42,0.25)" }}>
-                  <Star className="h-3 w-3 fill-primary" />
-                  Reviews
-                </span>
-                <h2 className="text-3xl md:text-4xl font-heading font-bold text-white mb-4">
-                  What People Are{" "}
-                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-amber-300">Saying</span>
-                </h2>
-                <p className="text-white/50 max-w-xl mx-auto">Real feedback from real users across our apps, books, music, and art.</p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
-                {testimonialData.map((t) => {
-                  const style = PRODUCT_COLORS[t.product] ?? { bg: "rgba(244,166,42,0.10)", color: "#F4A62A" };
-                  return (
-                    <div
-                      key={t.id}
-                      className="lux-card reveal flex flex-col gap-4"
-                      data-testid={`card-testimonial-${t.id}`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex gap-0.5">
-                          {Array.from({ length: 5 }).map((_, i) => (
-                            <Star key={i} className={`h-4 w-4 ${i < t.rating ? "text-primary fill-primary" : "text-white/15"}`} />
-                          ))}
-                        </div>
-                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: style.bg, color: style.color }}>
-                          {t.product}
-                        </span>
-                      </div>
-                      <p className="text-white/70 text-sm leading-relaxed flex-1">"{t.body}"</p>
-                      <div>
-                        <p className="text-white font-bold text-sm">{t.name}</p>
-                        {t.handle && <p className="text-white/40 text-xs mt-0.5">{t.handle}</p>}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </section>
-        );
-      })()}
 
       {/* Phase 72.6 — Flagship work & collaborations showcase */}
       <FlagshipWorkSection />
