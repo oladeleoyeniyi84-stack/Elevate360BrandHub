@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { ChevronDown } from "lucide-react";
+import { ContactDialog } from "@/components/ContactDialog";
 
 interface FAQ {
   q: string;
@@ -90,13 +91,15 @@ export function FAQSection({ faqs }: { faqs: FAQ[] }) {
 
         <p className="text-center text-muted-foreground text-sm mt-10">
           Still have questions?{" "}
-          <button
-            onClick={() => document.getElementById("contact-trigger")?.click()}
-            className="text-primary font-semibold hover:underline focus:outline-none"
-            data-testid="faq-contact-link"
-          >
-            Send us a message →
-          </button>
+          <ContactDialog>
+            <button
+              type="button"
+              className="text-primary font-semibold hover:underline focus-visible:ring-2 focus-visible:ring-primary rounded-sm"
+              data-testid="faq-contact-link"
+            >
+              Send us a message →
+            </button>
+          </ContactDialog>
         </p>
       </div>
     </section>
