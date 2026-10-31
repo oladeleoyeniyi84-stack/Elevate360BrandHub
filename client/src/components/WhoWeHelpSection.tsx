@@ -41,7 +41,8 @@ const AUDIENCES: Audience[] = [
     description:
       "Practical digital tools and expert guidance to modernize operations, reach more customers, and grow with confidence.",
     ctaLabel: "Book a Consultation",
-    href: "#book-session",
+    href: "/strategy-session",
+    internal: true,
   },
   {
     key: "churches",
@@ -51,7 +52,8 @@ const AUDIENCES: Audience[] = [
     description:
       "Technology and media solutions that help you engage your congregation and extend your ministry's reach.",
     ctaLabel: "Book a Session",
-    href: "#book-session",
+    href: "/strategy-session",
+    internal: true,
   },
   {
     key: "nonprofits",
@@ -61,7 +63,8 @@ const AUDIENCES: Audience[] = [
     description:
       "Digital innovation that amplifies your mission, grows your community, and multiplies your impact.",
     ctaLabel: "Book a Session",
-    href: "#book-session",
+    href: "/strategy-session",
+    internal: true,
   },
   {
     key: "healthcare",

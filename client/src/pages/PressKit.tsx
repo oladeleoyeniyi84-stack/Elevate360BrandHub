@@ -85,7 +85,7 @@ export default function PressKit() {
             <strong>Elevate360Official</strong> is a multi-vertical creative brand founded by <strong>Oladele Oyeniyi</strong>, built on the belief that technology, creativity, and words have the power to transform lives. From mobile applications that strengthen relationships and support wellness, to books that educate and inspire, music that moves, and art that speaks — Elevate360 is a living ecosystem of impact.
           </p>
           <p className="text-gray-700 leading-relaxed text-base">
-            Operating at the intersection of entrepreneurship, health, love, and creativity, Elevate360Official has touched over 10,000 lives globally through its growing portfolio of digital products and creative content.
+            Operating at the intersection of entrepreneurship, health, relationships, and creativity, Elevate360Official is growing across digital products, books, music, and original artwork.
           </p>
         </section>
 
@@ -177,7 +177,7 @@ export default function PressKit() {
             Key Statistics
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {[["3", "Mobile Apps"], ["3", "Books Published"], ["1", "Art Studio"], ["10K+", "Lives Reached"]].map(([n, l]) => (
+            {[["1", "Founder"], ["3", "Apps Built"], ["3", "Books Published"], ["1", "Art Studio"]].map(([n, l]) => (
               <div key={l} className="border border-gray-200 rounded-xl p-4 text-center">
                 <p className="text-3xl font-black text-[#F4A62A]">{n}</p>
                 <p className="text-gray-600 text-sm mt-1">{l}</p>
