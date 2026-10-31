@@ -45,7 +45,7 @@ searchGrowthRouter.get("/actions", requireDashboardAuth, async (req, res) => {
     res.json({ actions, summary });
   } catch (error) {
     if (error instanceof ZodError) {
-      return res.status(400).json({ error: "Invalid filters", details: error.errors });
+      return res.status(400).json({ error: "Invalid filters", details: error.issues });
     }
     console.error("[search-growth] list failed:", error);
     res.status(500).json({ error: "Failed to load growth actions" });
@@ -61,7 +61,7 @@ async function decide(req: any, res: any, to: Decision, note?: string) {
     res.json({ ok: true, action });
   } catch (error) {
     if (error instanceof ZodError) {
-      return res.status(400).json({ error: "Invalid action id", details: error.errors });
+      return res.status(400).json({ error: "Invalid action id", details: error.issues });
     }
     if (error instanceof InvalidTransitionError) {
       return res.status(409).json({ error: error.message });
@@ -76,7 +76,7 @@ searchGrowthRouter.post("/actions/:id/approve", requireDashboardAuth, rateLimit(
     const body = searchGrowthApproveSchema.parse(req.body ?? {});
     await decide(req, res, "approved", body.note);
   } catch (error) {
-    if (error instanceof ZodError) return res.status(400).json({ error: "Invalid request", details: error.errors });
+    if (error instanceof ZodError) return res.status(400).json({ error: "Invalid request", details: error.issues });
     res.status(500).json({ error: "Decision failed" });
   }
 });
@@ -86,7 +86,7 @@ searchGrowthRouter.post("/actions/:id/dismiss", requireDashboardAuth, rateLimit(
     const body = searchGrowthDismissSchema.parse(req.body ?? {}); // reason REQUIRED
     await decide(req, res, "dismissed", body.reason);
   } catch (error) {
-    if (error instanceof ZodError) return res.status(400).json({ error: "A dismissal reason is required", details: error.errors });
+    if (error instanceof ZodError) return res.status(400).json({ error: "A dismissal reason is required", details: error.issues });
     res.status(500).json({ error: "Decision failed" });
   }
 });
@@ -100,7 +100,7 @@ searchGrowthRouter.post("/actions/:id/complete", requireDashboardAuth, rateLimit
     const body = searchGrowthCompleteSchema.parse(req.body ?? {}); // implementation note REQUIRED
     await decide(req, res, "completed", body.implementationNote);
   } catch (error) {
-    if (error instanceof ZodError) return res.status(400).json({ error: "An implementation note is required", details: error.errors });
+    if (error instanceof ZodError) return res.status(400).json({ error: "An implementation note is required", details: error.issues });
     res.status(500).json({ error: "Decision failed" });
   }
 });
