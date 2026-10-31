@@ -457,3 +457,49 @@ schedule integration, external retention/export, clean deployment and rollback.
 Live reconciliation, updated validation, cloud firewall and reboot evidence are
 still pending. Founder release authorization remains valid. No production merge,
 deployment, schedule activation or automatic remediation occurred this run.
+
+
+## Development checkpoint — 2026-10-30 (America/New_York)
+
+Confirmed full WebOps validation run 70 succeeded for
+a4330067d93f67c4d5339cf17837ebc66e4cb3db.
+
+Added scheduled-runner.mjs and its operator CLI. Disabled configuration performs no
+Docker work. Enabled ticks require a private operator-owned configuration and
+separate persistent schedule state, enforce a 60-minute to seven-day interval,
+fsync the next eligibility time before execution, prevent overlap and retain locks
+on failures. Healthy and unhealthy stored reports both consume an interval.
+Changing to a shorter cadence cannot shorten an existing reservation; a reversed
+clock blocks. State survives process restart. The checked-in example is disabled.
+
+Prepared uninstalled systemd service/timer units and scheduling.md covering trusted
+configuration, stable state paths, failure recovery, disable behavior and emergency
+container stop. Disabling configuration only prevents future invocations: it does
+not cancel an already loaded tick. Stopping the host service alone may leave a Docker
+exec running; stopping verified worker/gateway containers and checking their state
+is part of the documented emergency procedure. A consolidated executable deployment,
+rollback and emergency-stop controller is still unfinished.
+
+Validation: all 76 Node runtime tests and eight Python collector tests passed.
+Seven schedule tests cover disabled behavior, persisted eligibility (including a
+separate Node process), interval changes, clock reversal, concurrent/failed attempts,
+unsafe/corrupt/pending state, configuration bounds and sanitized CLI failure.
+The full suite passed before the separate-process assertion was added; the updated
+seven-test schedule suite passed afterward. No real Docker/production calls occurred.
+systemd-analyze verify could not fully verify the units because /usr/bin/node does
+not exist in this build environment. Node 24 at that path is an explicit deployment
+prerequisite; unit execution/sandbox behavior must be verified on the host.
+CI will rerun the repository/application/runtime/Compose/image gates.
+
+This is scheduler source preparation, not live activation or reboot proof. State
+uses host wall time (forward jumps can advance eligibility), is writable by its
+trusted owner/root and is not a tamper-proof quota. Local journal results do not
+provide external alert delivery. The old deployed image remains unvalidated against
+this candidate; no host session is available here.
+
+Next: finish consolidated release installation/replacement/rollback and emergency
+stop, external report/audit retention/export and alert delivery; reconcile the dirty
+host checkout and verify the exact new image, revised network controls, cloud firewall
+and reboot persistence. Preserve the schedule state across releases. Founder release
+authorization remains recorded and does not need renewal. No production merge,
+deployment, timer enablement, repair or user terminal action occurred this run.
