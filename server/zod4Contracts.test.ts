@@ -63,6 +63,6 @@ test("Zod 4 uses issues and maintains user-facing error string", () => {
 
 test("Request body remains capped before Zod validation to avoid unbounded request allocations", () => {
   const entry = readFileSync(resolve("server/index.ts"), "utf8");
-  assert.match(entry, /express\\.json\\(\\{[\\s\\S]*?limit:\\s*"256kb"/);
-  assert.match(entry, /express\\.urlencoded\\(\\{\\s*extended:\\s*false,\\s*limit:\\s*"64kb"/);
+  assert.match(entry, /express\.json\(\{[\s\S]*?limit:\s*"256kb"/);
+  assert.match(entry, /express\.urlencoded\(\{\s*extended:\s*false,\s*limit:\s*"64kb"/);
 });
