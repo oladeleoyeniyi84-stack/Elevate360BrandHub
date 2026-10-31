@@ -9,7 +9,10 @@
 //   - only summary log line: [qaSentinel] status=X issues=N confidence=Y
 
 import { storage } from "../storage";
-import { runTask } from "./modelRouter";
+import { db } from "../db";
+import { sql } from "drizzle-orm";
+import { isStripeConfigured } from "../stripeClient";
+import { getAIStatus, runTask } from "./modelRouter";
 import type { InsertQaSentinelReport, QaSentinelReport } from "@shared/schema";
 
 const SELF_JOB_KEY = "phase53_deepseek_qa_sentinel";
@@ -117,10 +120,24 @@ async function probe(
 }
 
 async function gatherRawChecks(): Promise<RawChecks> {
-  // Probe /api/health (provides db, ai, resend, stripe, memory)
+  // Public /api/health is deliberately liveness-only. Never infer private
+  // dependency failures from omitted public fields; probe them in-process.
   const healthRes = await probe("/api/health");
   const healthPayload = (healthRes as any).payload ?? {};
-  const subChecks = healthPayload.checks ?? {};
+
+  // Read-only database ping and configuration-presence checks. Do not persist
+  // connection strings, API keys, provider responses, or customer records.
+  let databaseOk = false;
+  try {
+    await db.execute(sql`SELECT 1`);
+    databaseOk = true;
+  } catch {
+    // Failure is represented only as a boolean.
+  }
+  const aiStatus = getAIStatus();
+  const aiConfigured = aiStatus.openai === "configured" || aiStatus.deepseek === "configured";
+  const stripeConfigured = isStripeConfigured();
+  const resendConfigured = Boolean(process.env.RESEND_API_KEY);
 
   // Lightweight endpoint probes (do NOT trigger LLM calls)
   // Note: /api/chat is POSTed with empty body — we expect 400 (validation) to prove the route is mounted.
@@ -207,19 +224,18 @@ async function gatherRawChecks(): Promise<RawChecks> {
     health: {
       ok: healthRes.ok,
       status: healthRes.status,
-      payload: subChecks,
+      payload: { status: healthPayload.status ?? "unknown" },
       detail: healthRes.detail,
     },
     endpoints,
-    stripe: { configured: !!subChecks.stripe?.ok },
-    database: { ok: !!subChecks.database?.ok, detail: subChecks.database?.detail },
+    stripe: { configured: stripeConfigured },
+    database: { ok: databaseOk },
     aiRouter: {
-      ok: !!subChecks.ai?.ok,
-      detail: subChecks.ai?.detail,
-      openai: subChecks.ai?.openai,
-      deepseek: subChecks.ai?.deepseek,
+      ok: aiConfigured,
+      openai: aiStatus.openai,
+      deepseek: aiStatus.deepseek,
     },
-    resend: { ok: !!subChecks.resend?.ok, detail: subChecks.resend?.detail },
+    resend: { ok: resendConfigured },
     automationJobs: {
       total: jobsTotal,
       succeeded: jobsSucceeded,
