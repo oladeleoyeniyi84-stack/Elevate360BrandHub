@@ -11,6 +11,7 @@ on:
       - "server/webops/**"
       - "server/ai/qaSentinel.ts"
       - "server/qaSentinelProbe.test.ts"
+      - "server/transactionAcceptance.test.ts"
       - "server/webopsPolicy.test.ts"
       - "server/webopsDiagnostics.test.ts"
       - "server/publicCrawl.test.ts"
@@ -100,6 +101,12 @@ jobs:
           path: test-output.log
           if-no-files-found: ignore
           retention-days: 7
+
+      - name: Run hermetic Stripe trust and checkout safety checks
+        shell: bash
+        run: |
+          npx tsx scripts/phase72_8_stripe_tests.ts
+          npx tsx scripts/phase72_9_security_tests.ts
 
       - name: Build production bundle
         run: npm run build
