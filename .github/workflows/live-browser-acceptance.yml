@@ -1,0 +1,41 @@
+name: Read-only live browser acceptance
+
+on:
+  push:
+    branches: [qa/live-browser-acceptance-20261031]
+    paths:
+      - "scripts/live-browser-acceptance.mjs"
+      - ".github/workflows/live-browser-acceptance.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install locked production project dependencies
+        run: npm ci
+      - name: Install temporary Playwright test runner
+        run: npm install --no-save --package-lock=false --ignore-scripts playwright@1.56.1
+      - name: Install headless Chromium browser
+        run: npx playwright install --with-deps chromium
+      - name: Execute read-only browser journey checks
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/live-browser-acceptance.mjs 2>&1 | tee browser-acceptance.log
+      - name: Preserve acceptance results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: elevate360-readonly-browser-acceptance
+          path: browser-acceptance.log
+          if-no-files-found: ignore
+          retention-days: 7
