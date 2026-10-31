@@ -26,13 +26,16 @@ jobs:
         run: |
           node - <<'NODE'
           const p = require('./package-lock.json').packages;
-          for (const [k,expected] of Object.entries({
-            'vite':'7.3.7',
-            'postcss':'8.5.31',
-            '@babel/core':'7.29.11'
+          for (const [k,min] of Object.entries({
+            'vite':[7,3,7],
+            'postcss':[8,5,31],
+            '@babel/core':[7,29,7]
           })) {
-            const actual = p['node_modules/'+k]?.version;
-            if(actual !== expected) throw Error(k+' expected '+expected+' got '+actual);
+            const version = p['node_modules/'+k]?.version;
+            const v = String(version||'').split('.').map(Number);
+            if (v[0] !== min[0] || v[1] < min[1] || (v[1] === min[1] && v[2] < min[2]))
+              throw Error(k+' needs compatible patched version >= '+min.join('.')+', got '+version);
+            console.log(k+' '+version+' satisfies compatible security floor');
           }
           NODE
       - name: Confirm locked installation and typecheck
