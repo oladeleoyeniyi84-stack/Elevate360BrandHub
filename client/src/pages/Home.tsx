@@ -537,7 +537,7 @@ export default function Home() {
               className="text-sm font-medium hover:text-primary transition-colors">
               Shop
             </a>
-            <a href="#book-session" data-testid="link-nav-book"
+            <a href="/strategy-session" data-testid="link-nav-book"
               className="text-sm font-semibold px-4 py-1.5 rounded-full transition-all"
               style={{ background: "rgba(244,166,42,0.12)", color: "#F4A62A", border: "1px solid rgba(244,166,42,0.3)" }}>
               Book a Session
@@ -630,7 +630,7 @@ export default function Home() {
               { href: "#music", label: "Music", icon: <Music className="h-4 w-4" /> },
               { href: "#books", label: "Publications", icon: <BookOpen className="h-4 w-4" /> },
               { href: "#offers", label: "Shop Offers", icon: <Zap className="h-4 w-4" /> },
-              { href: "#book-session", label: "Book a Session", icon: <Calendar className="h-4 w-4" /> },
+              { href: "/strategy-session", label: "Book a Session", icon: <Calendar className="h-4 w-4" /> },
             ].map(({ href, label, icon }) => (
               <a
                 key={href}
