@@ -71,5 +71,5 @@ try {
   });
   await desktop.close();await mobile.close();
 } finally {await browser.close()}
-console.log(JSON.stringify({host:base,date:new Date().toISOString(),mode:'read-only browser interactions; writes blocked',checks:results},null,2));
+console.log(JSON.stringify({host:base,date:new Date().toISOString(),mode:'post-Zod-4-release browser verification; writes blocked',checks:results},null,2));
 if(results.some(r=>r.status==='FAIL'))process.exitCode=1;
