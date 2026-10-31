@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -10,6 +10,7 @@ interface NewsletterFormProps {
 }
 
 export function NewsletterForm({ compact }: NewsletterFormProps = {}) {
+  const emailId = useId();
   const [email, setEmail] = useState("");
   const [website, setWebsite] = useState(""); // honeypot — must stay empty
   const { toast } = useToast();
@@ -61,8 +62,11 @@ export function NewsletterForm({ compact }: NewsletterFormProps = {}) {
         style={{ position: "absolute", left: "-9999px", width: "1px", height: "1px", opacity: 0 }}
       />
       <div className="relative flex-1">
+        <label className="sr-only" htmlFor={emailId}>Email address for newsletter updates</label>
         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
         <Input
+          id={emailId}
+          autoComplete="email"
           type="email"
           data-testid="input-newsletter-email"
           placeholder="Enter your email"
