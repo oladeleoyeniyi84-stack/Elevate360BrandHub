@@ -122,7 +122,7 @@ searchIntelligenceRouter.post("/sync", requireDashboardAuth, rateLimit(6, 300), 
     res.json(result);
   } catch (error) {
     if (error instanceof ZodError) {
-      return res.status(400).json({ error: "Invalid sync request", details: error.errors });
+      return res.status(400).json({ error: "Invalid sync request", details: error.issues });
     }
     if (error instanceof GscSyncConflictError) {
       // Lost the DB-level single-run race (pre-check above is only a fast path).

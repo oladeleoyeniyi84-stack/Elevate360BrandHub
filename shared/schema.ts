@@ -437,7 +437,7 @@ function containsAnalyticsPii(value: unknown, depth = 0): boolean {
   }
   return false;
 }
-const analyticsMetadata = z.record(z.unknown()).superRefine((value, ctx) => {
+const analyticsMetadata = z.record(z.string(), z.unknown()).superRefine((value, ctx) => {
   if (containsAnalyticsPii(value)) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Analytics metadata must not contain PII" });
   }
