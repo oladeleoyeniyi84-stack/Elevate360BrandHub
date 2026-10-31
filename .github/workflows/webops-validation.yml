@@ -9,6 +9,8 @@ on:
       - webops/phase-2-route-health-pilot
     paths:
       - "server/webops/**"
+      - "server/ai/qaSentinel.ts"
+      - "server/qaSentinelProbe.test.ts"
       - "server/webopsPolicy.test.ts"
       - "server/webopsDiagnostics.test.ts"
       - "server/publicCrawl.test.ts"
