@@ -18,6 +18,7 @@ import {
 } from "@shared/flagshipProjects";
 import { trackWorkEvent } from "@/lib/workAnalytics";
 import SEO from "@/components/SEO";
+import { ContactDialog } from "@/components/ContactDialog";
 
 const BG = "#0B1526";
 const GOLD = "#F4A62A";
@@ -363,13 +364,15 @@ export default function Work() {
                   >
                     Start a Strategy Session
                   </Link>
-                  <Link
-                    href="/#contact"
-                    data-testid="button-work-contact"
-                    className="btn-secondary inline-flex min-h-[44px] items-center gap-2 px-8 py-3"
-                  >
-                    Contact Elevate360Official
-                  </Link>
+                  <ContactDialog>
+                    <button
+                      type="button"
+                      data-testid="button-work-contact"
+                      className="btn-secondary inline-flex min-h-[44px] items-center gap-2 px-8 py-3"
+                    >
+                      Contact Elevate360Official
+                    </button>
+                  </ContactDialog>
                 </div>
               </section>
             </>
