@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { applySeoHead } from "./seo/injectHead";
 import { canonicalUrl } from "./seo/canonical";
 import { resolveRouteMeta } from "./seo/meta";
@@ -62,4 +64,25 @@ test("sitemap, robots policy inputs, and llms discovery contain canonical public
   const llms = buildLlmsTxt();
   assert.match(llms, /https:\/\/www\.elevate360official\.com\/sitemap\.xml/);
   assert.doesNotMatch(llms, /dashboard|\/api\//i);
+});
+test("homepage and press kit do not advertise unsupported trust metrics", () => {
+  const home = readFileSync(resolve("client/src/pages/Home.tsx"), "utf8");
+  const pressKit = readFileSync(resolve("client/src/pages/PressKit.tsx"), "utf8");
+  const faq = readFileSync(resolve("client/src/components/FAQSection.tsx"), "utf8");
+  const audience = readFileSync(resolve("client/src/components/WhoWeHelpSection.tsx"), "utf8");
+
+  for (const page of [home, pressKit]) {
+    assert.doesNotMatch(page, /10,000\+|10K\+|4\.9 average rating|Trusted by Thousands|Amazon Verified Purchase/);
+  }
+  assert.doesNotMatch(home, /<Star|testimonialData|\/api\/testimonials|Verified Creator|Amazon Best Seller Picks/);
+  assert.match(home, /label: "Founder"/);
+  assert.match(pressKit, /"Founder"/);
+
+  // The FAQ CTA must open a dialog directly instead of clicking a missing ID.
+  assert.match(faq, /<ContactDialog>/);
+  assert.doesNotMatch(faq, /getElementById\("contact-trigger"\)/);
+
+  // Audience booking links must not depend on the consultations API returning data.
+  assert.doesNotMatch(audience, /href: "#book-session"/);
+  assert.match(audience, /href: "\/strategy-session"/);
 });
