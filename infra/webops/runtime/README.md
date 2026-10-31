@@ -264,3 +264,11 @@ Storage is checked on delivery; a storage failure can follow a completed probe a
 will leave the failure lock. Caller-visible exceptions still require a future
 operator-facing wrapper. Cadence enforcement, kill-switch integration, scheduling,
 installation and live execution of this API remain unfinished.
+
+
+## Prepared host schedule
+
+See [scheduling.md](scheduling.md) for the disabled-by-default schedule CLI,
+durable cadence/overlap control, systemd templates and stop/recovery limits.
+These files are not installed or activated. The existing Founder authorization is
+recorded in the evidence checkpoint; technical release validation remains pending.
