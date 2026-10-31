@@ -13,6 +13,7 @@ permissions:
 jobs:
   acceptance:
     runs-on: ubuntu-latest
+    container: mcr.microsoft.com/playwright:v1.56.1-noble
     timeout-minutes: 18
     steps:
       - uses: actions/checkout@v4
@@ -24,8 +25,6 @@ jobs:
         run: npm ci
       - name: Install temporary Playwright test runner
         run: npm install --no-save --package-lock=false --ignore-scripts playwright@1.56.1
-      - name: Install headless Chromium browser
-        run: npx playwright install --with-deps chromium
       - name: Execute read-only browser journey checks
         shell: bash
         run: |
