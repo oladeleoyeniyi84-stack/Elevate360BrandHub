@@ -1,0 +1,37 @@
+name: Stripe sandbox receiver validation
+on:
+  push:
+    branches:
+      - staging/stripe-sandbox-receiver-20261031
+    paths:
+      - "staging/**"
+      - ".github/workflows/stripe-sandbox-receiver.yml"
+permissions:
+  contents: read
+jobs:
+  isolated-webhook:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Validate standalone Node server source
+        run: |
+          node --check staging/stripe-sandbox-server.mjs
+          node --check staging/stripeWebhookCore.mjs
+      - name: Test signed Stripe fixtures, live-mode rejection and payload safety
+        run: node --test staging/stripeWebhookCore.test.mjs
+      - name: Ensure production app entrypoint is not imported by staging
+        shell: bash
+        run: |
+          if grep -Eq 'server/index|server/routes|startAutomationJobs|stripeClient|email|process\.env\.STRIPE_SECRET_KEY' staging/stripe-sandbox-server.mjs; then
+            echo "Refusing production application dependencies"
+            exit 1
+          fi
+      - name: Verify standalone runtime dependencies
+        run: |
+          npm ci --omit=dev --no-audit --no-fund
+          node -e "import('pg').then(() => console.log('Postgres runtime dependency available'))"
