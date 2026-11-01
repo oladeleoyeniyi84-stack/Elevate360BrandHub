@@ -503,3 +503,39 @@ host checkout and verify the exact new image, revised network controls, cloud fi
 and reboot persistence. Preserve the schedule state across releases. Founder release
 authorization remains recorded and does not need renewal. No production merge,
 deployment, timer enablement, repair or user terminal action occurred this run.
+
+
+## Development checkpoint — 2026-10-31 (America/New_York)
+
+Confirmed full WebOps validation run 73 succeeded on
+d8b416e1275d9e5e35e261b1db5cecf7a157d8f8.
+
+Implemented emergency-stop.mjs and emergency-stop-cli.mjs, replacing the previous
+manual-only emergency procedure with an explicit operator command. It atomically
+disables the private schedule configuration, disables/stops the timer, stops the
+host service, checks exact full container IDs/names/image before stopping either
+container, and verifies stopped container and unit state. It continues later stop
+attempts after an earlier failure and only reports stopped=true when every step
+succeeds. Wrong identities, timeouts, active units and ambiguous stops fail closed.
+No restart, deletion, lock clearing, firewall/DNS change or evidence pruning occurs.
+
+Validation: all 84 Node runtime tests plus eight Python collector tests passed
+locally (92 total). Eight new stop-controller tests cover ordering, failure
+continuation, identity mismatch, already stopped containers, false successful-stop
+responses, invalid identifiers, active units/ambiguous Docker errors and atomic
+private configuration replacement. Tests use simulated Docker/systemctl responses
+and temporary files. No live stop, deployment or production request was performed.
+
+The command needs a trusted host release, Node 24, installed units and independently
+verified identities. It is not a continuous interlock against another administrator
+restarting services; verification is point-in-time. Configuration and release
+ancestors must be trusted. Unit behavior and stop/recovery still need a live rehearsal.
+Existing failure locks and cadence state are preserved for operator reconciliation.
+
+Remaining: consolidated clean release installation/replacement/rollback, external
+report/audit retention/export and alerts, dirty-host reconciliation, exact-image
+revised network validation, cloud firewall evidence and controlled reboot validation.
+No authenticated Droplet execution channel is available in this run. No private key
+is needed or requested; no user terminal action is requested until the consolidated
+release procedure is ready. Founder release authorization remains recorded. The
+development task stays active because repository implementation remains useful.
