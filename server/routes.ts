@@ -152,13 +152,9 @@ export function requireDashboardAuth(req: any, res: any, next: any) {
 }
 
 // ─── IP resolution ────────────────────────────────────────────────────────────
-// In production the stack is: Client → Cloudflare → Replit proxy → Express.
-// Cloudflare injects CF-Connecting-IP (the real client IP, cannot be spoofed
-// by the browser). We prefer that header; fall back to Express req.ip which is
-// already hardened by trust proxy: 1 set in index.ts.
+// Resolve the configured trusted proxy hop via Express. The public Render
+// origin does not establish that a Cloudflare-specific header is authentic.
 function getClientIp(req: any): string {
-  const cf = req.headers["cf-connecting-ip"];
-  if (cf && typeof cf === "string" && cf.trim()) return cf.trim();
   return req.ip ?? req.socket?.remoteAddress ?? "unknown";
 }
 
