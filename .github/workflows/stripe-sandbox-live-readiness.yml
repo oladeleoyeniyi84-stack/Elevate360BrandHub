@@ -1,0 +1,29 @@
+name: Stripe sandbox staging readiness probe
+on:
+  push:
+    branches:
+      - staging/stripe-sandbox-receiver-20261031
+    paths:
+      - ".github/workflows/stripe-sandbox-live-readiness.yml"
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check staging-only health and readiness (no secrets, no writes)
+        env:
+          STAGING_HOST: https://elevate360-stripe-sandbox-receiver.onrender.com
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in health ready; do
+            echo "Checking /$path on staging receiver"
+            code=$(curl --retry 3 --retry-delay 3 --max-time 25 --silent --show-error --output /tmp/"$path".json --write-out '%{http_code}' "$STAGING_HOST/$path") || { echo "/$path: network check failed"; exit 1; }
+            echo "/$path HTTP $code"
+            cat /tmp/"$path".json
+            echo
+            test "$code" = "200" || { echo "/$path did not return HTTP 200"; exit 1; }
+          done
+          node -e "const fs=require('fs'); const health=JSON.parse(fs.readFileSync('/tmp/health.json')); const ready=JSON.parse(fs.readFileSync('/tmp/ready.json')); if (health.mode !== 'stripe-test-only' || health.status !== 'ok' || ready.mode !== 'stripe-test-only' || ready.ready !== true) throw Error('Staging readiness contract mismatch'); console.log('Sandbox receiver ready: PASS');"
