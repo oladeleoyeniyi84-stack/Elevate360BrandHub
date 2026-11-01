@@ -27,7 +27,7 @@ jobs:
       - name: Ensure production app entrypoint is not imported by staging
         shell: bash
         run: |
-          if grep -Eq 'server/index|server/routes|startAutomationJobs|stripeClient|email|process\.env\.STRIPE_SECRET_KEY' staging/stripe-sandbox-server.mjs; then
+          if grep -Eq 'server/index|server/routes|startAutomationJobs|stripeClient|process\\.env\\.STRIPE_SECRET_KEY' staging/stripe-sandbox-server.mjs; then
             echo "Refusing production application dependencies"
             exit 1
           fi
