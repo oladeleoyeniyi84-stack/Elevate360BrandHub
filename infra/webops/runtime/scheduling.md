@@ -71,6 +71,39 @@ does not prove an in-container execution ended. Verify containers are stopped an
 preserve logs and both lock directories before any restart. Do not clear locks
 automatically or start a replacement worker as a retry.
 
-This is an operator procedure, not an implemented one-command emergency controller.
+The emergency-stop CLI below implements this operator procedure.
 No installation, enable command, production request or container stop is performed
 by these source files. A consolidated release/rollback procedure remains required.
+
+
+## Single-command emergency controller
+
+From a trusted host release directory, invoke:
+
+```sh
+node emergency-stop-cli.mjs /etc/elevate360-webops/schedule.json WORKER_FULL_ID GATEWAY_FULL_ID sha256:VERIFIED_IMAGE_DIGEST
+```
+
+Replace all three identity placeholders with independently recorded full release
+identities. Both containers must use that image and their exact WebOps names.
+This is an emergency operation, not an installation or activation command; do not
+run it as part of routine validation against a running production service.
+
+The controller atomically saves enabled=false while preserving configuration,
+disables/stops the timer, stops the host service, verifies each container's ID,
+name and image, stops running containers, and rechecks stopped state. It then
+checks both units are inactive/failed and the timer is disabled/masked. A failure
+in one step does not prevent attempts at later steps. A mismatched container is
+not stopped; its step is reported unsuccessful. Output contains fixed step names
+and booleans only. Exit 0 requires every step to succeed; any incomplete stop is
+exit 2. Keep the JSON output with incident evidence.
+
+This deliberately leaves all reports, audit records, cadence files and failure
+locks in place. It never removes containers, changes firewall/DNS settings,
+restarts work or clears locks. Reconcile locks only after independently confirming
+execution has ended. Configuration and release directories must have trusted
+administrator-owned ancestors. The operation does not serialize with another
+administrator deliberately starting/replacing services; final checks are point-in-time.
+
+Testing uses simulated Docker/systemctl responses and temporary files. Live host
+execution, installed unit behavior and stop/recovery rehearsal remain pending.
