@@ -4,7 +4,6 @@ import { Helmet } from "react-helmet-async";
 import SEO from "@/components/SEO";
 import { trackFunnelEvent } from "@/lib/funnelAnalytics";
 import { ArrowRight, Check, Loader2, Rocket, Target, Sparkles, Zap, BrainCircuit } from "lucide-react";
-import brandLogo from "@assets/Elevate360_Brand_Logo_1772418122164.png";
 
 const INCLUDES = [
   "A 60-minute deep-dive into your brand, product, and growth goals",
@@ -81,7 +80,7 @@ export default function StrategySession() {
       <header className="border-b border-white/8 sticky top-0 z-50 backdrop-blur-xl" style={{ background: "rgba(7,11,19,0.92)" }}>
         <div className="container mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
           <Link href="/">
-            <img src={brandLogo} alt="Elevate360" className="h-8 w-auto" />
+            <img src="/brand/elevate360-header-logo.png" alt="Elevate360" className="h-16 w-24 object-contain" />
           </Link>
           <div className="flex items-center gap-4">
             <Link href="/" className="text-white/50 hover:text-white text-sm transition" data-testid="link-strategy-home">Home</Link>

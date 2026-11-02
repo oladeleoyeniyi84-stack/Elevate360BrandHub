@@ -1,4 +1,3 @@
-import creatorAvatar from "@/assets/creator/creator-avatar.png";
 import clsx from "clsx";
 
 type CreatorAvatarProps = {
@@ -20,7 +19,7 @@ export function CreatorAvatar({
   return (
     <div
       className={clsx(
-        "relative flex-shrink-0 rounded-full p-[2px]",
+        "relative h-fit self-start flex-shrink-0 rounded-full p-[2px]",
         "bg-gradient-to-br from-[#F4A62A] via-[#D8A12F] to-[#2A2E4A]",
         live && !speaking && "e360-avatar-live",
         speaking && "e360-avatar-speaking",
@@ -29,7 +28,7 @@ export function CreatorAvatar({
     >
       <div className="relative overflow-hidden rounded-full bg-[#0B1020]">
         <img
-          src={creatorAvatar}
+          src="/brand/elevate360-founder-avatar.webp"
           alt="Oladele — Elevate360 Founder Concierge"
           className={clsx(sizeClass, "rounded-full object-cover object-top")}
         />

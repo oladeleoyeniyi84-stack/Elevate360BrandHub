@@ -2,7 +2,6 @@ import { Link } from "wouter";
 import { Helmet } from "react-helmet-async";
 import { Printer, ArrowLeft, Mail, Globe, Palette, Type, Package } from "lucide-react";
 import SEO from "@/components/SEO";
-import brandLogo from "@assets/Elevate360_Brand_Logo_1772418122164.png";
 
 const BRAND_COLORS = [
   { name: "Primary Gold", hex: "#F4A62A", hsl: "43° 90% 56%", use: "CTAs, highlights, brand identity" },
@@ -31,6 +30,12 @@ export default function PressKit() {
       <style>{`
         @media print {
           .no-print { display: none !important; }
+          /* This stylesheet is mounted only on the Press Kit route. */
+          body:has(.press-kit-page) .e360-drawer-hide,
+          body:has(.press-kit-page) .skip-link,
+          body:has(.press-kit-page) #replit-dev-banner {
+            display: none !important;
+          }
           .press-kit-page { background: white !important; }
           body { background: white !important; }
           @page { margin: 1.5cm; }
@@ -96,7 +101,7 @@ export default function PressKit() {
             Founder
           </h2>
           <div className="flex items-start gap-4">
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-xl font-black flex-shrink-0" style={{ background: "#0d1a2e" }}>OO</div>
+            <img src="/brand/elevate360-founder-avatar.webp" alt="Oladele Oyeniyi — Founder of Elevate360Official" width={400} height={400} className="w-16 h-16 rounded-2xl object-cover flex-shrink-0" />
             <div>
               <p className="text-xl font-bold text-gray-900">Oladele Oyeniyi</p>
               <p className="text-[#F4A62A] font-semibold text-sm mb-3">Entrepreneur · Author · App Developer · Visual Artist · Music Producer</p>

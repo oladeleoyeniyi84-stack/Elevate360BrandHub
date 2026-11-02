@@ -5,7 +5,6 @@ import SEO from "@/components/SEO";
 import { ARTICLES, getArticle, getRelatedArticles } from "@/data/articles";
 import { useContentEngagement } from "@/hooks/useContentEngagement";
 import { ArrowLeft, ArrowRight, Clock, Download, Rocket, Sparkles, Tag, Target } from "lucide-react";
-import brandLogo from "@assets/Elevate360_Brand_Logo_1772418122164.png";
 
 function formatDate(d: string) {
   return new Date(d).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
@@ -125,7 +124,7 @@ export default function ArticleDetail() {
       <header className="border-b border-white/8 sticky top-0 z-50 backdrop-blur-xl" style={{ background: "rgba(7,11,19,0.92)" }}>
         <div className="container mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
           <Link href="/">
-            <img src={brandLogo} alt="Elevate360" className="h-8 w-auto" />
+            <img src="/brand/elevate360-header-logo.png" alt="Elevate360" className="h-16 w-24 object-contain" />
           </Link>
           <Link href="/knowledge" className="flex items-center gap-2 text-white/50 hover:text-white text-sm transition" data-testid="link-back-to-knowledge">
             <ArrowLeft className="h-4 w-4" />
@@ -186,9 +185,9 @@ export default function ArticleDetail() {
           {/* Author box */}
           <div className="mt-12 pt-8 border-t border-white/8">
             <div className="flex items-start gap-4">
-              <div className="h-14 w-14 rounded-full flex items-center justify-center flex-shrink-0 text-xl font-bold font-heading"
+              <div className="h-14 w-14 rounded-full overflow-hidden flex-shrink-0"
                 style={{ background: "rgba(244,166,42,0.15)", color: "#F4A62A", border: "1px solid rgba(244,166,42,0.3)" }}>
-                OO
+                <img src="/brand/elevate360-founder-avatar.webp" alt="Oladele Oyeniyi — Author and Founder of Elevate360Official" width={400} height={400} loading="lazy" className="h-full w-full rounded-full object-cover" />
               </div>
               <div>
                 <p className="text-xs uppercase tracking-widest text-white/35 mb-1">Written by</p>

@@ -7,7 +7,6 @@ import { ShareButton } from "@/components/ShareButton";
 import { useContentEngagement } from "@/hooks/useContentEngagement";
 import { trackContentShare } from "@/lib/searchIntelligence";
 import { ArrowLeft, Calendar, Tag } from "lucide-react";
-import brandLogo from "@assets/Elevate360_Brand_Logo_1772418122164.png";
 
 function formatDate(d: string | Date) {
   return new Date(d).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
@@ -75,7 +74,7 @@ export default function BlogPostPage() {
       <header className="border-b border-white/8 sticky top-0 z-50 backdrop-blur-xl" style={{ background: "rgba(7,11,19,0.92)" }}>
         <div className="container mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
           <Link href="/">
-            <img src={brandLogo} alt="Elevate360" className="h-8 w-auto" />
+            <img src="/brand/elevate360-header-logo.png" alt="Elevate360" className="h-16 w-24 object-contain" />
           </Link>
           <Link href="/blog" className="flex items-center gap-2 text-white/50 hover:text-white text-sm transition" data-testid="link-back-to-blog">
             <ArrowLeft className="h-4 w-4" />

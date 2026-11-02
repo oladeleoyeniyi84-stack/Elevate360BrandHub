@@ -51,7 +51,6 @@ import heroBg from "@/assets/images/hero-bg.png";
 import appBondedlove from "@/assets/images/app-bondedlove.png";
 import appHealthwise from "@/assets/images/app-healthwise.png";
 import appVideoCrafter from "@/assets/images/app-videocrafter.png";
-import brandLogo from "@assets/Elevate360_Brand_Logo_1772418122164.png";
 import artStudioImg from "@assets/Elevate360Art_Studio_Presentation_1772460961759.png";
 
 const featuredBook =
@@ -503,15 +502,15 @@ export default function Home() {
         }`}
       >
         <div className="container mx-auto px-4 md:px-6 flex justify-between items-center h-16 md:h-20">
-          <Link href="/" data-testid="link-nav-logo" className="flex items-center">
+          <Link href="/" data-testid="link-nav-logo" className="flex items-center shrink-0">
             <img
-              src={brandLogo}
+              src="/brand/elevate360-header-logo.png"
               alt="Elevate360"
-              className="h-12 md:h-14 w-auto object-contain"
+              className="h-20 w-[120px] md:h-24 md:w-36 object-contain"
             />
           </Link>
 
-          <div className="hidden md:flex items-center space-x-6">
+          <div className="hidden xl:flex items-center gap-3 whitespace-nowrap">
             <a href="#apps" data-testid="link-nav-apps" className="text-sm font-medium hover:text-primary transition-colors">
               {t("nav_apps")}
             </a>
@@ -576,7 +575,7 @@ export default function Home() {
               )}
             </div>
             <ContactDialog>
-              <Button data-testid="button-get-in-touch" className="rounded-full px-6">
+              <Button data-testid="button-get-in-touch" className="rounded-full px-4">
                 {t("nav_contact")}
               </Button>
             </ContactDialog>
@@ -585,7 +584,7 @@ export default function Home() {
           {/* Hamburger — mobile only */}
           <button
             ref={mobileMenuButtonRef}
-            className="md:hidden flex items-center justify-center w-10 h-10 rounded-full border border-white/15 hover:bg-white/8 transition-colors"
+            className="xl:hidden flex items-center justify-center w-10 h-10 rounded-full border border-white/15 hover:bg-white/8 transition-colors"
             onClick={() => setMobileMenuOpen((o) => !o)}
             aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
             aria-expanded={mobileMenuOpen}
@@ -606,7 +605,7 @@ export default function Home() {
             aria-hidden="true"
             data-testid="mobile-drawer-backdrop"
             onClick={() => setMobileMenuOpen(false)}
-            className="md:hidden fixed inset-0 z-[-1] bg-black/50 backdrop-blur-sm"
+            className="xl:hidden fixed inset-0 z-[-1] bg-black/50 backdrop-blur-sm"
           />
         )}
 
@@ -619,8 +618,8 @@ export default function Home() {
           aria-label="Mobile navigation"
           aria-hidden={!mobileMenuOpen}
           inert={!mobileMenuOpen}
-          className={`md:hidden overflow-hidden transition-all duration-300 ease-in-out ${
-            mobileMenuOpen ? "max-h-[calc(100dvh-5rem)] border-t border-white/10 overflow-y-auto" : "max-h-0"
+          className={`xl:hidden overflow-hidden transition-all duration-300 ease-in-out ${
+            mobileMenuOpen ? "max-h-[calc(100dvh-7rem)] border-t border-white/10 overflow-y-auto" : "max-h-0"
           }`}
         >
           <div className="container mx-auto px-4 py-4 flex flex-col gap-1 bg-background/95 backdrop-blur-2xl">
@@ -762,11 +761,17 @@ export default function Home() {
       {/* Founder Authority Section */}
       <section className="py-20 border-t border-white/10" style={{ background: "hsl(220 50% 7%)" }} data-testid="section-founder-authority">
         <div className="container mx-auto px-4 md:px-6 max-w-5xl">
-          <div className="grid md:grid-cols-[auto,1fr] gap-8 md:gap-12 items-center">
+          <div className="grid md:grid-cols-[auto_1fr] gap-8 md:gap-12 items-center">
             <div className="flex justify-center md:justify-start">
-              <div className="h-28 w-28 rounded-full flex items-center justify-center text-4xl font-bold font-heading"
-                style={{ background: "rgba(244,166,42,0.15)", color: "#F4A62A", border: "1px solid rgba(244,166,42,0.3)" }}>
-                OO
+              <div className="w-44 md:w-52 overflow-hidden rounded-2xl border border-primary/30 bg-[#0d1a2e] shadow-xl">
+                <img
+                  src="/brand/elevate360-founder-portrait.webp"
+                  alt="Oladele Oyeniyi — Founder of Elevate360Official"
+                  width={800}
+                  height={1200}
+                  loading="lazy"
+                  className="w-full h-auto object-contain"
+                />
               </div>
             </div>
             <div className="text-center md:text-left">
@@ -1624,11 +1629,13 @@ export default function Home() {
             <div className="flex flex-col items-center md:items-start gap-7 reveal-left">
               {/* Avatar */}
               <div className="relative">
-                <div className="w-44 h-56 md:w-52 md:h-64 rounded-[2.5rem] overflow-hidden border-2 border-primary/40 shadow-[0_0_60px_rgba(244,166,42,0.2)] ring-4 ring-primary/10">
+                <div className="w-44 md:w-52 rounded-[2.5rem] overflow-hidden border-2 border-primary/40 shadow-[0_0_60px_rgba(244,166,42,0.2)] ring-4 ring-primary/10">
                   <img
-                    src="/creator-photo.png"
+                    src="/brand/elevate360-founder-portrait.webp"
                     alt="Oladele Oyeniyi — Elevate360Official"
-                    className="w-full h-full object-cover object-top"
+                    width={800}
+                    height={1200}
+                    className="w-full h-auto object-contain"
                     loading="lazy"
                   />
                 </div>
@@ -2152,9 +2159,9 @@ export default function Home() {
             {/* Brand column */}
             <div className="col-span-2 md:col-span-1 flex flex-col gap-5">
               <img
-                src={brandLogo}
+                src="/brand/elevate360-header-logo.png"
                 alt="Elevate360Official"
-                className="h-14 w-auto object-contain object-left"
+                className="h-28 w-[168px] max-w-full object-contain object-left"
               />
               <p className="text-sm text-muted-foreground leading-relaxed max-w-[220px]">
                 Empowering lives through technology, creativity, and words. By Oladele Oyeniyi.
