@@ -920,7 +920,7 @@ export default function Home() {
             <a
               href="/apps/bondedlove"
               onClick={() => trackClick("app", "Bondedlove")}
-              aria-label="Open Bondedlove web app"
+              aria-label="View Bondedlove app details"
               className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-[2px] h-full flex flex-col cursor-pointer reveal reveal-delay-1"
             >
               <div className="aspect-[4/3] w-full overflow-hidden lux-panel flex items-center justify-center p-8">
@@ -942,7 +942,7 @@ export default function Home() {
                 </p>
                 <div className="flex items-center gap-2 mt-auto flex-wrap">
                   <span className="btn-tertiary flex-1 justify-center">
-                    Open app <ArrowRight className="h-4 w-4" />
+                    View details <ArrowRight className="h-4 w-4" />
                   </span>
                   <ScreenshotsButton images={APP_SCREENSHOTS["Bondedlove"]} appName="Bondedlove" />
                   <ShareButton
@@ -958,7 +958,7 @@ export default function Home() {
             <a
               href="/apps/healthwise"
               onClick={() => trackClick("app", "Healthwisesupport")}
-              aria-label="Open Healthwisesupport web app"
+              aria-label="View Healthwisesupport app details"
               className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-[2px] h-full flex flex-col cursor-pointer reveal reveal-delay-2"
             >
               <div className="aspect-[4/3] w-full overflow-hidden lux-panel flex items-center justify-center p-8">
@@ -980,7 +980,7 @@ export default function Home() {
                 </p>
                 <div className="flex items-center gap-2 mt-auto flex-wrap">
                   <span className="btn-tertiary flex-1 justify-center">
-                    Open app <ArrowRight className="h-4 w-4" />
+                    View details <ArrowRight className="h-4 w-4" />
                   </span>
                   <ScreenshotsButton images={APP_SCREENSHOTS["Healthwisesupport"]} appName="Healthwisesupport" />
                   <ShareButton
@@ -996,7 +996,7 @@ export default function Home() {
             <a
               href="/apps/video-crafter"
               onClick={() => trackClick("app", "Video Crafter")}
-              aria-label="Open Video Crafter web app"
+              aria-label="View Video Crafter app details"
               className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-[2px] h-full flex flex-col cursor-pointer reveal reveal-delay-3"
             >
               <div className="aspect-[4/3] w-full overflow-hidden lux-panel flex items-center justify-center p-8">
@@ -1018,7 +1018,7 @@ export default function Home() {
                 </p>
                 <div className="flex items-center gap-2 mt-auto flex-wrap">
                   <span className="btn-tertiary flex-1 justify-center">
-                    Open app <ArrowRight className="h-4 w-4" />
+                    View details <ArrowRight className="h-4 w-4" />
                   </span>
                   <ScreenshotsButton images={APP_SCREENSHOTS["Video Crafter"]} appName="Video Crafter" />
                   <ShareButton
