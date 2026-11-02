@@ -16,6 +16,7 @@ on:
       - "server/webopsDiagnostics.test.ts"
       - "server/publicCrawl.test.ts"
       - "client/src/App.tsx"
+      - "client/src/pages/Home.tsx"
       - "shared/conciergeContext.ts"
       - "docs/autonomous-webops-phase1-baseline.md"
       - "docs/autonomous-webops-phase1-completion-report.md"
