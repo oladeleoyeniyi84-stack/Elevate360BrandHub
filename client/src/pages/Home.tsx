@@ -504,7 +504,7 @@ export default function Home() {
         <div className="container mx-auto px-4 md:px-6 flex justify-between items-center h-16 md:h-20">
           <Link href="/" data-testid="link-nav-logo" className="flex items-center shrink-0">
             <img
-              src="/brand/elevate360-header-logo.png"
+              src="/brand/elevate360-header-logo-transparent.png"
               alt="Elevate360"
               className="h-20 w-[120px] md:h-24 md:w-36 object-contain"
             />
@@ -2159,7 +2159,7 @@ export default function Home() {
             {/* Brand column */}
             <div className="col-span-2 md:col-span-1 flex flex-col gap-5">
               <img
-                src="/brand/elevate360-header-logo.png"
+                src="/brand/elevate360-header-logo-transparent.png"
                 alt="Elevate360Official"
                 className="h-28 w-[168px] max-w-full object-contain object-left"
               />

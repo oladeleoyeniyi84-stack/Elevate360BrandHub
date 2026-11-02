@@ -46,7 +46,7 @@ export default function Guide() {
       <header className="border-b border-white/8 sticky top-0 z-50 backdrop-blur-xl" style={{ background: "rgba(7,11,19,0.92)" }}>
         <div className="container mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
           <Link href="/">
-            <img src="/brand/elevate360-header-logo.png" alt="Elevate360Official" className="h-16 w-24 object-contain" />
+            <img src="/brand/elevate360-header-logo-transparent.png" alt="Elevate360Official" className="h-16 w-24 object-contain" />
           </Link>
           <div className="flex items-center gap-4">
             <Link href="/" className="text-white/50 hover:text-white text-sm transition" data-testid="link-guide-home">Home</Link>

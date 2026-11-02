@@ -25,7 +25,7 @@ export default function NotFound() {
       {/* Nav */}
       <header className="relative z-10 flex items-center justify-between px-6 py-5 border-b border-white/6">
         <Link href="/">
-          <img src="/brand/elevate360-header-logo.png" alt="Elevate360" className="h-20 w-[120px] object-contain cursor-pointer" />
+          <img src="/brand/elevate360-header-logo-transparent.png" alt="Elevate360" className="h-20 w-[120px] object-contain cursor-pointer" />
         </Link>
         <Link href="/">
           <span className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
