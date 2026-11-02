@@ -539,3 +539,40 @@ No authenticated Droplet execution channel is available in this run. No private 
 is needed or requested; no user terminal action is requested until the consolidated
 release procedure is ready. Founder release authorization remains recorded. The
 development task stays active because repository implementation remains useful.
+
+
+## Development checkpoint — 2026-11-01 (America/New_York)
+
+Confirmed full WebOps validation run 88 succeeded on
+4de89bebf8ccce667917c70ca08eaca60c91cadf.
+
+Added report-export.mjs, report-export-cli.mjs and report-retention.md. The exporter
+locks the existing report store against cooperating writers, validates up to 720
+canonical reports, preserves their exact bytes, and publishes a private bounded
+bundle without overwriting previous exports. It verifies saved bytes before
+publication and returns a whole-bundle SHA-256 receipt. The separate verifier
+checks that digest, per-report hashes, canonical content and filename/run identity.
+No original evidence is deleted or modified. Empty/invalid stores fail closed.
+
+Validation: all 90 Node tests plus eight Python collector tests passed locally
+(98 total). Six new tests cover exact-byte export and separate-process verification,
+digest/content tampering, existing-lock preservation, unsafe or malformed files,
+directory overlap/permissions/empty stores, repeated non-overwriting exports and
+sanitized CLI errors. No Docker, production network, external upload or host
+mutation was performed. CI will run the full repository and container gates.
+
+This implements diagnostic report export, not complete external retention.
+Bundles and receipts must be copied through the authenticated operator channel
+and verified against a separately preserved digest. Hash consistency does not
+authenticate evidence or make it immutable. Export does not release local capacity.
+Suspend schedule work and confirm no active run before using export; a competing
+writer encountering the export lock may retain its own failure locks. Stable trusted
+directory ancestors are required. Crashes may leave locks/pending files for review.
+
+Remaining release work: audit-log snapshots, external retention destination/policy,
+acknowledgement and safe evidence retirement, capacity/health alerts, consolidated
+installation/replacement/rollback, dirty-host reconciliation and exact-image live,
+cloud firewall and controlled reboot validation. No authenticated Droplet execution
+channel is available here. Founder release authorization remains recorded; no new
+approval or private key is requested. No production activation occurred. No user
+terminal action is needed until the consolidated host release procedure is ready.
