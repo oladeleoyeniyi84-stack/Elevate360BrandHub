@@ -55,7 +55,7 @@ done
 pass "worker private/reserved/metadata direct access blocked"
 
 # V3. Approved traffic must succeed through the gateway's explicit request path.
-if docker exec "$WEBOPS_GATEWAY_CONTAINER" /app/webops-gateway-check "$WEBOPS_APPROVED_URL" >"$OUT/gateway-approved.log" 2>&1; then
+if docker exec "$WEBOPS_WORKER_CONTAINER" /app/webops-gateway-check "$WEBOPS_APPROVED_URL" >"$OUT/gateway-approved.log" 2>&1; then
   pass "approved origin reachable through gateway"
 else
   fail "approved origin failed through gateway"
@@ -80,6 +80,10 @@ docker stop "$WEBOPS_GATEWAY_CONTAINER" >"$OUT/gateway-stop.log"
 cleanup() { docker start "$WEBOPS_GATEWAY_CONTAINER" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 sleep 1
+if docker exec "$WEBOPS_WORKER_CONTAINER" /app/webops-gateway-check "$WEBOPS_APPROVED_URL" >"$OUT/worker-explicit-gateway-outage.log" 2>&1; then
+  fail "worker gateway request succeeded during outage"
+fi
+grep -q 'gateway_unavailable' "$OUT/worker-explicit-gateway-outage.log" || fail "outage did not produce the expected gateway-unavailable result"
 if docker exec "$WEBOPS_WORKER_CONTAINER" sh -lc 'wget -q -T 5 -O /dev/null https://www.elevate360official.com/ 2>/dev/null || curl -ksS --connect-timeout 5 https://www.elevate360official.com/ -o /dev/null' >"$OUT/worker-gateway-outage.log" 2>&1; then
   fail "worker bypassed gateway during outage"
 else
@@ -99,13 +103,16 @@ if [ ! -s "$WEBOPS_GATEWAY_AUDIT_EXPORT" ]; then
   fail "gateway audit evidence did not survive restart"
 fi
 cp "$WEBOPS_GATEWAY_AUDIT_EXPORT" "$OUT/gateway-audit-export-after-restart.log"
+cmp -n "$(wc -c < "$OUT/gateway-audit-export-before-restart.log")" "$OUT/gateway-audit-export-before-restart.log" "$OUT/gateway-audit-export-after-restart.log" || fail "original audit bytes changed during restart"
+docker inspect "$WEBOPS_WORKER_CONTAINER" --format '{{json .Mounts}}' >"$OUT/worker-mounts-check.json"
+grep -Fxq '[]' "$OUT/worker-mounts-check.json" || fail "manual pilot worker unexpectedly has mounts"
 pass "gateway audit evidence persists outside container lifecycle"
 
+pass "evidence capture complete"
+
 # Final evidence manifest. Do not include the manifest itself in its own digest set.
-find "$OUT" -maxdepth 1 -type f ! -name SHA256SUMS -print0 \
-  | sort -z \
-  | xargs -0 sha256sum >"$OUT/SHA256SUMS"
+(cd "$OUT" && find . -maxdepth 1 -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
 [ -s "$OUT/SHA256SUMS" ] || fail "SHA-256 manifest was not created"
-pass "evidence hashes captured"
+(cd "$OUT" && sha256sum -c SHA256SUMS >/dev/null) || fail "evidence checksum verification failed"
 
 printf '%s\n' "$OUT"
