@@ -76,7 +76,7 @@ export default function Links() {
         {/* Brand header */}
         <div className="flex flex-col items-center gap-3 text-center">
           <img
-            src="/brand/elevate360-header-logo.png"
+            src="/brand/elevate360-header-logo-transparent.png"
             alt="Elevate360Official"
             className="h-32 w-48 object-contain"
           />
