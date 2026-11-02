@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { ExternalLink, Instagram, Youtube, Palette, Music, Heart, Smartphone } from "lucide-react";
 import SEO from "@/components/SEO";
-import brandLogo from "@assets/Elevate360_Brand_Logo_1772418122164.png";
 import { NewsletterForm } from "@/components/NewsletterForm";
 import { ContactDialog } from "@/components/ContactDialog";
 
@@ -77,9 +76,9 @@ export default function Links() {
         {/* Brand header */}
         <div className="flex flex-col items-center gap-3 text-center">
           <img
-            src={brandLogo}
+            src="/brand/elevate360-header-logo.png"
             alt="Elevate360Official"
-            className="h-20 w-auto object-contain"
+            className="h-32 w-48 object-contain"
           />
           <div>
             <h1 className="text-lg font-bold font-heading text-foreground">Oladele Oyeniyi</h1>

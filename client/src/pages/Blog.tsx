@@ -3,7 +3,6 @@ import { Link } from "wouter";
 import type { BlogPost } from "@shared/schema";
 import SEO from "@/components/SEO";
 import { ArrowRight, BookOpen, Calendar, Tag } from "lucide-react";
-import brandLogo from "@assets/Elevate360_Brand_Logo_1772418122164.png";
 
 const CATEGORY_COLORS: Record<string, { bg: string; color: string }> = {
   general:       { bg: "rgba(244,166,42,0.12)", color: "#F4A62A" },
@@ -39,7 +38,7 @@ export default function Blog() {
       <header className="border-b border-white/8 sticky top-0 z-50 backdrop-blur-xl" style={{ background: "rgba(7,11,19,0.92)" }}>
         <div className="container mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
           <Link href="/">
-            <img src={brandLogo} alt="Elevate360" className="h-8 w-auto" />
+            <img src="/brand/elevate360-header-logo.png" alt="Elevate360" className="h-16 w-24 object-contain" />
           </Link>
           <div className="flex items-center gap-4">
             <Link href="/" className="text-white/50 hover:text-white text-sm transition">Home</Link>

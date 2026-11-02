@@ -11,7 +11,6 @@ import {
   Target,
   Rocket,
 } from "lucide-react";
-import brandLogo from "@assets/Elevate360_Brand_Logo_1772418122164.png";
 
 const PILLARS = [
   { icon: Smartphone, title: "App Developer", body: "Builder of Bondedlove, Healthwisesupport, and Video Crafter — apps designed to connect, heal, and create." },
@@ -52,7 +51,7 @@ export default function AboutFounder() {
       <header className="border-b border-white/8 sticky top-0 z-50 backdrop-blur-xl" style={{ background: "rgba(7,11,19,0.92)" }}>
         <div className="container mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
           <Link href="/">
-            <img src={brandLogo} alt="Elevate360" className="h-8 w-auto" />
+            <img src="/brand/elevate360-header-logo.png" alt="Elevate360" className="h-16 w-24 object-contain" />
           </Link>
           <div className="flex items-center gap-4">
             <Link href="/" className="text-white/50 hover:text-white text-sm transition" data-testid="link-founder-home">Home</Link>
@@ -66,9 +65,9 @@ export default function AboutFounder() {
       <section className="py-16 md:py-24">
         <div className="container mx-auto px-4 md:px-6 max-w-4xl">
           <div className="flex flex-col items-center text-center">
-            <div className="h-24 w-24 rounded-full flex items-center justify-center text-3xl font-bold font-heading mb-6"
+            <div className="h-24 w-24 rounded-full overflow-hidden mb-6"
               style={{ background: "rgba(244,166,42,0.15)", color: "#F4A62A", border: "1px solid rgba(244,166,42,0.3)" }}>
-              OO
+              <img src="/brand/elevate360-founder-avatar.webp" alt="Oladele Oyeniyi — Founder of Elevate360Official" width={400} height={400} className="h-full w-full rounded-full object-cover" />
             </div>
             <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold tracking-widest uppercase mb-4"
               style={{ background: "rgba(244,166,42,0.12)", color: "#F4A62A", border: "1px solid rgba(244,166,42,0.25)" }}>
