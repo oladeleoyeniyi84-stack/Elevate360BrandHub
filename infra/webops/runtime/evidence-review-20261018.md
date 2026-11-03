@@ -576,3 +576,34 @@ cloud firewall and controlled reboot validation. No authenticated Droplet execut
 channel is available here. Founder release authorization remains recorded; no new
 approval or private key is requested. No production activation occurred. No user
 terminal action is needed until the consolidated host release procedure is ready.
+
+
+## Development checkpoint — 2026-11-02 (America/New_York)
+
+Confirmed full WebOps validation run 91 succeeded on
+6b5049c978c1cb97e0c6d4ff014a86d0d110d888.
+
+Closed a pre-execution storage gap: host-runner previously detected a full or
+unsafe report store only after making the diagnostic request. It now checks private
+directory ownership/permissions, existing locks, entry safety and available report
+slots before any Docker call. Shared entry validation keeps preflight and actual
+storage rules aligned. Failures retain the runner lock without probing the origin.
+Successful results expose capacityLow when at most 24 slots remain after storage.
+
+Validation: 93 Node tests and eight Python collector tests passed locally (101
+total). Added coverage for full/locked/foreign stores making zero Docker calls,
+low-capacity signaling without deleting files, and permissions becoming unsafe
+during execution. The latter still blocks ingestion and preserves failure locks.
+Existing concurrency, export, schedule, emergency-stop and gateway tests passed.
+Tests use temporary files and simulated Docker; no host or production change.
+
+Preflight is advisory, not a disk-space reservation or validation of prior report
+contents. Actual storage revalidates and can still fail after execution if another
+writer, media fault or administrator changes state. Capacity signaling is not yet
+external alert delivery. No evidence deletion or automatic retry was added.
+
+Remaining: consolidated deployment/replacement/rollback, audit snapshots, external
+retention and safe retirement, alert delivery, dirty-host reconciliation and exact
+candidate live/firewall/reboot evidence. Founder release authorization remains
+recorded. No authenticated Droplet session is available here; no private key or
+user terminal command is requested. CI for this checkpoint is pending.
