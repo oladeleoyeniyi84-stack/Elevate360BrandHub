@@ -9,6 +9,39 @@ const REPORT_NAME = new RegExp(`^report-${UUID}\\.json$`);
 const MAX_REPORT_BYTES = 65536;
 const LOCK = '.report-store.lock';
 
+function inspectEntries(root, maxReports) {
+  const names = readdirSync(root).filter(name => name !== LOCK);
+  if (names.length >= maxReports) throw new Error('report_store_full');
+  for (const name of names) {
+    const info = lstatSync(join(root, name));
+    if (!REPORT_NAME.test(name) || !info.isFile() || info.nlink !== 1 ||
+        info.uid !== process.getuid() || (info.mode & 0o777) !== 0o600 ||
+        info.size > MAX_REPORT_BYTES) throw new Error('unexpected_report_store_entry');
+  }
+  return names;
+}
+
+// Advisory preflight, not a reservation. The actual writer repeats these checks.
+export function checkReportCapacity(directory) {
+  if (typeof directory !== 'string' || !isAbsolute(directory)) throw new Error('unsafe_report_directory');
+  const root = resolve(directory);
+  if (realpathSync(root) !== root) throw new Error('unsafe_report_directory');
+  const fd = openSync(root, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+  let locked = false;
+  try {
+    const info = fstatSync(fd);
+    if (info.uid !== process.getuid() || (info.mode & 0o777) !== 0o700)
+      throw new Error('unsafe_report_directory');
+    try { mkdirSync(join(root, LOCK), {mode: 0o700}); locked = true; }
+    catch (error) { if (error.code === 'EEXIST') throw new Error('report_store_locked'); throw error; }
+    const remaining = 720 - inspectEntries(root, 720).length;
+    return Object.freeze({reportsRemaining: remaining, capacityLow: remaining <= 24});
+  } finally {
+    try { if (locked) {rmdirSync(join(root, LOCK)); fsyncSync(fd);} }
+    finally {closeSync(fd);}
+  }
+}
+
 // Host-side storage primitive only. Never imported by the isolated worker CLI.
 // Directory and its ancestors must be controlled by the trusted operator.
 export function storeDiagnosticReport(monitor, metadata, { directory, maxReports = 720 } = {}) {
@@ -30,15 +63,7 @@ export function storeDiagnosticReport(monitor, metadata, { directory, maxReports
       if (error.code === 'EEXIST') throw new Error('report_store_locked');
       throw error;
     }
-    const names = readdirSync(root).filter(name => name !== LOCK);
-    // No pruning: a full store requires operator export/review before resuming.
-    if (names.length >= maxReports) throw new Error('report_store_full');
-    for (const name of names) {
-      const info = lstatSync(join(root, name));
-      if (!REPORT_NAME.test(name) || !info.isFile() || info.nlink !== 1 ||
-          info.uid !== process.getuid() || (info.mode & 0o777) !== 0o600 ||
-          info.size > MAX_REPORT_BYTES) throw new Error('unexpected_report_store_entry');
-    }
+    const names = inspectEntries(root, maxReports);
     const name = `report-${report.runId}.json`;
     if (names.includes(name)) throw new Error('duplicate_report_run');
     const pendingPath = join(root, `.pending-${randomUUID()}`);
