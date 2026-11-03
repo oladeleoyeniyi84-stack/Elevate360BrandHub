@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, chmodSync, readdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, chmodSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -42,12 +42,23 @@ test('runs by immutable ID and stores healthy or unhealthy results with both sta
     assert.equal(result.workerExitCode, healthy ? 0 : 1);
     assert.equal(result.ingestionExitCode, result.workerExitCode);
     assert.equal(result.receipt.stored, true);
+    assert.equal(result.capacityLow, false);
     assert.deepEqual(f.calls.map(c => c.args[0]), ['inspect', 'exec', 'inspect']);
     assert.deepEqual(f.calls[1].args, ['exec', f.options.containerId, 'node', '/app/monitor-cli.mjs', '/', '/work']);
     assert.equal(f.calls[1].timeout, 35000);
     assert.deepEqual(readdirSync(f.options.runDirectory), []);
     assert.equal(readdirSync(f.options.reportDirectory).length, 1);
   }
+});
+
+test('successful run surfaces low capacity without deleting retained files', async t => {
+  const f = fixture(t);
+  for (let i = 0; i < 695; i++)
+    writeFileSync(join(f.options.reportDirectory, `report-${randomUUID()}.json`), '{}', {mode: 0o600});
+  const result = await runMonitorOnce(f.options, f.dependencies);
+  assert.equal(result.capacityLow, true);
+  assert.equal(result.receipt.reportsRemaining, 24);
+  assert.equal(readdirSync(f.options.reportDirectory).length, 696);
 });
 
 test('wrong image or weakened isolation prevents execution and retains failure lock', async t => {
@@ -97,6 +108,33 @@ test('storage failure has no success receipt and retains failure lock', async t 
   const f = fixture(t);
   chmodSync(f.options.reportDirectory, 0o755);
   await assert.rejects(runMonitorOnce(f.options, f.dependencies), /unsafe_report_directory/);
+  assert.equal(f.calls.length, 0);
+  assert.deepEqual(readdirSync(f.options.runDirectory), ['run.lock']);
+});
+
+test('full, locked and foreign report stores block before all Docker work', async t => {
+  for (const kind of ['full', 'locked', 'foreign']) {
+    const f = fixture(t);
+    if (kind === 'full') for (let i = 0; i < 720; i++)
+      writeFileSync(join(f.options.reportDirectory, `report-${randomUUID()}.json`), '{}', {mode: 0o600});
+    if (kind === 'locked') mkdirSync(join(f.options.reportDirectory, '.report-store.lock'));
+    if (kind === 'foreign') writeFileSync(join(f.options.reportDirectory, 'unexpected'), 'preserve');
+    await assert.rejects(runMonitorOnce(f.options, f.dependencies));
+    assert.equal(f.calls.length, 0);
+    assert.deepEqual(readdirSync(f.options.runDirectory), ['run.lock']);
+    if (kind === 'locked') assert.ok(readdirSync(f.options.reportDirectory).includes('.report-store.lock'));
+  }
+});
+
+test('storage becoming unsafe during execution still blocks ingestion and retains lock', async t => {
+  const f = fixture(t), original = f.dependencies.docker;
+  f.dependencies.docker = async (...args) => {
+    if (args[0][0] === 'exec') chmodSync(f.options.reportDirectory, 0o755);
+    return original(...args);
+  };
+  await assert.rejects(runMonitorOnce(f.options, f.dependencies), /unsafe_report_directory/);
+  assert.equal(f.calls.length, 3);
+  assert.deepEqual(readdirSync(f.options.reportDirectory), []);
   assert.deepEqual(readdirSync(f.options.runDirectory), ['run.lock']);
 });
 
