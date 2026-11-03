@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { constants, openSync, closeSync, fstatSync, realpathSync, mkdirSync, rmdirSync, fsyncSync } from 'node:fs';
 import { resolve, isAbsolute, join } from 'node:path';
 import { decodeWorkerReport, ingestWorkerReport } from './report-ingest.mjs';
+import { checkReportCapacity } from './report-store.mjs';
 
 const HEX = /^[0-9a-f]{64}$/;
 const IMAGE = /^sha256:[0-9a-f]{64}$/;
@@ -75,6 +76,7 @@ export async function runMonitorOnce(options, {docker = localDocker, now = Date.
     try { mkdirSync(lockPath, {mode: 0o700}); locked = true; }
     catch (error) { if (error.code === 'EEXIST') throw new Error('runner_locked'); throw error; }
     fsyncSync(fd);
+    checkReportCapacity(expected.reportDirectory);
     const inspect = async () => {
       const result = await docker(['inspect', '--format', PROJECTION, expected.containerId], 10000);
       if (result.code !== 0 || result.stderr.length || !Buffer.isBuffer(result.stdout) || result.stdout.length > 65536)
@@ -98,7 +100,8 @@ export async function runMonitorOnce(options, {docker = localDocker, now = Date.
     const receipt = ingestWorkerReport(result.stdout, {directory: expected.reportDirectory});
     completed = true;
     return Object.freeze({workerExitCode: result.code, ingestionExitCode: receipt.exitCode,
-      containerId: expected.containerId, imageId: expected.imageId, receipt});
+      containerId: expected.containerId, imageId: expected.imageId,
+      capacityLow: receipt.reportsRemaining <= 24, receipt});
   } finally {
     try {
       // Keep locks after any ambiguous failure; never auto-retry a possibly live exec.
