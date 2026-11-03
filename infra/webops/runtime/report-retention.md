@@ -42,3 +42,19 @@ Do not resume a full store by deleting reports or changing its path. Preserve th
 store until a reviewed archive/retention procedure confirms independently retained
 copies and explicitly defines safe retirement. Existing schedule and run locks
 must be reconciled, not silently reset after an export.
+
+
+## Capacity before execution
+
+The host runner now checks report-directory ownership, permissions, existing lock,
+entry safety and the 720-file ceiling before any Docker operation. A failed
+preflight retains the runner lock for reconciliation and makes no diagnostic request.
+The writer repeats its checks when saving: preflight is not a reservation or proof
+of free disk space, writable media, valid contents of older reports, or continued
+availability. A race or disk failure can still prevent storage after execution.
+
+Successful runner output includes capacityLow=true when 24 or fewer report slots
+remain after storage, together with the exact reportsRemaining receipt value.
+This is a local machine-readable signal, not external alert delivery. At hourly
+cadence it represents at most 24 more report slots, not a guaranteed time interval.
+No capacity warning deletes or rotates evidence.
