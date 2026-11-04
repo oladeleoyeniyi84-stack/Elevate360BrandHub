@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { Home, Smartphone, BookOpen, Music, Palette } from "lucide-react";
 
@@ -15,6 +15,7 @@ const SECTION_IDS = ["apps", "books", "music", "art-studio"] as const;
 export function MobileBottomNav() {
   const [location] = useLocation();
   const [activeId, setActiveId] = useState<string>("top");
+  const navRef = useRef<HTMLElement>(null);
 
   const isHome = location === "/";
 
@@ -28,6 +29,25 @@ export function MobileBottomNav() {
     }
     return () => {
       delete document.body.dataset.bottomNav;
+    };
+  }, [isHome]);
+
+  // Measure the real mobile bar (including iOS home-indicator safe area).
+  // A fixed 72px assumption can leave content and floating controls underneath it.
+  useEffect(() => {
+    if (!isHome || !navRef.current) return;
+    const nav = navRef.current;
+    const syncHeight = () => {
+      document.documentElement.style.setProperty("--bottom-nav-h", `${Math.ceil(nav.getBoundingClientRect().height)}px`);
+    };
+    syncHeight();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(syncHeight);
+    observer?.observe(nav);
+    window.addEventListener("resize", syncHeight);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", syncHeight);
+      document.documentElement.style.removeProperty("--bottom-nav-h");
     };
   }, [isHome]);
 
@@ -77,14 +97,17 @@ export function MobileBottomNav() {
     }
     const el = document.getElementById(tab.id);
     if (el) {
-      const offset = 72; // nav height
-      const top = el.getBoundingClientRect().top + window.scrollY - offset;
+      // Account for the sticky header so the section heading stays visible.
+      const header = document.querySelector('[data-testid="homepage-header"]');
+      const headerHeight = header?.getBoundingClientRect().height ?? 88;
+      const top = Math.max(0, el.getBoundingClientRect().top + window.scrollY - headerHeight - 12);
       window.scrollTo({ top, behavior: "smooth" });
     }
   };
 
   return (
     <nav
+      ref={navRef}
       className="fixed bottom-0 left-0 right-0 z-[100] md:hidden safe-bottom e360-drawer-hide transition-opacity duration-200"
       aria-label="Mobile section navigation"
       data-testid="mobile-bottom-nav"
