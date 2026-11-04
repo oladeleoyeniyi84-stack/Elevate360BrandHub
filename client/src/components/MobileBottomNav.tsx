@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
-import { Home, Smartphone, BookOpen, Music, Palette } from "lucide-react";
+import { Home, Smartphone, BookOpen, Music, Palette, MessageCircle } from "lucide-react";
 
 const TABS = [
   { id: "top",       label: "Home",  Icon: Home,       href: "#top",        scrollTop: true },
@@ -8,6 +8,7 @@ const TABS = [
   { id: "books",     label: "Books", Icon: BookOpen,   href: "#books",      scrollTop: false },
   { id: "music",     label: "Music", Icon: Music,      href: "#music",      scrollTop: false },
   { id: "art-studio",label: "Art",   Icon: Palette,    href: "#art-studio", scrollTop: false },
+  { id: "ai",        label: "AI",    Icon: MessageCircle, href: "#ai-concierge-dialog", scrollTop: false },
 ] as const;
 
 const SECTION_IDS = ["apps", "books", "music", "art-studio"] as const;
@@ -15,6 +16,7 @@ const SECTION_IDS = ["apps", "books", "music", "art-studio"] as const;
 export function MobileBottomNav() {
   const [location] = useLocation();
   const [activeId, setActiveId] = useState<string>("top");
+  const [conciergeOpen, setConciergeOpen] = useState(false);
   const navRef = useRef<HTMLElement>(null);
 
   const isHome = location === "/";
@@ -50,6 +52,15 @@ export function MobileBottomNav() {
       document.documentElement.style.removeProperty("--bottom-nav-h");
     };
   }, [isHome]);
+
+  // Follow the sitewide Concierge dialog state when it opens from any CTA.
+  useEffect(() => {
+    const handleState = (event: Event) => {
+      setConciergeOpen((event as CustomEvent<{ open: boolean }>).detail?.open === true);
+    };
+    window.addEventListener("e360:concierge-state", handleState);
+    return () => window.removeEventListener("e360:concierge-state", handleState);
+  }, []);
 
   // Track active section via IntersectionObserver — only ever on "/"
   useEffect(() => {
@@ -91,6 +102,10 @@ export function MobileBottomNav() {
   if (!isHome) return null;
 
   const handleTap = (tab: typeof TABS[number]) => {
+    if (tab.id === "ai") {
+      window.dispatchEvent(new Event("e360:toggle-concierge"));
+      return;
+    }
     if (tab.scrollTop) {
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
@@ -122,14 +137,16 @@ export function MobileBottomNav() {
         }}
       >
         {TABS.map((tab) => {
-          const isActive = isHome && activeId === tab.id;
+          const isActive = tab.id === "ai" ? conciergeOpen : isHome && activeId === tab.id && !conciergeOpen;
           return (
             <button
               key={tab.id}
               onClick={() => handleTap(tab)}
               data-testid={`bottom-nav-${tab.id}`}
-              aria-label={tab.label}
-              aria-current={isActive ? "page" : undefined}
+              aria-label={tab.id === "ai" ? (conciergeOpen ? "Close AI Concierge" : "Open AI Concierge") : tab.label}
+              aria-current={tab.id !== "ai" && isActive ? "page" : undefined}
+              aria-expanded={tab.id === "ai" ? conciergeOpen : undefined}
+              aria-controls={tab.id === "ai" ? "ai-concierge-dialog" : undefined}
               className="relative flex-1 min-h-14 flex flex-col items-center justify-center gap-1 py-2 transition-all duration-200 active:scale-90"
             >
               <div
