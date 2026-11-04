@@ -607,3 +607,37 @@ retention and safe retirement, alert delivery, dirty-host reconciliation and exa
 candidate live/firewall/reboot evidence. Founder release authorization remains
 recorded. No authenticated Droplet session is available here; no private key or
 user terminal command is requested. CI for this checkpoint is pending.
+
+
+## Development checkpoint — 2026-11-03 (America/New_York)
+
+Confirmed full WebOps validation run 98 succeeded on
+dabe5a89218f3f7ba3642f8ec147775bfd7f921f.
+
+Added package-release.py and source-release.md to prepare a bounded source-only
+release from an exact Git commit without modifying the old host checkout.
+The packager reads Git objects with replacement objects disabled and a minimal
+environment, selects only runtime/validation and required policy/firewall sources,
+rejects unsafe/non-regular or incomplete trees, and publishes a deterministic
+private tar with per-file hashes and a whole-archive receipt. It never overwrites
+an existing archive, fetches, checks out, builds images, installs or activates.
+
+Validation: 93 Node tests and 13 Python tests passed (106 total). Five packaging
+tests use real disposable Git repositories to verify manifest hashes and exact
+committed bytes despite staged/unstaged edits, preservation of Git status and
+untracked files, deterministic output, no overwrite, required-file enforcement,
+symlink/environment-file rejection and unsafe argument/directory rejection.
+The five packaging tests passed again after hardening Git invocation environment.
+No actual branch release archive, Docker build or live deployment is claimed.
+
+This closes source packaging only. Verified transfer/extraction, actual candidate
+build and image identity, consolidated installation/replacement/rollback and
+service rehearsal remain unfinished. Packaging hashes do not prove approval,
+source trust or reproducible base-image/package inputs. Tracked configuration
+still needs review for sensitive content; extension filtering is not a secret scan.
+
+Remaining operational gates also include audit snapshots, external retention and
+safe retirement, alert delivery, dirty-host reconciliation and exact candidate
+network/cloud-firewall/reboot evidence. Founder release authorization remains
+recorded; technical prerequisites are not waived. No authenticated Droplet channel
+is available here. No production change or user terminal action occurred.
