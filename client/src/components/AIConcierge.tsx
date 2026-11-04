@@ -332,7 +332,9 @@ export function AIConcierge() {
             <X className="h-6 w-6" />
           </div>
         ) : (
-          <CreatorAvatar size={compactVaultLauncher ? "sm" : "lg"} live={!compactVaultLauncher} />
+          <span className="inline-flex items-center justify-center">
+            <CreatorAvatar size={compactVaultLauncher ? "sm" : "lg"} live={!compactVaultLauncher} />
+          </span>
         )}
       </button>
 
