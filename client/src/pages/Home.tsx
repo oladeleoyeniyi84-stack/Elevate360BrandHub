@@ -45,7 +45,6 @@ import { NewsletterForm } from "@/components/NewsletterForm";
 import { ShareButton } from "@/components/ShareButton";
 import { FAQSection } from "@/components/FAQSection";
 import { CommissionDialog } from "@/components/CommissionDialog";
-import { ScreenshotsButton, type LightboxImage } from "@/components/Lightbox";
 import { useLanguage, LANGUAGES } from "@/contexts/LanguageContext";
 import heroBg from "@/assets/images/hero-bg.png";
 import appBondedlove from "@/assets/images/app-bondedlove.png";
@@ -227,18 +226,6 @@ export default function Home() {
   useTrackPageView("home");
 
   const { lang, setLang, t } = useLanguage();
-
-  const APP_SCREENSHOTS: Record<string, LightboxImage[]> = {
-    Bondedlove: [
-      { src: appBondedlove, alt: "Bondedlove app main screen", caption: "Bondedlove — Couples connection app" },
-    ],
-    Healthwisesupport: [
-      { src: appHealthwise, alt: "Healthwisesupport app main screen", caption: "Healthwisesupport — Wellness tracking" },
-    ],
-    "Video Crafter": [
-      { src: appVideoCrafter, alt: "Video Crafter app main screen", caption: "Video Crafter — Creative video editing" },
-    ],
-  };
 
   // Phase 37 — Stripe offers
   const { data: offers = [], isLoading: offersLoading } = useQuery<{
@@ -905,129 +892,94 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Apps Section */}
-      <section id="apps" className="py-20 bg-background border-t border-white/10">
+      {/* Engineering Updates / Innovation Vault: information only while apps are suspended */}
+      <section id="apps" aria-labelledby="engineering-updates-heading" className="py-20 bg-background border-t border-white/10" data-testid="engineering-updates">
         <div className="container mx-auto px-4 md:px-6">
-          <div className="text-center max-w-3xl mx-auto mb-16 space-y-4 reveal">
-            <h2 className="text-3xl md:text-5xl font-heading font-bold tracking-tight">Our Digital Ecosystem</h2>
-            <p className="text-lg text-muted-foreground">
-              Purpose-built applications designed to connect, heal, and inspire creativity.
+          <div className="text-center max-w-3xl mx-auto mb-12 space-y-5 reveal">
+            <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+              <Lock className="h-3.5 w-3.5" aria-hidden="true" />
+              Engineering Updates
+            </span>
+            <h2 id="engineering-updates-heading" className="text-3xl md:text-5xl font-heading font-bold tracking-tight">
+              Inside the <span className="text-primary">Elevate360 Innovation Vault</span>
+            </h2>
+            <p className="text-lg font-medium text-foreground">
+              Built with purpose. Refined with care. Released when ready.
+            </p>
+            <p className="text-base text-muted-foreground leading-relaxed">
+              Three digital experiences are undergoing private engineering, testing, and release-readiness reviews.
+              They are not available for public use, and no launch dates have been announced.
             </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
-            {/* Bondedlove */}
-            <a
-              href="/apps/bondedlove"
-              onClick={() => trackClick("app", "Bondedlove")}
-              aria-label="View Bondedlove app details"
-              className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-[2px] h-full flex flex-col cursor-pointer reveal reveal-delay-1"
-            >
-              <div className="aspect-[4/3] w-full overflow-hidden lux-panel flex items-center justify-center p-8">
-                <img
-                  src={appBondedlove}
-                  alt="Bondedlove relationship app interface by Elevate360Official"
-                  loading="lazy"
-                  className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-[1.015]"
-                />
-              </div>
-              <div className="p-8 flex flex-col flex-1">
-                <div className="w-12 h-12 rounded-2xl bg-rose-100 flex items-center justify-center mb-6">
-                  <div className="w-6 h-6 bg-rose-500 rounded-full"></div>
+            {[
+              {
+                slug: "bonded-love",
+                name: "Bonded Love",
+                route: "/apps/bondedlove",
+                image: appBondedlove,
+                alt: "Bonded Love product preview",
+                description: "A relationship-focused platform being developed for meaningful connections, with work underway on account safety and messaging reliability.",
+              },
+              {
+                slug: "healthwise-support",
+                name: "Healthwise Support",
+                route: "/apps/healthwise",
+                image: appHealthwise,
+                alt: "Healthwise Support product preview",
+                description: "A wellness-support experience in development, with attention to secure scheduling, privacy safeguards, and dependable service workflows.",
+              },
+              {
+                slug: "video-crafter",
+                name: "Video Crafter",
+                route: "/apps/video-crafter",
+                image: appVideoCrafter,
+                alt: "Video Crafter product preview",
+                description: "An AI-assisted creative video platform in development, focused on reliable processing, protected media, and creator workflows.",
+              },
+            ].map((app, index) => (
+              <article
+                key={app.slug}
+                data-testid={`innovation-vault-${app.slug}`}
+                className={`relative overflow-hidden rounded-3xl border border-white/10 bg-card shadow-sm flex flex-col reveal reveal-delay-${index + 1}`}
+              >
+                <div className="aspect-[4/3] overflow-hidden lux-panel flex items-center justify-center p-8">
+                  <img src={app.image} alt={app.alt} loading="lazy" className="w-full h-full object-contain" />
                 </div>
-                <h3 className="text-2xl font-bold font-heading mb-3">Bondedlove</h3>
-                <p className="text-muted-foreground mb-6 line-clamp-3">
-                  A revolutionary dating application focused on fostering genuine, lasting connections.
-                  Find your perfect match through meaningful interactions.
-                </p>
-                <div className="flex items-center gap-2 mt-auto flex-wrap">
-                  <span className="btn-tertiary flex-1 justify-center">
-                    View details <ArrowRight className="h-4 w-4" />
-                  </span>
-                  <ScreenshotsButton images={APP_SCREENSHOTS["Bondedlove"]} appName="Bondedlove" />
-                  <ShareButton
-                    url="https://www.elevate360official.com/apps/bondedlove"
-                    title="Bondedlove — Dating App"
-                    text="Check out Bondedlove, a dating app built for real connections by Elevate360!"
-                  />
+                <div className="p-7 flex flex-1 flex-col gap-4">
+                  <p className="inline-flex items-center self-start gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+                    <Lock className="h-3 w-3" aria-hidden="true" />
+                    In the Vault · Private Development
+                  </p>
+                  <h3 className="text-2xl font-bold font-heading">{app.name}</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed flex-1">{app.description}</p>
+                  <p className="text-xs text-muted-foreground" role="status">
+                    Not available for public use
+                  </p>
+                  <a
+                    href={app.route}
+                    aria-label={`View ${app.name} project details`}
+                    onClick={() => trackClick("app", app.name)}
+                    className="btn-tertiary justify-center"
+                  >
+                    View project details <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  </a>
                 </div>
-              </div>
-            </a>
+              </article>
+            ))}
+          </div>
 
-            {/* Healthwisesupport */}
-            <a
-              href="/apps/healthwise"
-              onClick={() => trackClick("app", "Healthwisesupport")}
-              aria-label="View Healthwisesupport app details"
-              className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-[2px] h-full flex flex-col cursor-pointer reveal reveal-delay-2"
-            >
-              <div className="aspect-[4/3] w-full overflow-hidden lux-panel flex items-center justify-center p-8">
-                <img
-                  src={appHealthwise}
-                  alt="Healthwisesupport wellness app interface by Elevate360Official"
-                  loading="lazy"
-                  className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-[1.015]"
-                />
-              </div>
-              <div className="p-8 flex flex-col flex-1">
-                <div className="w-12 h-12 rounded-2xl bg-teal-100 flex items-center justify-center mb-6">
-                  <div className="w-6 h-6 bg-teal-500 rounded-full"></div>
-                </div>
-                <h3 className="text-2xl font-bold font-heading mb-3">Healthwisesupport</h3>
-                <p className="text-muted-foreground mb-6 line-clamp-3">
-                  Your comprehensive health wellness companion. Access medical support, track your wellness
-                  journey, and connect with healthcare professionals.
-                </p>
-                <div className="flex items-center gap-2 mt-auto flex-wrap">
-                  <span className="btn-tertiary flex-1 justify-center">
-                    View details <ArrowRight className="h-4 w-4" />
-                  </span>
-                  <ScreenshotsButton images={APP_SCREENSHOTS["Healthwisesupport"]} appName="Healthwisesupport" />
-                  <ShareButton
-                    url="https://www.elevate360official.com/apps/healthwise"
-                    title="Healthwisesupport — Wellness App"
-                    text="Check out Healthwisesupport, your wellness companion app by Elevate360!"
-                  />
-                </div>
-              </div>
-            </a>
-
-            {/* Video Crafter */}
-            <a
-              href="/apps/video-crafter"
-              onClick={() => trackClick("app", "Video Crafter")}
-              aria-label="View Video Crafter app details"
-              className="group relative rounded-3xl overflow-hidden bg-card border shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-[2px] h-full flex flex-col cursor-pointer reveal reveal-delay-3"
-            >
-              <div className="aspect-[4/3] w-full overflow-hidden lux-panel flex items-center justify-center p-8">
-                <img
-                  src={appVideoCrafter}
-                  alt="Video Crafter creative video production interface by Elevate360Official"
-                  loading="lazy"
-                  className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-[1.015]"
-                />
-              </div>
-              <div className="p-8 flex flex-col flex-1">
-                <div className="w-12 h-12 rounded-2xl bg-indigo-100 flex items-center justify-center mb-6">
-                  <div className="w-6 h-6 bg-indigo-500 rounded-full"></div>
-                </div>
-                <h3 className="text-2xl font-bold font-heading mb-3">Video Crafter</h3>
-                <p className="text-muted-foreground mb-6 line-clamp-3">
-                  Unleash your creativity with our intuitive video editing suite. Professional-grade tools made
-                  accessible for creators of all levels.
-                </p>
-                <div className="flex items-center gap-2 mt-auto flex-wrap">
-                  <span className="btn-tertiary flex-1 justify-center">
-                    View details <ArrowRight className="h-4 w-4" />
-                  </span>
-                  <ScreenshotsButton images={APP_SCREENSHOTS["Video Crafter"]} appName="Video Crafter" />
-                  <ShareButton
-                    url="https://www.elevate360official.com/apps/video-crafter"
-                    title="Video Crafter — Video Editor"
-                    text="Check out Video Crafter, a professional video editing suite by Elevate360!"
-                  />
-                </div>
-              </div>
+          <div className="mt-12 mx-auto max-w-3xl rounded-2xl border border-primary/20 bg-primary/5 px-6 py-7 text-center space-y-4" data-testid="innovation-vault-release-notice">
+            <p className="font-heading text-lg font-semibold">
+              We're not rushing the launch. We're building for reliability.
+            </p>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              All three applications remain closed to public use. Each will be released only after its own
+              engineering and operational readiness checks have passed. No launch date has been announced.
+            </p>
+            <a href="/work" className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline">
+              Explore our work <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </a>
           </div>
         </div>
