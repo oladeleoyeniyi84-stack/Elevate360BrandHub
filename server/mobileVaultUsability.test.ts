@@ -12,7 +12,7 @@ test("mobile nav measures its safe-area-inclusive height and clears anchored sec
   assert.match(nav, /setProperty\("--bottom-nav-h"/);
   assert.match(nav, /removeProperty\("--bottom-nav-h"/);
   assert.match(nav, /\[data-testid="homepage-header"\]/);
-  assert.match(nav, /header\.getBoundingClientRect\(\)\.height/);
+  assert.match(nav, /header\?\.getBoundingClientRect\(\)\.height/);
   assert.match(home, /data-testid="homepage-header"/);
   assert.match(css, /padding-bottom: calc\(var\(--bottom-nav-h\) \+ 24px\)/);
   assert.match(css, /bottom: calc\(var\(--bottom-nav-h\) \+ 16px\)/);
