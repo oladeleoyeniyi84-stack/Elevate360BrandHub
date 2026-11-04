@@ -64,6 +64,7 @@ const QUICK_PROMPTS = [
 
 export function AIConcierge() {
   const [open, setOpen] = useState(false);
+  const [vaultVisibleOnMobile, setVaultVisibleOnMobile] = useState(false);
   const [mode, setMode] = useState<ConciergeModeKey>("default");
   const [speaking, setSpeaking] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -85,6 +86,31 @@ export function AIConcierge() {
   const { isAuthenticated } = useCustomer();
   const { data: premium } = usePremiumStatus(isAuthenticated);
   const [location] = useLocation();
+
+  // Keep the assistant accessible but visually compact over the Innovation Vault.
+  // Never shrink a dialog the visitor has intentionally opened.
+  useEffect(() => {
+    if (location !== "/" || typeof IntersectionObserver === "undefined") {
+      setVaultVisibleOnMobile(false);
+      return;
+    }
+    const vault = document.getElementById("apps");
+    if (!vault) return;
+    const mobile = window.matchMedia("(max-width: 767px)");
+    let inViewport = false;
+    const sync = () => setVaultVisibleOnMobile(mobile.matches && inViewport);
+    const observer = new IntersectionObserver(([entry]) => {
+      inViewport = entry.isIntersecting;
+      sync();
+    }, { rootMargin: "-12% 0px -20% 0px", threshold: 0 });
+    observer.observe(vault);
+    window.addEventListener("resize", sync);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", sync);
+    };
+  }, [location]);
+  const compactVaultLauncher = vaultVisibleOnMobile && !open;
 
   const modeConfig = useMemo(() => conciergeModes[mode], [mode]);
 
@@ -290,6 +316,7 @@ export function AIConcierge() {
       <button
           ref={launcherRef}
         data-testid="button-ai-concierge-launcher"
+        data-compact={compactVaultLauncher ? "true" : "false"}
           onClick={() => {
             if (!open) returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : launcherRef.current;
             setOpen((v) => !v);
@@ -297,7 +324,7 @@ export function AIConcierge() {
           aria-label={open ? "Close Elevate360 AI Concierge" : "Open Elevate360 AI Concierge"}
           aria-expanded={open}
           aria-controls="ai-concierge-dialog"
-          className="fixed bottom-6 right-6 z-50 e360-float e360-drawer-hide min-w-14 min-h-14 transition-all duration-300 hover:scale-105 active:scale-95"
+          className={`fixed bottom-6 z-50 e360-float e360-drawer-hide min-w-14 min-h-14 flex items-center justify-center transition-all duration-300 hover:scale-105 active:scale-95 ${compactVaultLauncher ? "right-3" : "right-6"}`}
         style={{ filter: "drop-shadow(0 8px 24px rgba(244,166,42,0.45))" }}
       >
         {open ? (
@@ -305,7 +332,9 @@ export function AIConcierge() {
             <X className="h-6 w-6" />
           </div>
         ) : (
-          <CreatorAvatar size="lg" live />
+          <span className="inline-flex items-center justify-center">
+            <CreatorAvatar size={compactVaultLauncher ? "sm" : "lg"} live={!compactVaultLauncher} />
+          </span>
         )}
       </button>
 

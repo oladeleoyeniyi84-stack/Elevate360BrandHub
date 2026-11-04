@@ -166,7 +166,8 @@
 
 :root {
   --safe-bottom: env(safe-area-inset-bottom, 0px);
-  --bottom-nav-h: 72px;
+  /* Fallback until MobileBottomNav measures its rendered, safe-area-inclusive height. */
+  --bottom-nav-h: 96px;
 }
 
 .safe-bottom {
@@ -180,15 +181,20 @@
 
 @media (max-width: 767px) {
   body[data-bottom-nav="true"] .pb-mobile-nav {
-    padding-bottom: calc(var(--bottom-nav-h) + 24px + var(--safe-bottom));
+    padding-bottom: calc(var(--bottom-nav-h) + 24px);
   }
   /* Floating controls (concierge launcher, back-to-top) sit above the bottom nav */
   body[data-bottom-nav="true"] .e360-float {
-    bottom: calc(var(--bottom-nav-h) + 20px + var(--safe-bottom));
+    bottom: calc(var(--bottom-nav-h) + 16px);
+  }
+  /* Leave clearance when focused vault controls scroll into view behind fixed chrome. */
+  body[data-bottom-nav="true"] #apps article,
+  body[data-bottom-nav="true"] [data-testid="innovation-vault-release-notice"] {
+    scroll-margin-bottom: calc(var(--bottom-nav-h) + 24px);
   }
   /* Concierge chat panel clears the launcher + bottom nav */
   body[data-bottom-nav="true"] .e360-float-panel {
-    bottom: calc(var(--bottom-nav-h) + 92px + var(--safe-bottom));
+    bottom: calc(var(--bottom-nav-h) + 84px);
   }
 }
 

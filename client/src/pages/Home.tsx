@@ -482,6 +482,7 @@ export default function Home() {
       </Helmet>
       {/* Navigation */}
       <nav
+        data-testid="homepage-header"
         className={`fixed top-0 w-full z-50 transition-all duration-300 border-b ${
           isScrolled
             ? "bg-gradient-to-b from-background/80 to-background/55 backdrop-blur-2xl border-white/10 py-2 shadow-[0_10px_40px_rgba(0,0,0,0.35)]"
@@ -893,7 +894,7 @@ export default function Home() {
       </section>
 
       {/* Engineering Updates / Innovation Vault: information only while apps are suspended */}
-      <section id="apps" aria-labelledby="engineering-updates-heading" className="py-20 bg-background border-t border-white/10" data-testid="engineering-updates">
+      <section id="apps" aria-labelledby="engineering-updates-heading" className="pt-16 pb-28 sm:py-20 bg-background border-t border-white/10 scroll-mt-28" data-testid="engineering-updates">
         <div className="container mx-auto px-4 md:px-6">
           <div className="text-center max-w-3xl mx-auto mb-12 space-y-5 reveal">
             <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-primary">
@@ -944,10 +945,13 @@ export default function Home() {
                 data-testid={`innovation-vault-${app.slug}`}
                 className={`relative overflow-hidden rounded-3xl border border-white/10 bg-card shadow-sm flex flex-col reveal reveal-delay-${index + 1}`}
               >
-                <div className="aspect-[4/3] overflow-hidden lux-panel flex items-center justify-center p-8">
+                <div className="relative h-52 sm:h-auto sm:aspect-[4/3] overflow-hidden lux-panel flex items-center justify-center p-5 sm:p-8">
                   <img src={app.image} alt={app.alt} loading="lazy" className="w-full h-full object-contain" />
+                  <span className="pointer-events-none absolute bottom-3 left-3 rounded-full border border-white/10 bg-background/85 px-3 py-1 text-[11px] font-medium text-muted-foreground backdrop-blur-sm">
+                    Development preview
+                  </span>
                 </div>
-                <div className="p-7 flex flex-1 flex-col gap-4">
+                <div className="p-6 sm:p-7 flex flex-1 flex-col gap-3 sm:gap-4">
                   <p className="inline-flex items-center self-start gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
                     <Lock className="h-3 w-3" aria-hidden="true" />
                     In the Vault · Private Development
