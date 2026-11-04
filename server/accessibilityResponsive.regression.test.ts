@@ -29,7 +29,8 @@ test("Phase 72.8 accessibility and responsive safeguards remain present", () => 
   assert.match(concierge, /aria-live="polite"/);
   assert.match(concierge, /id="concierge-message"/);
   assert.match(concierge, /event\.key === "Escape"/);
-  assert.match(mobileNav, /aria-current=\{isActive \? "page" : undefined\}/);
+  assert.match(mobileNav, /aria-current=\{tab\.id !== "ai" && isActive \? "page" : undefined\}/);
+  assert.match(mobileNav, /aria-expanded=\{tab\.id === "ai" \? conciergeOpen : undefined\}/);
   assert.match(mobileNav, /min-h-14/);
 
   assert.match(css, /safe-area-inset-bottom/);

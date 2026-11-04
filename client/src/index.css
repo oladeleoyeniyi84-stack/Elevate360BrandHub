@@ -192,9 +192,17 @@
   body[data-bottom-nav="true"] [data-testid="innovation-vault-release-notice"] {
     scroll-margin-bottom: calc(var(--bottom-nav-h) + 24px);
   }
-  /* Concierge chat panel clears the launcher + bottom nav */
+  /* Mobile AI access lives in the bottom navigation, not over page content. */
+  body[data-bottom-nav="true"] [data-testid="button-ai-concierge-launcher"] {
+    display: none;
+  }
+  /* Keep the opened chat clear of the measured navigation and screen edges. */
   body[data-bottom-nav="true"] .e360-float-panel {
-    bottom: calc(var(--bottom-nav-h) + 84px);
+    bottom: calc(var(--bottom-nav-h) + 12px);
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-width: none;
   }
 }
 

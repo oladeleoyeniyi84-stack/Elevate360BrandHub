@@ -35,12 +35,20 @@ test("Innovation Vault preview cards are compact on mobile, clearly labeled and 
   assert.doesNotMatch(vault, /Open app|Buy now|Book now|Download app|Join waitlist/);
 });
 
-test("the AI Concierge stays accessible while using a smaller launcher over the Vault", () => {
+test("mobile AI tab replaces floating homepage launcher without losing chat access", () => {
   const ai = readFileSync("client/src/components/AIConcierge.tsx", "utf8");
-  assert.match(ai, /new IntersectionObserver/);
-  assert.match(ai, /vaultVisibleOnMobile && !open/);
-  assert.match(ai, /compactVaultLauncher \? "sm" : "lg"/);
-  assert.match(ai, /data-compact=\{compactVaultLauncher/);
-  assert.match(ai, /aria-label=\{open \? "Close Elevate360 AI Concierge" : "Open Elevate360 AI Concierge"\}/);
+  const nav = readFileSync("client/src/components/MobileBottomNav.tsx", "utf8");
+  const css = readFileSync("client/src/index.css", "utf8");
+
+  assert.match(nav, /id: "ai".*label: "AI"/);
+  assert.match(nav, /window\.dispatchEvent\(new Event\("e360:toggle-concierge"\)\)/);
+  assert.match(nav, /aria-controls=\{tab\.id === "ai" \? "ai-concierge-dialog" : undefined\}/);
+  assert.match(nav, /aria-expanded=\{tab\.id === "ai" \? conciergeOpen : undefined\}/);
+  assert.match(nav, /setActiveId\(visible \?\? "top"\)/);
+  assert.match(ai, /window\.addEventListener\("e360:toggle-concierge"/);
+  assert.match(ai, /window\.dispatchEvent\(new CustomEvent\("e360:concierge-state"/);
   assert.match(ai, /id="ai-concierge-dialog"/);
+  assert.match(ai, /aria-label=\{open \? "Close Elevate360 AI Concierge" : "Open Elevate360 AI Concierge"\}/);
+  assert.match(css, /body\[data-bottom-nav="true"\] \[data-testid="button-ai-concierge-launcher"\] \{[\s\S]*?display: none;/);
+  assert.match(css, /bottom: calc\(var\(--bottom-nav-h\) \+ 12px\)/);
 });
