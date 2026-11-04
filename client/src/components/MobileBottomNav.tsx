@@ -62,39 +62,37 @@ export function MobileBottomNav() {
     return () => window.removeEventListener("e360:concierge-state", handleState);
   }, []);
 
-  // Track active section via IntersectionObserver — only ever on "/"
+  // Highlight only the section actually at the middle of the visible page.
+  // This prevents a stale "Apps" highlight while visitors read Founder content.
   useEffect(() => {
-    // Derive active state strictly from the current pathname:
-    // any non-home route resets to "top" and never highlights a section tab.
     setActiveId("top");
     if (location !== "/") return;
 
-    const observers: IntersectionObserver[] = [];
-
-    SECTION_IDS.forEach((id) => {
-      const el = document.getElementById(id);
-      if (!el) return;
-
-      const observer = new IntersectionObserver(
-        ([entry]) => {
-          if (entry.isIntersecting) setActiveId(id);
-        },
-        { rootMargin: "-40% 0px -55% 0px", threshold: 0 }
-      );
-
-      observer.observe(el);
-      observers.push(observer);
-    });
-
-    // Reset to "top" when near the top
-    const onScroll = () => {
-      if (window.scrollY < 200) setActiveId("top");
+    let frame = 0;
+    const updateActive = () => {
+      const probeY = window.innerHeight * 0.46;
+      const visible = SECTION_IDS.find((id) => {
+        const section = document.getElementById(id);
+        if (!section) return false;
+        const rect = section.getBoundingClientRect();
+        return rect.top <= probeY && rect.bottom > probeY;
+      });
+      setActiveId(visible ?? "top");
     };
+    const onScroll = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        updateActive();
+      });
+    };
+    updateActive();
     window.addEventListener("scroll", onScroll, { passive: true });
-
+    window.addEventListener("resize", onScroll);
     return () => {
-      observers.forEach((o) => o.disconnect());
       window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      if (frame) window.cancelAnimationFrame(frame);
     };
   }, [location]);
 
