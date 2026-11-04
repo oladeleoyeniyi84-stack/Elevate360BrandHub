@@ -189,7 +189,7 @@
   }
   /* Leave clearance when focused vault controls scroll into view behind fixed chrome. */
   body[data-bottom-nav="true"] #apps article,
-  body[data-bottom-nav="true"] #innovation-vault-release-notice {
+  body[data-bottom-nav="true"] [data-testid="innovation-vault-release-notice"] {
     scroll-margin-bottom: calc(var(--bottom-nav-h) + 24px);
   }
   /* Concierge chat panel clears the launcher + bottom nav */
