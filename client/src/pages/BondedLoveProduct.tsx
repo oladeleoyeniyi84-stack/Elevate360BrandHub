@@ -9,7 +9,7 @@ const GOLD = "#F4A62A";
 const FEATURES = [
   { icon: Heart, title: "Meaningful matches", body: "Connect through values and intent, not just a swipe." },
   { icon: MessageCircle, title: "Thoughtful prompts", body: "Conversation starters designed to spark real connection." },
-  { icon: Shield, title: "Safe & private", body: "Privacy-first design that keeps your data yours." },
+  { icon: Shield, title: "Safety improvements", body: "Blocking and reporting safeguards are being strengthened before the app reopens." },
 ];
 
 export default function BondedLoveProduct() {
@@ -37,6 +37,9 @@ export default function BondedLoveProduct() {
               A dating app built for real connections. Find your perfect match through meaningful
               interactions — not endless swiping.
             </p>
+            <p role="status" className="mt-6 rounded-xl border border-amber-300/30 bg-amber-300/10 px-4 py-3 text-sm text-amber-100" data-testid="app-unavailable-status">
+              This app is temporarily unavailable while improvements are underway. Its product information remains available here.
+            </p>
             <div className="flex flex-wrap gap-3 mt-8">
               <Link
                 href="/#apps"
@@ -46,13 +49,7 @@ export default function BondedLoveProduct() {
               >
                 Explore our apps <ArrowRight className="h-4 w-4" />
               </Link>
-              <Link
-                href="/pricing"
-                className="inline-flex items-center gap-2 text-sm font-semibold rounded-xl px-5 py-3 border border-white/20 hover:bg-white/5"
-                data-testid="link-pricing"
-              >
-                View plans
-              </Link>
+
             </div>
           </div>
 

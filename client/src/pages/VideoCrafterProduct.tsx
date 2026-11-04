@@ -37,6 +37,9 @@ export default function VideoCrafterProduct() {
               Unleash your creativity with an intuitive video editing suite. Professional-grade tools
               made accessible for creators of all levels.
             </p>
+            <p role="status" className="mt-6 rounded-xl border border-amber-300/30 bg-amber-300/10 px-4 py-3 text-sm text-amber-100" data-testid="app-unavailable-status">
+              This app is temporarily unavailable while improvements are underway. Its product information remains available here.
+            </p>
             <div className="flex flex-wrap gap-3 mt-8">
               <Link
                 href="/#apps"
@@ -46,13 +49,7 @@ export default function VideoCrafterProduct() {
               >
                 Explore our apps <ArrowRight className="h-4 w-4" />
               </Link>
-              <Link
-                href="/pricing"
-                className="inline-flex items-center gap-2 text-sm font-semibold rounded-xl px-5 py-3 border border-white/20 hover:bg-white/5"
-                data-testid="link-pricing"
-              >
-                View plans
-              </Link>
+
             </div>
           </div>
 
