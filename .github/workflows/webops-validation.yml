@@ -21,6 +21,7 @@ on:
       - "client/src/components/MobileBottomNav.tsx"
       - "client/src/index.css"
       - "server/mobileVaultUsability.test.ts"
+      - "server/accessibilityResponsive.regression.test.ts"
       - "client/src/pages/BondedLoveProduct.tsx"
       - "client/src/pages/HealthWiseProduct.tsx"
       - "client/src/pages/VideoCrafterProduct.tsx"
