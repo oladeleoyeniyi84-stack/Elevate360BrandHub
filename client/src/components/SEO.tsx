@@ -11,7 +11,7 @@ type SEOProps = {
 
 const SITE_NAME = "Elevate360Official";
 const SITE_URL = "https://www.elevate360official.com";
-const DEFAULT_IMAGE = `${SITE_URL}/social-preview/elevate360-logo-share.png`;
+const DEFAULT_IMAGE = `${SITE_URL}/social-preview/elevate360official-approved-1200x630.png`;
 
 export function SEO({
   title,
