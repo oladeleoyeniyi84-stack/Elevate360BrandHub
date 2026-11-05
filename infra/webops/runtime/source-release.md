@@ -34,9 +34,9 @@ Release sequence still required:
    Git objects and independently compare the receipt digest after transfer.
 2. Preserve the dirty host checkout using the existing evidence collector. Prepare
    a new versioned release directory rather than extracting over that checkout.
-3. Validate archive members and manifest before extraction; extraction/install
-   verification is not implemented by this packaging command. Build and record
-   the exact image identity, then prepare replacement and rollback configuration.
+3. Use the staging verifier below to validate archive members and manifest before
+   writing a new release directory. Build and record the exact image identity,
+   then prepare replacement and rollback configuration (still unfinished).
 4. Keep scheduling disabled. Complete reconciled deployment, revised network tests,
    firewall/reboot evidence, retention/alerts and the stop/rollback rehearsal.
 5. Activate only after technical gates pass under the recorded Founder authority.
@@ -47,3 +47,32 @@ selection, deterministic bytes, no overwrite, dirty-checkout preservation and
 rejection of unsafe or incomplete trees. Trusted repository/output ancestors and
 a functioning local Git installation are prerequisites. Hashes prove consistency,
 not approval provenance or resistance to an administrator changing both artifacts.
+
+## Verified source staging
+
+Run a separately reviewed copy of stage-release.py, supplying the archive digest
+from the trusted release receipt and the selected full commit. Do not obtain the
+expected digest from an untrusted archive or run a verifier extracted from it.
+
+```sh
+python3 /absolute/reviewed/stage-release.py /absolute/release.tar EXPECTED_SHA256 FULL_COMMIT /absolute/private-releases
+```
+
+The release root must already exist, belong to the invoking operator and be mode
+0700, with stable trusted ancestors. The verifier checks the complete archive
+before writes: bounded regular members, safe relative paths, unique names, exact
+manifest membership, file sizes/modes/hashes and commit identity. It rejects links
+and special files. It writes files manually into a private temporary directory,
+flushes files/directories and renames to a new commit-named directory. Existing
+releases and locks are never replaced. No archived code is executed; no image is
+built, current pointer switched, service installed, checkout changed or schedule
+activated. The receipt explicitly reports activated=false and imageBuilt=false.
+
+The expected digest is the trust anchor: manifest consistency alone is not source
+approval or authentication. Staging does not enforce the packager's source allowlist
+or certify base images/dependencies. Trusted administrators must not concurrently
+modify the release root; the lock coordinates only cooperating staging attempts.
+A crash may leave a lock, temporary directory or published release without a
+receipt. Inspect these before recovery; do not blindly delete or rerun. Failed
+final directory sync may leave the published release while reporting failure.
+Staging is preparation only; installation, replacement and rollback remain pending.
