@@ -1698,7 +1698,7 @@ export default function Home() {
         const faqs = [
           {
             q: "What is Elevate360Official?",
-            a: "Elevate360Official is a multi-disciplinary digital brand founded by Oladele Oyeniyi. It spans mobile apps, Amazon KDP books, original music on Audiomack, and a visual art studio on Etsy — all built around the mission of empowering lives through technology, creativity, and words.",
+            a: "Elevate360Official is a digital brand founded by Oladele Oyeniyi. Its work includes apps in development, published books, original music, digital art, and technology services — all guided by a mission to empower lives through technology, creativity, and words.",
           },
           {
             q: "Who is behind the brand?",
@@ -1706,11 +1706,11 @@ export default function Home() {
           },
           {
             q: "Are the mobile apps free to use?",
-            a: "Visit each app page for current free and paid options. Some premium features may require payment.",
+            a: "Bondedlove, Healthwisesupport, and Video Crafter are currently being prepared for public release. They are not yet available for general use. Pricing and any free features will be confirmed on each app’s official page when launched.",
           },
           {
             q: "What platforms are the apps available on?",
-            a: "Visit each app page on this website for current access options and confirmed download links.",
+            a: "Public download availability has not yet been confirmed for these three apps. We will publish verified platform availability and official App Store or Google Play links only after each app passes its release checks.",
           },
           {
             q: "Where can I buy Elevate360 books?",
