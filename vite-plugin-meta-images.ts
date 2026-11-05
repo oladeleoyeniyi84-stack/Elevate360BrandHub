@@ -20,7 +20,7 @@ export function metaImagesPlugin(): Plugin {
       const publicDir = path.resolve(process.cwd(), 'client', 'public');
 
       // Prefer the branded social preview image if it exists
-      const socialPreviewPath = path.join(publicDir, 'social-preview', 'elevate360-logo-share.png');
+      const socialPreviewPath = path.join(publicDir, 'brand', 'elevate360-header-logo-transparent.png');
       const opengraphPngPath = path.join(publicDir, 'opengraph.png');
       const opengraphJpgPath = path.join(publicDir, 'opengraph.jpg');
       const opengraphJpegPath = path.join(publicDir, 'opengraph.jpeg');
@@ -28,7 +28,7 @@ export function metaImagesPlugin(): Plugin {
       let imageUrl: string | null = null;
 
       if (fs.existsSync(socialPreviewPath)) {
-        imageUrl = `${baseUrl}/social-preview/elevate360-logo-share.png`;
+        imageUrl = `${baseUrl}/brand/elevate360-header-logo-transparent.png`;
       } else if (fs.existsSync(opengraphPngPath)) {
         imageUrl = `${baseUrl}/opengraph.png`;
       } else if (fs.existsSync(opengraphJpgPath)) {
