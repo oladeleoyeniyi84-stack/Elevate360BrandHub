@@ -9,7 +9,7 @@ import { getPublicProjects } from "@shared/flagshipProjects";
 import { KNOWLEDGE_ARTICLES, PUBLIC_ROUTES } from "@shared/publicRoutes";
 
 const SITE_NAME = "Elevate360Official";
-const DEFAULT_IMAGE = `${CANONICAL_ORIGIN}/social-preview/elevate360-logo-share.png`;
+const DEFAULT_IMAGE = `${CANONICAL_ORIGIN}/brand/elevate360-header-logo-transparent.png`;
 const IMAGE_ALT = "Elevate360Official brand preview"; // matches client SEO.tsx
 
 export function escapeHtml(s: string): string {
