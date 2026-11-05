@@ -641,3 +641,40 @@ safe retirement, alert delivery, dirty-host reconciliation and exact candidate
 network/cloud-firewall/reboot evidence. Founder release authorization remains
 recorded; technical prerequisites are not waived. No authenticated Droplet channel
 is available here. No production change or user terminal action occurred.
+
+
+## Development checkpoint — 2026-11-05 UTC
+
+Confirmed full WebOps validation run 99 succeeded on
+8b94b6cbc6f144c72313d5e45a4d16a7ffe00ae8. Read current WebOps branches and open
+PRs before continuing the source release preparation gap in draft PR #22.
+
+Added stage-release.py and five staging tests. The standalone verifier requires an
+externally supplied archive SHA-256 and exact commit, validates bounded regular
+archive members and exact manifest/file hashes before writing, and publishes into
+a new private commit-named directory. It rejects unsafe paths, links/special files,
+identity mismatches and altered contents. Existing releases and locks are preserved.
+Files and directories are flushed before publication; no archived code executes.
+The old host checkout, current release pointer, services and containers are untouched.
+
+Validation: 93 Node tests and 18 Python tests passed locally (111 total, zero
+failures). Staging tests use disposable Git repositories and cover package-to-stage
+hash/mode preservation, wrong identities with no writes, existing release/lock
+preservation, unsafe archive types/paths and altered members with a matching outer
+digest but mismatched manifest. CI on the new checkpoint is pending.
+
+The separately delivered expected digest remains the trust anchor; self-consistent
+hashes do not authenticate source approval. Trusted stable root ancestors and no
+concurrent administrator changes are required. Crashes can leave staging locks,
+temporary directories or a published release without a receipt; recovery requires
+inspection. Staging does not implement installation, current-pointer switching,
+image build, replacement or rollback. No real candidate archive or host execution
+is claimed. The old 38-checksum pilot still certifies only its old image.
+
+Next: finish consolidated installation/replacement/rollback and service rehearsal,
+audit snapshots, external retention/retirement and alerts. Then reconcile the dirty
+host and obtain exact-candidate live network, cloud firewall and reboot evidence.
+No authenticated Droplet execution channel is available in this session. Existing
+Founder authorization remains recorded; no further authorization or private key is
+requested. No production merge, deployment or schedule activation occurred. No user
+terminal command is needed for this source-development step. Build remains incomplete.
