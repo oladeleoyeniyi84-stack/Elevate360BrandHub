@@ -1548,11 +1548,11 @@ export default function Home() {
               </thead>
               <tbody>
                 {[
-                  { feature: "Free to use", vals: ["✓", "✓", "✓", "See listing", "—", "Free stream"] },
-                  { feature: "Platform", vals: ["Web / App", "Web / App", "Web / App", "Amazon", "Etsy", "Audiomack"] },
+                  { feature: "Public access", vals: ["Not released", "Not released", "Not released", "Amazon", "Etsy", "Audiomack"] },
+                  { feature: "Platform", vals: ["To be confirmed", "To be confirmed", "To be confirmed", "Amazon", "Etsy", "Audiomack"] },
                   { feature: "Category", vals: ["Dating", "Health", "Video edit", "Books", "Digital art", "Music"] },
-                  { feature: "In-app purchase", vals: ["Optional", "Optional", "Optional", "Purchase", "Purchase", "—"] },
-                  { feature: "Language", vals: ["Multi-lang", "Multi-lang", "Multi-lang", "English", "English", "Various"] },
+                  { feature: "Pricing", vals: ["To be confirmed", "To be confirmed", "To be confirmed", "See listing", "See listing", "Free stream"] },
+                  { feature: "Language", vals: ["To be confirmed", "To be confirmed", "To be confirmed", "English", "English", "Various"] },
                 ].map((row, i) => (
                   <tr key={i} className={`border-b border-white/5 ${i % 2 === 0 ? "bg-white/[0.02]" : ""}`}>
                     <td className="py-3 px-4 text-white/50 font-medium">{row.feature}</td>
@@ -1660,9 +1660,9 @@ export default function Home() {
               {/* Milestone timeline */}
               <div className="space-y-0 border-l-2 border-primary/30 pl-5">
                 {[
-                  { year: "2023", event: "Founded Elevate360Official and launched the first mobile app, Bondedlove." },
+                  { year: "2023", event: "Founded Elevate360Official and began developing digital products, including Bondedlove." },
                   { year: "2024", event: "Published first Amazon KDP book. Opened the Elevate360 Art Studio on Etsy." },
-                  { year: "2025", event: "Released two more apps — Healthwisesupport & Video Crafter. Published 2 additional books. Launched Audiomack music channel." },
+                  { year: "2025", event: "Expanded app development to Healthwisesupport and Video Crafter; continued publishing and music projects." },
                   { year: "2026", event: "Scaling the brand globally — growing across apps, books, and music." },
                 ].map(({ year, event }) => (
                   <div key={year} className="relative pb-7 last:pb-0">
