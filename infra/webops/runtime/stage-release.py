@@ -59,7 +59,7 @@ def verify(data, digest, commit):
     # as its trusted delivery channel does. No code or configuration is executed.
     return files
 
-def stage(archive_path, digest, commit, release_root):
+def load_source(archive_path, digest, commit, release_root):
     path, root = Path(archive_path), Path(release_root)
     if not path.is_absolute() or path.resolve() != path or not root.is_absolute() or root.resolve() != root:
         raise ValueError('unsafe_path')
@@ -76,6 +76,59 @@ def stage(archive_path, digest, commit, release_root):
     info = root.stat()
     if not root.is_dir() or info.st_uid != os.getuid() or info.st_mode & 0o777 != 0o700:
         raise ValueError('unsafe_release_root')
+    return files, root
+
+def verify_staged(archive_path, digest, commit, release_root):
+    files, root = load_source(archive_path, digest, commit, release_root)
+    if os.path.lexists(root / '.stage.lock'):
+        raise ValueError('staging_in_progress')
+    final = root / commit
+    directories = {''}
+    for name in files:
+        parent = Path(name).parent
+        while str(parent) != '.':
+            directories.add(str(parent))
+            parent = parent.parent
+    # Trusted, stable ancestors are required. This is a point-in-time check,
+    # not a lock against administrators or a guarantee about a later build.
+    def walk(directory, relative):
+        info = directory.lstat()
+        if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o700:
+            raise ValueError('unsafe_directory')
+        expected = {Path(n).parts[len(Path(relative).parts)] for n in files
+                    if not relative or n.startswith(relative + '/')}
+        with os.scandir(directory) as entries:
+            actual = set()
+            for entry in entries:
+                if entry.name not in expected:
+                    raise ValueError('unexpected_entry')
+                actual.add(entry.name)
+        if actual != expected:
+            raise ValueError('missing_entry')
+        for name in sorted(actual):
+            rel = relative + '/' + name if relative else name
+            target = directory / name
+            if rel in directories:
+                walk(target, rel)
+                continue
+            mode, content = files[rel]
+            fd = os.open(target, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            try:
+                info = os.fstat(fd)
+                if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_nlink != 1 or \
+                        stat.S_IMODE(info.st_mode) != mode or info.st_size != len(content):
+                    raise ValueError('unsafe_file')
+                with os.fdopen(fd, 'rb', closefd=False) as source:
+                    if source.read(len(content) + 1) != content:
+                        raise ValueError('changed_file')
+            finally:
+                os.close(fd)
+    walk(final, '')
+    return {'verified': True, 'commit': commit, 'sha256': digest,
+            'directory': str(final), 'activated': False, 'imageBuilt': False}
+
+def stage(archive_path, digest, commit, release_root):
+    files, root = load_source(archive_path, digest, commit, release_root)
     lock = root / '.stage.lock'
     lock.mkdir(mode=0o700)  # Never remove a lock owned by a previous attempt.
     temporary = None
@@ -86,7 +139,10 @@ def stage(archive_path, digest, commit, release_root):
         temporary = Path(tempfile.mkdtemp(prefix='.staging-', dir=root))
         for name, (mode, content) in sorted(files.items()):
             target = temporary / name
-            target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+            parent = temporary
+            for part in Path(name).parts[:-1]:
+                parent = parent / part
+                parent.mkdir(exist_ok=True, mode=0o700)
             fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, mode)
             with os.fdopen(fd, 'wb') as output:
                 output.write(content)
@@ -119,9 +175,12 @@ if __name__ == '__main__':
     parser.add_argument('sha256')
     parser.add_argument('commit')
     parser.add_argument('release_root')
+    parser.add_argument('--verify-only', action='store_true')
     args = parser.parse_args()
     try:
-        print(json.dumps(stage(args.archive, args.sha256, args.commit, args.release_root)))
+        operation = verify_staged if args.verify_only else stage
+        print(json.dumps(operation(args.archive, args.sha256, args.commit, args.release_root)))
     except Exception:
-        print('{"staged":false,"reason":"release_staging_failed"}')
+        print('{"verified":false,"reason":"release_verification_failed"}' if args.verify_only else
+              '{"staged":false,"reason":"release_staging_failed"}')
         raise SystemExit(2)
