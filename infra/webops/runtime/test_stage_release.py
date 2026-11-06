@@ -2,6 +2,9 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 import tarfile
 import unittest
@@ -33,6 +36,67 @@ class StageTests(unittest.TestCase):
             self.assertEqual(hashlib.sha256(file.read_bytes()).hexdigest(), entry['sha256'])
             self.assertEqual(file.stat().st_mode & 0o777, int(entry['mode'], 8))
         self.assertEqual(list(root.iterdir()), [release])
+        self.assertTrue(stager.verify_staged(archive, digest, self.commit, root)['verified'])
+
+    def test_staged_content_drift_and_missing_files(self):
+        archive, digest, root = self.prepare()
+        stager.stage(archive, digest, self.commit, root)
+        target = root / self.commit / 'infra/webops/runtime/build.mjs'
+        original = target.read_bytes()
+        for replacement in [b'x' * len(original), b'longer content']:
+            target.write_bytes(replacement)
+            with self.assertRaises(ValueError):
+                stager.verify_staged(archive, digest, self.commit, root)
+            self.assertEqual(target.read_bytes(), replacement)
+        target.unlink()
+        with self.assertRaises(ValueError):
+            stager.verify_staged(archive, digest, self.commit, root)
+
+    def test_staged_extra_entries_and_permissions(self):
+        archive, digest, root = self.prepare()
+        stager.stage(archive, digest, self.commit, root)
+        release = root / self.commit
+        extra = release / 'unexpected'
+        extra.mkdir()
+        with self.assertRaises(ValueError):
+            stager.verify_staged(archive, digest, self.commit, root)
+        extra.rmdir()
+        for target, mode in [(release / 'infra', 0o755), (release / 'RELEASE-MANIFEST.json', 0o666)]:
+            original = target.stat().st_mode & 0o777
+            target.chmod(mode)
+            with self.assertRaises(ValueError):
+                stager.verify_staged(archive, digest, self.commit, root)
+            target.chmod(original)
+
+    def test_staged_links_special_files_and_lock(self):
+        archive, digest, root = self.prepare()
+        stager.stage(archive, digest, self.commit, root)
+        target = root / self.commit / 'infra/webops/runtime/build.mjs'
+        saved = self.root / 'saved'
+        target.rename(saved)
+        for create in [lambda: target.symlink_to(saved), lambda: os.link(saved, target), lambda: os.mkfifo(target)]:
+            create()
+            with self.assertRaises((ValueError, OSError)):
+                stager.verify_staged(archive, digest, self.commit, root)
+            target.unlink()
+        saved.rename(target)
+        lock = root / '.stage.lock'
+        lock.mkdir()
+        with self.assertRaises(ValueError):
+            stager.verify_staged(archive, digest, self.commit, root)
+        self.assertTrue(lock.is_dir())
+
+    def test_verify_cli_never_stages_missing_release(self):
+        archive, digest, root = self.prepare()
+        command = [sys.executable, stager.__file__, str(archive), digest, self.commit, str(root), '--verify-only']
+        result = subprocess.run(command, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(json.loads(result.stdout), {'verified': False, 'reason': 'release_verification_failed'})
+        self.assertEqual(list(root.iterdir()), [])
+        stager.stage(archive, digest, self.commit, root)
+        result = subprocess.run(command, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0)
+        self.assertFalse(json.loads(result.stdout)['activated'])
 
     def test_wrong_digest_or_commit_writes_nothing(self):
         archive, digest, root = self.prepare()
