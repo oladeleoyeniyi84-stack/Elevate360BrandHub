@@ -76,3 +76,28 @@ A crash may leave a lock, temporary directory or published release without a
 receipt. Inspect these before recovery; do not blindly delete or rerun. Failed
 final directory sync may leave the published release while reporting failure.
 Staging is preparation only; installation, replacement and rollback remain pending.
+
+## Recheck staged source before a build
+
+Use the separately reviewed verifier with the same trusted archive, receipt digest
+and full commit. This mode only reads; it does not create a missing release.
+
+```sh
+python3 /absolute/reviewed/stage-release.py /absolute/release.tar EXPECTED_SHA256 FULL_COMMIT /absolute/private-releases --verify-only
+```
+
+Verification compares every staged file (including the manifest) to the verified
+archive, checks owner and exact permissions, rejects hard links, symbolic links and
+special files, and requires the exact directory/file inventory. Extra generated
+files, missing files, changed content, unsafe permissions or an existing staging
+lock fail closed. All nested staging directories are now explicitly mode 0700.
+Older staged trees with intermediate 0755 directories will fail this stricter check;
+inspect them and prepare a fresh release root rather than overwriting the old tree.
+
+A successful verified=true receipt is only a point-in-time source-integrity result.
+It neither certifies a running container nor permits activation. Stable trusted
+ancestors and no concurrent administrator edits remain prerequisites; this command
+does not lock out later mutation. Run before building, and use a separate disposable
+build context if build generation writes files. Source-tree verification does not
+prove dependency/base-image integrity or bind an image to this commit. Actual image
+identity, deployment, rollback and live evidence remain separate release steps.
