@@ -678,3 +678,38 @@ No authenticated Droplet execution channel is available in this session. Existin
 Founder authorization remains recorded; no further authorization or private key is
 requested. No production merge, deployment or schedule activation occurred. No user
 terminal command is needed for this source-development step. Build remains incomplete.
+
+
+## Development checkpoint — 2026-11-05 (America/New_York)
+
+Confirmed full WebOps validation run 111 succeeded on
+8abdc47cd6d5d8fc4905f85b7221a133b5dfaa25. Read current branches, PR #22 and the
+checkpoint before continuing release preparation.
+
+Added a read-only --verify-only mode to stage-release.py. It validates the original
+archive against the separately supplied trusted digest and commit, then compares
+the staged tree against every archive member, including the manifest. It rejects
+changed/missing/extra files, extra directories, unsafe ownership/permissions,
+symlinks, hard links, special files and outstanding staging locks. It never creates
+a missing release or executes source. Nested staging directories are now explicitly
+created mode 0700; Python's recursive mkdir previously left intermediates at default
+permissions inside the private release root. Older trees with 0755 intermediates
+require inspection and fresh staging into a separate root; no overwrite was added.
+
+Validation: all 22 Python tests passed locally, zero failures. Four new tests cover
+content drift and missing files, extra entries and permissions, links/FIFO/locks,
+and separate-process verification success/failure with no staging side effect.
+The existing package-to-stage roundtrip now also verifies the resulting tree.
+The 93 Node tests were not rerun locally because runtime JavaScript was unchanged;
+full CI on this new checkpoint is pending. Tests used disposable local repositories
+and files only, with no Docker, live origin or Droplet operation.
+
+Verification is point-in-time source integrity, not image provenance or activation
+readiness. The trusted archive digest and stable trusted directory ancestors remain
+prerequisites. No concurrent administrator changes are supported. Use a separate
+build context if generation changes source files; this verifier intentionally rejects
+extra generated files. Actual image build/identity, installation/replacement/rollback,
+audit snapshots, external retention/retirement, alerts and live host/network/firewall/
+reboot evidence remain unfinished. No authenticated Droplet execution channel is
+available here. Founder authorization remains recorded; no new approval or private
+key is requested. No production change or user terminal action was required.
