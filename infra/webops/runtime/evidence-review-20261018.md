@@ -713,3 +713,41 @@ audit snapshots, external retention/retirement, alerts and live host/network/fir
 reboot evidence remain unfinished. No authenticated Droplet execution channel is
 available here. Founder authorization remains recorded; no new approval or private
 key is requested. No production change or user terminal action was required.
+
+
+## Development checkpoint — 2026-11-06 (America/New_York)
+
+Read current branches, PR #22 and this checkpoint. Confirmed full WebOps validation
+run 113 succeeded on 94e085cf912b12774d21dd960ae59293c7b41009.
+
+Added snapshot-audit.py, tests and audit-snapshots.md. The standalone command copies
+at most 16 MiB of a stable gateway JSONL log into a private snapshot directory,
+checks two matching reads and unchanged source identity/metadata/path binding,
+rejects unsafe files and malformed/incomplete records, and publishes exact bytes
+without overwrite. Its receipt includes SHA-256, bytes and an explicit false flag
+for external-retention verification. It never rotates/truncates the source, stops
+services, deletes evidence or uploads data. Source UID may differ because gateway
+files belong to UID 1000; source-location trust remains an operator prerequisite.
+
+Validation: all 27 Python tests passed locally (five new snapshot tests), zero
+failures. Coverage includes private exact-byte copies and repeat/no-overwrite,
+empty/partial/malformed/oversized records, permissions, links/FIFO, concurrent append
+detection and separate-process sanitized errors. The unchanged 93 Node tests were
+not rerun locally. Full CI on this checkpoint is pending. No real host audit file,
+live gateway operation, Docker execution or production change occurred.
+
+This closes the local audit-copy implementation gap only. The operator must suspend
+scheduled work and let in-flight requests finish before collection. The tool does
+not itself quiesce the gateway; the snapshot is point-in-time and subsequent appends
+are excluded. Hash consistency is not authenticity or immutability. Source/output
+ancestors must remain trusted and stable. Crashes or final sync failure may leave
+pending/published files without a success receipt, requiring inspection. Snapshot
+size limits do not cap gateway log growth; external retention, safe retirement and
+bounded audit growth remain unfinished.
+
+Next work: installation/replacement/rollback, actual candidate image provenance,
+retention/alerts and the consolidated host procedure. Dirty-host reconciliation,
+exact-image revised live network checks, current cloud firewall and controlled
+reboot evidence remain pending. No authenticated Droplet execution channel exists
+in this session; no private key or terminal action is requested. Existing Founder
+authorization remains recorded. Build is incomplete and no activation is claimed.
