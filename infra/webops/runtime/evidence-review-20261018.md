@@ -751,3 +751,37 @@ exact-image revised live network checks, current cloud firewall and controlled
 reboot evidence remain pending. No authenticated Droplet execution channel exists
 in this session; no private key or terminal action is requested. Existing Founder
 authorization remains recorded. Build is incomplete and no activation is claimed.
+
+
+## Development checkpoint — 2026-11-07 (America/New_York)
+
+Read current branches, PR #22 and checkpoint. Confirmed full WebOps validation
+run 115 succeeded on d686b80fd7f6279a27ee20319851101ead65ffd2.
+
+Closed unbounded gateway audit-file growth in draft source. durableAudit now caps
+its file at 16 MiB and each record at 16 KiB, uses a cooperating-writer lock, rejects
+unsafe file type/link/ownership/permissions and incomplete trailing records, and
+handles short writes explicitly before fsync. Existing data is never truncated,
+rotated or deleted. Existing locks require operator inspection. A full audit file
+blocks a new request before DNS/transport; terminal audit failure after an outbound
+request cannot undo that request, and capacity is not reserved for terminal records.
+
+Validation: all 97 Node runtime tests plus 27 Python tests passed locally (124 total,
+zero failures). Four new tests cover exact capacity/no overwrite, no DNS/transport
+when full, incomplete records/existing-lock preservation, symlinks/hard links,
+permissions and oversized records. Existing gateway deadline/cancellation, report,
+scheduler, source-release and snapshot suites passed. Tests use local fixtures and
+injected transport, not live production. New full CI remains pending.
+
+The ceiling covers this file with cooperating writers, not disk usage by snapshots
+or administrator changes. Trusted stable parent directories remain required.
+Crashes/I/O faults can leave partial records or locks; recovery must preserve and
+inspect evidence. External retention, safe rotation/retirement and capacity alerts
+remain unfinished. No production deployment, activation or host mutation occurred.
+
+Next: finish consolidated installation/replacement/rollback and image provenance,
+retention and alerts, then dirty-host reconciliation and exact-candidate network,
+cloud firewall and reboot evidence. No authenticated Droplet execution channel is
+available here. Existing Founder authorization remains recorded. No private key,
+new approval or user terminal command is requested for this source work. The build
+is incomplete and the development task should continue.
