@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { openSync, writeSync, fsyncSync, closeSync } from 'node:fs';
+import { openSync, writeSync, readSync, fstatSync, fsyncSync, closeSync, mkdirSync, rmdirSync, constants } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { assertApprovedGatewayTarget } from './generated/phase3GatewayPolicy.mjs';
@@ -12,13 +12,39 @@ export const registry = Object.freeze({version: 1, origins: [{
   approvedBy: 'founder', approvedAt: '2026-10-18T00:00:00Z',
 }]});
 
-export function durableAudit(path) {
+export const MAX_AUDIT_BYTES = 16 * 1024 * 1024;
+export function durableAudit(path, {maxBytes = MAX_AUDIT_BYTES} = {}) {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > MAX_AUDIT_BYTES)
+    throw new Error('invalid_audit_limit');
   return event => {
-    const fd = openSync(path, 'a', 0o600);
+    const record = Buffer.from(JSON.stringify({...event, timestamp: new Date().toISOString(), registryVersion: 1}) + '\n');
+    if (record.length > 16384) throw new Error('audit_record_limit');
+    const lock = path + '.lock';
+    mkdirSync(lock, {mode: 0o700}); // Existing/crash locks require operator review.
+    let fd;
     try {
-      writeSync(fd, JSON.stringify({...event, timestamp: new Date().toISOString(), registryVersion: 1}) + '\n');
+      fd = openSync(path, constants.O_RDWR | constants.O_APPEND | constants.O_CREAT |
+        constants.O_NOFOLLOW | constants.O_NONBLOCK, 0o600);
+      const info = fstatSync(fd);
+      if (!info.isFile() || info.nlink !== 1 || info.uid !== process.getuid() || (info.mode & 0o7777) !== 0o600)
+        throw new Error('unsafe_audit_file');
+      if (info.size + record.length > maxBytes) throw new Error('audit_capacity');
+      if (info.size) {
+        const last = Buffer.alloc(1);
+        if (readSync(fd, last, 0, 1, info.size - 1) !== 1 || last[0] !== 10)
+          throw new Error('audit_incomplete_record');
+      }
+      let offset = 0;
+      while (offset < record.length) {
+        const written = writeSync(fd, record, offset, record.length - offset);
+        if (written <= 0) throw new Error('audit_write_failed');
+        offset += written;
+      }
       fsyncSync(fd);
-    } finally { closeSync(fd); }
+    } finally {
+      try { if (fd !== undefined) closeSync(fd); }
+      finally { rmdirSync(lock); }
+    }
   };
 }
 
