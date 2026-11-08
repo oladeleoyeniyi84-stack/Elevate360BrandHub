@@ -35,8 +35,32 @@ leave a .audit-pending file, or a published file without a success receipt; insp
 and verify before recovery. A final directory-sync failure can likewise leave a
 published snapshot while reporting failure. A full output filesystem or oversized
 audit file requires operator review, not evidence deletion. The 16 MiB snapshot
-limit does not cap gateway log growth; bounded audit retention remains unfinished.
+limit alone does not cap gateway log growth. The gateway writer now has the
+matching ceiling described below; external retention remains unfinished.
 
 Fixture tests cover exact bytes/private permissions, no overwrite, unsafe files,
 malformed or partial records, limits, concurrent append detection and sanitized CLI
 errors. No production audit file or live gateway snapshot has been collected here.
+
+## Gateway capacity guard
+
+The gateway audit writer refuses an append that would exceed 16 MiB, with a 16 KiB
+record ceiling. It checks regular-file type, single link, current-user ownership and
+mode 0600, refuses final-component symlinks, and rejects a non-newline-terminated
+previous record. A per-file directory lock coordinates cooperating writers. An
+existing lock is never cleared by a new writer. No log rotation or deletion occurs.
+
+At capacity, the attempt record cannot be written, so a new request is blocked
+before DNS or outbound transport. If capacity or disk failure occurs on a final
+allow/deny record after a request, no successful result is returned, but the network
+request may already have happened. There is no reserved capacity for terminal
+records. Startup also fails if its startup record cannot be recorded. HTTP reports
+audit_unavailable for write failures; external alert delivery remains unfinished.
+
+The limit covers this one file under cooperating writers, not total disk usage,
+external snapshots or administrator writes. Stable trusted parent directories and
+one reviewed deployment remain prerequisites. Short writes are completed in a loop;
+a crash or I/O failure may still leave a partial line or lock requiring operator
+inspection. Never clear locks or truncate logs automatically to resume service.
+Preserve and verify a snapshot before planning any separately reviewed retirement
+or rotation. This guard is tested locally and has not been deployed on the Droplet.
