@@ -211,3 +211,14 @@ jobs:
 
       - name: Build manual runtime image
         run: docker build --file infra/webops/runtime/Dockerfile --tag elevate360-webops-pilot:ci .
+
+      - name: Validate image-pinned release Compose definition
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_dir="$(mktemp -d)"
+          chmod 700 "$release_dir"
+          image_id="$(docker image inspect --format '{{.Id}}' elevate360-webops-pilot:ci)"
+          python3 infra/webops/runtime/release-compose.py "$image_id" "$release_dir" > "$release_dir/receipt.json"
+          compose_file="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["path"])' "$release_dir/receipt.json")"
+          docker compose -f "$compose_file" --profile manual-pilot config --quiet
