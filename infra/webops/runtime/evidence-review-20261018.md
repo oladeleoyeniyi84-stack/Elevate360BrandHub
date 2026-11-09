@@ -785,3 +785,35 @@ cloud firewall and reboot evidence. No authenticated Droplet execution channel i
 available here. Existing Founder authorization remains recorded. No private key,
 new approval or user terminal command is requested for this source work. The build
 is incomplete and the development task should continue.
+
+
+## Development checkpoint — 2026-11-08 (America/New_York)
+
+Read current WebOps branches, PR #22 and checkpoint. Confirmed full WebOps validation
+run 117 succeeded on d05803cbf02cc4462c382ca30ebf6ae51ebff1f0.
+
+Added release-compose.py, its tests and operating notes. It generates a standalone
+Compose JSON model requiring a full local SHA-256 image ID for both services,
+pull_policy=never and no build section. It retains the runtime project, fixed
+internal addresses, bridge names, isolation/resource limits and restart=no. The
+audit bind mount requires an existing host directory. Private image-named output
+and SHA-256 receipts never overwrite existing configurations, allowing separate
+candidate and rollback files. The receipt reports imageVerified=false/deployed=false.
+No Docker command, image inspection, lifecycle operation or activation is performed
+by the generator. Image identity syntax is not proof of source provenance.
+
+Validation: all 31 Python tests passed locally, zero failures. Four new tests cover
+immutable-ID validation, model isolation, deterministic private output/no overwrite,
+separate rollback configurations, unsafe output permissions and sanitized CLI error.
+Runtime JavaScript is unchanged and was not rerun locally. Docker is unavailable
+locally. Added a CI step to generate this model from the exact image built in CI and
+run docker compose config --quiet without starting containers. Its result is pending;
+no local or live Docker validation is claimed.
+
+This completes pinned release-configuration preparation, not deployment or rollback.
+Use generated configuration standalone, never layered over unknown host overrides.
+Consolidated installation/replacement/rollback, exact image provenance, disabled
+schedule rebinding, retention/alerts and live dirty-host/network/cloud-firewall/reboot
+validation remain incomplete. No authenticated Droplet execution channel is available
+here. Existing Founder authorization remains recorded; no private key, new approval
+or user terminal command is requested. No production state was changed.
