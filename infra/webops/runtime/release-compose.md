@@ -29,7 +29,8 @@ Validate it with Docker Compose config before lifecycle operations. CI generates
 one from the image built in that job and validates its Compose schema; it does not
 start a service or validate live firewall behavior. Docker is unavailable in the
 local development environment, so local tests cover model invariants and file
-publication; Compose acceptance depends on the new CI result.
+publication. Full WebOps CI run 120 passed for checkpoint 5ae639bd, including
+validation of the generated Compose document against the CI-built image.
 
 Installation still needs a reviewed sequence that pauses scheduling, verifies no
 active run, preserves dirty host configuration and evidence, records both image
@@ -43,3 +44,19 @@ Crashes or final directory-sync failure can leave pending/published files withou
 a receipt. Inspect rather than overwrite or delete blindly. Re-running the same
 image ID fails without modifying its previous configuration. Additional generated
 files consume disk space; retention and cleanup are operator-controlled.
+
+## Network identity after replacement or rollback
+
+The host runner inspects the exact expected Docker network ID before executing the
+worker and again before saving its report. It requires an internal bridge with IPv6
+disabled, bridge name br-webops-wkr, one IPv4 subnet 172.30.0.0/24 and gateway
+172.30.0.1. A changed ID or weakened/different network configuration fails closed,
+leaves the runner failure lock and does not store a report. Pre-execution mismatch
+prevents the worker command; post-execution mismatch cannot undo an earlier request.
+Inspection failures and malformed responses are also failures, not passed checks.
+
+These are two point-in-time Docker observations, not continuous enforcement or a
+proof of nftables/cloud firewall policy. Trusted release configuration and Docker
+administration remain prerequisites. They do not validate gateway identity, other
+network members, firewall rules, reboot persistence or the image's source provenance.
+Those release evidence checks remain mandatory before activation.
