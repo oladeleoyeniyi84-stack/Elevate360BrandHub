@@ -817,3 +817,33 @@ schedule rebinding, retention/alerts and live dirty-host/network/cloud-firewall/
 validation remain incomplete. No authenticated Droplet execution channel is available
 here. Existing Founder authorization remains recorded; no private key, new approval
 or user terminal command is requested. No production state was changed.
+
+
+## Development checkpoint — 2026-11-09 (America/New_York)
+
+Read current branches, PR #22 and checkpoint. Confirmed full WebOps validation run
+120 succeeded on 5ae639bd2029d687f225dd55e67f0d39a95aa4cb, including the new exact-image
+Compose configuration validation against the CI-built image. No live deployment.
+
+Closed a host-runner release reconciliation gap: checking only the network ID on
+the worker did not establish that the selected network remained internal. The runner
+now separately inspects the exact expected network before exec and before report
+storage, requiring bridge/internal=true, IPv6=false, the expected bridge name,
+single subnet and gateway. Mismatch or failed/malformed inspection retains the
+failure lock. Preflight mismatch makes no worker exec; postflight mismatch rejects
+the report without pretending to undo an already executed request.
+
+Validation: all 99 Node tests plus 31 Python tests passed locally (130 total, zero
+failures). New tests exercise eight network policy/identity mutations before exec,
+post-exec drift, inspection failure and malformed output. Existing successful and
+unhealthy runs now require both network inspections. Tests use simulated Docker;
+no Docker daemon, Droplet command or public origin request was made. New CI pending.
+
+The checks are point-in-time observations under trusted Docker administration,
+not continuous policy enforcement. Gateway identity, other attached containers,
+nftables/cloud policy and reboot persistence still need independent live evidence.
+Consolidated installation/replacement/rollback, image provenance, disabled schedule
+rebinding, external retention/retirement and alerts remain unfinished. No authenticated
+Droplet execution channel is available here. Existing Founder authorization remains
+recorded. No new approval, private key or user terminal action is requested. No
+production merge/deployment/activation occurred and the build remains incomplete.
