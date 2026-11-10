@@ -26,11 +26,13 @@ function fixture(t, healthy = true) {
       [{path: '/', healthy: false, finding: 'gateway_rejected'}]},
     {runId: randomUUID(), generatedAt: new Date(timestamp).toISOString()})));
   const calls = [];
-  const state = {worker, report, options, calls, timestamp, code: healthy ? 0 : 1};
+  const network = {id: options.networkId, driver:'bridge', internal:true, ipv6:false,
+    options:{'com.docker.network.bridge.name':'br-webops-wkr'}, ipam:[{Subnet:'172.30.0.0/24', Gateway:'172.30.0.1'}]};
+  const state = {worker, network, report, options, calls, timestamp, code: healthy ? 0 : 1};
   state.dependencies = {now: () => timestamp, docker: async (args, timeout) => {
     calls.push({args, timeout});
-    return {code: args[0] === 'inspect' ? 0 : state.code,
-      stdout: Buffer.from(JSON.stringify(args[0] === 'inspect' ? state.worker : state.report)), stderr: Buffer.alloc(0)};
+    return {code: args[0] === 'exec' ? state.code : 0,
+      stdout: Buffer.from(JSON.stringify(args[0] === 'inspect' ? state.worker : args[0] === 'network' ? state.network : state.report)), stderr: Buffer.alloc(0)};
   }};
   return state;
 }
@@ -43,9 +45,10 @@ test('runs by immutable ID and stores healthy or unhealthy results with both sta
     assert.equal(result.ingestionExitCode, result.workerExitCode);
     assert.equal(result.receipt.stored, true);
     assert.equal(result.capacityLow, false);
-    assert.deepEqual(f.calls.map(c => c.args[0]), ['inspect', 'exec', 'inspect']);
-    assert.deepEqual(f.calls[1].args, ['exec', f.options.containerId, 'node', '/app/monitor-cli.mjs', '/', '/work']);
-    assert.equal(f.calls[1].timeout, 35000);
+    assert.deepEqual(f.calls.map(c => c.args[0]), ['inspect', 'network', 'exec', 'inspect', 'network']);
+    assert.equal(f.calls[1].args.at(-1), f.options.networkId);
+    assert.deepEqual(f.calls[2].args, ['exec', f.options.containerId, 'node', '/app/monitor-cli.mjs', '/', '/work']);
+    assert.equal(f.calls[2].timeout, 35000);
     assert.deepEqual(readdirSync(f.options.runDirectory), []);
     assert.equal(readdirSync(f.options.reportDirectory).length, 1);
   }
@@ -87,11 +90,11 @@ test('stale reports, wrong route scope and exit contradictions are not stored', 
 test('post-run identity drift rejects otherwise valid report', async t => {
   const f = fixture(t), original = f.dependencies.docker;
   f.dependencies.docker = async (...args) => {
-    if (f.calls.length === 2) f.worker.paused = true;
+    if (f.calls.length === 3) f.worker.paused = true;
     return original(...args);
   };
   await assert.rejects(runMonitorOnce(f.options, f.dependencies), /worker_identity_or_isolation_mismatch/);
-  assert.equal(f.calls.length, 3);
+  assert.equal(f.calls.length, 4);
   assert.deepEqual(readdirSync(f.options.reportDirectory), []);
 });
 
@@ -133,7 +136,7 @@ test('storage becoming unsafe during execution still blocks ingestion and retain
     return original(...args);
   };
   await assert.rejects(runMonitorOnce(f.options, f.dependencies), /unsafe_report_directory/);
-  assert.equal(f.calls.length, 3);
+  assert.equal(f.calls.length, 5);
   assert.deepEqual(readdirSync(f.options.reportDirectory), []);
   assert.deepEqual(readdirSync(f.options.runDirectory), ['run.lock']);
 });
@@ -145,6 +148,35 @@ test('invalid scope and overlapping state directories fail before Docker', async
     const f = fixture(t); mutate(f);
     await assert.rejects(runMonitorOnce(f.options, f.dependencies), /invalid_runner_configuration/);
     assert.equal(f.calls.length, 0);
+  }
+});
+
+test('network isolation mismatch prevents worker execution and preserves failure lock', async t => {
+  for (const mutate of [n => {n.internal=false;}, n => {n.driver='host';}, n => {n.ipv6=true;},
+    n => {n.id='d'.repeat(64);}, n => {n.options={};}, n => {n.ipam=[];},
+    n => {n.ipam[0].Subnet='172.31.0.0/24';}, n => {n.ipam[0].Gateway='172.30.0.254';}]) {
+    const f = fixture(t); mutate(f.network);
+    await assert.rejects(runMonitorOnce(f.options, f.dependencies), /network_identity_or_isolation_mismatch/);
+    assert.equal(f.calls.some(c => c.args[0] === 'exec'), false);
+    assert.deepEqual(readdirSync(f.options.runDirectory), ['run.lock']);
+    assert.deepEqual(readdirSync(f.options.reportDirectory), []);
+  }
+});
+
+test('network drift and inspection failure cannot produce a stored report', async t => {
+  for (const failure of ['drift', 'error', 'malformed']) {
+    const f = fixture(t), original = f.dependencies.docker;
+    f.dependencies.docker = async (...args) => {
+      if (args[0][0] === 'network' && f.calls.some(c => c.args[0] === 'exec')) {
+        if (failure === 'drift') f.network.internal = false;
+        if (failure === 'error') return {code:1, stdout:Buffer.alloc(0), stderr:Buffer.alloc(0)};
+        if (failure === 'malformed') return {code:0, stdout:Buffer.from('invalid'), stderr:Buffer.alloc(0)};
+      }
+      return original(...args);
+    };
+    await assert.rejects(runMonitorOnce(f.options, f.dependencies));
+    assert.deepEqual(readdirSync(f.options.reportDirectory), []);
+    assert.deepEqual(readdirSync(f.options.runDirectory), ['run.lock']);
   }
 });
 
