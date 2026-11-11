@@ -29,7 +29,7 @@ export function localDocker(args, timeoutMs, execute = execFile) {
   });
 }
 
-function validateOptions(options) {
+export function validateRunnerOptions(options) {
   const {containerId, imageId, networkId, paths, runDirectory, reportDirectory} = options;
   if (!HEX.test(containerId) || !IMAGE.test(imageId) || !HEX.test(networkId) ||
       !Array.isArray(paths) || paths.length < 1 || paths.length > 14 || new Set(paths).size !== paths.length ||
@@ -66,7 +66,7 @@ function verifyWorker(worker, expected) {
 // Explicit single invocation, never a scheduler. Expected IDs come from a trusted
 // release review, not the worker report. A failed attempt leaves a durable lock.
 export async function runMonitorOnce(options, {docker = localDocker, now = Date.now} = {}) {
-  const expected = validateOptions(options);
+  const expected = validateRunnerOptions(options);
   if (realpathSync(expected.runDirectory) !== expected.runDirectory) throw new Error('unsafe_runner_directory');
   const fd = openSync(expected.runDirectory, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
   let locked = false, completed = false;
