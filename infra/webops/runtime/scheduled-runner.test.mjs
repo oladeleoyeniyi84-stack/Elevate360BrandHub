@@ -11,7 +11,8 @@ function fixture(t) {
   t.after(() => rmSync(root, {recursive: true, force: true}));
   const stateDirectory = join(root, 'schedule'); mkdirSync(stateDirectory, {mode: 0o700});
   const config = {schemaVersion: 1, enabled: true, intervalMinutes: 60, stateDirectory,
-    runner: {runDirectory: join(root, 'runner'), reportDirectory: join(root, 'reports')}};
+    runner: {containerId:'a'.repeat(64), imageId:'sha256:'+'b'.repeat(64), networkId:'c'.repeat(64), paths:['/'],
+      runDirectory: join(root, 'runner'), reportDirectory: join(root, 'reports')}};
   let time = 1800000000000, count = 0;
   const deps = {now: () => time, run: async options => {
     assert.deepEqual(options, config.runner); count++;
