@@ -1,7 +1,7 @@
 import { constants, openSync, closeSync, fstatSync, realpathSync, readFileSync,
   writeFileSync, fsyncSync, mkdirSync, rmdirSync, renameSync, lstatSync } from 'node:fs';
 import { isAbsolute, resolve, join } from 'node:path';
-import { runMonitorOnce } from './host-runner.mjs';
+import { runMonitorOnce, validateRunnerOptions } from './host-runner.mjs';
 
 // Host operator configuration, never a worker-supplied activation manifest.
 export function readScheduleConfig(path) {
@@ -17,10 +17,10 @@ export function readScheduleConfig(path) {
   } finally { closeSync(fd); }
 }
 
-export async function scheduledTick(config, {run = runMonitorOnce, now = Date.now} = {}) {
+export function validateScheduleConfig(config) {
   if (!config || config.schemaVersion !== 1 || typeof config.enabled !== 'boolean')
     throw new Error('invalid_schedule_configuration');
-  if (!config.enabled) return {status: 'disabled'};
+  if (!config.enabled) return;
   const {intervalMinutes, stateDirectory, runner} = config;
   if (!Number.isInteger(intervalMinutes) || intervalMinutes < 60 || intervalMinutes > 10080 ||
       typeof stateDirectory !== 'string' || !isAbsolute(stateDirectory) || !runner ||
@@ -31,6 +31,14 @@ export async function scheduledTick(config, {run = runMonitorOnce, now = Date.no
     if (directory === other || directory.startsWith(other + '/') || other.startsWith(directory + '/'))
       throw new Error('invalid_schedule_configuration');
   }
+  validateRunnerOptions(runner);
+}
+
+export async function scheduledTick(config, {run = runMonitorOnce, now = Date.now} = {}) {
+  validateScheduleConfig(config);
+  if (!config.enabled) return {status: 'disabled'};
+  const {intervalMinutes, runner} = config;
+  const directory = resolve(config.stateDirectory);
   if (realpathSync(directory) !== directory) throw new Error('unsafe_schedule_directory');
   const fd = openSync(directory, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
   const lock = join(directory, 'tick.lock'), statePath = join(directory, 'cadence.json');
