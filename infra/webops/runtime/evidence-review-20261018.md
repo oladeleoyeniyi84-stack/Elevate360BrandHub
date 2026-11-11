@@ -847,3 +847,44 @@ rebinding, external retention/retirement and alerts remain unfinished. No authen
 Droplet execution channel is available here. Existing Founder authorization remains
 recorded. No new approval, private key or user terminal action is requested. No
 production merge/deployment/activation occurred and the build remains incomplete.
+
+
+## Development checkpoint — 2026-11-10 (America/New_York)
+
+Read current branches, PR #22 and this checkpoint. Confirmed full WebOps validation
+run 121 succeeded on 52fa092c94ee2b4d31febeacf5d23e3fceef685b.
+
+Added prepare-schedule.mjs, focused tests and operating notes. It prepares a
+complete disabled schedule candidate bound to explicit worker/image/network IDs,
+approved route syntax, cadence and separate state directories. Private
+content-addressed files are published without overwrite with SHA-256 receipts.
+It never installs configuration, touches cadence state, calls Docker or activates
+a timer. Receipts explicitly mark installed=false and identitiesVerified=false.
+Replacement instructions preserve existing cadence reservations and failure locks.
+
+Extracted shared pure runner/schedule validation. Enabled malformed runner
+configuration is now rejected before scheduler lock or cadence mutation, preventing
+an invalid replacement from consuming an interval. Minimal disabled configuration
+remains supported. Candidate preparation validates the future enabled shape while
+publishing only enabled=false.
+
+Validation: all 102 Node tests passed locally, zero failures. After final temporary
+file cleanup/permission hardening, all three focused preparation tests passed again.
+Coverage includes private exact-byte output, no overwrite, disabled execution with
+no state writes, invalid IDs/routes/cadence, overlapping directories, and invalid
+enabled runners rejected before state mutation. Python code is unchanged; its
+31 tests were not rerun locally this run. New full CI remains pending. Tests use
+temporary local files and injected execution, with no live Docker or host action.
+
+IDs are syntactically checked, not verified against a running Docker daemon.
+Trusted stable path ancestors and no concurrent administrator changes remain
+prerequisites. Runtime state-directory checks still occur at execution. Crashes or
+final sync failure can leave pending/published files requiring inspection. Actual
+installation/rebinding/rollback, image provenance, external retention/retirement,
+alert delivery and dirty-host reconciliation remain unfinished, along with revised
+exact-image network validation, current cloud firewall and controlled reboot evidence.
+
+No authenticated Droplet execution channel is available here. Existing Founder
+authorization remains recorded. No private key, new approval or user terminal
+command is requested for this source work. No production state was changed.
+The WebOps build remains incomplete and the development task should continue.
