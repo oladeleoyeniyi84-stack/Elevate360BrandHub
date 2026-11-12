@@ -4,9 +4,9 @@ import { isAbsolute, resolve, join } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { validateRunnerOptions } from './host-runner.mjs';
-import { validateScheduleConfig, readScheduleConfig } from './scheduled-runner.mjs';
+import { validateScheduleConfig, readScheduleConfig, readScheduleBytes } from './scheduled-runner.mjs';
 
-export function prepareSchedule(input, directory) {
+function normalizeCandidate(input) {
   if (!input || input.schemaVersion !== 1 || input.enabled !== false)
     throw new Error('disabled_candidate_required');
   const runner = validateRunnerOptions(input.runner);
@@ -15,6 +15,25 @@ export function prepareSchedule(input, directory) {
   // Validate the complete future configuration without calling the scheduler.
   validateScheduleConfig({...candidate, enabled:true});
   candidate.stateDirectory = resolve(candidate.stateDirectory);
+  return candidate;
+}
+
+export function verifySchedule(path, expectedSha256) {
+  if (typeof expectedSha256 !== 'string' || !/^[a-f0-9]{64}$/.test(expectedSha256))
+    throw new Error('invalid_candidate_digest');
+  const data = readScheduleBytes(path);
+  const sha256 = createHash('sha256').update(data).digest('hex');
+  if (sha256 !== expectedSha256) throw new Error('candidate_digest_mismatch');
+  const candidate = normalizeCandidate(JSON.parse(data.toString('utf8')));
+  if (!data.equals(Buffer.from(JSON.stringify(candidate, null, 2) + '\n')))
+    throw new Error('noncanonical_candidate');
+  return {verified:true, path:resolve(path), sha256, enabled:false,
+    identitiesVerified:false, installed:false};
+}
+
+export function prepareSchedule(input, directory) {
+  const candidate = normalizeCandidate(input);
+  const runner = candidate.runner;
   if (!isAbsolute(directory) || realpathSync(directory) !== resolve(directory))
     throw new Error('unsafe_candidate_directory');
   directory = resolve(directory);
@@ -44,8 +63,13 @@ export function prepareSchedule(input, directory) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
+    if (process.argv[2] === '--verify-only') {
+      if (process.argv.length !== 5) throw new Error('invalid_arguments');
+      console.log(JSON.stringify(verifySchedule(process.argv[3], process.argv[4])));
+    } else {
     if (process.argv.length !== 4) throw new Error('invalid_arguments');
     console.log(JSON.stringify(prepareSchedule(readScheduleConfig(process.argv[2]), process.argv[3])));
+    }
   } catch {
     console.error('{"prepared":false,"reason":"schedule_preparation_failed"}');
     process.exitCode = 2;
