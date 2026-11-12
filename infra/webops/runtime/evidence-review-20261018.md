@@ -888,3 +888,41 @@ No authenticated Droplet execution channel is available here. Existing Founder
 authorization remains recorded. No private key, new approval or user terminal
 command is requested for this source work. No production state was changed.
 The WebOps build remains incomplete and the development task should continue.
+
+
+## Development checkpoint — 2026-11-11 (America/New_York)
+
+Read current WebOps branches, open PRs including #22 and this checkpoint. Confirmed
+full WebOps validation run 124 succeeded on 742e1624d4b5bbf67c90503ecb08b61d0022ffd0
+(https://github.com/oladeleoyeniyi84-stack/Elevate360BrandHub/actions/runs/42949651610).
+
+Added read-only --verify-only to prepare-schedule.mjs. It compares the bounded,
+private candidate's exact bytes against a separately retained SHA-256 digest,
+then requires a complete canonical disabled configuration. Matching hashes cannot
+authorize enabled or malformed configuration. Shared schedule byte loading avoids
+separate hash/parse reads. Verification neither installs configuration nor touches
+state, Docker or systemd; IDs still require independent live inspection.
+
+Added release-operations.md as the consolidated installation/replacement/rollback
+sequence: preserve dirty host and prior images/configs; quiesce and preserve locks;
+verify source and image provenance; replace with scheduling disabled; rebind actual
+IDs while retaining cadence; validate exact-candidate network/firewall and rehearse
+rollback. It makes the current restart=no/reboot recovery gap explicit. The procedure
+is source preparation, not a tested installer or completed host rehearsal. Atomic
+schedule installation, boot reconciliation, external retention/retirement and alert
+delivery remain unfinished. Mutable base-image/package inputs still require recorded
+build provenance. No production action is implied by the document.
+
+Validation: all 106 Node tests passed locally, zero failures/skips. Four new tests
+cover trusted digest success/drift, matching-digest invalid/enabled/noncanonical
+candidates, unsafe permissions/links/missing files, and separate-process CLI behavior.
+Tests use local fixtures; no Docker, external origin or host lifecycle calls.
+Python code is unchanged and its 31 tests were not rerun locally. New full CI pending.
+
+Next work: implement/rehearse the remaining installation transition and boot strategy,
+retention and alerts; reconcile dirty host; collect fresh exact-image network, cloud
+firewall and reboot evidence through an authenticated host channel. No such Droplet
+channel is available here. No private key, new approval or user terminal command is
+requested. Existing Founder authority remains recorded. No production merge,
+deployment, activation, new cost, secret rotation or Vault release occurred.
+Build remains incomplete; continue development and defer the full completion report.
