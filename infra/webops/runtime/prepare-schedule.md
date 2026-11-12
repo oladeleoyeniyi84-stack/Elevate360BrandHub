@@ -40,3 +40,22 @@ before being rejected by the runner. It does not remove existing failure locks.
 Crash or directory-sync failure may leave a pending/published file without a success
 receipt. Inspect before recovery. No cleanup policy, external alert delivery,
 secret handling or production lifecycle operation is introduced.
+
+## Verify before installation
+
+```sh
+node /absolute/reviewed/prepare-schedule.mjs --verify-only /absolute/private-candidates/schedule-DIGEST.json EXPECTED_SHA256
+```
+
+Use the digest saved separately in the trusted preparation receipt. Verification
+reads a bounded private single-link regular file once, hashes those exact bytes,
+and validates that they describe a complete canonical disabled candidate. A matching
+digest cannot make an enabled, malformed or noncanonical candidate pass. No file,
+cadence, lock, Docker or service state is changed. Exit 0 reports verified=true;
+exit 2 reports a sanitized error. The filename is not the trust anchor.
+
+Verification is point-in-time: it does not authenticate the receipt, verify live
+container identity, install the config or prevent later edits. Keep administrators
+from changing the candidate between verification and installation, and verify the
+installed copy independently. See [release-operations.md](release-operations.md)
+for the consolidated sequence and remaining host gates.
