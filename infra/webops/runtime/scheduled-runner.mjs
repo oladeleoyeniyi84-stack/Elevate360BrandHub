@@ -4,7 +4,7 @@ import { isAbsolute, resolve, join } from 'node:path';
 import { runMonitorOnce, validateRunnerOptions } from './host-runner.mjs';
 
 // Host operator configuration, never a worker-supplied activation manifest.
-export function readScheduleConfig(path) {
+export function readScheduleBytes(path) {
   if (!isAbsolute(path) || realpathSync(path) !== resolve(path)) throw new Error('unsafe_schedule_config');
   const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
@@ -13,8 +13,12 @@ export function readScheduleConfig(path) {
         (stat.mode & 0o777) !== 0o600 || stat.size > 16384) throw new Error('unsafe_schedule_config');
     const data = readFileSync(fd);
     if (data.length > 16384) throw new Error('unsafe_schedule_config');
-    return JSON.parse(data.toString('utf8'));
+    return data;
   } finally { closeSync(fd); }
+}
+
+export function readScheduleConfig(path) {
+  return JSON.parse(readScheduleBytes(path).toString('utf8'));
 }
 
 export function validateScheduleConfig(config) {
