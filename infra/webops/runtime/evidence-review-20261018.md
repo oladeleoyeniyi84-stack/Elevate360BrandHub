@@ -926,3 +926,43 @@ channel is available here. No private key, new approval or user terminal command
 requested. Existing Founder authority remains recorded. No production merge,
 deployment, activation, new cost, secret rotation or Vault release occurred.
 Build remains incomplete; continue development and defer the full completion report.
+
+
+## Development checkpoint — 2026-11-12 (America/New_York)
+
+Read current branches, open WebOps PRs and this checkpoint. Confirmed full WebOps
+validation run 127 succeeded at 7fe54ef1851c096e4324d8de500282d2136a51e2:
+https://github.com/oladeleoyeniyi84-stack/Elevate360BrandHub/actions/runs/43146605773.
+
+Implemented replace-schedule.mjs and operator notes. This explicit host command
+replaces an existing complete disabled configuration with a digest-verified disabled
+candidate. It requires inactive monitor units and disabled/masked timer, preserves
+the previous bytes in a private exclusive backup, retains the same resolved state
+paths, rechecks unit state and old digest, then atomically renames and verifies the
+installed bytes. A persistent replacement lock blocks concurrent cooperating
+attempts and is retained after failure. No service lifecycle or Docker call, cadence
+reset, state-directory write, evidence deletion or activation is implemented.
+
+Validation: all 112 Node tests passed locally, zero failures/skips. Six new tests
+cover exact backup and persistent-state preservation, active/failed/unknown units,
+enabled timer, stale digest, enabled prior config, changed state paths, candidate
+drift, symlink target, existing lock/backup and late administrator edits. Tests use
+temporary files and injected systemctl responses only. Python source is unchanged
+and its 31 tests were not rerun locally. New full CI is pending.
+
+Failure output deliberately says installationConfirmed=false, not that nothing
+changed: a failure can occur after rename. Retained pending files, backup and lock
+require inspection before recovery. Trusted stable ancestors and no concurrent
+administrator changes remain prerequisites; service queries are point-in-time and
+do not establish that an earlier container exec ended. The command neither verifies
+live IDs nor initializes a missing/minimal configuration. Runtime path safety still
+requires live checks. Updated release-operations.md to reference the new transition.
+
+Remaining: initial host installation and enabled transition, actual replacement/
+rollback rehearsal, image provenance, boot reconciliation, external retention/
+retirement and alert delivery, dirty-host reconciliation and fresh exact-image
+network/cloud-firewall/reboot evidence. Authenticated Droplet execution remains
+unavailable in this session. Existing Founder authority is recorded; no private key,
+new approval or user terminal action is requested for this source-development slice.
+No production deployment/activation, new cost, secret rotation or Vault change.
+Build remains incomplete; continue development and defer the final completion report.
