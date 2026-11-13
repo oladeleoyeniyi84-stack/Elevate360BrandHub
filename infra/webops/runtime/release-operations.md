@@ -82,7 +82,9 @@ retained digest. Keep the previous config as private evidence. Install the candi
 by a reviewed same-filesystem atomic replacement, preserving mode 0600 and trusted
 ownership, and verify the installed bytes against the same digest. Do not use a
 hard link (the loader rejects multiple links). Never reset cadence or failure locks.
-The atomic installation operation is not yet implemented by prepare-schedule.mjs.
+For an existing complete disabled configuration, replace-schedule.mjs implements
+this guarded transition; see replace-schedule.md for its digest, inactive-unit,
+backup and failure-lock requirements. Initial installation is still separate.
 
 Keep host modules from one verified source release together. The systemd template
 expects /opt/elevate360-webops/current/infra/webops/runtime and /usr/bin/node, plus
