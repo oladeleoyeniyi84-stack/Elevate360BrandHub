@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createHash} from 'node:crypto';
 import {prepareSchedule} from './prepare-schedule.mjs';
-import {replaceSchedule} from './replace-schedule.mjs';
+import {replaceSchedule,initializeSchedule} from './replace-schedule.mjs';
 const hash=b=>createHash('sha256').update(b).digest('hex');
 function fixture(t){
  const root=mkdtempSync(join(tmpdir(),'replace-schedule-'));t.after(()=>rmSync(root,{recursive:true,force:true}));
@@ -70,4 +70,38 @@ test('configuration drift during second service check preserves changed file and
  assert.ok(readdirSync(f.dir).some(x=>x.endsWith('.pending')));
  assert.ok(readdirSync(f.dir).includes('.schedule-replacement.lock'));
  assert.deepEqual(readFileSync(join(f.dir,'schedule-previous-'+f.args.previousSha256+'.json')),f.previous);
+});
+
+test('initial installation publishes disabled private bytes without touching state',async t=>{
+ const f=fixture(t);rmSync(f.args.targetPath);
+ const r=await initializeSchedule(f.args,{systemctl:f.systemctl});
+ assert.equal(r.operation,'initialize');assert.equal(r.enabled,false);assert.equal(r.activated,false);
+ assert.equal(r.previousSha256,undefined);assert.equal(r.backupPath,undefined);
+ assert.equal(hash(readFileSync(f.args.targetPath)),f.args.candidateSha256);
+ assert.equal(statSync(f.args.targetPath).nlink,1);assert.equal(statSync(f.args.targetPath).mode&0o777,0o600);
+ assert.deepEqual(readdirSync(f.dir),['schedule.json']);
+ for(const p of [f.old.stateDirectory,f.old.runner.runDirectory,f.old.runner.reportDirectory])assert.equal(readFileSync(join(p,'preserved'),'utf8'),'evidence');
+});
+test('initial installation never replaces existing file or dangling symlink',async t=>{
+ for(const dangling of [false,true]){
+ const f=fixture(t);if(dangling){rmSync(f.args.targetPath);symlinkSync(join(f.root,'absent'),f.args.targetPath);}
+ await assert.rejects(initializeSchedule(f.args,{systemctl:f.systemctl}),/schedule_already_exists/);
+ if(!dangling)assert.deepEqual(readFileSync(f.args.targetPath),f.previous);
+ assert.ok(readdirSync(f.dir).includes('.schedule-replacement.lock'));
+ }
+});
+test('late creation blocks initialization and preserves pending evidence',async t=>{
+ const f=fixture(t);rmSync(f.args.targetPath);let calls=0;
+ const systemctl=async args=>{if(++calls===4)writeFileSync(f.args.targetPath,'other installer',{mode:0o600});return f.systemctl(args);};
+ await assert.rejects(initializeSchedule(f.args,{systemctl}),/schedule_already_exists/);
+ assert.equal(readFileSync(f.args.targetPath,'utf8'),'other installer');
+ assert.ok(readdirSync(f.dir).some(x=>x.endsWith('.pending')));
+});
+test('initialization cannot bypass stopped-unit requirements or run as implicit replacement',async t=>{
+ const f=fixture(t);rmSync(f.args.targetPath);
+ await assert.rejects(initializeSchedule(f.args,{systemctl:async()=>({code:1,stdout:Buffer.from('')})}));
+ assert.throws(()=>statSync(f.args.targetPath),/ENOENT/);
+ const g=fixture(t);rmSync(g.args.targetPath);
+ await assert.rejects(replaceSchedule(g.args,{systemctl:g.systemctl}),/ENOENT/);
+ assert.throws(()=>statSync(g.args.targetPath),/ENOENT/);
 });
