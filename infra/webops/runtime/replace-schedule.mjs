@@ -1,5 +1,5 @@
 import {constants,openSync,closeSync,fstatSync,realpathSync,mkdirSync,rmdirSync,
-  writeFileSync,fchmodSync,fsyncSync,renameSync} from 'node:fs';
+  writeFileSync,fchmodSync,fsyncSync,renameSync,linkSync,unlinkSync,lstatSync} from 'node:fs';
 import {dirname,resolve,join,isAbsolute} from 'node:path';
 import {createHash,randomUUID} from 'node:crypto';
 import {pathToFileURL} from 'node:url';
@@ -10,10 +10,13 @@ import {localSystemctl} from './emergency-stop.mjs';
 const digest = data => createHash('sha256').update(data).digest('hex');
 const statePaths = config => [config.stateDirectory,config.runner.runDirectory,config.runner.reportDirectory].map(path => resolve(path));
 
-// Explicit operator replacement only. Never starts/stops services or resets state.
-export async function replaceSchedule({candidatePath,candidateSha256,targetPath,previousSha256},
-  {systemctl=localSystemctl}={}) {
-  if (![candidateSha256,previousSha256].every(x=>typeof x==='string' && /^[a-f0-9]{64}$/.test(x)) ||
+// Both modes remain disabled. Initialization must be explicitly selected.
+export function replaceSchedule(options,dependencies) { return install(options,dependencies,false); }
+export function initializeSchedule(options,dependencies) { return install(options,dependencies,true); }
+
+async function install({candidatePath,candidateSha256,targetPath,previousSha256},
+  {systemctl=localSystemctl}={},initial) {
+  if (!(initial?[candidateSha256]:[candidateSha256,previousSha256]).every(x=>typeof x==='string' && /^[a-f0-9]{64}$/.test(x)) ||
       !isAbsolute(targetPath) || resolve(candidatePath)===resolve(targetPath)) throw Error('invalid_replacement');
   verifySchedule(candidatePath,candidateSha256);
   const bytes=readScheduleBytes(candidatePath);
@@ -35,6 +38,10 @@ export async function replaceSchedule({candidatePath,candidateSha256,targetPath,
     if(r.code!==0 || !['disabled','masked'].includes(r.stdout.toString('utf8').trim())) throw Error('timer_not_disabled');
   };
   const current=()=>{
+    if(initial) {
+      try {lstatSync(targetPath);} catch(error) {if(error.code==='ENOENT')return;throw error;}
+      throw Error('schedule_already_exists');
+    }
     const data=readScheduleBytes(targetPath);
     if(digest(data)!==previousSha256) throw Error('previous_config_changed');
     const old=JSON.parse(data);
@@ -53,16 +60,22 @@ export async function replaceSchedule({candidatePath,candidateSha256,targetPath,
     mkdirSync(lock,{mode:0o700});locked=true;fsyncSync(fd);
     await stopped();
     const previous=current();
-    const backupPath=join(parent,'schedule-previous-'+previousSha256+'.json');
-    save(backupPath,previous);fsyncSync(fd);
+    let backupPath;
+    if(!initial) {
+      backupPath=join(parent,'schedule-previous-'+previousSha256+'.json');
+      save(backupPath,previous);fsyncSync(fd);
+    }
     const pending=join(parent,'.schedule-'+randomUUID()+'.pending');
     save(pending,bytes);fsyncSync(fd);
     await stopped();
     current();
-    renameSync(pending,targetPath);fsyncSync(fd);
+    if(initial) {linkSync(pending,targetPath);unlinkSync(pending);}
+    else renameSync(pending,targetPath);
+    fsyncSync(fd);
     if(digest(readScheduleBytes(targetPath))!==candidateSha256) throw Error('installed_config_mismatch');
     completed=true;
-    return {installed:true,enabled:false,sha256:candidateSha256,previousSha256,backupPath,
+    return {installed:true,enabled:false,sha256:candidateSha256,previousSha256:initial?undefined:previousSha256,backupPath,
+      operation:initial?'initialize':'replace',
       activated:false,identitiesVerified:false};
   } finally {
     try {if(locked && completed){rmdirSync(lock);fsyncSync(fd);}} finally {closeSync(fd);}
@@ -72,8 +85,13 @@ export async function replaceSchedule({candidatePath,candidateSha256,targetPath,
 if(process.argv[1] && import.meta.url===pathToFileURL(process.argv[1]).href) {
   try {
     if(process.argv.length!==6) throw Error('invalid_arguments');
-    const [candidatePath,candidateSha256,targetPath,previousSha256]=process.argv.slice(2);
-    console.log(JSON.stringify(await replaceSchedule({candidatePath,candidateSha256,targetPath,previousSha256})));
+    if(process.argv[2]==='--initialize') {
+      const [candidatePath,candidateSha256,targetPath]=process.argv.slice(3);
+      console.log(JSON.stringify(await initializeSchedule({candidatePath,candidateSha256,targetPath})));
+    } else {
+      const [candidatePath,candidateSha256,targetPath,previousSha256]=process.argv.slice(2);
+      console.log(JSON.stringify(await replaceSchedule({candidatePath,candidateSha256,targetPath,previousSha256})));
+    }
   } catch {
     console.error('{"installationConfirmed":false,"reason":"schedule_replacement_failed","inspectionRequired":true}');
     process.exitCode=2;
