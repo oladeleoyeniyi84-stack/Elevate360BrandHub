@@ -1,7 +1,7 @@
 # Replace an existing disabled schedule
 
-This operator command replaces an existing complete disabled configuration with a
-verified disabled candidate. It does not initialize a new host, activate scheduling,
+This operator command installs a verified disabled candidate, either as an explicit
+first configuration or as a guarded replacement. It does not initialize a new host, activate scheduling,
 disable services, inspect containers, change a release pointer or clear state locks.
 Use after the quiescence and identity checks in release-operations.md, from a trusted
 Node 24 host release. It has not been run on the Droplet.
@@ -46,5 +46,35 @@ after normalization; live ownership/symlink checks remain the runtime's job.
 Rollback uses this same disabled transition with freshly prepared actual IDs, the
 current target digest and unchanged state paths. It does not restore old container
 IDs automatically. Preserve all prior artifacts; an already existing backup name
-requires manual reconciliation. Initial installation, enabled activation, host boot
+requires manual reconciliation. Host/unit installation, enabled activation, host boot
 reconciliation and a live replacement/rollback rehearsal remain separate work.
+
+## First configuration on a prepared host
+
+```sh
+node /absolute/reviewed/replace-schedule.mjs --initialize /absolute/candidate.json CANDIDATE_SHA256 /absolute/installed/schedule.json
+```
+
+This explicit mode is only for a missing target file. Prepare the trusted private
+configuration parent and reviewed service/timer units beforehand, with both units
+inactive and the timer disabled/masked. Missing/unknown units do not bypass checks.
+Prepare and independently verify the disabled candidate and actual runtime IDs as
+in the release runbook. This mode does not create directories, install units, start
+containers, inspect Docker, create cadence state or configure alerts.
+
+Initialization shares the replacement lock and checks service state twice. It
+checks target absence with lstat (including dangling symlinks) and publishes with
+an atomic no-overwrite hard link from a flushed private pending file. It then
+removes that pending link and verifies the installed single-link bytes. A racing
+creator cannot be overwritten by this operation. An existing target, even a minimal
+disabled stop file, fails rather than silently selecting replacement semantics.
+Replacement mode likewise never falls back to initialization for a missing file.
+
+Success reports operation=initialize with enabled=false and activated=false. No
+previous backup is created because there is no previous target. Existing state
+directories, cadence and locks remain untouched; their continued safety and intended
+identity must be reconciled independently. On any failure after locking, preserve
+and inspect the lock and pending/published files as above. A crash between link and
+unlink can leave two links and is intentionally rejected by the normal loader.
+Do not infer that a failed command left the target absent. Live initial-installation
+and recovery rehearsals remain pending.
