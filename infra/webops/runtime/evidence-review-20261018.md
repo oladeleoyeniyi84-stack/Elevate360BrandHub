@@ -966,3 +966,43 @@ unavailable in this session. Existing Founder authority is recorded; no private 
 new approval or user terminal action is requested for this source-development slice.
 No production deployment/activation, new cost, secret rotation or Vault change.
 Build remains incomplete; continue development and defer the final completion report.
+
+
+## Development checkpoint — 2026-11-13 (America/New_York)
+
+Read current branches, open WebOps PRs and this checkpoint. Confirmed full WebOps
+validation run 130 succeeded at 0d1e141325bbdc8b929f45731301100a3c165575:
+https://github.com/oladeleoyeniyi84-stack/Elevate360BrandHub/actions/runs/43354961186.
+
+Added explicit --initialize mode to the schedule installation command. It accepts
+only a missing target, verifies the disabled candidate digest, requires inactive
+service/timer and disabled/masked timer, shares the persistent replacement lock and
+publishes private bytes atomically without overwrite. Existing files, including
+dangling symlinks, block initialization. Replacement never implicitly initializes.
+The pending-file hard link is removed before single-link installed-byte verification.
+Existing cadence, report/run state and failure locks are untouched; no units or
+directories are created and no Docker or lifecycle command is called.
+
+Validation: all 116 Node tests passed locally. After a receipt-only adjustment,
+all 10 installation/replacement tests passed again. Four new tests cover first
+installation, private single-link output/state preservation, existing files/dangling
+links, late competing creation, and mandatory unit checks with no replacement-mode
+fallback. Fixtures and injected systemctl only; no Droplet or real systemd mutation.
+Python code remains unchanged and its 31 tests were not rerun locally. New CI pending.
+
+The installation parent and reviewed inactive units must already exist. Unknown
+units do not bypass checks. Crashes between link/unlink can leave two links; the
+loader rejects that state and operator inspection is required. Failure does not
+prove the target is absent. Stable trusted ancestors and no concurrent administrator
+changes remain prerequisites. IDs and state paths still need independent live
+reconciliation. This is disabled-config installation code, not full host bootstrap,
+production activation or live validation.
+
+Remaining: unit/source/image host installation, enabled transition, live initial/
+replacement/rollback rehearsal, boot reconciliation, image provenance, external
+retention/retirement and alerts, dirty-host reconciliation and exact-image network,
+cloud firewall and reboot evidence. No authenticated Droplet execution channel is
+available here. Existing Founder authority remains recorded. No new approval,
+private key or user terminal action is requested for this development slice.
+No production deployment/activation, paid resource, secret or Vault change occurred.
+Build remains incomplete; continue development and defer the full completion report.
