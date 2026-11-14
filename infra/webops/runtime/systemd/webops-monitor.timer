@@ -1,0 +1,11 @@
+[Unit]
+Description=Elevate360 diagnostic cadence trigger (disabled until release)
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=1h
+AccuracySec=1min
+Unit=webops-monitor.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,22 @@
+[Unit]
+Description=Elevate360 bounded read-only diagnostic tick
+After=docker.service
+ConditionPathExists=/etc/elevate360-webops/schedule.json
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+ExecStart=/usr/bin/node /opt/elevate360-webops/current/infra/webops/runtime/scheduled-runner-cli.mjs /etc/elevate360-webops/schedule.json
+TimeoutStartSec=60
+TimeoutStopSec=5
+KillMode=control-group
+Restart=no
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/elevate360-webops/schedule /var/lib/elevate360-webops/runner /var/lib/elevate360-webops/reports
+RestrictAddressFamilies=AF_UNIX
+StandardOutput=journal
+StandardError=journal
