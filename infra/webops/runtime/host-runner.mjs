@@ -6,6 +6,7 @@ import { checkReportCapacity } from './report-store.mjs';
 
 const HEX = /^[0-9a-f]{64}$/;
 const IMAGE = /^sha256:[0-9a-f]{64}$/;
+export const HOST_COMMAND_TIMEOUTS = Object.freeze({inspectionMs:10000, executionMs:35000});
 const NETWORK_PROJECTION = '{"id":{{json .Id}},"driver":{{json .Driver}},"internal":{{json .Internal}},' +
   '"ipv6":{{json .EnableIPv6}},"options":{{json .Options}},"ipam":{{json .IPAM.Config}}}';
 const PROJECTION = '{"id":{{json .Id}},"image":{{json .Image}},"running":{{json .State.Running}},' +
@@ -66,11 +67,11 @@ function verifyWorker(worker, expected) {
 // Read-only Docker observations; no state writes, exec or activation.
 export async function inspectRunnerIdentity(options, {docker = localDocker} = {}) {
   const expected = validateRunnerOptions(options);
-  const result = await docker(['inspect', '--format', PROJECTION, expected.containerId], 10000);
+  const result = await docker(['inspect', '--format', PROJECTION, expected.containerId], HOST_COMMAND_TIMEOUTS.inspectionMs);
   if (result.code !== 0 || result.stderr.length || !Buffer.isBuffer(result.stdout) || result.stdout.length > 65536)
     throw new Error('worker_inspection_failed');
   verifyWorker(JSON.parse(result.stdout.toString('utf8')), expected);
-  const networkResult = await docker(['network', 'inspect', '--format', NETWORK_PROJECTION, expected.networkId], 10000);
+  const networkResult = await docker(['network', 'inspect', '--format', NETWORK_PROJECTION, expected.networkId], HOST_COMMAND_TIMEOUTS.inspectionMs);
   if (networkResult.code !== 0 || networkResult.stderr.length || !Buffer.isBuffer(networkResult.stdout) || networkResult.stdout.length > 65536)
     throw new Error('network_inspection_failed');
   const network = JSON.parse(networkResult.stdout.toString('utf8'));
@@ -102,7 +103,7 @@ export async function runMonitorOnce(options, {docker = localDocker, now = Date.
     const inspect = () => inspectRunnerIdentity(expected, {docker});
     await inspect();
     const startedAt = now();
-    const result = await docker(['exec', expected.containerId, 'node', '/app/monitor-cli.mjs', ...expected.paths], 35000);
+    const result = await docker(['exec', expected.containerId, 'node', '/app/monitor-cli.mjs', ...expected.paths], HOST_COMMAND_TIMEOUTS.executionMs);
     const endedAt = now();
     if (![0, 1].includes(result.code) || result.stderr.length) throw new Error('worker_execution_failed');
     const {monitor, metadata} = decodeWorkerReport(result.stdout);
