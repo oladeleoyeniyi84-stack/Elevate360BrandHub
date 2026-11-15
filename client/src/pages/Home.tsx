@@ -470,9 +470,9 @@ export default function Home() {
             "@type": "ItemList",
             name: "Elevate360Official Digital Ecosystem",
             itemListElement: [
-              { "@type": "SoftwareApplication", position: 1, name: "Bondedlove", applicationCategory: "LifestyleApplication" },
-              { "@type": "SoftwareApplication", position: 2, name: "Healthwisesupport", applicationCategory: "HealthApplication" },
-              { "@type": "SoftwareApplication", position: 3, name: "Video Crafter", applicationCategory: "MultimediaApplication" },
+              { "@type": "SoftwareApplication", position: 1, name: "Bondedlove", applicationCategory: "LifestyleApplication", description: "In development; not available for public use or download." },
+              { "@type": "SoftwareApplication", position: 2, name: "Healthwisesupport", applicationCategory: "HealthApplication", description: "In development; not available for public use or download." },
+              { "@type": "SoftwareApplication", position: 3, name: "Video Crafter", applicationCategory: "MultimediaApplication", description: "In development; not available for public use or download." },
               { "@type": "Book", position: 4, name: "Healthwise: Stay Healthy" },
               { "@type": "Book", position: 5, name: "Together: Let There Be Love" },
               { "@type": "Book", position: 6, name: "One Clean Meal: A 7-Day Reset" },
