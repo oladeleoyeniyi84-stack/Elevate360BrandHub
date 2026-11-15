@@ -1046,3 +1046,27 @@ authority remains recorded. No new approval, private key or terminal action is
 requested for this source work. No production deployment/activation, paid resource,
 credential rotation or Vault change occurred. Build remains incomplete; continue
 development and defer the full completion report.
+
+
+### Follow-up — 2026-11-14: host service deadline
+
+Rechecked branches, open WebOps PRs and checkpoint c3a07a7. Its full CI run 133
+was still in progress at inspection; no result is assumed. Found a concrete
+deployment-template mismatch: two preflight and two postflight Docker inspections
+allow 40 seconds total, and worker exec allows 35 seconds, exceeding the previous
+60-second systemd deadline. The template now allows 90 seconds, including 15 seconds
+for host startup/validation/storage. Exported shared command-budget constants keep
+the actual adapter calls and the new unit-budget regression test aligned.
+
+All 120 Node tests passed locally, zero failures/skips. The regression requires a
+finite service deadline sufficient for the command sequence plus allowance, bounded
+to two minutes, and Restart=no. Worker request/byte/time limits and cadence are
+unchanged. Python code is unchanged and was not rerun. New CI pending.
+
+This fixes an outer deadline that could interrupt otherwise valid slow runs; it
+does not guarantee completion during filesystem stalls. Ambiguous failures still
+retain locks with no automatic retry. No installed systemd unit was changed and no
+timer activated. Live service/storage timing, boot strategy, deployment/rollback,
+retention/alerts and remaining host/firewall evidence are still unfinished. No
+authenticated Droplet execution channel exists here; no user terminal step is
+requested. Build remains incomplete and development continues.
