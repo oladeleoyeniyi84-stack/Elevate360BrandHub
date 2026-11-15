@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { ArrowRight, Newspaper, Star, Tag } from "lucide-react";
+import { ArrowRight, Newspaper, Tag } from "lucide-react";
 import type { HomepageFeed } from "@shared/types/homepageFeed";
 
 function formatDate(iso: string): string {
@@ -35,11 +35,11 @@ export function LatestFromElevate360() {
 
   const posts = feed?.posts ?? [];
   const topOffer = feed?.offers?.[0];
-  const topReview = feed?.testimonials?.[0];
+  // Public testimonials are withheld until provenance and publication consent are verified.
 
   // Fallback: if nothing is available (error, empty DB, all sources down),
   // render nothing — the homepage never shows a broken or empty section.
-  if (posts.length === 0 && !topOffer && !topReview) return null;
+  if (posts.length === 0 && !topOffer) return null;
 
   return (
     <section
@@ -64,7 +64,7 @@ export function LatestFromElevate360() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {posts.length > 0 && (
-            <div className={topOffer || topReview ? "lg:col-span-2" : "lg:col-span-3"}>
+            <div className={topOffer ? "lg:col-span-2" : "lg:col-span-3"}>
               <div className="flex items-center gap-2 mb-5 text-white/50">
                 <Newspaper className="h-4 w-4" aria-hidden="true" />
                 <h3 className="text-sm font-semibold tracking-wide uppercase">Latest Articles</h3>
@@ -119,7 +119,7 @@ export function LatestFromElevate360() {
             </div>
           )}
 
-          {(topOffer || topReview) && (
+          {(topOffer) && (
             <div className="flex flex-col gap-6">
               {topOffer && (
                 <div
@@ -156,42 +156,7 @@ export function LatestFromElevate360() {
                 </div>
               )}
 
-              {topReview && (
-                <div
-                  className="lux-card rounded-2xl p-6 flex flex-col gap-3"
-                  data-testid="card-latest-review"
-                >
-                  <div className="flex items-center gap-2 text-white/50">
-                    <Star className="h-4 w-4" aria-hidden="true" />
-                    <h3 className="text-sm font-semibold tracking-wide uppercase">Recent Review</h3>
-                  </div>
-                  <div
-                    className="flex items-center gap-0.5"
-                    role="img"
-                    aria-label={`Rated ${topReview.rating} out of 5 stars`}
-                  >
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <Star
-                        key={i}
-                        className="h-4 w-4"
-                        aria-hidden="true"
-                        style={{
-                          color: i < topReview.rating ? "#F4A62A" : "rgba(255,255,255,0.15)",
-                          fill: i < topReview.rating ? "#F4A62A" : "none",
-                        }}
-                      />
-                    ))}
-                  </div>
-                  <blockquote className="text-sm text-white/70 leading-relaxed line-clamp-4">
-                    "{topReview.body}"
-                  </blockquote>
-                  <p className="text-sm text-white/50">
-                    <span className="font-semibold text-white/80">{topReview.name}</span>
-                    {" · "}
-                    {topReview.product}
-                  </p>
-                </div>
-              )}
+
             </div>
           )}
         </div>
