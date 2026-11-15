@@ -1289,7 +1289,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Sprint 70.2 — Latest From Elevate360 (public feed: blog + offers + reviews) */}
+      {/* Sprint 70.2 — Latest From Elevate360 (public feed: blog + offers; testimonials withheld pending verification) */}
       <LatestFromElevate360 />
 
       {/* Featured Book Section - Healthwise */}
