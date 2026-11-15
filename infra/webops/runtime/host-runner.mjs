@@ -63,6 +63,26 @@ function verifyWorker(worker, expected) {
     throw new Error('worker_identity_or_isolation_mismatch');
 }
 
+// Read-only Docker observations; no state writes, exec or activation.
+export async function inspectRunnerIdentity(options, {docker = localDocker} = {}) {
+  const expected = validateRunnerOptions(options);
+  const result = await docker(['inspect', '--format', PROJECTION, expected.containerId], 10000);
+  if (result.code !== 0 || result.stderr.length || !Buffer.isBuffer(result.stdout) || result.stdout.length > 65536)
+    throw new Error('worker_inspection_failed');
+  verifyWorker(JSON.parse(result.stdout.toString('utf8')), expected);
+  const networkResult = await docker(['network', 'inspect', '--format', NETWORK_PROJECTION, expected.networkId], 10000);
+  if (networkResult.code !== 0 || networkResult.stderr.length || !Buffer.isBuffer(networkResult.stdout) || networkResult.stdout.length > 65536)
+    throw new Error('network_inspection_failed');
+  const network = JSON.parse(networkResult.stdout.toString('utf8'));
+  if (network.id !== expected.networkId || network.driver !== 'bridge' || network.internal !== true ||
+      network.ipv6 !== false || network.options?.['com.docker.network.bridge.name'] !== 'br-webops-wkr' ||
+      !Array.isArray(network.ipam) || network.ipam.length !== 1 || network.ipam[0]?.Subnet !== '172.30.0.0/24' ||
+      network.ipam[0]?.Gateway !== '172.30.0.1')
+    throw new Error('network_identity_or_isolation_mismatch');
+  return {workerVerified:true, networkVerified:true, containerId:expected.containerId,
+    imageId:expected.imageId, networkId:expected.networkId, activated:false};
+}
+
 // Explicit single invocation, never a scheduler. Expected IDs come from a trusted
 // release review, not the worker report. A failed attempt leaves a durable lock.
 export async function runMonitorOnce(options, {docker = localDocker, now = Date.now} = {}) {
@@ -79,21 +99,7 @@ export async function runMonitorOnce(options, {docker = localDocker, now = Date.
     catch (error) { if (error.code === 'EEXIST') throw new Error('runner_locked'); throw error; }
     fsyncSync(fd);
     checkReportCapacity(expected.reportDirectory);
-    const inspect = async () => {
-      const result = await docker(['inspect', '--format', PROJECTION, expected.containerId], 10000);
-      if (result.code !== 0 || result.stderr.length || !Buffer.isBuffer(result.stdout) || result.stdout.length > 65536)
-        throw new Error('worker_inspection_failed');
-      verifyWorker(JSON.parse(result.stdout.toString('utf8')), expected);
-      const networkResult = await docker(['network', 'inspect', '--format', NETWORK_PROJECTION, expected.networkId], 10000);
-      if (networkResult.code !== 0 || networkResult.stderr.length || !Buffer.isBuffer(networkResult.stdout) || networkResult.stdout.length > 65536)
-        throw new Error('network_inspection_failed');
-      const network = JSON.parse(networkResult.stdout.toString('utf8'));
-      if (network.id !== expected.networkId || network.driver !== 'bridge' || network.internal !== true ||
-          network.ipv6 !== false || network.options?.['com.docker.network.bridge.name'] !== 'br-webops-wkr' ||
-          !Array.isArray(network.ipam) || network.ipam.length !== 1 || network.ipam[0]?.Subnet !== '172.30.0.0/24' ||
-          network.ipam[0]?.Gateway !== '172.30.0.1')
-        throw new Error('network_identity_or_isolation_mismatch');
-    };
+    const inspect = () => inspectRunnerIdentity(expected, {docker});
     await inspect();
     const startedAt = now();
     const result = await docker(['exec', expected.containerId, 'node', '/app/monitor-cli.mjs', ...expected.paths], 35000);
