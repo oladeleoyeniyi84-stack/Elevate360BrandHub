@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { buildDiagnosticReport } from './report.mjs';
-import { runMonitorOnce, localDocker } from './host-runner.mjs';
+import { runMonitorOnce, localDocker, inspectRunnerIdentity } from './host-runner.mjs';
 
 function fixture(t, healthy = true) {
   const root = mkdtempSync(join(tmpdir(), 'webops-runner-'));
@@ -52,6 +52,35 @@ test('runs by immutable ID and stores healthy or unhealthy results with both sta
     assert.deepEqual(readdirSync(f.options.runDirectory), []);
     assert.equal(readdirSync(f.options.reportDirectory).length, 1);
   }
+});
+
+test('read-only identity inspection makes no exec or persistent state change', async t => {
+  const f=fixture(t);
+  writeFileSync(join(f.options.runDirectory,'run.lock'),'preserved');
+  const receipt=await inspectRunnerIdentity(f.options,f.dependencies);
+  assert.equal(receipt.workerVerified,true);assert.equal(receipt.networkVerified,true);
+  assert.equal(receipt.activated,false);assert.equal(receipt.networkId,f.options.networkId);
+  assert.deepEqual(f.calls.map(c=>c.args[0]),['inspect','network']);
+  assert.deepEqual(readdirSync(f.options.runDirectory),['run.lock']);
+  assert.deepEqual(readdirSync(f.options.reportDirectory),[]);
+});
+
+test('read-only identity inspection rejects drift without creating failure locks', async t => {
+  for(const mutate of [f=>{f.worker.image='sha256:'+'e'.repeat(64);},f=>{f.network.internal=false;}]) {
+    const f=fixture(t);mutate(f);
+    await assert.rejects(inspectRunnerIdentity(f.options,f.dependencies));
+    assert.ok(f.calls.every(c=>c.args[0]!=='exec'));
+    assert.deepEqual(readdirSync(f.options.runDirectory),[]);
+    assert.deepEqual(readdirSync(f.options.reportDirectory),[]);
+  }
+});
+
+test('read-only inspection validates options before Docker and does not require state directories', async t => {
+  const f=fixture(t);
+  await assert.rejects(inspectRunnerIdentity({...f.options,containerId:'worker'},f.dependencies));
+  assert.equal(f.calls.length,0);
+  rmSync(f.options.runDirectory,{recursive:true});rmSync(f.options.reportDirectory,{recursive:true});
+  assert.equal((await inspectRunnerIdentity(f.options,f.dependencies)).workerVerified,true);
 });
 
 test('successful run surfaces low capacity without deleting retained files', async t => {
