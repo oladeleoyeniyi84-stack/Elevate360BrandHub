@@ -1070,3 +1070,32 @@ timer activated. Live service/storage timing, boot strategy, deployment/rollback
 retention/alerts and remaining host/firewall evidence are still unfinished. No
 authenticated Droplet execution channel exists here; no user terminal step is
 requested. Build remains incomplete and development continues.
+
+
+### Follow-up — 2026-11-14: gateway configuration inspection
+
+Rechecked branches, open WebOps PRs and checkpoint. Full WebOps CI run 135 passed
+at 3e4e5b852e1b5a0b8d16f9f203e85bf6e90cffee:
+https://github.com/oladeleoyeniyi84-stack/Elevate360BrandHub/actions/runs/43670192122.
+
+Added inspect-gateway.mjs and operating notes as an explicit read-only release
+check. One bounded Docker inspect validates selected gateway identity/isolation,
+command/user, DNS, resource ceilings, audit mount and exact network attachments
+against the generated release model. The projection avoids environment variables.
+It makes no exec, website request, lifecycle call, state write or activation change.
+It is separate from scheduled ticks and does not increase their command budget.
+
+All 123 Node tests passed locally, zero failures/skips. Three new tests cover
+successful selected-field inspection, 22 configuration/identity mutations, invalid
+expected IDs and failed/malformed/oversized Docker observations. Tests inject Docker
+responses; actual Docker projection compatibility remains a target-host check.
+Unchanged Python tests were not rerun locally. New full CI pending.
+
+Receipts explicitly exclude network policy, firewall and audit persistence
+verification. Image provenance, other network members, host storage, actual DNS/
+gateway behavior, reboot recovery and alert delivery are not established by this
+inspection. No live host result is claimed. Authenticated Droplet access remains
+unavailable. Deployment/rollback and boot strategy, retention/alerts and fresh live
+network/firewall evidence remain unfinished. Existing authority is recorded; no new
+approval, private key or terminal command is requested. No production change,
+new cost or secret rotation occurred. Continue development; build is incomplete.
