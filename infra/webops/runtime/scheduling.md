@@ -51,7 +51,7 @@ and hourly after activation. The persistent application cadence prevents an earl
 post-reboot tick from executing again. Timer timing follows the systemd timer manual:
 https://www.freedesktop.org/software/systemd/man/latest/systemd.timer.html
 
-The service has no restart loop, a 60-second deadline, local Unix-socket access and
+The service has no restart loop, a 90-second deadline, local Unix-socket access and
 write access to only the three state directories within its filesystem sandbox.
 Docker socket access remains privileged; these restrictions do not make Docker a
 least-privilege API. Docker exec occurs in a separate container process and may
@@ -107,3 +107,18 @@ administrator deliberately starting/replacing services; final checks are point-i
 
 Testing uses simulated Docker/systemctl responses and temporary files. Live host
 execution, installed unit behavior and stop/recovery rehearsal remain pending.
+
+
+## Host service time budget
+
+The 90-second outer deadline allows four bounded Docker inspections (10 seconds
+per command), one bounded worker exec (35 seconds), and 15 seconds of host startup,
+validation and durable-storage allowance. It does not increase the worker's 30-second
+monitor budget, request/byte limits or cadence. The previous 60-second service limit
+could interrupt a valid slow inspection sequence before the runner finished.
+A regression check compares the unit deadline with the runner's command budgets.
+
+Filesystem stalls can exceed the allowance; this is not a completion guarantee.
+Timeout still leaves ambiguous-execution locks for inspection, with Restart=no and
+no automatic retry. Live systemd behavior and host storage latency remain unverified.
+This template change does not update an installed unit or activate the timer.
