@@ -1006,3 +1006,43 @@ available here. Existing Founder authority remains recorded. No new approval,
 private key or user terminal action is requested for this development slice.
 No production deployment/activation, paid resource, secret or Vault change occurred.
 Build remains incomplete; continue development and defer the full completion report.
+
+
+## Development checkpoint — 2026-11-14 (America/New_York)
+
+Read current branches, open WebOps PRs and this checkpoint. Confirmed full WebOps
+validation run 132 succeeded at 98af42bbdd8092339103c3179f79d0a9a6881ecf:
+https://github.com/oladeleoyeniyi84-stack/Elevate360BrandHub/actions/runs/43548514477.
+
+Extracted the host runner's existing worker/network inspection into the shared
+inspectRunnerIdentity function and added inspect-runtime-cli.mjs with operating
+notes. The CLI requires a complete private disabled schedule and makes only bounded
+local Docker inspect/network inspect calls. It can establish the existing worker/
+internal-network identity and isolation checks without executing a monitor request,
+writing cadence/reports, creating execution locks or changing services. The normal
+runner still performs the same pre/post checks around every request. The receipt
+explicitly excludes gateway/firewall verification and request execution.
+
+Validation: all 119 Node tests passed locally, zero failures/skips. Three new tests
+cover read-only successful inspection with an existing execution lock, worker/network
+drift rejected without state mutation, invalid options rejected before Docker, and
+inspection independent of state-directory existence. Existing monitoring and network
+drift tests pass after extraction. Tests use injected Docker responses and local
+fixtures; no real Docker, Droplet, systemd or origin call occurred. Python code is
+unchanged and its 31 tests were not rerun locally. New full CI remains pending.
+
+Inspection is point-in-time and assumes trusted Docker administration. It requires
+a running worker and does not restart a stopped post-reboot runtime. Passing it
+does not verify gateway identity, other network peers, host/cloud firewall, image
+provenance, state permissions/capacity, retention, alerts or reboot behavior and does
+not justify clearing an existing failure lock. This is a reusable release check,
+not an activation authorizer or completed live rehearsal.
+
+Remaining: host unit/source/image installation, enabled transition and boot strategy,
+live installation/replacement/rollback rehearsal, retention/retirement and alerts,
+dirty-host reconciliation and fresh exact-image network/cloud-firewall/reboot evidence.
+No authenticated Droplet execution channel is available here. Existing Founder
+authority remains recorded. No new approval, private key or terminal action is
+requested for this source work. No production deployment/activation, paid resource,
+credential rotation or Vault change occurred. Build remains incomplete; continue
+development and defer the full completion report.
