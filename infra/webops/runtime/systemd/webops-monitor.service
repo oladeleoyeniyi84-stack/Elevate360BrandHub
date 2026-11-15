@@ -8,7 +8,8 @@ Type=oneshot
 User=root
 UMask=0077
 ExecStart=/usr/bin/node /opt/elevate360-webops/current/infra/webops/runtime/scheduled-runner-cli.mjs /etc/elevate360-webops/schedule.json
-TimeoutStartSec=60
+# Four 10s inspections + 35s exec + 15s host/storage allowance.
+TimeoutStartSec=90
 TimeoutStopSec=5
 KillMode=control-group
 Restart=no
