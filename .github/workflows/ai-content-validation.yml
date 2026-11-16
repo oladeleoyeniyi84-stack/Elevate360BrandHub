@@ -1,0 +1,29 @@
+name: AI Content Studio validation
+
+on:
+  pull_request:
+    paths:
+      - "server/routes/aiContent.ts"
+      - "server/services/deepseek.ts"
+      - ".github/workflows/ai-content-validation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+      - name: TypeScript check
+        run: npm run check
+      - name: Production build
+        run: npm run build
