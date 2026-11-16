@@ -2,7 +2,7 @@ import {pathToFileURL} from 'node:url';
 import {localDocker,HOST_COMMAND_TIMEOUTS} from './host-runner.mjs';
 
 const hostFields=['ReadonlyRootfs','Privileged','CapDrop','CapAdd','SecurityOpt','PortBindings',
-  'RestartPolicy','Memory','NanoCpus','PidsLimit','Dns'];
+  'RestartPolicy','Memory','NanoCpus','PidsLimit','Dns','PidMode','IpcMode','PublishAllPorts'];
 const projection='{ "id":{{json .Id}},"name":{{json .Name}},"image":{{json .Image}},'+
  '"running":{{json .State.Running}},"paused":{{json .State.Paused}},'+
  '"config":{"User":{{json .Config.User}},"Cmd":{{json .Config.Cmd}}},"host":{'+
@@ -21,7 +21,8 @@ export async function inspectGateway({gatewayId,imageId,internalNetworkId,egress
   if(g.id!==gatewayId || g.name!=='/webops-egress-gateway' || g.image!==imageId || g.running!==true || g.paused!==false ||
     c?.User!=='1000:1000' || JSON.stringify(c.Cmd)!=='["node","/app/gateway.mjs"]' ||
     h?.ReadonlyRootfs!==true || h.Privileged!==false || JSON.stringify(h.CapDrop)!=='["ALL"]' ||
-    (h.CapAdd?.length??0)!==0 || !h.SecurityOpt?.includes('no-new-privileges:true') ||
+    (h.CapAdd?.length??0)!==0 || JSON.stringify(h.SecurityOpt)!=='["no-new-privileges:true"]' ||
+    h.PidMode!=='' || h.IpcMode!=='private' || h.PublishAllPorts!==false ||
     Object.keys(h.PortBindings??{}).length!==0 || h.RestartPolicy?.Name!=='no' ||
     !Number.isInteger(h.Memory) || h.Memory<1 || h.Memory>201326592 ||
     !Number.isInteger(h.NanoCpus) || h.NanoCpus<1 || h.NanoCpus>500000000 ||
