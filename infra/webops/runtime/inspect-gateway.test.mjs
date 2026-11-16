@@ -6,7 +6,7 @@ function fixture(){
  const gateway={id:options.gatewayId,name:'/webops-egress-gateway',image:options.imageId,running:true,paused:false,
  config:{User:'1000:1000',Cmd:['node','/app/gateway.mjs']},
  host:{ReadonlyRootfs:true,Privileged:false,CapDrop:['ALL'],CapAdd:null,SecurityOpt:['no-new-privileges:true'],
- PortBindings:{},RestartPolicy:{Name:'no'},Memory:201326592,NanoCpus:500000000,PidsLimit:64,Dns:['1.1.1.1','1.0.0.1']},
+ PidMode:'',IpcMode:'private',PublishAllPorts:false,PortBindings:{},RestartPolicy:{Name:'no'},Memory:201326592,NanoCpus:500000000,PidsLimit:64,Dns:['1.1.1.1','1.0.0.1']},
  mounts:[{Type:'bind',Source:'/var/lib/elevate360-webops/audit',Destination:'/audit',RW:true}],
  networks:{internal:{NetworkID:options.internalNetworkId,IPAddress:'172.30.0.2'},egress:{NetworkID:options.egressNetworkId}}};
  const calls=[];
@@ -35,4 +35,32 @@ test('invalid expected IDs and failed or malformed Docker observations are rejec
  {code:0,stdout:Buffer.from('not JSON'),stderr:Buffer.alloc(0)},
  {code:0,stdout:Buffer.alloc(65537),stderr:Buffer.alloc(0)}])
  await assert.rejects(inspectGateway(f.options,{docker:async()=>result}));
+});
+
+test('gateway rejects relaxed security profiles and shared host namespaces',async()=>{
+ const mutations=[
+  g=>g.host.SecurityOpt.push('seccomp=unconfined'),
+  g=>g.host.SecurityOpt.push('apparmor=unconfined'),
+  g=>g.host.SecurityOpt='no-new-privileges:true',
+  g=>g.host.PidMode='host',
+  g=>g.host.PidMode='container:other',
+  g=>g.host.IpcMode='host',
+  g=>g.host.IpcMode='container:other',
+  g=>g.host.IpcMode='shareable',
+  g=>g.host.IpcMode='',
+  g=>g.host.PublishAllPorts=true,
+  g=>delete g.host.PublishAllPorts,
+  g=>delete g.host.PidMode,
+  g=>delete g.host.IpcMode,
+ ];
+ for(const mutate of mutations){
+  const f=fixture();mutate(f.gateway);
+  await assert.rejects(inspectGateway(f.options,{docker:f.docker}),/gateway_identity_or_configuration_mismatch/);
+  assert.equal(f.calls.length,1);
+ }
+ const f=fixture();
+ assert.equal((await inspectGateway(f.options,{docker:f.docker})).gatewayConfigurationVerified,true);
+ const projection=f.calls[0][2];
+ for(const field of ['SecurityOpt','PidMode','IpcMode','PublishAllPorts'])
+  assert.ok(projection.includes('.HostConfig.'+field));
 });
