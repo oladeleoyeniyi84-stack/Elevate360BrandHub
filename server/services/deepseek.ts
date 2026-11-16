@@ -40,6 +40,7 @@ export interface DeepseekChatResult {
   content: string;
   model: string;
   latencyMs: number;
+  finishReason: string | null;
 }
 
 export async function deepseekChat(options: DeepseekChatOptions): Promise<DeepseekChatResult> {
@@ -55,5 +56,6 @@ export async function deepseekChat(options: DeepseekChatOptions): Promise<Deepse
     content: response.choices[0]?.message?.content ?? "",
     model,
     latencyMs: Date.now() - start,
+    finishReason: response.choices[0]?.finish_reason ?? null,
   };
 }
