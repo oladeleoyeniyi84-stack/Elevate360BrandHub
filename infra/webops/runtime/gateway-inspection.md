@@ -10,7 +10,8 @@ node /absolute/reviewed/inspect-gateway.mjs GATEWAY_FULL_ID sha256:IMAGE_FULL_DI
 The module issues only one bounded Docker inspect against the fixed local socket.
 It checks selected gateway fields against release-compose.py: exact identity/name,
 running and unpaused, user and command, read-only root filesystem, privileges,
-capabilities, no-new-privileges, port bindings, restart policy, resource ceilings,
+capabilities, exactly the no-new-privileges security option, private PID/IPC
+namespaces, disabled automatic port publishing, port bindings, restart policy, resource ceilings,
 explicit DNS, the single writable audit bind mount and the two expected network
 attachments with internal address 172.30.0.2. It does not fetch container environment
 variables. Output contains IDs and verification booleans, not raw Docker output.
@@ -32,3 +33,11 @@ alone cannot authorize activation or removal of existing execution locks.
 No live host result is claimed. Tests use injected Docker observations; actual
 Docker projection compatibility and release configuration must be checked on the
 target host before treating a receipt as release evidence.
+
+Additional security options are rejected, including unconfined seccomp/AppArmor
+profiles. PID mode must be empty (the normal private default); IPC mode must be
+explicitly private. Host/container namespace sharing and shareable IPC are rejected.
+These checks do not inspect the daemon's default security profile or prove kernel
+isolation. Empty or unknown IPC modes require reconciliation rather than a passing
+receipt. Missing projected namespace/publishing fields
+fail closed. Older inspection receipts did not cover these fields.
