@@ -18,7 +18,7 @@ const MAX_TOKENS_BY_TYPE = {
   social: 400,
   summary: 600,
   email: 1200,
-  blog: 2000,
+  blog: 6000,
 } as const;
 
 type ContentType = keyof typeof MAX_TOKENS_BY_TYPE;
@@ -104,11 +104,21 @@ aiContentRouter.post("/", rateLimit(40, 900), async (req, res) => {
 
   try {
     const result = await deepseekChat({ messages, maxTokens, temperature });
+    // A length-limited completion is unfinished, even if it contains plausible prose.
+    // Reject it rather than letting the founder save/publish a silently truncated article.
+    if (result.finishReason === "length") {
+      return res.status(422).json({
+        message: "The AI response reached its output-token limit and may be incomplete. Shorten the prompt or split the article into sections.",
+        code: "AI_OUTPUT_TRUNCATED",
+        maxTokens,
+      });
+    }
     return res.json({
       type,
       model: result.model,
       maxTokens,
       latencyMs: result.latencyMs,
+      finishReason: result.finishReason,
       content: result.content,
     });
   } catch (err) {
