@@ -31,6 +31,6 @@ jobs:
       - name: AI Content API response-contract tests
         run: npx tsx --test server/routes/aiContentPolicy.test.ts
       - name: Authenticated AI Content HTTP integration tests (mock provider)
-        run: npx tsx --test server/routes/aiContentIntegration.test.ts
+        run: timeout 90s npx tsx --test server/routes/aiContentIntegration.test.ts
       - name: Production build
         run: npm run build
