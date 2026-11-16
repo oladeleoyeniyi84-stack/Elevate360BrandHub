@@ -5,6 +5,9 @@ import express from "express";
 
 test("authenticated AI content endpoint handles long-form completion, truncation, empty and denial without a live provider", async () => {
   process.env.DEEPSEEK_API_KEY = "test-provider-key-not-real";
+  // Legacy routes imports initialize an OpenAI SDK client at module-load time.
+  // Supply a nonfunctional fixture key; the test never contacts OpenAI.
+  process.env.OPENAI_API_KEY = "test-openai-key-not-real";
   process.env.DATABASE_URL ??= "postgres://fake:fake@127.0.0.1:1/fake";
   const observed: Array<Record<string, any>> = [];
   let finishReason = "stop";
