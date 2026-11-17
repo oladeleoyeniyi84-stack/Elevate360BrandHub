@@ -1,6 +1,7 @@
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -61,5 +62,64 @@ class ReleaseComposeTests(unittest.TestCase):
             self.assertEqual(result.returncode, 2)
             self.assertEqual(json.loads(result.stdout), {'prepared': False, 'reason': 'release_compose_failed'})
             self.assertEqual(list(root.iterdir()), [])
+
+    def test_verification_is_read_only_and_rejects_digest_or_image_drift(self):
+        with tempfile.TemporaryDirectory() as name:
+            receipt = release.prepare(IMAGE, Path(name))
+            file = Path(receipt['path'])
+            before = file.read_bytes(), file.stat().st_mtime_ns, sorted(Path(name).iterdir())
+            result = release.verify(IMAGE, file, receipt['sha256'])
+            self.assertTrue(result['configurationVerified'])
+            self.assertFalse(result['imageVerified'])
+            self.assertFalse(result['deployed'])
+            for digest in ['0' * 64, '', None]:
+                with self.assertRaises(ValueError): release.verify(IMAGE, file, digest)
+            with self.assertRaises(ValueError): release.verify('sha256:' + 'b' * 64, file, receipt['sha256'])
+            self.assertEqual(before, (file.read_bytes(), file.stat().st_mtime_ns, sorted(Path(name).iterdir())))
+
+    def test_matching_digest_does_not_allow_changed_model_or_noncanonical_bytes(self):
+        with tempfile.TemporaryDirectory() as name:
+            receipt = release.prepare(IMAGE, Path(name))
+            file = Path(receipt['path'])
+            original = file.read_bytes()
+            changed = json.loads(original)
+            changed['services']['webops-worker']['privileged'] = True
+            for data in [json.dumps(changed).encode(), original + b' ', b'not JSON', b'x' * 16385]:
+                file.write_bytes(data)
+                with self.assertRaises(ValueError):
+                    release.verify(IMAGE, file, hashlib.sha256(data).hexdigest())
+                self.assertEqual(file.read_bytes(), data)
+
+    def test_unsafe_files_and_links_are_rejected(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            receipt = release.prepare(IMAGE, root)
+            file = Path(receipt['path'])
+            file.chmod(0o644)
+            with self.assertRaises(ValueError): release.verify(IMAGE, file, receipt['sha256'])
+            file.chmod(0o600)
+            link = root / 'link'
+            link.symlink_to(file)
+            with self.assertRaises(ValueError): release.verify(IMAGE, link, receipt['sha256'])
+            link.unlink()
+            os.link(file, link)
+            with self.assertRaises(ValueError): release.verify(IMAGE, file, receipt['sha256'])
+            link.unlink()
+            fifo = root / 'fifo'
+            os.mkfifo(fifo, 0o600)
+            with self.assertRaises(ValueError): release.verify(IMAGE, fifo, receipt['sha256'])
+            with self.assertRaises(ValueError): release.verify(IMAGE, 'relative.json', receipt['sha256'])
+
+    def test_verification_cli_and_missing_digest_fail_without_publication(self):
+        with tempfile.TemporaryDirectory() as name:
+            receipt = release.prepare(IMAGE, Path(name))
+            command = [sys.executable, release.__file__, '--verify-only', IMAGE, receipt['path']]
+            result = subprocess.run(command + [receipt['sha256']], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0)
+            self.assertTrue(json.loads(result.stdout)['configurationVerified'])
+            result = subprocess.run(command, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 2)
+            self.assertEqual(json.loads(result.stdout), {'prepared': False, 'reason': 'release_compose_failed'})
+            self.assertEqual(len(list(Path(name).iterdir())), 1)
 
 if __name__ == '__main__': unittest.main()
