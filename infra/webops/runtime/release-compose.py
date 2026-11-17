@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import re
 import tempfile
+import stat
 
 def model(image_id):
     if not isinstance(image_id, str) or not re.fullmatch(r'sha256:[0-9a-f]{64}', image_id):
@@ -32,6 +33,33 @@ def model(image_id):
                 'ipam': {'config': [{'subnet': '172.30.0.0/24'}]}},
                 'gateway_egress': {'driver': 'bridge',
                     'driver_opts': {'com.docker.network.bridge.name': 'br-webops-out'}}}}
+
+def verify(image_id, filename, expected_sha256):
+    expected = (json.dumps(model(image_id), sort_keys=True, indent=2) + '\n').encode()
+    if not isinstance(expected_sha256, str) or not re.fullmatch(r'[0-9a-f]{64}', expected_sha256):
+        raise ValueError('invalid_digest')
+    file = Path(filename)
+    if not file.is_absolute() or file.resolve() != file:
+        raise ValueError('unsafe_compose_path')
+    fd = os.open(file, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        before = os.fstat(fd)
+        if (not stat.S_ISREG(before.st_mode) or before.st_uid != os.getuid() or
+            before.st_mode & 0o7777 != 0o600 or before.st_nlink != 1 or before.st_size > 16384):
+            raise ValueError('unsafe_compose_file')
+        with os.fdopen(fd, 'rb', closefd=False) as stream:
+            data = stream.read(16385)
+        after = os.fstat(fd)
+        identity = lambda info: (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+        if identity(before) != identity(after) or identity(after) != identity(file.lstat()):
+            raise ValueError('compose_changed_during_read')
+        digest = hashlib.sha256(data).hexdigest()
+        if len(data) > 16384 or digest != expected_sha256 or data != expected:
+            raise ValueError('compose_digest_or_model_mismatch')
+        return {'configurationVerified': True, 'path': str(file), 'sha256': digest,
+                'imageId': image_id, 'imageVerified': False, 'deployed': False}
+    finally:
+        os.close(fd)
 
 def prepare(image_id, output_directory):
     data = (json.dumps(model(image_id), sort_keys=True, indent=2) + '\n').encode()
@@ -63,10 +91,18 @@ def prepare(image_id, output_directory):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    parser.add_argument('--verify-only', action='store_true')
     parser.add_argument('image_id')
-    parser.add_argument('output_directory')
+    parser.add_argument('path')
+    parser.add_argument('expected_sha256', nargs='?')
     args = parser.parse_args()
-    try: print(json.dumps(prepare(args.image_id, args.output_directory)))
+    try:
+        if args.verify_only:
+            result = verify(args.image_id, args.path, args.expected_sha256)
+        else:
+            if args.expected_sha256 is not None: raise ValueError('unexpected_digest')
+            result = prepare(args.image_id, args.path)
+        print(json.dumps(result))
     except Exception:
         print('{"prepared":false,"reason":"release_compose_failed"}')
         raise SystemExit(2)
