@@ -1135,3 +1135,40 @@ is recorded; no new approval, private key or user terminal command is requested.
 No production merge/deployment/activation, paid resources, secret rotation or
 Vault change occurred. Build remains incomplete; continue development and defer
 the final completion report.
+
+
+## Development checkpoint — 2026-11-16 (America/New_York)
+
+Read current WebOps branches, open PRs including #22 and this checkpoint. Confirmed
+full WebOps validation run 142 succeeded at b18dbd513a6e7d35428968cae9064160b5e8148c:
+https://github.com/oladeleoyeniyi84-stack/Elevate360BrandHub/actions/runs/43792336379.
+
+Added --verify-only to release-compose.py. The read-only verifier checks a prepared
+deployment file against an independently retained digest AND exact canonical bytes
+for the supplied full image ID. Thus a matching newly computed checksum cannot
+approve altered service privileges or other model drift. It bounds reads to 16 KiB
+plus an overflow byte, requires an owned 0600 regular single-link file, rejects
+symlink paths and observed changes during reading, and emits a scoped receipt.
+It performs no Docker/lifecycle call, file publication, installation or activation.
+
+Validation: all 35 Python and 124 Node tests passed locally, zero failures. Four new
+Python tests cover read-only success, digest/image drift, changed model despite
+matching digest, noncanonical/invalid/oversized contents, unsafe permissions,
+symlink/hardlink/FIFO/relative paths and separate-process CLI success/failure.
+Tests use temporary local files; no Docker, Droplet or external origin was contacted.
+New full GitHub CI is pending.
+
+The verification is point-in-time and requires trusted tool code/digest retention
+and stable trusted ancestors. It does not authenticate image/source provenance or
+prevent later administrative changes. Older candidates must be verified with their
+reviewed generator revision if the canonical model changes. Compose schema and live
+inspection remain separate required checks. Operating notes preserve these limits.
+
+Remaining: source/image/unit host installation, enabled transition and boot strategy,
+live replacement/rollback rehearsal, dirty-host reconciliation, revised exact-image
+network/cloud firewall/reboot evidence, external retention/retirement and alerts.
+Authenticated Droplet execution is unavailable here. Existing Founder authority is
+recorded; no new approval, private key or user terminal action is requested for this
+source work. No production merge/deployment/activation, new cost, credential rotation
+or Vault release occurred. Build remains incomplete; continue development and defer
+the final completion report.
