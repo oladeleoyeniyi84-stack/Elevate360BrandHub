@@ -29,8 +29,7 @@ Validate it with Docker Compose config before lifecycle operations. CI generates
 one from the image built in that job and validates its Compose schema; it does not
 start a service or validate live firewall behavior. Docker is unavailable in the
 local development environment, so local tests cover model invariants and file
-publication. Full WebOps CI run 120 passed for checkpoint 5ae639bd, including
-validation of the generated Compose document against the CI-built image.
+publication; Compose acceptance depends on the new CI result.
 
 Installation still needs a reviewed sequence that pauses scheduling, verifies no
 active run, preserves dirty host configuration and evidence, records both image
@@ -45,18 +44,23 @@ a receipt. Inspect rather than overwrite or delete blindly. Re-running the same
 image ID fails without modifying its previous configuration. Additional generated
 files consume disk space; retention and cleanup are operator-controlled.
 
-## Network identity after replacement or rollback
+## Verify the prepared file before deployment
 
-The host runner inspects the exact expected Docker network ID before executing the
-worker and again before saving its report. It requires an internal bridge with IPv6
-disabled, bridge name br-webops-wkr, one IPv4 subnet 172.30.0.0/24 and gateway
-172.30.0.1. A changed ID or weakened/different network configuration fails closed,
-leaves the runner failure lock and does not store a report. Pre-execution mismatch
-prevents the worker command; post-execution mismatch cannot undo an earlier request.
-Inspection failures and malformed responses are also failures, not passed checks.
+```sh
+python3 /absolute/reviewed/release-compose.py --verify-only sha256:FULL_64_LOWERCASE_HEX_IMAGE_ID /absolute/private-output/compose-IMAGE_HEX.json TRUSTED_SHA256
+```
 
-These are two point-in-time Docker observations, not continuous enforcement or a
-proof of nftables/cloud firewall policy. Trusted release configuration and Docker
-administration remain prerequisites. They do not validate gateway identity, other
-network members, firewall rules, reboot persistence or the image's source provenance.
-Those release evidence checks remain mandatory before activation.
+Use the digest retained independently from preparation. Verification reads at most
+16 KiB plus one overflow byte, requires an owned 0600 regular single-link file,
+rejects symlinks and observed concurrent changes, and compares both the digest and
+exact canonical bytes against this trusted tool's model for the supplied image ID.
+A matching digest for altered configuration is insufficient. Noncanonical formatting
+also fails. No file is published or changed, and Docker is never invoked.
+
+Exit 0 reports configurationVerified=true, imageVerified=false and deployed=false.
+Exit 2 reports a sanitized failure. This is a point-in-time file check, not image
+provenance or a deployment authorization. Keep stable trusted ancestor directories
+and prevent concurrent administrative changes between verification and Compose use.
+Use the same reviewed tool revision that generated the candidate; a future model
+change can intentionally invalidate older candidates. Run Compose schema validation
+separately and retain the original rollback tool/configuration together.
