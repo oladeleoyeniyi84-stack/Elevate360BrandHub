@@ -1,5 +1,5 @@
 import { constants, openSync, closeSync, fstatSync, realpathSync, readdirSync,
-  mkdirSync, rmdirSync, readFileSync, writeFileSync, fsyncSync, linkSync, unlinkSync } from 'node:fs';
+  mkdirSync, rmdirSync, readSync, lstatSync, writeFileSync, fsyncSync, linkSync, unlinkSync } from 'node:fs';
 import { resolve, join, isAbsolute } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { decodeWorkerReport } from './report-ingest.mjs';
@@ -25,9 +25,20 @@ function privateFile(path, maximum) {
     const stat = fstatSync(fd);
     if (!stat.isFile() || stat.uid !== process.getuid() || stat.nlink !== 1 ||
         (stat.mode & 0o777) !== 0o600 || stat.size > maximum) throw new Error('unsafe_export_file');
-    const data = readFileSync(fd);
-    if (data.length > maximum) throw new Error('export_too_large');
-    return data;
+    // Bound allocation and reads even if a non-cooperating writer grows the file.
+    const data = Buffer.alloc(stat.size + 1);
+    let used = 0;
+    while (used < data.length) {
+      const count = readSync(fd, data, used, data.length - used, null);
+      if (count === 0) break;
+      used += count;
+    }
+    const after = fstatSync(fd), current = lstatSync(path);
+    const identity = value => [value.dev, value.ino, value.size, value.mtimeMs,
+      value.ctimeMs, value.mode, value.uid, value.nlink].join(':');
+    if (used !== stat.size || identity(stat) !== identity(after) ||
+        identity(after) !== identity(current)) throw new Error('export_file_changed');
+    return data.subarray(0, used);
   } finally { closeSync(fd); }
 }
 
