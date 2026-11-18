@@ -1,4 +1,6 @@
 import test from 'node:test';
+import fs from 'node:fs';
+import {syncBuiltinESMExports} from 'node:module';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, rmSync, readFileSync, readdirSync, writeFileSync, chmodSync, symlinkSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -87,4 +89,35 @@ test('repeated exports preserve previous bundles and CLI errors omit file conten
     'verify', join(f.destination, first.name), 'invalid'], {encoding: 'utf8'});
   assert.equal(child.status, 2); assert.equal(child.stdout, '');
   assert.equal(child.stderr, '{"ok":false,"reason":"report_export_or_verification_failed"}\n');
+});
+
+test('growing or replaced report files fail without unbounded reads or publication', t => {
+  for (const kind of ['growth', 'replacement', 'truncation']) {
+    const f = fixture(t), path = join(f.source, f.name);
+    const original = readFileSync(path), originalRead = fs.readSync;
+    let mutated = false, requested = 0;
+    const mocked = t.mock.method(fs, 'readSync', (fd, buffer, offset, length, position) => {
+      requested += length;
+      if (!mutated) {
+        mutated = true;
+        if (kind === 'growth') fs.appendFileSync(path, Buffer.alloc(100000));
+        if (kind === 'truncation') fs.truncateSync(path, 0);
+        if (kind === 'replacement') {
+          fs.renameSync(path, path + '.old');
+          writeFileSync(path, original, {mode: 0o600});
+        }
+      }
+      return originalRead(fd, buffer, offset, length, position);
+    });
+    syncBuiltinESMExports();
+    try {
+      assert.throws(() => exportReports(f.source, f.destination), /export_file_changed/);
+      assert.ok(mutated);
+      assert.ok(requested <= 2 * (original.length + 1));
+      assert.deepEqual(readdirSync(f.destination), []);
+      assert.ok(!readdirSync(f.source).includes('.report-store.lock'));
+    } finally {
+      mocked.mock.restore();syncBuiltinESMExports();
+    }
+  }
 });
