@@ -1172,3 +1172,38 @@ recorded; no new approval, private key or user terminal action is requested for 
 source work. No production merge/deployment/activation, new cost, credential rotation
 or Vault release occurred. Build remains incomplete; continue development and defer
 the final completion report.
+
+
+## Development checkpoint — 2026-11-17 (America/New_York)
+
+Read current WebOps branches, open PRs including #22 and this checkpoint. Confirmed
+full WebOps validation run 144 succeeded at 4fdfee5729222314b8e0d367682b7045fc8f910a:
+https://github.com/oladeleoyeniyi84-stack/Elevate360BrandHub/actions/runs/44004735913.
+
+Fixed a bounded-read gap in report export and copied-bundle verification. Previously
+a size check preceded readFileSync, so concurrent growth could cause reading beyond
+the validated ceiling before the final length rejection. The shared private-file
+reader now allocates only the initial validated size plus one overflow byte and
+bounds each read to that buffer. It rejects changed byte count, observed metadata
+changes and path replacement before returning bytes. Source failures prevent bundle
+publication; no source evidence is deleted.
+
+Validation: all 125 Node tests passed locally, zero failures/skips. The new regression
+injects real growth, truncation and path replacement at the first read, checks bounded
+read requests and verifies no destination publication. Existing export, copied-bundle
+CLI, digest validation and source-preservation tests passed. Python code is unchanged
+and was not rerun; its 35 tests passed in the preceding local run. New full CI pending.
+
+The checks supplement the cooperating store lock. They do not establish an atomic
+snapshot against privileged administrators or prevent changes after verification.
+Stable trusted directories remain required. This closes a local export robustness
+gap, not external retention, acknowledgement, safe retirement or alert delivery.
+
+Remaining: authenticated host reconciliation, source/image/unit installation,
+enabled transition and boot strategy, revised exact-image live network/firewall/
+reboot evidence, replacement/rollback rehearsal, retention and alerts. No authenticated
+Droplet execution channel is available here. Existing Founder authority is recorded;
+no new approval, private key or user terminal command is requested for this source
+work. No production merge/deployment/activation, new paid resources, credential
+rotation or Engineering Vault release occurred. Build remains incomplete; continue
+development and defer the full completion report.
