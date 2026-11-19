@@ -13,6 +13,8 @@ const PROJECTION = '{"id":{{json .Id}},"image":{{json .Image}},"running":{{json 
   '"paused":{{json .State.Paused}},"user":{{json .Config.User}},"readOnly":{{json .HostConfig.ReadonlyRootfs}},' +
   '"privileged":{{json .HostConfig.Privileged}},"capDrop":{{json .HostConfig.CapDrop}},' +
   '"capAdd":{{json .HostConfig.CapAdd}},"securityOpt":{{json .HostConfig.SecurityOpt}},' +
+  '"pidMode":{{json .HostConfig.PidMode}},"ipcMode":{{json .HostConfig.IpcMode}},' +
+  '"publishAllPorts":{{json .HostConfig.PublishAllPorts}},' +
   '"mounts":{{json .Mounts}},"networks":{{json .NetworkSettings.Networks}},' +
   '"ports":{{json .HostConfig.PortBindings}},"restart":{{json .HostConfig.RestartPolicy.Name}},' +
   '"memory":{{json .HostConfig.Memory}},"nanoCpus":{{json .HostConfig.NanoCpus}},"pids":{{json .HostConfig.PidsLimit}}}';
@@ -54,7 +56,8 @@ function verifyWorker(worker, expected) {
       worker.running !== true || worker.paused !== false || worker.user !== '1000:1000' ||
       worker.readOnly !== true || worker.privileged !== false ||
       JSON.stringify(worker.capDrop) !== '["ALL"]' || (worker.capAdd?.length ?? 0) !== 0 ||
-      !worker.securityOpt?.includes('no-new-privileges:true') ||
+      JSON.stringify(worker.securityOpt) !== '["no-new-privileges:true"]' ||
+      worker.pidMode !== '' || worker.ipcMode !== 'private' || worker.publishAllPorts !== false ||
       !Array.isArray(worker.mounts) || worker.mounts.length !== 0 ||
       networks.length !== 1 || networks[0].NetworkID !== expected.networkId ||
       networks[0].IPAddress !== '172.30.0.3' || Object.keys(worker.ports ?? {}).length !== 0 ||
