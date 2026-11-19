@@ -15,6 +15,7 @@ function fixture(t, healthy = true) {
   for (const dir of [options.runDirectory, options.reportDirectory]) {mkdirSync(dir); chmodSync(dir, 0o700);}
   const worker = {id: options.containerId, image: options.imageId, running: true, paused: false,
     user: '1000:1000', readOnly: true, privileged: false, capDrop: ['ALL'], capAdd: null,
+    pidMode: '', ipcMode: 'private', publishAllPorts: false,
     securityOpt: ['no-new-privileges:true'], mounts: [], ports: {}, restart: 'no',
     memory: 134217728, nanoCpus: 250000000, pids: 64,
     networks: {internal: {NetworkID: options.networkId, IPAddress: '172.30.0.3'}}};
@@ -227,4 +228,31 @@ test('Docker adapter fixes executable/socket, bounds output and preserves exit o
   for (const error of [{code: 'ENOENT'}, {code: 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER'}, {code: 1, killed: true}])
     await assert.rejects(localDocker([], 10000, (file, args, options, callback) =>
       callback(error, Buffer.from('private'), Buffer.from('private'))), /docker_execution_failed/);
+});
+
+test('worker namespace and security profile drift blocks before exec or after exec', async t => {
+  const mutations = [
+    w => w.securityOpt.push('seccomp=unconfined'),
+    w => w.securityOpt.push('apparmor=unconfined'),
+    w => {w.securityOpt='no-new-privileges:true';},
+    w => {w.pidMode='host';}, w => {w.pidMode='container:other';},
+    w => {w.ipcMode='host';}, w => {w.ipcMode='shareable';},
+    w => {w.ipcMode='container:other';}, w => {w.ipcMode='';},
+    w => {w.publishAllPorts=true;}, w => {delete w.pidMode;},
+    w => {delete w.ipcMode;}, w => {delete w.publishAllPorts;}
+  ];
+  for (const mutate of mutations) for (const phase of ['before','after']) {
+    const f=fixture(t), original=f.dependencies.docker;
+    if (phase==='before') mutate(f.worker);
+    else f.dependencies.docker=async (...args)=>{
+      if(f.calls.length===3) mutate(f.worker);
+      return original(...args);
+    };
+    await assert.rejects(runMonitorOnce(f.options,f.dependencies), /worker_identity_or_isolation_mismatch/);
+    assert.equal(f.calls.filter(c=>c.args[0]==='exec').length, phase==='before'?0:1);
+    assert.deepEqual(readdirSync(f.options.runDirectory),['run.lock']);
+    assert.deepEqual(readdirSync(f.options.reportDirectory),[]);
+    const projection=f.calls[0].args[2];
+    for(const field of ['PidMode','IpcMode','PublishAllPorts']) assert.ok(projection.includes('.HostConfig.'+field));
+  }
 });
