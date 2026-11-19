@@ -1207,3 +1207,38 @@ no new approval, private key or user terminal command is requested for this sour
 work. No production merge/deployment/activation, new paid resources, credential
 rotation or Engineering Vault release occurred. Build remains incomplete; continue
 development and defer the full completion report.
+
+
+## Development checkpoint — 2026-11-18 (America/New_York)
+
+Read current WebOps branches, open PRs including #22 and this checkpoint. Confirmed
+full WebOps validation run 146 succeeded at 2484524a02fe287fc5fbfd3c5d649fb132cc00f2:
+https://github.com/oladeleoyeniyi84-stack/Elevate360BrandHub/actions/runs/44224808872.
+
+Aligned the worker inspector with the gateway's namespace/security restrictions.
+It now requires exactly no-new-privileges:true, empty private-default PID mode,
+explicitly private IPC mode and PublishAllPorts=false. Additional security options,
+shared host/container namespaces, shareable/empty IPC and missing fields fail closed.
+The same shared inspector protects read-only inspection and the normal runner's
+pre/post execution checks. No additional Docker calls or timeout-budget changes.
+
+Validation: all 126 Node tests passed locally, zero failures/skips. New regression
+covers 13 mutations at both preflight and postflight (26 cases), verifies projected
+fields, no preflight exec, no stored report and retained run failure locks. Existing
+healthy/unhealthy ingestion, read-only inspection, scheduling and deadline tests pass.
+Tests use injected Docker and temporary files; no actual host or origin calls.
+Python source is unchanged and was not rerun. New full CI is pending.
+
+Postflight checks cannot undo an earlier request. These selected fields do not
+establish every Docker setting, daemon default security profiles or kernel isolation.
+Actual Docker projection/default compatibility must be reconciled on the target host.
+This source change is not deployed and does not activate monitoring or remediation.
+
+Remaining: authenticated host reconciliation and source/image/unit installation,
+enabled transition/boot strategy, revised exact-image network/cloud-firewall/reboot
+evidence, replacement/rollback rehearsal, external retention/retirement and alerts.
+No authenticated Droplet execution channel is available here. Existing Founder
+authority remains recorded. No new approval, private key or user terminal action
+is requested for this source work. No production merge/deployment/activation,
+new paid resource, credential rotation or Vault release occurred. Build remains
+incomplete; continue development and defer the full completion report.
