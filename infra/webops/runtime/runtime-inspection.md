@@ -38,3 +38,18 @@ Do not clear an existing execution lock merely because identity inspection passe
 Record this receipt alongside the remaining independent live evidence required in
 release-operations.md. No authenticated host execution or live result is claimed by
 local tests; they use injected Docker responses and temporary directories.
+
+## Worker namespace and security options
+
+The shared inspector requires exactly no-new-privileges:true, empty private-default
+PID mode, explicitly private IPC mode and PublishAllPorts=false. Additional security
+options (including unconfined profiles), host/container namespace sharing, shareable
+or unspecified IPC and missing fields are rejected. The normal runner applies these
+checks before exec and again before report ingestion without extra Docker calls.
+Preflight rejection prevents execution; postflight rejection cannot undo a request
+already made. Both retain the run failure lock and prevent report publication.
+The read-only inspection command still creates no lock and performs no exec.
+
+This does not prove the daemon's default seccomp/AppArmor policy, kernel isolation
+or all container settings. Actual Docker projection and deployed defaults require
+live reconciliation. Older worker receipts did not cover these additional fields.
