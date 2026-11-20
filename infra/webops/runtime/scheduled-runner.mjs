@@ -1,4 +1,4 @@
-import { constants, openSync, closeSync, fstatSync, realpathSync, readFileSync,
+import { constants, openSync, closeSync, fstatSync, realpathSync, readSync,
   writeFileSync, fsyncSync, mkdirSync, rmdirSync, renameSync, lstatSync } from 'node:fs';
 import { isAbsolute, resolve, join } from 'node:path';
 import { runMonitorOnce, validateRunnerOptions } from './host-runner.mjs';
@@ -11,9 +11,19 @@ export function readScheduleBytes(path) {
     const stat = fstatSync(fd);
     if (!stat.isFile() || stat.uid !== process.getuid() || stat.nlink !== 1 ||
         (stat.mode & 0o777) !== 0o600 || stat.size > 16384) throw new Error('unsafe_schedule_config');
-    const data = readFileSync(fd);
-    if (data.length > 16384) throw new Error('unsafe_schedule_config');
-    return data;
+    const data = Buffer.alloc(stat.size + 1);
+    let used = 0;
+    while (used < data.length) {
+      const count = readSync(fd, data, used, data.length - used, null);
+      if (count === 0) break;
+      used += count;
+    }
+    const after = fstatSync(fd), current = lstatSync(path);
+    const identity = value => [value.dev, value.ino, value.size, value.mtimeMs,
+      value.ctimeMs, value.mode, value.uid, value.nlink].join(':');
+    if (used !== stat.size || identity(stat) !== identity(after) ||
+        identity(after) !== identity(current)) throw new Error('unsafe_schedule_config');
+    return data.subarray(0, used);
   } finally { closeSync(fd); }
 }
 
