@@ -1242,3 +1242,35 @@ authority remains recorded. No new approval, private key or user terminal action
 is requested for this source work. No production merge/deployment/activation,
 new paid resource, credential rotation or Vault release occurred. Build remains
 incomplete; continue development and defer the full completion report.
+
+
+## Development checkpoint — 2026-11-19 (America/New_York)
+
+Read current branches, open PRs and this checkpoint. Confirmed full WebOps CI run
+147 passed at a2b9e2cbba58d54af8997068337453b8606ecefc:
+https://github.com/oladeleoyeniyi84-stack/Elevate360BrandHub/actions/runs/44447223868.
+
+Closed the same size-check/unbounded-read gap in the shared schedule/cadence loader.
+It now reads at most the initial validated size plus one overflow byte, compares
+observed descriptor/path metadata, and rejects growth, truncation or replacement.
+This also protects disabled-candidate verification/installation callers. Cadence
+rejection happens before reservation or runner execution and retains tick.lock.
+No automatic recovery, retry or production scheduling activation was added.
+
+Validation: all 127 Node tests passed locally, zero failed/skipped. New regression
+injects growth, truncation and replacement during cadence reading, asserts bounded
+read requests, zero runner calls, retained tick.lock and no cadence.pending.
+Existing preparation, replacement, initialization, emergency-stop and scheduler
+tests also pass. Fixtures only; no actual Docker, systemd, Droplet or origin calls.
+Unchanged Python tests were not rerun. New full CI pending.
+
+Read consistency is point-in-time, not protection against privileged mutation or
+changes after loading. Trusted stable ancestors remain required. No installed file
+was modified. Host reconciliation, unit/source/image installation, enabled transition,
+boot strategy, live replacement/rollback, revised exact-image network/firewall/
+reboot evidence, external retention/retirement and alerts remain unfinished.
+Authenticated Droplet execution remains unavailable. Existing Founder authority
+is recorded; no private key, new approval or user terminal action is requested.
+No production merge/deployment/activation, paid resource, secret rotation or Vault
+change occurred. Build remains incomplete; continue development and defer the
+full completion report.
