@@ -122,3 +122,18 @@ Filesystem stalls can exceed the allowance; this is not a completion guarantee.
 Timeout still leaves ambiguous-execution locks for inspection, with Restart=no and
 no automatic retry. Live systemd behavior and host storage latency remain unverified.
 This template change does not update an installed unit or activate the timer.
+
+
+## Configuration and cadence read consistency
+
+The shared loader bounds allocation and reads to the initial validated file size
+plus one overflow byte (at most 16 KiB plus one). It rejects growth, truncation,
+observed metadata changes and path replacement during the read. This protects
+schedule loading, cadence loading and callers that verify or install disabled
+configuration. A rejected cadence read occurs before reservation/runner execution
+and retains the tick failure lock. No automatic repair or retry is added.
+
+These are point-in-time checks, not an atomic snapshot against a privileged actor.
+Stable trusted directories and no concurrent administrative edits remain required;
+changes after loading are not prevented. Disabling configuration does not cancel
+an already loaded invocation. Installed host behavior still needs live validation.
