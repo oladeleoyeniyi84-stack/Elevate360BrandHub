@@ -1,4 +1,6 @@
 import test from 'node:test';
+import fs from 'node:fs';
+import {syncBuiltinESMExports} from 'node:module';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, rmSync, readFileSync, writeFileSync, chmodSync, symlinkSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -101,4 +103,34 @@ test('operator CLI reads private config, stays disabled and sanitizes invalid in
   assert.equal(child.status, 2); assert.equal(child.stdout, '');
   assert.equal(child.stderr, '{"status":"blocked","reason":"scheduled_run_failed"}\n');
   chmodSync(path, 0o644); assert.throws(() => readScheduleConfig(path), /unsafe_schedule_config/);
+});
+
+test('cadence growth truncation and replacement block before runner and retain lock', async t => {
+  for (const kind of ['growth','truncation','replacement']) {
+    const f=fixture(t), path=join(f.config.stateDirectory,'cadence.json');
+    const bytes=Buffer.from(JSON.stringify({schemaVersion:1,attemptedAt:f.initial-7200000,notBefore:f.initial-3600000}));
+    writeFileSync(path,bytes,{mode:0o600});
+    const originalRead=fs.readSync;
+    let changed=false, requested=0;
+    const mocked=t.mock.method(fs,'readSync',(fd,buffer,offset,length,position)=>{
+      requested+=length;
+      if(!changed){
+        changed=true;
+        if(kind==='growth') fs.appendFileSync(path,Buffer.alloc(100000));
+        if(kind==='truncation') fs.truncateSync(path,0);
+        if(kind==='replacement'){
+          fs.renameSync(path,path+'.old');writeFileSync(path,bytes,{mode:0o600});
+        }
+      }
+      return originalRead(fd,buffer,offset,length,position);
+    });
+    syncBuiltinESMExports();
+    try {
+      await assert.rejects(scheduledTick(f.config,f.deps),/unsafe_schedule_config/);
+      assert.equal(f.count(),0);assert.ok(changed);
+      assert.ok(requested<=2*(bytes.length+1));
+      assert.ok(readdirSync(f.config.stateDirectory).includes('tick.lock'));
+      assert.ok(!readdirSync(f.config.stateDirectory).includes('cadence.pending'));
+    } finally {mocked.mock.restore();syncBuiltinESMExports();}
+  }
 });
