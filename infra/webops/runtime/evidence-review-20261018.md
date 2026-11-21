@@ -1274,3 +1274,53 @@ is recorded; no private key, new approval or user terminal action is requested.
 No production merge/deployment/activation, paid resource, secret rotation or Vault
 change occurred. Build remains incomplete; continue development and defer the
 full completion report.
+
+
+## Development checkpoint — 2026-11-20 (America/New_York)
+
+Read current WebOps branches, open PRs including #22 and this checkpoint. Confirmed
+full WebOps validation run 149 succeeded at 480910c44004b25e75289c2b5e321850dd6d933c:
+https://github.com/oladeleoyeniyi84-stack/Elevate360BrandHub/actions/runs/44666783192.
+
+Aligned generated release configuration with the inspectors: both services now
+explicitly request private IPC. Previously omission depended on the Docker daemon
+default, which can be private or shareable. Existing inspectors correctly reject
+shareable IPC. This change removes that deployment inconsistency; it does not
+change live containers. Docker documents the modes at
+https://docs.docker.com/reference/cli/docker/container/run/#ipc-settings---ipc.
+
+Validation: all 36 Python tests passed locally. The added regression covers both
+services with omitted, empty, shareable, host and service namespace settings and
+rejects each altered model even with a matching digest. Unchanged Node suite was
+not rerun locally (127 passed at the preceding checkpoint); new full CI pending.
+Docker is unavailable locally, so Compose acceptance and actual host behavior
+remain distinct CI/live gates. Old generated candidates intentionally fail the new
+canonical verifier; preserve old tool/configuration for rollback and prepare revised
+candidates in a separate directory, without overwriting existing evidence.
+
+### Open NGINX security incident
+
+The user's DigitalOcean screenshots identify CVE-2026-123007 and CVE-2026-123633.
+Fresh review of https://nginx.org/en/security_advisories.html confirms the HTTP/2
+flow-control memory corruption and use-after-free advisories, with upstream fixed
+versions 1.30.7+ and 1.31.9+. Upstream labels these major and medium respectively;
+the email's Critical/CVSS wording was not independently established.
+
+The WebOps Node Dockerfile does not install NGINX, but that does not establish the
+host or other containers are unaffected. No authenticated Droplet command channel
+is available. The prior DigitalOcean browser attempt returned Site Unavailable.
+The requested read-only OS/NGINX/process/HTTP2/container inventory has not been
+returned. Exposure, installed package provenance, backported fixes, active binary
+and patch status remain unknown. No upgrade, configuration edit, reload or security
+remediation is claimed. This incident must remain open until inventory identifies
+the affected installation and a reviewed update plus post-update validation succeeds.
+Do not infer compromise or rotate secrets from the alert alone.
+
+Remaining build gates: authenticated host reconciliation, source/image/unit
+installation and provenance, enabled transition/boot strategy, revised exact-image
+network/cloud-firewall/reboot evidence, replacement/rollback rehearsal, external
+retention/retirement and alert delivery. Existing Founder authority remains recorded.
+No new terminal command is needed for this source change; the previously requested
+incident inventory remains the essential missing host evidence. No production
+merge/deployment/activation, paid resource, secret rotation or Vault change occurred.
+Build remains incomplete; continue development and defer the full completion report.
