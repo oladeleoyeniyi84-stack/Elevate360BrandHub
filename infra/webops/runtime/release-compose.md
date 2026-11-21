@@ -24,6 +24,16 @@ The fixed runtime project name retains the pilot network identity. The audit bin
 directory must already exist; Compose must not silently create it. No host port is
 published and no scheduler service is included.
 
+Both services explicitly set ipc=private so a daemon configured with a shareable
+default cannot silently change the generated release's IPC isolation. The worker
+and gateway inspectors independently require Docker HostConfig.IpcMode=private.
+Docker documents these distinct modes at
+https://docs.docker.com/reference/cli/docker/container/run/#ipc-settings---ipc.
+The revised canonical model intentionally rejects older generated files that omit
+this setting, even with a matching digest. Prepare a new candidate in a separate
+private directory; preserve the old tool and configuration together for rollback.
+Compose schema acceptance and actual host inspection remain separate checks.
+
 Use this file alone, not as an override layered over unknown host Compose files.
 Validate it with Docker Compose config before lifecycle operations. CI generates
 one from the image built in that job and validates its Compose schema; it does not
