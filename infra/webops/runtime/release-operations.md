@@ -80,11 +80,15 @@ Prepare a disabled schedule using the new verified IDs and the existing persiste
 state paths and cadence. Use prepare-schedule.mjs --verify-only with the independently
 retained digest. Keep the previous config as private evidence. Install the candidate
 by a reviewed same-filesystem atomic replacement, preserving mode 0600 and trusted
-ownership, and verify the installed bytes against the same digest. Do not use a
-hard link (the loader rejects multiple links). Never reset cadence or failure locks.
-For an existing complete disabled configuration, replace-schedule.mjs implements
+ownership, and verify the installed bytes against the same digest. The final file
+must have one link; the loader rejects multiple links. Never reset cadence or failure
+locks. For an existing complete disabled configuration, replace-schedule.mjs implements
 this guarded transition; see replace-schedule.md for its digest, inactive-unit,
-backup and failure-lock requirements. Initial installation is still separate.
+backup and failure-lock requirements. On a prepared host with a missing target,
+its explicit --initialize mode publishes without overwriting an existing file and
+removes its temporary hard link before final single-link verification. Both modes
+require reviewed units already installed, inactive and the timer disabled/masked.
+Missing units are not a bypass. Initial host/unit setup remains separate.
 
 Keep host modules from one verified source release together. The systemd template
 expects /opt/elevate360-webops/current/infra/webops/runtime and /usr/bin/node, plus
