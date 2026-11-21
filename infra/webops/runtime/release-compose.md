@@ -36,8 +36,12 @@ Compose schema acceptance and actual host inspection remain separate checks.
 
 Use this file alone, not as an override layered over unknown host Compose files.
 Validate it with Docker Compose config before lifecycle operations. CI generates
-one from the image built in that job and validates its Compose schema; it does not
-start a service or validate live firewall behavior. Docker is unavailable in the
+one from the image built in that job and validates its Compose schema. It also
+creates both containers without starting them on a disposable GitHub-hosted runner,
+checks the recorded image/user/namespace/security/port/restart settings and removes
+its fixture resources. Existing named containers or networks block fixture creation.
+This checks Docker configuration acceptance, not running-process isolation, network
+reachability, host firewall behavior, audit writes or production compatibility. Docker is unavailable in the
 local development environment, so local tests cover model invariants and file
 publication; Compose acceptance depends on the new CI result.
 
