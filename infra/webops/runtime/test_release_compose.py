@@ -25,6 +25,7 @@ class ReleaseComposeTests(unittest.TestCase):
             self.assertEqual(service['user'], '1000:1000')
             self.assertTrue(service['read_only'])
             self.assertEqual(service['cap_drop'], ['ALL'])
+            self.assertEqual(service['ipc'], 'private')
             self.assertNotIn('ports', service)
             self.assertNotIn('build', service)
         self.assertNotIn('volumes', worker)
@@ -89,6 +90,24 @@ class ReleaseComposeTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     release.verify(IMAGE, file, hashlib.sha256(data).hexdigest())
                 self.assertEqual(file.read_bytes(), data)
+
+    def test_namespace_drift_rejected_even_with_matching_digest(self):
+        with tempfile.TemporaryDirectory() as name:
+            receipt = release.prepare(IMAGE, Path(name))
+            file = Path(receipt['path'])
+            for service in ['webops-worker', 'webops-egress-gateway']:
+                for mode in [None, '', 'shareable', 'host', 'service:webops-worker']:
+                    with self.subTest(service=service, mode=mode):
+                        changed = release.model(IMAGE)
+                        if mode is None:
+                            del changed['services'][service]['ipc']
+                        else:
+                            changed['services'][service]['ipc'] = mode
+                        data = (json.dumps(changed, sort_keys=True, indent=2) + '\n').encode()
+                        file.write_bytes(data)
+                        with self.assertRaises(ValueError):
+                            release.verify(IMAGE, file, hashlib.sha256(data).hexdigest())
+                        self.assertEqual(file.read_bytes(), data)
 
     def test_unsafe_files_and_links_are_rejected(self):
         with tempfile.TemporaryDirectory() as name:
