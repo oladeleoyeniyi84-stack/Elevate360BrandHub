@@ -36,11 +36,11 @@ networks:
     internal: true
     driver: bridge
     driver_opts:
-      com.docker.network.bridge.name: br-webops-worker
+      com.docker.network.bridge.name: br-webops-wkr
     ipam:
       config:
         - subnet: 172.30.0.0/24
   gateway_egress:
     driver: bridge
     driver_opts:
-      com.docker.network.bridge.name: br-webops-egress
+      com.docker.network.bridge.name: br-webops-out
