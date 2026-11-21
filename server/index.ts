@@ -25,10 +25,8 @@ const httpServer = createServer(app);
 app.disable("x-powered-by");
 
 // trust proxy: 1 trusts exactly one hop from the right of X-Forwarded-For.
-// In production: Client → Cloudflare → Replit proxy → Express.
-// Rate-limiting uses CF-Connecting-IP (see getClientIp in routes.ts) which
-// Cloudflare injects and the client cannot spoof, so the proxy count here
-// matters only for req.ip fallback paths (e.g. cookie secure, canonical redirect).
+// Rate limiting uses Express's resolved address, never an unverified
+// Cloudflare-specific header. Revalidate this hop count if routing changes.
 app.set("trust proxy", process.env.NODE_ENV === "production" ? 1 : false);
 
 const cspReportOnly = [

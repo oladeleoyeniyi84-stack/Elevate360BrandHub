@@ -113,6 +113,24 @@ test("checkout-style rate limiter rejects requests after its quota", () => {
   assert.deepEqual(statuses, [429]);
 });
 
+test("API quotas cannot be reset by rotating an unverified Cloudflare header", () => {
+  const middleware = rateLimit(2, 60);
+  const path = `/monthly-spoofed-ip-${Date.now()}`;
+  let allowed = 0;
+  const statuses: number[] = [];
+  const res = {
+    set() { return res; },
+    status(code: number) { statuses.push(code); return res; },
+    json() { return res; },
+  };
+  for (const address of ["198.51.100.1", "198.51.100.2", "198.51.100.3"]) {
+    middleware({ path, ip: "192.0.2.40", socket: {}, headers: { "cf-connecting-ip": address } }, res,
+      () => { allowed++; });
+  }
+  assert.equal(allowed, 2);
+  assert.deepEqual(statuses, [429]);
+});
+
 test("public PII capture schemas trim and canonicalize email identities", () => {
   assert.equal(
     insertContactMessageSchema.parse({
