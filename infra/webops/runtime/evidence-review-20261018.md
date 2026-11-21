@@ -1324,3 +1324,32 @@ No new terminal command is needed for this source change; the previously request
 incident inventory remains the essential missing host evidence. No production
 merge/deployment/activation, paid resource, secret rotation or Vault change occurred.
 Build remains incomplete; continue development and defer the full completion report.
+
+
+## CI integration follow-up — 2026-11-20 (America/New_York)
+
+Reviewed current branches, open PRs and checkpoint. Confirmed full CI run 151 passed
+at c658e4921a306cbdaf3514afa75e2ae2805d8836. Added real Docker configuration
+integration to the image-pinned release CI step: create both containers without
+starting them, inspect exact image/user, private IPC/default PID, read-only root,
+capabilities, privilege/security options, unpublished ports and restart policy.
+Unexpected preexisting named containers/networks stop the test before fixture
+creation. Cleanup is restricted to this Compose project's disposable CI resources.
+No runtime process, monitoring request or production host operation is executed.
+
+Validation: workflow YAML parsed and embedded Bash passed bash -n locally. Full
+WebOps validation run 152 succeeded at 540474dfc936a9850c2b1ea1cdf234f415bb3267:
+https://github.com/oladeleoyeniyi84-stack/Elevate360BrandHub/actions/runs/44863265189.
+The runtime job passed Node/Python suites, image build, Compose validation and the
+new real-Docker creation/inspection step. This validates configuration acceptance
+on the hosted CI runner; it does not establish running-process isolation, effective
+network/firewall controls, audit persistence or Droplet compatibility. Subsequent
+documentation-only commits update these limits and correct the runbook's stale
+initial-configuration wording to match replace-schedule.mjs --initialize. Initial
+host/unit bootstrap and live initialization/rollback rehearsal remain incomplete.
+
+NGINX incident remains open with no new host inventory or authenticated execution
+channel; no patch claim. Remaining release gates and Founder authorization are
+unchanged. No additional user command, production merge/deploy/activation, paid
+resource, credential rotation or Vault change. Continue development; build is not
+complete and the final completion report is not yet warranted.
