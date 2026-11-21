@@ -1,0 +1,22 @@
+name: November recovery plan safety lint
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "docs/security/2026-11-production-db-assurance.md"
+      - "scripts/verify-db-restore-readonly.sql"
+      - "scripts/verify-db-restore-readonly.test.mjs"
+      - ".github/workflows/recovery-assurance.yml"
+permissions:
+  contents: read
+jobs:
+  sql-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify restore SQL is read-only
+        run: node --test scripts/verify-db-restore-readonly.test.mjs
