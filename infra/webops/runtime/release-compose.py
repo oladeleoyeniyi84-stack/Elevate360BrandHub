@@ -14,7 +14,7 @@ def model(image_id):
         raise ValueError('full_image_id_required')
     def service(memory, cpus):
         return {'image': image_id, 'pull_policy': 'never', 'restart': 'no',
-                'user': '1000:1000', 'read_only': True, 'cap_drop': ['ALL'],
+                'user': '1000:1000', 'read_only': True, 'cap_drop': ['ALL'], 'ipc': 'private',
                 'security_opt': ['no-new-privileges:true'], 'mem_limit': memory,
                 'cpus': cpus, 'pids_limit': 64, 'profiles': ['manual-pilot']}
     worker = service('128m', 0.25)
