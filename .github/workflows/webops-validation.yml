@@ -222,3 +222,48 @@ jobs:
           python3 infra/webops/runtime/release-compose.py "$image_id" "$release_dir" > "$release_dir/receipt.json"
           compose_file="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["path"])' "$release_dir/receipt.json")"
           docker compose -f "$compose_file" --profile manual-pilot config --quiet
+
+          # Hosted disposable runner only. Never start either container.
+          for resource in webops-worker webops-egress-gateway; do
+            if docker container inspect "$resource" >/dev/null 2>&1; then
+              echo "Unexpected existing container; refusing fixture creation" >&2
+              exit 1
+            fi
+          done
+          for resource in runtime_worker_internal runtime_gateway_egress; do
+            if docker network inspect "$resource" >/dev/null 2>&1; then
+              echo "Unexpected existing network; refusing fixture creation" >&2
+              exit 1
+            fi
+          done
+          sudo install -d -m 0700 -o 1000 -g 1000 /var/lib/elevate360-webops/audit
+          cleanup() {
+            docker compose -f "$compose_file" --profile manual-pilot down --timeout 1
+          }
+          trap cleanup EXIT
+          docker compose -f "$compose_file" --profile manual-pilot create --no-build --pull never
+          docker inspect webops-worker webops-egress-gateway > "$release_dir/created-containers.json"
+          python3 - "$release_dir/created-containers.json" "$image_id" <<'PY'
+          import json
+          import sys
+          containers = json.load(open(sys.argv[1]))
+          assert len(containers) == 2
+          assert {c['Name'] for c in containers} == {'/webops-worker', '/webops-egress-gateway'}
+          for container in containers:
+              assert container['State']['Status'] == 'created'
+              assert container['State']['Running'] is False
+              assert container['Image'] == sys.argv[2]
+              assert container['Config']['User'] == '1000:1000'
+              host = container['HostConfig']
+              assert host['IpcMode'] == 'private'
+              assert host['PidMode'] == ''
+              assert host['ReadonlyRootfs'] is True
+              assert host['Privileged'] is False
+              assert host['CapDrop'] == ['ALL']
+              assert not host['CapAdd']
+              assert host['SecurityOpt'] == ['no-new-privileges:true']
+              assert host['PublishAllPorts'] is False
+              assert not host['PortBindings']
+              assert host['RestartPolicy']['Name'] == 'no'
+          print('Both unstarted containers passed Docker isolation checks')
+          PY
