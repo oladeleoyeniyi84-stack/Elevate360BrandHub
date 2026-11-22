@@ -168,8 +168,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          docker build --target worker -f infra/webops-digitalocean/Dockerfile.phase3 -t webops-worker:ci .
-          docker build --target gateway -f infra/webops-digitalocean/Dockerfile.phase3 -t webops-gateway:ci .
+          docker build --pull --build-arg WEBOPS_SOURCE_SHA="$GITHUB_SHA" --target worker -f infra/webops-digitalocean/Dockerfile.phase3 -t webops-worker:ci .
+          docker build --pull --build-arg WEBOPS_SOURCE_SHA="$GITHUB_SHA" --target gateway -f infra/webops-digitalocean/Dockerfile.phase3 -t webops-gateway:ci .
           for target in worker gateway; do
             if docker run --rm "webops-${target}:ci"; then
               echo "Inert image unexpectedly started successfully" >&2
@@ -186,6 +186,27 @@ jobs:
           fi
           test "$(docker image inspect -f '{{.Config.User}}' webops-worker:ci)" = node
           test "$(docker image inspect -f '{{.Config.User}}' webops-gateway:ci)" = node
+          for target in worker gateway; do
+            test "$(docker image inspect -f '{{index .Config.Labels "org.opencontainers.image.revision"}}' "webops-${target}:ci")" = "$GITHUB_SHA"
+          done
+          {
+            printf 'commit=%s\n' "$GITHUB_SHA"
+            printf 'dockerfile_sha256=%s\n' "$(sha256sum infra/webops-digitalocean/Dockerfile.phase3 | cut -d ' ' -f 1)"
+            docker image inspect --format 'worker_image_id={{.Id}}' webops-worker:ci
+            docker image inspect --format 'gateway_image_id={{.Id}}' webops-gateway:ci
+            docker image inspect --format 'worker_base_ref={{index .Config.Labels "org.opencontainers.image.source"}}' webops-worker:ci
+          } > webops-image-evidence.txt
+          test -s webops-image-evidence.txt
+
+
+      - name: Preserve Phase 3 image build evidence
+        if: always() && startsWith(github.head_ref, 'webops/phase-3-')
+        uses: actions/upload-artifact@v4
+        with:
+          name: webops-phase3-image-evidence
+          path: webops-image-evidence.txt
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Rehearse internal worker-to-gateway isolation and outage in Docker
         if: startsWith(github.head_ref, 'webops/phase-3-') && hashFiles('infra/webops-digitalocean/ci-internal-network.sh') != ''
