@@ -22,6 +22,11 @@ docker exec "$WEBOPS_WORKER_CONTAINER" sh -lc 'command -v wget >/dev/null 2>&1 |
 docker exec "$WEBOPS_GATEWAY_CONTAINER" test -x /app/webops-gateway-check \
   >"$OUT/gateway-check-preflight.log" 2>&1 || fail "gateway diagnostic command missing"
 
+# The worker-side diagnostic must call the actual configured gateway-dependent inspection path.
+# A direct HTTPS probe alone cannot demonstrate that this dependency fails closed.
+docker exec "$WEBOPS_WORKER_CONTAINER" test -x /app/webops-worker-check \
+  >"$OUT/worker-check-preflight.log" 2>&1 || fail "worker gateway-dependent diagnostic command missing; V5 cannot be verified"
+
 # Capture reviewed infrastructure state before adversarial tests.
 nft list table inet webops_filter >"$OUT/nftables-webops-filter.txt" 2>&1 || fail "WebOps nftables table is not loaded"
 docker inspect "$WEBOPS_WORKER_CONTAINER" >"$OUT/worker-inspect.json" 2>&1 || fail "worker container inspection failed"
@@ -75,18 +80,34 @@ for target in \
 done
 pass "gateway independently rejects unsafe destinations"
 
-# V5. Gateway outage must fail closed; the worker must not fall back to direct internet.
-docker stop "$WEBOPS_GATEWAY_CONTAINER" >"$OUT/gateway-stop.log"
+# V5. Verify the actual worker inspection path before, during, and after a gateway outage.
+# The worker check MUST use the same gateway dependency as production inspection.
+if docker exec "$WEBOPS_WORKER_CONTAINER" /app/webops-worker-check "$WEBOPS_APPROVED_URL" >"$OUT/worker-before-outage.log" 2>&1; then
+  pass "worker inspection succeeds through healthy gateway"
+else
+  fail "worker inspection path is not working before outage; V5 inconclusive"
+fi
+
+docker stop "$WEBOPS_GATEWAY_CONTAINER" >"$OUT/gateway-stop.log" 2>&1 || fail "gateway could not be stopped for outage test"
 cleanup() { docker start "$WEBOPS_GATEWAY_CONTAINER" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 sleep 1
-if docker exec "$WEBOPS_WORKER_CONTAINER" sh -lc 'wget -q -T 5 -O /dev/null https://www.elevate360official.com/ 2>/dev/null || curl -ksS --connect-timeout 5 https://www.elevate360official.com/ -o /dev/null' >"$OUT/worker-gateway-outage.log" 2>&1; then
-  fail "worker bypassed gateway during outage"
-else
-  pass "gateway outage fails closed"
+
+if docker exec "$WEBOPS_WORKER_CONTAINER" /app/webops-worker-check "$WEBOPS_APPROVED_URL" >"$OUT/worker-during-outage.log" 2>&1; then
+  fail "worker inspection succeeded without gateway (fail-open)"
 fi
-cleanup
+if docker exec "$WEBOPS_WORKER_CONTAINER" sh -lc 'wget -q -T 5 -O /dev/null https://www.elevate360official.com/ 2>/dev/null || curl -ksS --connect-timeout 5 https://www.elevate360official.com/ -o /dev/null' >"$OUT/worker-direct-during-outage.log" 2>&1; then
+  fail "worker bypassed gateway with direct HTTPS during outage"
+fi
+pass "worker inspection and direct HTTPS fail closed during gateway outage"
+
+docker start "$WEBOPS_GATEWAY_CONTAINER" >"$OUT/gateway-recovery.log" 2>&1 || fail "gateway could not restart after outage"
 trap - EXIT
+if docker exec "$WEBOPS_WORKER_CONTAINER" /app/webops-worker-check "$WEBOPS_APPROVED_URL" >"$OUT/worker-after-outage.log" 2>&1; then
+  pass "worker inspection restored after gateway recovery"
+else
+  fail "worker inspection did not recover after gateway restart"
+fi
 
 # V6. Durable audit evidence must exist outside the gateway container and survive restart.
 if [ ! -s "$WEBOPS_GATEWAY_AUDIT_EXPORT" ]; then
