@@ -54,6 +54,7 @@ must provide and verify:
 2. A bounded GET-only worker inspection wired to the actual gateway transport, including
    request/response protocol, authentication or equivalent isolation, deadlines and deny-by-default
    behavior. The worker must have no direct outbound transport or fallback.
+3. Internal `/inspect` protocol requires a staging-only, non-repository shared token (minimum 32 UTF-8 bytes), checked by the gateway handler using constant-time comparison. The worker must supply this token only to the internal gateway and no other destination. The protocol handler is an inactive candidate until a real network listener, pinned HTTPS transport, durable audit backend, independent authorization policy, and isolated image are connected.
 3. `/app/webops-worker-check <url>` invoking that real worker inspection path and
    `/app/webops-gateway-check <url>` invoking the real gateway policy/transport; neither may
    be unconditional success/failure mocks.
