@@ -101,11 +101,14 @@ fi
 cp "$WEBOPS_GATEWAY_AUDIT_EXPORT" "$OUT/gateway-audit-export-after-restart.log"
 pass "gateway audit evidence persists outside container lifecycle"
 
+# Finalize the summary before hashing. No evidence file may be edited after manifest creation.
+pass "evidence collection complete"
+
 # Final evidence manifest. Do not include the manifest itself in its own digest set.
 find "$OUT" -maxdepth 1 -type f ! -name SHA256SUMS -print0 \
   | sort -z \
   | xargs -0 sha256sum >"$OUT/SHA256SUMS"
 [ -s "$OUT/SHA256SUMS" ] || fail "SHA-256 manifest was not created"
-pass "evidence hashes captured"
+sha256sum -c "$OUT/SHA256SUMS" >"$OUT/../manifest-verification.log" 2>&1 || { printf "FAIL evidence checksum verification\n" >&2; exit 1; }
 
 printf '%s\n' "$OUT"
