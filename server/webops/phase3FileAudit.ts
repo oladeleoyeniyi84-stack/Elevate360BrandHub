@@ -23,14 +23,14 @@ export class FileGatewayAudit implements AppendOnlyGatewayAudit {
     if (!path.startsWith("/") || path.includes("\u0000")) throw new Error("audit_absolute_path_required");
     // O_NOFOLLOW rejects a symlink at the journal path; the directory must
     // also be controlled by the host and not writable by the worker.
-    this.fd = openSync(path, constants.O_WRONLY | constants.O_APPEND | constants.O_CREAT |
+    this.fd = openSync(path, constants.O_RDWR | constants.O_APPEND | constants.O_CREAT |
       constants.O_NOFOLLOW | constants.O_DSYNC, 0o600);
     try {
       const meta = fstatSync(this.fd);
       if (!meta.isFile() || meta.nlink !== 1 || (meta.mode & 0o077) !== 0) {
         throw new Error("audit_path_not_private_regular_file");
       }
-      const raw = readFileSync(path, "utf8");
+      const raw = readFileSync(this.fd, "utf8");
       let previous = "0".repeat(64);
       if (raw.length > 16_000_000) throw new Error("audit_file_too_large");
       if (raw !== "" && !raw.endsWith("\n")) throw new Error("audit_journal_truncated");
