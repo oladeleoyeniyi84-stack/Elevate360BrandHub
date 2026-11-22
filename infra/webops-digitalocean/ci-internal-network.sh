@@ -61,14 +61,14 @@ worker_check() {
     "https://www.elevate360official.com/"
 }
 count_audits() {
-  if [ ! -s "$TMP/audit/gateway.jsonl" ]; then echo 0; return; fi
-  wc -l < "$TMP/audit/gateway.jsonl"
+  if ! sudo test -s "$TMP/audit/gateway.jsonl"; then echo 0; return; fi
+  sudo wc -l "$TMP/audit/gateway.jsonl" | awk '{print $1}'
 }
 # Approved request reaches the real gateway but must fail because the CI
 # network has no public DNS/egress; gateway must persist a DENY record.
 if worker_check; then echo "Unexpected permitted public origin in isolated CI" >&2; exit 1; fi
 test "$(count_audits)" -eq 1 || { echo "Worker did not reach real gateway with audit" >&2; docker logs --tail 25 "$GATEWAY" >&2; docker exec "$GATEWAY" sh -c 'ls -ld /audit; ls -l /audit/gateway.jsonl 2>/dev/null || true' >&2; exit 1; }
-node - "$TMP/audit/gateway.jsonl" <<'NODE'
+sudo "$(command -v node)" - "$TMP/audit/gateway.jsonl" <<'NODE'
 const fs = require("node:fs");
 const log = JSON.parse(fs.readFileSync(process.argv[2], "utf8").trim());
 if (log.event?.requestId !== "phase3-diagnose-1" ||
