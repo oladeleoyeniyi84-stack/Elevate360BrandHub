@@ -116,6 +116,30 @@ artifact, independent attestation, or a deployable release.
 The Docker Compose provisioning file remains an intentionally disabled placeholder.
 No image is pushed, deployed, scheduled or configured to start automatically.
 
+## Host-side V1–V6 validation — explicit authorization gate
+
+`infra/webops/validation/validate-network.sh` is **disruptive**: it stops,
+starts and restarts the gateway. It must not run against the Brand Hub,
+production Docker containers, or a shared host.
+
+Before invoking it on a separately approved isolated staging host, the operator
+must independently check cloud account ownership/firewall settings, container
+identities, mounted secrets, image digests and audit retention. The script refuses
+to run unless `WEBOPS_ALLOW_STAGING_GATEWAY_RESTART=YES` and
+`WEBOPS_STAGING_HOST_ID` exactly matches `hostname`. Those variables provide
+an acknowledgment and a sanity check, **not security authorization**. All other
+environment inputs and the host must be independently reviewed.
+
+Direct worker reachability probes now use the Node.js executable present in
+the pinned candidate image; do not claim that a refused connection alone proves
+network isolation. Independently verify Docker interfaces, nftables, cloud
+firewall and routing rules. V6 compares audit exports before/after restart,
+and a SHA-256 manifest verifies the collected evidence directory.
+
+**No live host validation has occurred as part of CI.** GitHub Actions checks
+only shell syntax and explicit refusal conditions. V1–V6 and the external
+account/security approvals remain mandatory before staging.
+
 ## Required inputs before apply
 
 Terraform intentionally has no embedded credentials. Supply:
