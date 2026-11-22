@@ -8,17 +8,17 @@ TMP="$(mktemp -d)"
 cleanup() {
   docker rm -f "$GATEWAY" >/dev/null 2>&1 || true
   docker network rm "$NETWORK" >/dev/null 2>&1 || true
-  rm -rf "$TMP"
+  sudo rm -rf -- "$TMP"
 }
 trap cleanup EXIT
 
 docker network create --internal --subnet 172.30.0.0/24 "$NETWORK" >/dev/null
 chmod 0711 "$TMP"
 mkdir "$TMP/audit"
-chown 1000:1000 "$TMP/audit"
+sudo chown 1000:1000 "$TMP/audit"
 chmod 0700 "$TMP/audit"
 openssl rand -hex 32 > "$TMP/token"
-chown 1000:1000 "$TMP/token"
+sudo chown 1000:1000 "$TMP/token"
 chmod 0600 "$TMP/token"
 truncate -s 64 "$TMP/token"
 
