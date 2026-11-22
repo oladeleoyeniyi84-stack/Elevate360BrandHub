@@ -42,6 +42,16 @@ for i in 1 2 3 4 5; do
 done
 test "$READY" -eq 1 || { echo "Gateway listener unavailable" >&2; exit 1; }
 
+# Independently prove worker DNS/TCP access to gateway without a credential.
+docker run --rm --network "$NETWORK" --read-only \
+  --security-opt no-new-privileges --cap-drop ALL \
+  --entrypoint node webops-worker:ci -e '
+    fetch("http://webops-egress-gateway:8787/inspect",{
+      method:"POST",headers:{"content-type":"application/json"},body:"{}",
+      signal:AbortSignal.timeout(3000)
+    }).then(r=>process.exit(r.status===401?0:1)).catch(()=>process.exit(1))
+  ' || { echo "Worker cannot contact private gateway listener" >&2; exit 1; }
+
 worker_check() {
   docker run --rm --network "$NETWORK" --read-only \
     --security-opt no-new-privileges --cap-drop ALL \
@@ -57,7 +67,7 @@ count_audits() {
 # Approved request reaches the real gateway but must fail because the CI
 # network has no public DNS/egress; gateway must persist a DENY record.
 if worker_check; then echo "Unexpected permitted public origin in isolated CI" >&2; exit 1; fi
-test "$(count_audits)" -eq 1 || { echo "Worker did not reach real gateway with audit" >&2; exit 1; }
+test "$(count_audits)" -eq 1 || { echo "Worker did not reach real gateway with audit" >&2; docker logs --tail 25 "$GATEWAY" >&2; docker exec "$GATEWAY" sh -c 'ls -ld /audit; ls -l /audit/gateway.jsonl 2>/dev/null || true' >&2; exit 1; }
 node - "$TMP/audit/gateway.jsonl" <<'NODE'
 const fs = require("node:fs");
 const log = JSON.parse(fs.readFileSync(process.argv[2], "utf8").trim());
