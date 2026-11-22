@@ -64,3 +64,20 @@ a crash or I/O failure may still leave a partial line or lock requiring operator
 inspection. Never clear locks or truncate logs automatically to resume service.
 Preserve and verify a snapshot before planning any separately reviewed retirement
 or rotation. This guard is tested locally and has not been deployed on the Droplet.
+
+
+## Ambiguous append failures
+
+Once a write is attempted, the writer releases its lock only after the complete
+record has been written, fsync has succeeded and the descriptor has closed
+successfully. A short/failed write, zero-progress write, sync error or close error
+retains the lock. Subsequent attempts fail before DNS or transport, even if the
+last line looks complete. Complete JSON alone cannot prove the earlier append was
+durably committed. Validation/capacity rejection before any write still releases
+the lock because no append was attempted.
+
+Quiesce the gateway, preserve the log and lock, and investigate storage health and
+the actual bytes before a separately reviewed recovery. Do not automatically
+remove the lock, retry requests, truncate evidence or treat a failed append as
+proof that no request occurred. This does not reserve terminal-event space,
+provide external retention or authenticate records against host administrators.
