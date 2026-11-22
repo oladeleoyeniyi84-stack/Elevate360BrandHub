@@ -67,6 +67,21 @@ must provide and verify:
 The initial account-level DigitalOcean and Cloudflare access/permissions verification
 remains required; repository configuration does not prove live cloud account state.
 
+## Inactive gateway server implementation (review candidate)
+
+The branch now includes `server/webops/phase3GatewayServer.ts`, a Node HTTP server
+**factory** (not an enabled service) that composes the authenticated internal
+`/inspect` handler, system DNS resolution, and DNS-pinned HTTPS GET transport.
+It does not call `listen()`, publish a port, or alter the existing placeholder
+Compose services. A local fixture test checks unauthorized routing without
+making external inspection requests.
+
+**Not staging-ready:** a separately reviewed startup/binding entry point, real
+worker-side check executable, pinned runtime image, immutable host-controlled
+durable audit implementation, host-side resource limits and external validation
+are still required. In-memory audit must only be used in tests. Neither this
+server factory nor the client protocol is evidence of an operating gateway.
+
 ## Required inputs before apply
 
 Terraform intentionally has no embedded credentials. Supply:
