@@ -10,12 +10,13 @@ const registry: WebOpsOriginRegistry = {
   origins: [{ origin: "https://www.elevate360official.com", enabled: true, approvedBy: "founder", approvedAt: "2026-10-14T16:00:00Z" }],
 };
 const endpoint = "http://webops-egress-gateway:8787/inspect";
+const token = "test-only-shared-token-with-at-least-32-characters";
 const input = { requestId: "probe-1", url: origin, method: "GET" as const, registryVersion: 1 };
 
 test("internal gateway client rejects arbitrary endpoints before network access", () => {
   const unreachable = (async () => { throw new Error("unexpected_network"); }) as typeof fetch;
   for (const url of ["https://example.com/inspect", "http://127.0.0.1:8787/inspect", "http://webops-egress-gateway:8787/other", "http://webops-egress-gateway:8787/inspect?target=bad"]) {
-    assert.throws(() => new InternalHttpEgressGateway(registry, url, unreachable), /gateway_endpoint_must_be_internal/);
+    assert.throws(() => new InternalHttpEgressGateway(registry, url, unreachable, token), /gateway_endpoint_must_be_internal/);
   }
 });
 
@@ -25,6 +26,7 @@ test("internal client sends only to gateway, with exact GET policy and no direct
     calls.push(String(url));
     assert.equal(options?.method, "POST");
     assert.equal(options?.redirect, "error");
+    assert.equal((options?.headers as Record<string, string>).authorization, `Bearer ${token}`);
     assert.deepEqual(JSON.parse(String(options?.body)), input);
     return Response.json({ status: 204, audit: {
       sequence: 1, requestId: input.requestId, url: input.url,
@@ -32,7 +34,7 @@ test("internal client sends only to gateway, with exact GET policy and no direct
       decision: "allow", reason: "approved_public_target", registryVersion: 1, immutable: true,
     } });
   }) as typeof fetch;
-  const gateway = new InternalHttpEgressGateway(registry, endpoint, transport);
+  const gateway = new InternalHttpEgressGateway(registry, endpoint, transport, token);
   const result = await gateway.request(input);
   assert.equal(result.response.status, 204);
   assert.deepEqual(calls, [endpoint]);
@@ -42,7 +44,7 @@ test("internal client sends only to gateway, with exact GET policy and no direct
 
 test("unapproved origin fails without calling transport", async () => {
   let count = 0;
-  const gateway = new InternalHttpEgressGateway(registry, endpoint, (async () => { count++; throw Error("unexpected"); }) as typeof fetch);
+  const gateway = new InternalHttpEgressGateway(registry, endpoint, (async () => { count++; throw Error("unexpected"); }) as typeof fetch, token);
   await assert.rejects(gateway.request({ ...input, url: "https://example.com/" }), /gateway_origin_not_approved/);
   assert.equal(count, 0);
 });
@@ -50,7 +52,7 @@ test("unapproved origin fails without calling transport", async () => {
 test("worker inspection fails closed on gateway outage, never retries direct", async () => {
   let attempts = 0;
   const transport = (async () => { attempts++; throw Error("gateway_offline"); }) as typeof fetch;
-  const gateway = new InternalHttpEgressGateway(registry, endpoint, transport);
+  const gateway = new InternalHttpEgressGateway(registry, endpoint, transport, token);
   const worker = new Phase3DiagnoseWorker({ gateway, registry, maxTargets: 1 });
   const result = await worker.run([origin]);
   assert.equal(attempts, 1);
@@ -65,6 +67,6 @@ test("response without matching immutable audit proof fails closed", async () =>
     sequence: 1, requestId: "wrong", url: origin, hostname: "www.elevate360official.com",
     resolvedAddresses: [], decision: "allow", reason: "test", registryVersion: 1, immutable: true,
   } })) as typeof fetch;
-  const gateway = new InternalHttpEgressGateway(registry, endpoint, transport);
+  const gateway = new InternalHttpEgressGateway(registry, endpoint, transport, token);
   await assert.rejects(gateway.request(input), /gateway_audit_invalid/);
 });
