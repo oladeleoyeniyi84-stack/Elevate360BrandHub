@@ -7,6 +7,18 @@ set -euo pipefail
 : "${WEBOPS_EVIDENCE_DIR:=./webops-network-evidence}"
 : "${WEBOPS_GATEWAY_AUDIT_EXPORT:?Set WEBOPS_GATEWAY_AUDIT_EXPORT to the durable host-side gateway audit export path}"
 
+# This test deliberately stops and restarts the gateway. Require a staging-only,
+# separately acknowledged operator invocation; never run against production.
+: "${WEBOPS_ALLOW_STAGING_GATEWAY_RESTART:?Set WEBOPS_ALLOW_STAGING_GATEWAY_RESTART=YES only on the isolated staging host}"
+if [ "$WEBOPS_ALLOW_STAGING_GATEWAY_RESTART" != YES ]; then
+  printf '%s\n' 'Refusing gateway restarts without explicit staging acknowledgment' >&2
+  exit 2
+fi
+: "${WEBOPS_STAGING_HOST_ID:?Set WEBOPS_STAGING_HOST_ID to the expected staging hostname}"
+if [ "$(hostname)" != "$WEBOPS_STAGING_HOST_ID" ]; then
+  printf '%s\n' 'Refusing test: host identity does not match the approved staging hostname' >&2
+  exit 2
+fi
 mkdir -p "$WEBOPS_EVIDENCE_DIR"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 OUT="$WEBOPS_EVIDENCE_DIR/$STAMP"
@@ -16,8 +28,19 @@ pass() { printf 'PASS %s\n' "$1" | tee -a "$OUT/summary.txt"; }
 fail() { printf 'FAIL %s\n' "$1" | tee -a "$OUT/summary.txt" >&2; exit 1; }
 
 # Preflight: avoid false passes caused by missing probe tools or placeholder gateway images.
-docker exec "$WEBOPS_WORKER_CONTAINER" sh -lc 'command -v wget >/dev/null 2>&1 || command -v curl >/dev/null 2>&1' \
-  >"$OUT/worker-probe-preflight.log" 2>&1 || fail "worker has no HTTP probe client; egress tests would be inconclusive"
+docker exec "$WEBOPS_WORKER_CONTAINER" node --version \
+  >"$OUT/worker-probe-preflight.log" 2>&1 || fail "worker has no Node.js runtime for egress probes"
+# Node.js fetch returns success only for a completed HTTP exchange, regardless of status.
+# TLS verification remains enabled. These reachability probes complement, never replace,
+# host firewall, route, DNS and gateway-policy verification.
+probe_worker() {
+  docker exec "$WEBOPS_WORKER_CONTAINER" node -e '
+    const target=process.argv[1];
+    fetch(target,{redirect:"manual",signal:AbortSignal.timeout(5000)})
+      .then(async (r)=>{await r.body?.cancel().catch(()=>{});process.exit(0)})
+      .catch(()=>process.exit(1));
+  ' "$1"
+}
 
 docker exec "$WEBOPS_GATEWAY_CONTAINER" test -x /app/webops-gateway-check \
   >"$OUT/gateway-check-preflight.log" 2>&1 || fail "gateway diagnostic command missing"
@@ -35,7 +58,7 @@ hostnamectl >"$OUT/host-identity.txt" 2>&1 || hostname >"$OUT/host-identity.txt"
 git rev-parse HEAD >"$OUT/git-commit.txt" 2>&1 || fail "validation checkout has no Git commit identity"
 
 # V1. The worker must not have direct public egress.
-if docker exec "$WEBOPS_WORKER_CONTAINER" sh -lc 'wget -q -T 5 -O /dev/null https://1.1.1.1 2>/dev/null || curl -ksS --connect-timeout 5 https://1.1.1.1 -o /dev/null' >"$OUT/worker-direct-egress.log" 2>&1; then
+if probe_worker 'http://1.1.1.1/' >"$OUT/worker-direct-egress.log" 2>&1; then
   fail "worker direct public egress is possible"
 else
   pass "worker direct public egress blocked"
@@ -53,7 +76,7 @@ for target in \
   http://198.51.100.1/ \
   http://203.0.113.1/; do
   safe_name="$(printf '%s' "$target" | tr '/:.' '_')"
-  if docker exec "$WEBOPS_WORKER_CONTAINER" sh -lc "wget -q -T 3 -O /dev/null '$target' 2>/dev/null || curl -ksS --connect-timeout 3 '$target' -o /dev/null" >"$OUT/private-$safe_name.log" 2>&1; then
+  if probe_worker "$target" >"$OUT/private-$safe_name.log" 2>&1; then
     fail "worker reached blocked target $target"
   fi
 done
@@ -96,7 +119,7 @@ sleep 1
 if docker exec "$WEBOPS_WORKER_CONTAINER" /app/webops-worker-check "$WEBOPS_APPROVED_URL" >"$OUT/worker-during-outage.log" 2>&1; then
   fail "worker inspection succeeded without gateway (fail-open)"
 fi
-if docker exec "$WEBOPS_WORKER_CONTAINER" sh -lc 'wget -q -T 5 -O /dev/null https://www.elevate360official.com/ 2>/dev/null || curl -ksS --connect-timeout 5 https://www.elevate360official.com/ -o /dev/null' >"$OUT/worker-direct-during-outage.log" 2>&1; then
+if probe_worker "$WEBOPS_APPROVED_URL" >"$OUT/worker-direct-during-outage.log" 2>&1; then
   fail "worker bypassed gateway with direct HTTPS during outage"
 fi
 pass "worker inspection and direct HTTPS fail closed during gateway outage"
@@ -114,13 +137,18 @@ if [ ! -s "$WEBOPS_GATEWAY_AUDIT_EXPORT" ]; then
   fail "durable gateway audit export is missing or empty"
 fi
 cp "$WEBOPS_GATEWAY_AUDIT_EXPORT" "$OUT/gateway-audit-export-before-restart.log"
+sha256sum "$OUT/gateway-audit-export-before-restart.log" >"$OUT/audit-pre-restart.sha256"
 docker restart "$WEBOPS_GATEWAY_CONTAINER" >"$OUT/gateway-restart.log" 2>&1 || fail "gateway restart failed"
 sleep 1
 if [ ! -s "$WEBOPS_GATEWAY_AUDIT_EXPORT" ]; then
   fail "gateway audit evidence did not survive restart"
 fi
 cp "$WEBOPS_GATEWAY_AUDIT_EXPORT" "$OUT/gateway-audit-export-after-restart.log"
-pass "gateway audit evidence persists outside container lifecycle"
+sha256sum "$OUT/gateway-audit-export-after-restart.log" >"$OUT/audit-post-restart.sha256"
+if ! cmp -s "$OUT/gateway-audit-export-before-restart.log" "$OUT/gateway-audit-export-after-restart.log"; then
+  fail "gateway audit evidence changed unexpectedly on restart"
+fi
+pass "gateway audit evidence preserved byte-for-byte across restart"
 
 # Finalize the summary before hashing. No evidence file may be edited after manifest creation.
 pass "evidence collection complete"
