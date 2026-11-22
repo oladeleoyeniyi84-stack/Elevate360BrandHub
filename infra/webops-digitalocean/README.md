@@ -100,6 +100,22 @@ server factory nor the client protocol is evidence of an operating gateway.
   audit volume controls and all six host-side V1–V6 checks must pass on the
   exact release build before any staging activation.
 
+## Container image provenance gate
+
+The CI candidate Dockerfile now pins all Node.js build/runtime stages to the digest
+`sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee`,
+observed in the successful 2026-11-22 GitHub Actions Docker build. It must still
+receive independent upstream provenance and vulnerability review before any staging apply.
+
+Both non-root images have OCI source/revision labels; CI verifies the revision equals
+the exact `GITHUB_SHA`. The CI output records the Dockerfile SHA-256 and both
+image IDs as a retained **build evidence artifact**. Image IDs identify the
+local CI images; they do **not** establish an approved registry digest, a signed
+artifact, independent attestation, or a deployable release.
+
+The Docker Compose provisioning file remains an intentionally disabled placeholder.
+No image is pushed, deployed, scheduled or configured to start automatically.
+
 ## Required inputs before apply
 
 Terraform intentionally has no embedded credentials. Supply:
