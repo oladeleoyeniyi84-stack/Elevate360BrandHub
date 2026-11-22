@@ -15,12 +15,11 @@ trap cleanup EXIT
 docker network create --internal --subnet 172.30.0.0/24 "$NETWORK" >/dev/null
 chmod 0711 "$TMP"
 mkdir "$TMP/audit"
-sudo chown 1000:1000 "$TMP/audit"
 chmod 0700 "$TMP/audit"
-openssl rand -hex 32 > "$TMP/token"
-sudo chown 1000:1000 "$TMP/token"
+sudo chown 1000:1000 "$TMP/audit"
+openssl rand -hex 32 | tr -d '\n' > "$TMP/token"
 chmod 0600 "$TMP/token"
-truncate -s 64 "$TMP/token"
+sudo chown 1000:1000 "$TMP/token"
 
 docker run -d --name "$GATEWAY" --network "$NETWORK" --ip 172.30.0.2 \
   --read-only --security-opt no-new-privileges --cap-drop ALL \
