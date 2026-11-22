@@ -1,4 +1,4 @@
-import { readFileSync, statSync } from "node:fs";
+import { closeSync, constants, fstatSync, openSync, readFileSync } from "node:fs";
 import { InternalHttpEgressGateway } from "./phase3InternalHttpGateway";
 import { Phase3DiagnoseWorker } from "./phase3Worker";
 import type { WebOpsOriginRegistry } from "./phase3GatewayPolicy";
@@ -43,10 +43,16 @@ export async function workerDiagnosticMain(
   if (args.length !== 1) return 2;
   if (!env.WEBOPS_GATEWAY_TOKEN_FILE?.startsWith("/")) return 2;
   try {
-    const info = statSync(env.WEBOPS_GATEWAY_TOKEN_FILE);
-    if (!info.isFile() || (info.mode & 0o077) !== 0 || info.size < 32 || info.size > 512) return 2;
-    const secret = readFileSync(env.WEBOPS_GATEWAY_TOKEN_FILE, "utf8").trimEnd();
-    if (Buffer.byteLength(secret, "utf8") < 32) return 2;
+    const fd = openSync(env.WEBOPS_GATEWAY_TOKEN_FILE, constants.O_RDONLY | constants.O_NOFOLLOW);
+    let secret: string;
+    try {
+      const info = fstatSync(fd);
+      if (!info.isFile() || info.nlink !== 1 || (info.mode & 0o077) !== 0 || info.size < 32 || info.size > 512) return 2;
+      secret = readFileSync(fd, "utf8");
+      if (secret.includes("\\n") || secret.includes("\\r") || Buffer.byteLength(secret, "utf8") < 32) return 2;
+    } finally {
+      closeSync(fd);
+    }
     return await runWorkerInspectionDiagnostic(args[0]!, secret, fetch) ? 0 : 1;
   } catch {
     return 1;
