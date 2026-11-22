@@ -33,7 +33,7 @@ docker run -d --name "$GATEWAY" --network "$NETWORK" --ip 172.30.0.2 \
 READY=0
 for i in 1 2 3 4 5; do
   if docker exec "$GATEWAY" node -e '
-    fetch("http://127.0.0.1:8787/inspect", {
+    fetch("http://172.30.0.2:8787/inspect", {
       method:"POST", headers:{"content-type":"application/json"},
       body: JSON.stringify({requestId:"noauth",method:"GET",registryVersion:1,url:"https://www.elevate360official.com/"})
     }).then(r=>process.exit(r.status===401?0:1)).catch(()=>process.exit(1))
@@ -74,7 +74,7 @@ docker start "$GATEWAY" >/dev/null
 READY=0
 for i in 1 2 3 4 5; do
   if docker exec "$GATEWAY" node -e '
-    fetch("http://127.0.0.1:8787/inspect",{method:"POST"}).then(r=>process.exit(r.status===401?0:1)).catch(()=>process.exit(1))
+    fetch("http://172.30.0.2:8787/inspect",{method:"POST"}).then(r=>process.exit(r.status===401?0:1)).catch(()=>process.exit(1))
   ' >/dev/null 2>&1; then READY=1; break; fi
   sleep 1
 done
