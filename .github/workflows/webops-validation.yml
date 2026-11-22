@@ -9,8 +9,11 @@ on:
       - webops/phase-2-route-health-pilot
       - webops/phase-3-implementation
       - webops/phase-3-digitalocean-provisioning
+      - webops/phase-3-network-validation
     paths:
       - "server/webops/**"
+      - "server/phase3*.ts"
+      - "script/build-webops-phase3.mjs"
       - "server/webopsPolicy.test.ts"
       - "server/webopsDiagnostics.test.ts"
       - "server/publicCrawl.test.ts"
@@ -150,6 +153,15 @@ jobs:
 
       - name: Build production bundle
         run: npm run build
+
+      - name: Build isolated Phase 3 diagnostics (not deployed)
+        if: startsWith(github.head_ref, 'webops/phase-3-')
+        run: |
+          node script/build-webops-phase3.mjs
+          test -s dist/webops-phase3/webops-worker-check.mjs
+          test -s dist/webops-phase3/webops-gateway-server.mjs
+          node --check dist/webops-phase3/webops-worker-check.mjs
+          node --check dist/webops-phase3/webops-gateway-server.mjs
 
       - name: Run Founder-authorized read-only live pilot
         if: github.head_ref == 'webops/phase-2-prepilot-hardening'
