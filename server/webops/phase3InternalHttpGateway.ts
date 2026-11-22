@@ -12,7 +12,9 @@ export class InternalHttpEgressGateway implements EgressGateway {
     private readonly registry: WebOpsOriginRegistry,
     endpoint: string,
     private readonly transport: typeof fetch,
+    private readonly sharedToken: string,
   ) {
+    if (Buffer.byteLength(sharedToken, "utf8") < 32) throw new Error("gateway_shared_token_missing_or_short");
     const parsed = new URL(endpoint);
     if (parsed.protocol !== "http:" || parsed.username || parsed.password ||
         parsed.hostname !== "webops-egress-gateway" || parsed.port !== "8787" ||
@@ -34,7 +36,7 @@ export class InternalHttpEgressGateway implements EgressGateway {
     const response = await this.transport(this.endpoint, {
       method: "POST",
       redirect: "error",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", authorization: `Bearer ${this.sharedToken}` },
       body: JSON.stringify(input),
       signal: AbortSignal.timeout(8000),
     });
