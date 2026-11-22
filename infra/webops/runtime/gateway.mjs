@@ -22,6 +22,8 @@ export function durableAudit(path, {maxBytes = MAX_AUDIT_BYTES} = {}) {
     const lock = path + '.lock';
     mkdirSync(lock, {mode: 0o700}); // Existing/crash locks require operator review.
     let fd;
+    let writeStarted = false;
+    let committed = false;
     try {
       fd = openSync(path, constants.O_RDWR | constants.O_APPEND | constants.O_CREAT |
         constants.O_NOFOLLOW | constants.O_NONBLOCK, 0o600);
@@ -36,14 +38,18 @@ export function durableAudit(path, {maxBytes = MAX_AUDIT_BYTES} = {}) {
       }
       let offset = 0;
       while (offset < record.length) {
+        writeStarted = true; // Any subsequent failure has ambiguous persistence.
         const written = writeSync(fd, record, offset, record.length - offset);
         if (written <= 0) throw new Error('audit_write_failed');
         offset += written;
       }
       fsyncSync(fd);
+      closeSync(fd);
+      fd = undefined;
+      committed = true;
     } finally {
       try { if (fd !== undefined) closeSync(fd); }
-      finally { rmdirSync(lock); }
+      finally { if (!writeStarted || committed) rmdirSync(lock); }
     }
   };
 }
