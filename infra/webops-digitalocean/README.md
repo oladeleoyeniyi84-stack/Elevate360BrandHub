@@ -40,6 +40,32 @@ Defense in depth:
 - Docker: worker network is `internal: true`; worker has no egress-network attachment.
 - Application: Phase 2/3 exact-origin validation, public-IP validation, DNS-pinned HTTPS/TLS/SNI, redirect revalidation and bounded GET-only execution remain active.
 
+## Mandatory runtime acceptance gate — NOT SATISFIED
+
+**Do not apply this package as an operational staging release.** The checked-in `compose.yaml`
+uses intentionally disabled Alpine placeholder containers; it is not a deployable worker/gateway
+application. The TypeScript `Phase3DiagnoseWorker` and `EgressGateway` contract are not by
+themselves a network-accessible runtime.
+
+Before a staging connection or activation can be approved, a separately reviewed integration
+must provide and verify:
+
+1. Real, pinned, reproducible worker and gateway images; no `sleep infinity` placeholder.
+2. A bounded GET-only worker inspection wired to the actual gateway transport, including
+   request/response protocol, authentication or equivalent isolation, deadlines and deny-by-default
+   behavior. The worker must have no direct outbound transport or fallback.
+3. `/app/webops-worker-check <url>` invoking that real worker inspection path and
+   `/app/webops-gateway-check <url>` invoking the real gateway policy/transport; neither may
+   be unconditional success/failure mocks.
+4. An append-only, host-controlled durable gateway audit export that the worker cannot edit.
+5. Staging-specific credentials, network boundaries, TLS ingress and access policy, with
+   no production database, secret, customer traffic or public app activation.
+6. Fresh CI on the exact release commit followed by V1–V6 host-side tests, evidence
+   manifest verification and a separate infrastructure approval.
+
+The initial account-level DigitalOcean and Cloudflare access/permissions verification
+remains required; repository configuration does not prove live cloud account state.
+
 ## Required inputs before apply
 
 Terraform intentionally has no embedded credentials. Supply:
