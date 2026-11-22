@@ -163,6 +163,30 @@ jobs:
           node --check dist/webops-phase3/webops-worker-check.mjs
           node --check dist/webops-phase3/webops-gateway-server.mjs
 
+      - name: Build inert Phase 3 Docker targets and reject unconfigured startup
+        if: startsWith(github.head_ref, 'webops/phase-3-') && hashFiles('infra/webops-digitalocean/Dockerfile.phase3') != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build --target worker -f infra/webops-digitalocean/Dockerfile.phase3 -t webops-worker:ci .
+          docker build --target gateway -f infra/webops-digitalocean/Dockerfile.phase3 -t webops-gateway:ci .
+          for target in worker gateway; do
+            if docker run --rm "webops-${target}:ci"; then
+              echo "Inert image unexpectedly started successfully" >&2
+              exit 1
+            fi
+          done
+          if docker run --rm --entrypoint /app/webops-worker-check webops-worker:ci; then
+            echo "Worker diagnostic accepted missing arguments/secret" >&2
+            exit 1
+          fi
+          if docker run --rm --entrypoint /app/webops-gateway-check webops-gateway:ci; then
+            echo "Gateway diagnostic accepted missing arguments/secret" >&2
+            exit 1
+          fi
+          test "$(docker image inspect -f '{{.Config.User}}' webops-worker:ci)" = node
+          test "$(docker image inspect -f '{{.Config.User}}' webops-gateway:ci)" = node
+
       - name: Run Founder-authorized read-only live pilot
         if: github.head_ref == 'webops/phase-2-prepilot-hardening'
         shell: bash
