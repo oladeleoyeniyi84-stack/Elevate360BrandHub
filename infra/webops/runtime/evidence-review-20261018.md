@@ -1353,3 +1353,38 @@ channel; no patch claim. Remaining release gates and Founder authorization are
 unchanged. No additional user command, production merge/deploy/activation, paid
 resource, credential rotation or Vault change. Continue development; build is not
 complete and the final completion report is not yet warranted.
+
+
+## Development checkpoint — 2026-11-21 (America/New_York)
+
+Read current WebOps branches, open PRs and this checkpoint. Confirmed full CI run
+154 passed at cfa1b49f825d64b0a118359bd822017bed31ad4d:
+https://github.com/oladeleoyeniyi84-stack/Elevate360BrandHub/actions/runs/44863398280.
+
+Fixed an ambiguous audit-append recovery defect. The writer previously removed its
+lock in finally even after a write or fsync failure. A complete-looking record after
+failed sync could therefore permit later appends and outbound requests without
+operator review. Once writing begins, the lock is now retained unless the full write,
+fsync and descriptor close all succeed. Pre-write validation/capacity rejections
+continue to release their lock. Existing records are never truncated or removed.
+
+Validation: all 128 Node tests passed locally, zero failures/skips. Added fault
+injection for partial write then error, zero-progress write, fsync error and close
+error. Tests preserve the original prefix, assert the retained lock, and demonstrate
+that a later gateway request makes zero DNS/transport calls and changes no bytes.
+Complete newline-terminated records following failed sync/close are still blocked.
+Unchanged Python code was not rerun locally. New GitHub CI is pending.
+
+Updated audit-snapshots.md with review/recovery requirements. This change does not
+reserve terminal-record capacity, implement disk repair, external retention or
+alerts, or prove durable storage on the Droplet. No host execution is available.
+Retained locks require a quiescent, evidence-preserving operator investigation;
+automatic lock removal, retries and evidence truncation remain prohibited.
+
+Remaining: host bootstrap/reconciliation and source/image provenance, enabled
+transition/boot strategy, revised live network/cloud-firewall/reboot evidence,
+replacement/rollback rehearsal, external retention/retirement and alert delivery.
+NGINX exposure and patch status remain unverified pending the already-requested
+host inventory. No new terminal command or private key request. No production
+merge/deployment/activation, paid resource, secret rotation or Vault change.
+Existing Founder authority remains recorded; build is not complete.
