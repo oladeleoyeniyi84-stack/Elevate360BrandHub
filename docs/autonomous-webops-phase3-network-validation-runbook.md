@@ -22,6 +22,7 @@ Required state:
 - no production/session/dashboard credentials present in either container;
 - Founder-approved origin registry contains only `https://www.elevate360official.com` for the first pilot;
 - gateway exposes the one-shot `/app/webops-gateway-check <url>` diagnostic command;
+- worker exposes `/app/webops-worker-check <url>`, which invokes the real gateway-dependent worker inspection path (not a stand-alone direct fetch or a synthetic always-failing placeholder);
 - audit destination is available for evidence export.
 
 ## Required controls
@@ -61,7 +62,7 @@ Pass condition: all unsafe probes are rejected before outbound transport.
 
 Stop the gateway while the worker remains running. The worker must not fall back to direct public networking.
 
-Pass condition: inspection request fails and no direct outbound connection is possible.
+Pass condition: a baseline worker inspection succeeds with the gateway healthy, that same worker inspection fails with the gateway stopped, direct HTTPS is also blocked during the outage, and the worker inspection succeeds again after gateway recovery. A missing worker diagnostic is a blocking preflight failure, never a PASS.
 
 ### V6 — durable evidence exists
 
@@ -90,7 +91,7 @@ The script aborts on the first failed safety control. It must never be modified 
 Preserve:
 - validation `summary.txt`;
 - each command/probe log;
-- `SHA256SUMS`;
+- `SHA256SUMS` and checksum-verification output retained separately from the hashed evidence directory;
 - matching gateway audit records;
 - nftables ruleset snapshot;
 - Docker network inspection for worker and gateway;

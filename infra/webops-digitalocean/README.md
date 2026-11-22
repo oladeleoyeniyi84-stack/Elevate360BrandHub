@@ -40,6 +40,106 @@ Defense in depth:
 - Docker: worker network is `internal: true`; worker has no egress-network attachment.
 - Application: Phase 2/3 exact-origin validation, public-IP validation, DNS-pinned HTTPS/TLS/SNI, redirect revalidation and bounded GET-only execution remain active.
 
+## Mandatory runtime acceptance gate — NOT SATISFIED
+
+**Do not apply this package as an operational staging release.** The checked-in `compose.yaml`
+uses intentionally disabled Alpine placeholder containers; it is not a deployable worker/gateway
+application. The TypeScript `Phase3DiagnoseWorker` and `EgressGateway` contract are not by
+themselves a network-accessible runtime.
+
+Before a staging connection or activation can be approved, a separately reviewed integration
+must provide and verify:
+
+1. Real, pinned, reproducible worker and gateway images; no `sleep infinity` placeholder.
+2. A bounded GET-only worker inspection wired to the actual gateway transport, including
+   request/response protocol, authentication or equivalent isolation, deadlines and deny-by-default
+   behavior. The worker must have no direct outbound transport or fallback.
+3. Internal `/inspect` protocol requires a staging-only, non-repository shared token (minimum 32 UTF-8 bytes), checked by the gateway handler using constant-time comparison. The worker must supply this token only to the internal gateway and no other destination. The protocol handler is an inactive candidate until a real network listener, pinned HTTPS transport, durable audit backend, independent authorization policy, and isolated image are connected.
+3. `/app/webops-worker-check <url>` invoking that real worker inspection path and
+   `/app/webops-gateway-check <url>` invoking the real gateway policy/transport; neither may
+   be unconditional success/failure mocks.
+4. An append-only, host-controlled durable gateway audit export that the worker cannot edit.
+5. Staging-specific credentials, network boundaries, TLS ingress and access policy, with
+   no production database, secret, customer traffic or public app activation.
+6. Fresh CI on the exact release commit followed by V1–V6 host-side tests, evidence
+   manifest verification and a separate infrastructure approval.
+
+The initial account-level DigitalOcean and Cloudflare access/permissions verification
+remains required; repository configuration does not prove live cloud account state.
+
+## Inactive gateway server implementation (review candidate)
+
+The branch now includes `server/webops/phase3GatewayServer.ts`, a Node HTTP server
+**factory** (not an enabled service) that composes the authenticated internal
+`/inspect` handler, system DNS resolution, and DNS-pinned HTTPS GET transport.
+It does not call `listen()`, publish a port, or alter the existing placeholder
+Compose services. A local fixture test checks unauthorized routing without
+making external inspection requests.
+
+**Not staging-ready:** a separately reviewed startup/binding entry point, real
+worker-side check executable, pinned runtime image, immutable host-controlled
+durable audit implementation, host-side resource limits and external validation
+are still required. In-memory audit must only be used in tests. Neither this
+server factory nor the client protocol is evidence of an operating gateway.
+
+## Audit and worker diagnostic code candidates
+
+- `server/webops/phase3FileAudit.ts` supplies a single-process, write-through,
+  SHA-256-chained JSONL audit candidate. Reopening checks the chain; a damaged
+  or truncated journal fails closed. **It is not tamper-proof**: the host must
+  own the audit volume, export hashes to a separate immutable destination and
+  prevent worker writes. Concurrent writers are not supported.
+- `server/webops/phase3WorkerDiagnostic.ts` uses the real `Phase3DiagnoseWorker`
+  with the authenticated internal gateway client. The CLI definition lives at
+  `server/phase3WorkerCheck.cli.ts`. Its secret is read from a private
+  mounted file, never supplied in command-line arguments.
+- Neither code candidate is bundled into a reviewed container image. The
+  existing Compose entries still deliberately use disabled placeholders.
+  In particular, `/app/webops-worker-check` is **not installed** on a live host.
+- CI, isolated integration tests, image provenance, firewall evidence, durable
+  audit volume controls and all six host-side V1–V6 checks must pass on the
+  exact release build before any staging activation.
+
+## Container image provenance gate
+
+The CI candidate Dockerfile now pins all Node.js build/runtime stages to the digest
+`sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee`,
+observed in the successful 2026-11-22 GitHub Actions Docker build. It must still
+receive independent upstream provenance and vulnerability review before any staging apply.
+
+Both non-root images have OCI source/revision labels; CI verifies the revision equals
+the exact `GITHUB_SHA`. The CI output records the Dockerfile SHA-256 and both
+image IDs as a retained **build evidence artifact**. Image IDs identify the
+local CI images; they do **not** establish an approved registry digest, a signed
+artifact, independent attestation, or a deployable release.
+
+The Docker Compose provisioning file remains an intentionally disabled placeholder.
+No image is pushed, deployed, scheduled or configured to start automatically.
+
+## Host-side V1–V6 validation — explicit authorization gate
+
+`infra/webops/validation/validate-network.sh` is **disruptive**: it stops,
+starts and restarts the gateway. It must not run against the Brand Hub,
+production Docker containers, or a shared host.
+
+Before invoking it on a separately approved isolated staging host, the operator
+must independently check cloud account ownership/firewall settings, container
+identities, mounted secrets, image digests and audit retention. The script refuses
+to run unless `WEBOPS_ALLOW_STAGING_GATEWAY_RESTART=YES` and
+`WEBOPS_STAGING_HOST_ID` exactly matches `hostname`. Those variables provide
+an acknowledgment and a sanity check, **not security authorization**. All other
+environment inputs and the host must be independently reviewed.
+
+Direct worker reachability probes now use the Node.js executable present in
+the pinned candidate image; do not claim that a refused connection alone proves
+network isolation. Independently verify Docker interfaces, nftables, cloud
+firewall and routing rules. V6 compares audit exports before/after restart,
+and a SHA-256 manifest verifies the collected evidence directory.
+
+**No live host validation has occurred as part of CI.** GitHub Actions checks
+only shell syntax and explicit refusal conditions. V1–V6 and the external
+account/security approvals remain mandatory before staging.
+
 ## Required inputs before apply
 
 Terraform intentionally has no embedded credentials. Supply:
