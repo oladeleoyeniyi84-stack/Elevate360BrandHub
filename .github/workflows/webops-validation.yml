@@ -88,6 +88,29 @@ jobs:
           grep -F 'internal: true' infra/webops-digitalocean/compose.yaml
           grep -F 'iifname "br-webops-worker" oifname != "br-webops-worker" drop' infra/webops-digitalocean/nftables.conf
 
+      - name: Verify host validation refuses unapproved gateway restart
+        if: startsWith(github.head_ref, 'webops/phase-3-')
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n infra/webops/validation/validate-network.sh
+          if env WEBOPS_GATEWAY_AUDIT_EXPORT=/tmp/nonexistent-webops-audit \
+                 WEBOPS_ALLOW_STAGING_GATEWAY_RESTART=NO \
+                 WEBOPS_STAGING_HOST_ID="$(hostname)" \
+                 bash infra/webops/validation/validate-network.sh > /tmp/webops-guard-test.log 2>&1; then
+            echo "Validation unexpectedly bypassed explicit restart guard" >&2
+            exit 1
+          fi
+          grep -F 'Refusing gateway restarts without explicit staging acknowledgment' /tmp/webops-guard-test.log
+          if env WEBOPS_GATEWAY_AUDIT_EXPORT=/tmp/nonexistent-webops-audit \
+                 WEBOPS_ALLOW_STAGING_GATEWAY_RESTART=YES \
+                 WEBOPS_STAGING_HOST_ID=deliberately-not-this-host \
+                 bash infra/webops/validation/validate-network.sh > /tmp/webops-host-test.log 2>&1; then
+            echo "Validation unexpectedly bypassed staging hostname guard" >&2
+            exit 1
+          fi
+          grep -F 'host identity does not match' /tmp/webops-host-test.log
+
       - name: Set up Terraform
         if: startsWith(github.head_ref, 'webops/phase-3-')
         uses: hashicorp/setup-terraform@v3
