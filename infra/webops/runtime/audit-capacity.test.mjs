@@ -1,5 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
 import { mkdtempSync, rmSync, readFileSync, writeFileSync, chmodSync, mkdirSync, existsSync, symlinkSync, linkSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -46,6 +48,52 @@ test('existing lock and incomplete records block without deletion', t => {
   mkdirSync(path + '.lock');
   assert.throws(() => durableAudit(path)({decision:'startup'}), /EEXIST/);
   assert.equal(existsSync(path + '.lock'), true);
+});
+
+test('ambiguous audit writes retain lock and block later outbound requests', async t => {
+  for (const failure of ['partial-write', 'zero-write', 'sync', 'close']) {
+    const path = fixture(t);
+    durableAudit(path)({decision:'startup'});
+    const original = readFileSync(path);
+    const method = failure === 'sync' ? 'fsyncSync' : failure === 'close' ? 'closeSync' : 'writeSync';
+    const real = fs[method];
+    let calls = 0;
+    const mocked = t.mock.method(fs, method, (...args) => {
+      calls++;
+      if (failure === 'partial-write' && calls === 1) {
+        return real(args[0], args[1], args[2], 5);
+      }
+      if (failure === 'zero-write') return 0;
+      // Permit cleanup to close the descriptor after an injected close failure.
+      if (failure === 'close' && calls > 1) return real(...args);
+      throw new Error('injected_io_failure');
+    });
+    syncBuiltinESMExports();
+    try {
+      assert.throws(() => durableAudit(path)({decision:'attempt'}));
+    } finally {
+      mocked.mock.restore();
+      syncBuiltinESMExports();
+    }
+    assert.equal(existsSync(path + '.lock'), true, failure);
+    const after = readFileSync(path);
+    assert.deepEqual(after.subarray(0, original.length), original);
+    if (failure === 'partial-write') assert.equal(after.length, original.length + 5);
+    if (failure === 'zero-write') assert.deepEqual(after, original);
+    if (failure === 'sync' || failure === 'close') {
+      assert.equal(after.at(-1), 10); // A complete line is not proof of durable success.
+      assert.ok(after.length > original.length);
+    }
+    let networkCalls = 0;
+    await assert.rejects(checkTarget('https://www.elevate360official.com/', {
+      audit: durableAudit(path),
+      resolve: async () => { networkCalls++; return []; },
+      transport: async () => { networkCalls++; return new Response('ok'); },
+    }), /EEXIST/);
+    assert.equal(networkCalls, 0);
+    assert.deepEqual(readFileSync(path), after);
+    assert.equal(existsSync(path + '.lock'), true);
+  }
 });
 
 test('unsafe file types permissions and oversized records fail closed', t => {
