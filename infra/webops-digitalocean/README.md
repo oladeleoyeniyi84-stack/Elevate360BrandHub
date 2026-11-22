@@ -82,6 +82,24 @@ durable audit implementation, host-side resource limits and external validation
 are still required. In-memory audit must only be used in tests. Neither this
 server factory nor the client protocol is evidence of an operating gateway.
 
+## Audit and worker diagnostic code candidates
+
+- `server/webops/phase3FileAudit.ts` supplies a single-process, write-through,
+  SHA-256-chained JSONL audit candidate. Reopening checks the chain; a damaged
+  or truncated journal fails closed. **It is not tamper-proof**: the host must
+  own the audit volume, export hashes to a separate immutable destination and
+  prevent worker writes. Concurrent writers are not supported.
+- `server/webops/phase3WorkerDiagnostic.ts` uses the real `Phase3DiagnoseWorker`
+  with the authenticated internal gateway client. The CLI definition lives at
+  `server/phase3WorkerCheck.cli.ts`. Its secret is read from a private
+  mounted file, never supplied in command-line arguments.
+- Neither code candidate is bundled into a reviewed container image. The
+  existing Compose entries still deliberately use disabled placeholders.
+  In particular, `/app/webops-worker-check` is **not installed** on a live host.
+- CI, isolated integration tests, image provenance, firewall evidence, durable
+  audit volume controls and all six host-side V1–V6 checks must pass on the
+  exact release build before any staging activation.
+
 ## Required inputs before apply
 
 Terraform intentionally has no embedded credentials. Supply:
