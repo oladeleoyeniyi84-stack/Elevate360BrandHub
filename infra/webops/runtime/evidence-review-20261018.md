@@ -1388,3 +1388,39 @@ NGINX exposure and patch status remain unverified pending the already-requested
 host inventory. No new terminal command or private key request. No production
 merge/deployment/activation, paid resource, secret rotation or Vault change.
 Existing Founder authority remains recorded; build is not complete.
+
+
+## Development checkpoint — 2026-11-22 (America/New_York)
+
+Read current WebOps branches, open PRs and this checkpoint. Confirmed full CI run
+156 passed at 82e375aebfb9513f78e4a1111f91696cd34337ea:
+https://github.com/oladeleoyeniyi84-stack/Elevate360BrandHub/actions/runs/44976997228.
+Observed new draft PR #51 for a single-purpose older validation-manifest fix and
+left it independent from PR #22.
+
+Closed the audit terminal-capacity gap. Before writing an outbound attempt, the
+gateway now requires space for that attempt plus one maximum-size 16 KiB terminal
+record. The gateway's single-request serialization makes that a cooperating-writer
+reservation for the matching allow/deny record. If the reserve is unavailable, the
+attempt fails before DNS or transport and no audit bytes change. Startup and other
+non-attempt events continue to use the normal exact capacity limit.
+
+Validation: all 129 Node tests passed locally, zero failures/skips. The new boundary
+test measures the actual attempt record, proves exact attempt-plus-16-KiB capacity
+is accepted, proves one byte less is rejected without a retained lock or byte change,
+and confirms a normal terminal denial fits after the accepted attempt. Unchanged
+Python tests were not rerun. New full GitHub CI is pending.
+
+This reservation does not guarantee terminal durability against disk faults or
+non-cooperating administrator writes; the preceding retained-lock behavior handles
+ambiguous failures by blocking later requests. External retention, alerts, safe
+retirement and live host storage validation remain unfinished. No automatic
+rotation, deletion, retry or remediation was added.
+
+Remaining: host bootstrap/reconciliation and source/image provenance, enabled
+transition/boot strategy, revised live network/cloud-firewall/reboot evidence,
+replacement/rollback rehearsal, external retention/retirement and alert delivery.
+NGINX exposure and patch status remain unverified pending the existing host inventory.
+No new terminal command or private key request. No production merge/deployment/
+activation, paid resource, secret rotation or Vault change. Existing Founder
+authority remains recorded; build is incomplete and no final report is claimed.
