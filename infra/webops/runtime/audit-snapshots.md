@@ -51,10 +51,13 @@ previous record. A per-file directory lock coordinates cooperating writers. An
 existing lock is never cleared by a new writer. No log rotation or deletion occurs.
 
 At capacity, the attempt record cannot be written, so a new request is blocked
-before DNS or outbound transport. If capacity or disk failure occurs on a final
-allow/deny record after a request, no successful result is returned, but the network
-request may already have happened. There is no reserved capacity for terminal
-records. Startup also fails if its startup record cannot be recorded. HTTP reports
+before DNS or outbound transport. Before an outbound attempt, the writer requires room for the attempt record plus
+one maximum-size 16 KiB terminal record. Because the gateway serializes requests,
+this preserves capacity for the normal allow/deny append. If that terminal append
+still fails because of disk I/O, administrator mutation or non-cooperating writes,
+no successful result is returned and the retained lock blocks later requests, but
+the network request may already have happened. Startup also fails if its startup
+record cannot be recorded. HTTP reports
 audit_unavailable for write failures; external alert delivery remains unfinished.
 
 The limit covers this one file under cooperating writers, not total disk usage,
@@ -79,5 +82,6 @@ the lock because no append was attempted.
 Quiesce the gateway, preserve the log and lock, and investigate storage health and
 the actual bytes before a separately reviewed recovery. Do not automatically
 remove the lock, retry requests, truncate evidence or treat a failed append as
-proof that no request occurred. This does not reserve terminal-event space,
-provide external retention or authenticate records against host administrators.
+proof that no request occurred. This does not guarantee terminal durability against disk failure or non-cooperating
+administrator writes, provide external retention or authenticate records against
+host administrators.
