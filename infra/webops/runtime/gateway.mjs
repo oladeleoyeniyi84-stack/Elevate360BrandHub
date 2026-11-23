@@ -13,12 +13,13 @@ export const registry = Object.freeze({version: 1, origins: [{
 }]});
 
 export const MAX_AUDIT_BYTES = 16 * 1024 * 1024;
+export const MAX_AUDIT_RECORD_BYTES = 16 * 1024;
 export function durableAudit(path, {maxBytes = MAX_AUDIT_BYTES} = {}) {
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > MAX_AUDIT_BYTES)
     throw new Error('invalid_audit_limit');
   return event => {
     const record = Buffer.from(JSON.stringify({...event, timestamp: new Date().toISOString(), registryVersion: 1}) + '\n');
-    if (record.length > 16384) throw new Error('audit_record_limit');
+    if (record.length > MAX_AUDIT_RECORD_BYTES) throw new Error('audit_record_limit');
     const lock = path + '.lock';
     mkdirSync(lock, {mode: 0o700}); // Existing/crash locks require operator review.
     let fd;
@@ -30,7 +31,10 @@ export function durableAudit(path, {maxBytes = MAX_AUDIT_BYTES} = {}) {
       const info = fstatSync(fd);
       if (!info.isFile() || info.nlink !== 1 || info.uid !== process.getuid() || (info.mode & 0o7777) !== 0o600)
         throw new Error('unsafe_audit_file');
-      if (info.size + record.length > maxBytes) throw new Error('audit_capacity');
+      // The gateway serializes requests. Reserve one maximum-size terminal record
+      // before an outbound attempt so normal allow/deny evidence is not crowded out.
+      const terminalReserve = event?.decision === 'attempt' ? MAX_AUDIT_RECORD_BYTES : 0;
+      if (info.size + record.length + terminalReserve > maxBytes) throw new Error('audit_capacity');
       if (info.size) {
         const last = Buffer.alloc(1);
         if (readSync(fd, last, 0, 1, info.size - 1) !== 1 || last[0] !== 10)
