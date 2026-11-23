@@ -8,6 +8,7 @@ on:
       - "server/routes/aiContentPolicy.test.ts"
       - "server/routes/aiContentIntegration.test.ts"
       - "server/services/deepseek.ts"
+      - "scripts/aiContentProviderSmoke.ts"
       - ".github/workflows/ai-content-validation.yml"
   workflow_dispatch:
 
