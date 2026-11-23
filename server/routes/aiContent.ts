@@ -11,17 +11,7 @@ import { requireDashboardAuth, rateLimit } from "../routes";
 import { deepseekChat, isDeepseekConfigured, type DeepseekMessage } from "../services/deepseek";
 import { ELEVATE360_SYSTEM_PROMPT, OLADELE_FOUNDER_VOICE_PROMPT } from "../config/brandVoice";
 
-// max_tokens budget per content type — keeps generations bounded and cost-aware.
-// The request `type` selects the ceiling; longer formats get a larger budget.
-const MAX_TOKENS_BY_TYPE = {
-  headline: 80,
-  social: 400,
-  summary: 600,
-  email: 1200,
-  blog: 2000,
-} as const;
-
-type ContentType = keyof typeof MAX_TOKENS_BY_TYPE;
+import { MAX_TOKENS_BY_TYPE, formatContentGenerationResponse, type ContentType } from "./aiContentPolicy";
 
 const SYSTEM_PROMPTS: Record<ContentType, string> = {
   headline: "You are an expert copywriter for the Elevate360 brand. Write punchy, high-converting headlines.",
@@ -104,13 +94,8 @@ aiContentRouter.post("/", rateLimit(40, 900), async (req, res) => {
 
   try {
     const result = await deepseekChat({ messages, maxTokens, temperature });
-    return res.json({
-      type,
-      model: result.model,
-      maxTokens,
-      latencyMs: result.latencyMs,
-      content: result.content,
-    });
+    const response = formatContentGenerationResponse(type, result);
+    return res.status(response.status).json(response.body);
   } catch (err) {
     // Never log provider errors: SDK messages can contain request fragments or
     // credential-adjacent diagnostics.
