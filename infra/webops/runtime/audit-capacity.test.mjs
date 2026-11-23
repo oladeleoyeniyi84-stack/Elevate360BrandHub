@@ -5,7 +5,7 @@ import { syncBuiltinESMExports } from 'node:module';
 import { mkdtempSync, rmSync, readFileSync, writeFileSync, chmodSync, mkdirSync, existsSync, symlinkSync, linkSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { durableAudit, checkTarget, MAX_AUDIT_BYTES } from './gateway.mjs';
+import { durableAudit, checkTarget, MAX_AUDIT_BYTES, MAX_AUDIT_RECORD_BYTES } from './gateway.mjs';
 
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'audit-capacity-'));
@@ -38,6 +38,31 @@ test('full audit prevents DNS and transport before outbound request', async t =>
   }), /audit_capacity/);
   assert.equal(calls, 0);
   assert.equal(readFileSync(path, 'utf8'), '{}\n');
+});
+
+test('outbound attempt reserves one maximum terminal audit record', t => {
+  const measurement = fixture(t);
+  writeFileSync(measurement, '{}\n', {mode:0o600});
+  const baseBytes = readFileSync(measurement).length;
+  durableAudit(measurement)({decision:'attempt', requestId:'measurement'});
+  const attemptBytes = readFileSync(measurement).length - baseBytes;
+
+  const exact = fixture(t);
+  writeFileSync(exact, '{}\n', {mode:0o600});
+  const maxBytes = baseBytes + attemptBytes + MAX_AUDIT_RECORD_BYTES;
+  const append = durableAudit(exact, {maxBytes});
+  append({decision:'attempt', requestId:'measurement'});
+  append({decision:'deny', requestId:'measurement', reason:'transport_failed'});
+  assert.ok(readFileSync(exact).length <= maxBytes);
+
+  const short = fixture(t);
+  writeFileSync(short, '{}\n', {mode:0o600});
+  assert.throws(
+    () => durableAudit(short, {maxBytes: maxBytes - 1})({decision:'attempt', requestId:'measurement'}),
+    /audit_capacity/,
+  );
+  assert.equal(readFileSync(short, 'utf8'), '{}\n');
+  assert.equal(existsSync(short + '.lock'), false);
 });
 
 test('existing lock and incomplete records block without deletion', t => {
