@@ -1,0 +1,28 @@
+name: AI Content Studio Editor Validation
+on:
+  pull_request:
+    paths:
+      - "client/src/pages/AiContentStudio.tsx"
+      - ".github/workflows/ai-content-editor-validation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  editor-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: TypeScript validation
+        run: npm run check
+      - name: Regression tests
+        run: npm test
+      - name: Production build
+        run: npm run build
