@@ -108,9 +108,13 @@ not old pilot logs. Preserve failed results as well as successes.
 Capture current DigitalOcean Cloud Firewall attachment and rules independently of
 host nftables. Reboot only in a controlled recovery window with console access.
 Verify DNS/firewall persistence, state/cadence preservation and effective isolation
-before any resumed request. Containers deliberately have restart=no. Reboot therefore
-does not promise unattended recovery: the host boot/reconciliation strategy remains
-unfinished. Do not change restart policies silently; the runner enforces restart=no.
+before any resumed request. Containers deliberately have restart=no. The installed service template now runs
+boot-gate.mjs before every tick: an enabled schedule needs a private receipt bound
+to the current boot ID and exact schedule digest. A receipt from before reboot is
+rejected, so no unattended request runs until the operator reconciles/starts the
+exact containers and verifies DNS plus host/cloud firewall state. Follow
+boot-recovery.md. This is a safe stop gate, not automatic recovery. Do not change
+restart policies silently; the runner enforces restart=no.
 
 Rehearse rollback while the timer remains disabled: stop and verify the candidate,
 restore the preserved previous host release pointer and its standalone exact-image
@@ -128,8 +132,10 @@ boot strategy and stop/rollback rehearsal are complete. activation-gate.mjs is a
 advisory checklist, not an authenticator; populated references are not proof.
 
 Bind the final reviewed scope, cadence, image/IDs and cost ceiling to the recorded
-Founder authority. Only then perform the separately reviewed enabled-config/timer
-transition and observe the first scheduled result and next not-due behavior. Record
+Founder authority. Create and atomically install the current-boot receipt only after
+its container, DNS and firewall claims pass on that boot. Only then perform the
+separately reviewed enabled-config/timer transition and observe the first scheduled
+result and next not-due behavior. Record
 the operating owner, alert destination, capacity response and emergency stop IDs.
 No automatic remediation or Engineering Vault publication follows from activation.
 
