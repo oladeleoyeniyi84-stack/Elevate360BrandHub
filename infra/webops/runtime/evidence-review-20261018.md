@@ -1424,3 +1424,41 @@ NGINX exposure and patch status remain unverified pending the existing host inve
 No new terminal command or private key request. No production merge/deployment/
 activation, paid resource, secret rotation or Vault change. Existing Founder
 authority remains recorded; build is incomplete and no final report is claimed.
+
+
+## Development checkpoint — 2026-11-23 (America/New_York)
+
+Read current WebOps branches, open PRs and this checkpoint. Confirmed full CI run
+178 passed at 0616b526a66bd2eb3a1790f582c12ea584dc52a8:
+https://github.com/oladeleoyeniyi84-stack/Elevate360BrandHub/actions/runs/45103032638.
+PR #51 remains an independent correction for the older network-validation package.
+
+Implemented a fail-closed current-boot gate for scheduled execution. The systemd
+service now runs boot-gate.mjs as ExecCondition before its runner. Disabled schedules
+pass without approval or boot-ID access. Enabled schedules require a private,
+operator-owned 0600 single-link receipt bound to the current kernel boot ID and
+SHA-256 of the exact installed schedule bytes, with explicit post-boot container,
+DNS and firewall verification claims. Unsafe, stale, false, malformed or expanded
+receipts skip the tick with a fixed result. The gate never creates or edits receipts,
+runtime state, containers, networks or firewall rules.
+
+This closes the unsafe post-reboot execution path while containers retain restart=no.
+A pre-reboot receipt cannot authorize work after reboot. It deliberately does not
+provide unattended recovery: an operator must reconcile/start the exact reviewed
+containers and validate live DNS plus host/cloud firewall controls before installing
+a new receipt. The runner still independently inspects immutable IDs and isolation.
+boot-recovery.md defines the bounded workflow and evidence limits.
+
+Validation: all 133 Node tests passed locally, zero failures/skips. Tests cover exact
+boot/schedule binding, each required verification claim, extra fields, disabled
+behavior without approval/boot read, unsafe permissions/symlink, schedule drift and
+the ExecCondition-compatible fixed CLI failure. service-budget.test asserts every
+tick is gated. Unchanged Python tests were not rerun. Full GitHub CI is in progress.
+
+This local root-controlled receipt is not cryptographic operator authentication and
+does not prove DigitalOcean Cloud Firewall state independently. Live unit install,
+enabled transition, controlled reboot and rollback rehearsals remain required.
+External retention/retirement and alert delivery also remain incomplete. NGINX
+exposure/patch status still awaits the existing host inventory. No new user command
+or private key request; no production merge/deploy/activation, paid resource,
+secret rotation or Vault change. Existing Founder authority remains recorded.
