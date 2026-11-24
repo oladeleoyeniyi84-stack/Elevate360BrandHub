@@ -137,3 +137,20 @@ These are point-in-time checks, not an atomic snapshot against a privileged acto
 Stable trusted directories and no concurrent administrative edits remain required;
 changes after loading are not prevented. Disabling configuration does not cancel
 an already loaded invocation. Installed host behavior still needs live validation.
+
+
+## Current-boot gate
+
+The service template executes boot-gate.mjs before the scheduler. Disabled
+configuration passes without approval or boot-ID access. Enabled configuration
+requires a private operator receipt whose boot ID equals the current kernel boot ID
+and whose SHA-256 equals the exact installed schedule bytes. The receipt also
+asserts that the exact containers, DNS and firewall were verified after that boot.
+Unsafe files, stale values, false claims or extra fields skip the tick with a fixed
+failure result. The checker does not create or modify any receipt or runtime state.
+
+Because containers retain restart=no, this prevents a timer from attempting work
+after reboot until explicit reconciliation. It does not start containers or provide
+unattended recovery, operator authentication, cloud-firewall inspection or evidence
+retention. See boot-recovery.md for the controlled host workflow. Live reboot and
+rollback rehearsals are still required before activation.
