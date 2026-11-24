@@ -1,0 +1,33 @@
+name: AI Content Studio Editor Validation
+on:
+  pull_request:
+    paths:
+      - "client/src/pages/AiContentStudio.tsx"
+      - ".github/workflows/ai-content-editor-validation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  editor-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: TypeScript validation
+        run: npm run check
+      # The global server suite includes database-dependent tests (publicCrawl
+      # and runtimeSafety), which need an isolated integration database. No
+      # production DATABASE_URL or credentials should be used in Actions.
+      - name: AI content contract regression tests
+        run: npx tsx --test server/routes/aiContentPolicy.test.ts
+      - name: Authenticated AI content HTTP integration (mock provider)
+        run: timeout 90s npx tsx --test server/routes/aiContentIntegration.test.ts
+      - name: Production build
+        run: npm run build

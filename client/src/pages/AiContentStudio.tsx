@@ -164,6 +164,10 @@ const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").repla
 const LIB_KEY = "e360_studio_prompt_library";
 const HIST_KEY = "e360_studio_history";
 const HIST_MAX = 50;
+const EDITOR_STORAGE = "e360_studio_editable_results_v1";
+const EDITOR_BUFFER = "e360_studio_edit_buffer_v1";
+type EditableResult = GenerateResponse & { originalContent: string };
+
 
 interface SavedPrompt {
   id: string;
@@ -881,6 +885,50 @@ function Studio({ onOpenCampaign }: { onOpenCampaign?: (id: number) => void }) {
   const [pkgError, setPkgError] = useState<string | null>(null);
   const [exportBusy, setExportBusy] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [editedResults, setEditedResults] = useState<EditableResult[]>(() =>
+    loadJson<EditableResult[]>(EDITOR_STORAGE, []).filter(
+      (r) => typeof r.content === "string" && typeof r.originalContent === "string",
+    ),
+  );
+  const [editIndex, setEditIndex] = useState<number | null>(() =>
+    loadJson<{ index: number | null; text: string }>(EDITOR_BUFFER, { index: null, text: "" }).index,
+  );
+  const [editText, setEditText] = useState(() =>
+    loadJson<{ index: number | null; text: string }>(EDITOR_BUFFER, { index: null, text: "" }).text,
+  );
+  const editDirty = editIndex !== null && editText !== (editedResults[editIndex]?.content ?? "");
+  useEffect(() => { saveJson(EDITOR_STORAGE, editedResults); }, [editedResults]);
+  useEffect(() => { saveJson(EDITOR_BUFFER, { index: editIndex, text: editText }); }, [editIndex, editText]);
+  useEffect(() => {
+    if (!editDirty) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [editDirty]);
+  const cancelResultEdit = () => { setEditIndex(null); setEditText(""); };
+  const saveResultEdit = (i: number) => {
+    setEditedResults((all) => all.map((r, n) => n === i ? { ...r, content: editText } : r));
+    cancelResultEdit();
+  };
+  const beginResultEdit = (i: number, replace = false) => {
+    if (editDirty && !window.confirm("Discard unsaved changes?")) return;
+    setEditIndex(i); setEditText(replace ? "" : editedResults[i].content);
+  };
+  const restoreResult = (i: number) => {
+    if (!window.confirm("Restore original generated text and replace saved edits?")) return;
+    setEditedResults((all) => all.map((r, n) => n === i ? { ...r, content: r.originalContent } : r));
+    if (editIndex === i) cancelResultEdit();
+  };
+  const clearResult = (i: number) => {
+    if (!window.confirm("Clear saved result? You can still restore the original generation.")) return;
+    setEditedResults((all) => all.map((r, n) => n === i ? { ...r, content: "" } : r));
+    if (editIndex === i) cancelResultEdit();
+  };
+  const manualResult = () => {
+    if (editedResults.length && !window.confirm("Replace this workspace with a manual draft? Export previous edits first.")) return;
+    setEditedResults([{ type, content: "", originalContent: "", model: "manual", maxTokens: 0, latencyMs: 0 }]);
+    setEditIndex(0); setEditText(""); setLastRun(null); mutation.reset();
+  };
 
   const [blogOpen, setBlogOpen] = useState(false);
   const [blogForm, setBlogForm] = useState<BlogDraftForm>({
@@ -914,6 +962,8 @@ function Studio({ onOpenCampaign }: { onOpenCampaign?: (id: number) => void }) {
     },
     onSuccess: (data, variables) => {
       setCopiedIndex(null);
+      setEditedResults(data.map((r) => ({ ...r, originalContent: r.content })));
+      cancelResultEdit();
       const entries: HistoryEntry[] = data.map((r) => ({
         id: newId(),
         at: Date.now(),
@@ -935,7 +985,7 @@ function Studio({ onOpenCampaign }: { onOpenCampaign?: (id: number) => void }) {
     },
   });
 
-  const results = mutation.data ?? [];
+  const results = editedResults;
   const canSubmit = prompt.trim().length > 0 && !mutation.isPending;
 
   const buildBody = (): GenBody => ({
@@ -950,6 +1000,7 @@ function Studio({ onOpenCampaign }: { onOpenCampaign?: (id: number) => void }) {
 
   const run = (count: number) => {
     if (prompt.trim().length === 0 || mutation.isPending) return;
+    if (results.length && !window.confirm("Replace current workspace with a new generation? Export saved edits first.")) return;
     const payload = { count, body: buildBody() };
     setLastRun(payload);
     mutation.mutate(payload);
@@ -962,6 +1013,7 @@ function Studio({ onOpenCampaign }: { onOpenCampaign?: (id: number) => void }) {
 
   const regenerate = () => {
     if (!lastRun || mutation.isPending) return;
+    if (!window.confirm("Regenerate and replace current workspace?")) return;
     mutation.mutate(lastRun);
   };
 
@@ -1462,6 +1514,8 @@ function Studio({ onOpenCampaign }: { onOpenCampaign?: (id: number) => void }) {
                 Generated content{results.length > 1 ? ` · ${results.length} variations` : ""}
               </h2>
               <div className="flex items-center gap-2 flex-wrap">
+                <button type="button" data-testid="button-manual-content"
+                  onClick={manualResult} className="btn-secondary text-xs px-3 py-1.5">Manual / Paste</button>
                 {results.length > 0 && (
                   <>
                     <button
@@ -1528,15 +1582,35 @@ function Studio({ onOpenCampaign }: { onOpenCampaign?: (id: number) => void }) {
                       {copiedIndex === i ? "Copied" : "Copy"}
                     </button>
                   </div>
-                  <pre
-                    data-testid={`text-output-${i}`}
-                    className="whitespace-pre-wrap break-words text-white/90 text-sm leading-relaxed font-sans bg-black/20 border border-white/10 rounded-xl p-4 overflow-auto max-h-[28rem]"
-                  >
-                    {r.content}
-                  </pre>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {editIndex === i ? (
+                      <>
+                        <button type="button" data-testid={`button-save-result-${i}`} onClick={() => saveResultEdit(i)} className="btn-primary text-xs px-3 py-1.5">Save changes</button>
+                        <button type="button" data-testid={`button-cancel-result-${i}`} onClick={cancelResultEdit} className="btn-secondary text-xs px-3 py-1.5">Cancel</button>
+                        <span className="text-amber-300 text-xs">{editDirty ? "Unsaved changes" : "Editing"}</span>
+                      </>
+                    ) : (
+                      <>
+                        <button type="button" data-testid={`button-edit-result-${i}`} onClick={() => beginResultEdit(i)} className="btn-secondary text-xs px-3 py-1.5">Edit</button>
+                        <button type="button" data-testid={`button-replace-result-${i}`} onClick={() => beginResultEdit(i, true)} className="btn-secondary text-xs px-3 py-1.5">Replace / Paste</button>
+                        <button type="button" data-testid={`button-restore-result-${i}`} onClick={() => restoreResult(i)} className="btn-secondary text-xs px-3 py-1.5">Restore original</button>
+                        <button type="button" data-testid={`button-clear-result-${i}`} onClick={() => clearResult(i)} className="btn-secondary text-xs px-3 py-1.5">Clear</button>
+                      </>
+                    )}
+                  </div>
+                  {editIndex === i ? (
+                    <textarea data-testid={`input-result-editor-${i}`} aria-label="Edit result" value={editText}
+                      onChange={(e) => setEditText(e.target.value)} rows={16}
+                      className="w-full min-h-[24rem] whitespace-pre-wrap break-words text-white/90 text-sm leading-relaxed font-mono bg-black/20 border border-[#F4A62A]/50 rounded-xl p-4 resize-y" />
+                  ) : (
+                    <pre data-testid={`text-output-${i}`}
+                      className="whitespace-pre-wrap break-words text-white/90 text-sm leading-relaxed font-sans bg-black/20 border border-white/10 rounded-xl p-4 overflow-auto max-h-[28rem]">
+                      {r.content}
+                    </pre>
+                  )}
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-white/40 text-[11px] mt-3">
                     <span data-testid={`text-output-count-${i}`} className="text-white/50">
-                      {countWords(r.content)} words · {r.content.length} chars
+                      {countWords(editIndex === i ? editText : r.content)} words · {(editIndex === i ? editText : r.content).length} chars
                     </span>
                     <span>Model: <span className="text-white/60">{r.model}</span></span>
                     <span>Max tokens: <span className="text-white/60">{r.maxTokens}</span></span>
@@ -1579,7 +1653,7 @@ function Studio({ onOpenCampaign }: { onOpenCampaign?: (id: number) => void }) {
                     >
                       <PackageIcon className="h-3 w-3" /> Package
                     </button>
-                    {r.type === "blog" && (
+                    {r.type === "blog" && r.content.trim().length > 0 && (
                       <button
                         type="button"
                         data-testid={`button-blog-draft-${i}`}
