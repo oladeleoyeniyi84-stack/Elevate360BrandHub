@@ -22,7 +22,12 @@ jobs:
       - run: npm ci
       - name: TypeScript validation
         run: npm run check
-      - name: Regression tests
-        run: npm test
+      # The global server suite includes database-dependent tests (publicCrawl
+      # and runtimeSafety), which need an isolated integration database. No
+      # production DATABASE_URL or credentials should be used in Actions.
+      - name: AI content contract regression tests
+        run: npx tsx --test server/routes/aiContentPolicy.test.ts
+      - name: Authenticated AI content HTTP integration (mock provider)
+        run: timeout 90s npx tsx --test server/routes/aiContentIntegration.test.ts
       - name: Production build
         run: npm run build
