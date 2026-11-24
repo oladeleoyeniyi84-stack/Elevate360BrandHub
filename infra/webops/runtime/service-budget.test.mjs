@@ -12,4 +12,6 @@ test('systemd deadline accommodates both inspection pairs and worker execution',
   assert.ok(seconds*1000>=commandMs+15000,'allow 15s for host validation and durable storage');
   assert.ok(seconds<=120,'keep host service deadline bounded to two minutes');
   assert.match(unit,/^Restart=no$/m,'timeout must not create automatic retries');
+  assert.match(unit,/^ExecCondition=\/usr\/bin\/node .*boot-gate\.mjs .*schedule\.json .*boot\/approval\.json$/m,
+    'every scheduled tick must pass the current-boot approval gate');
 });
