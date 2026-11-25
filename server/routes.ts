@@ -231,6 +231,8 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  const { blogMediaRouter } = await import("./routes/blogMedia");
+  app.use(blogMediaRouter);
   const { cognitiveOsRouter } = await import("./routes/cognitiveOs");
   app.use("/api/admin/cognitive-os", cognitiveOsRouter);
 
