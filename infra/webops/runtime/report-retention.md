@@ -24,6 +24,14 @@ Repeated exports create separate bundles; operators must budget destination spac
 Publication/storage failure returns exit 2, never a successful receipt. A crash can
 leave a lock or pending bundle for manual reconciliation.
 
+Diagnostic report ingestion uses the same fail-closed rule. Once a pending report
+has been created, any write, sync, close, publish, pending-file removal or directory
+sync failure preserves the report-store lock and all remaining pending/published
+artifacts. A later writer is blocked until an operator reconciles the exact files;
+do not remove the lock or pending file merely to resume scheduling. Validation and
+capacity failures that occur before report mutation release their newly acquired
+lock and leave the store unchanged.
+
 Save the successful receipt separately through a trusted channel. After transferring
 the bundle through the established authenticated operator channel, verify the copied
 bundle against that receipt's SHA-256. The verifier checks the whole-bundle digest,
