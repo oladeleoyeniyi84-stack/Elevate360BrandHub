@@ -939,6 +939,7 @@ function Studio({ onOpenCampaign }: { onOpenCampaign?: (id: number) => void }) {
   const [blogPublishing, setBlogPublishing] = useState(false);
   const [blogError, setBlogError] = useState<string | null>(null);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [blogSourceIndex, setBlogSourceIndex] = useState<number | null>(null);
   const [mediaAlt, setMediaAlt] = useState("Core Git Internals architecture diagram");
   const [mediaCaption, setMediaCaption] = useState("Core Git Internals — Content, Structure and History. Elevate360Official.");
   const [mediaUploading, setMediaUploading] = useState(false);
@@ -960,9 +961,13 @@ function Studio({ onOpenCampaign }: { onOpenCampaign?: (id: number) => void }) {
       if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.message || "Upload failed.");
       const data = await res.json() as { url: string };
       const markdown = mediaMarkdown(data.url, mediaAlt, mediaCaption);
-      setBlogForm((current) => ({
-        ...current, body: insertAfterHeading(current.body, "Core Git Internals", markdown),
-      }));
+      const revised = insertAfterHeading(blogForm.body, "Core Git Internals", markdown);
+      setBlogForm((current) => ({ ...current, body: revised }));
+      // Keep the article Result's Copy/TXT/DOCX/PDF output synchronized with
+      // the inline image reference added in the Blog Draft workflow.
+      if (blogSourceIndex !== null) {
+        setEditedResults((all) => all.map((r, i) => i === blogSourceIndex ? { ...r, content: revised } : r));
+      }
       setMediaFile(null);
     } catch (error) {
       setMediaError((error as Error).message);
@@ -1184,7 +1189,8 @@ function Studio({ onOpenCampaign }: { onOpenCampaign?: (id: number) => void }) {
     runExport(fmt, fileBase("content-package"), "Elevate360 Content Package", sections);
   };
 
-  const openBlogReview = (content: string) => {
+  const openBlogReview = (content: string, sourceIndex: number) => {
+    setBlogSourceIndex(sourceIndex);
     const title = deriveBlogTitle(content);
     setBlogForm({
       title,
@@ -1691,7 +1697,7 @@ function Studio({ onOpenCampaign }: { onOpenCampaign?: (id: number) => void }) {
                       <button
                         type="button"
                         data-testid={`button-blog-draft-${i}`}
-                        onClick={() => openBlogReview(r.content)}
+                        onClick={() => openBlogReview(r.content, i)}
                         className="btn-primary text-[10px] px-2.5 py-1 flex items-center gap-1"
                       >
                         <Newspaper className="h-3 w-3" /> Save as Blog Draft
@@ -1925,7 +1931,7 @@ function Studio({ onOpenCampaign }: { onOpenCampaign?: (id: number) => void }) {
                     type="button"
                     data-testid="button-blog-publish"
                     onClick={() => saveOrPublishBlog(true)}
-                    disabled={blogPublishing || !blogForm.title.trim()}
+                    disabled={blogPublishing || mediaUploading || !blogForm.title.trim()}
                     className="btn-primary text-sm px-4 py-2 flex items-center gap-1.5 disabled:opacity-40"
                   >
                     {blogPublishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
