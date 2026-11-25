@@ -950,6 +950,8 @@ function Studio({ onOpenCampaign }: { onOpenCampaign?: (id: number) => void }) {
       setMediaError("Choose a PNG, JPEG or WebP image up to 2 MB."); return;
     }
     if (!mediaAlt.trim()) { setMediaError("Accessible image alt text is required."); return; }
+    try { insertAfterHeading(blogForm.body, "Core Git Internals", ""); }
+    catch { setMediaError("Section 4 could not be located. No image was uploaded."); return; }
     setMediaUploading(true); setMediaError(null);
     try {
       // Upload once; the returned immutable URL becomes part of the article body.
