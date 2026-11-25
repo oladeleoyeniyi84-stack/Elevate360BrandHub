@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
+import BlogMarkdown, { insertAfterHeading, mediaMarkdown } from "@/components/blog/BlogMarkdown";
 import {
   Sparkles, Eye, EyeOff, Loader2, Copy, Check, AlertTriangle, Wand2, LayoutTemplate,
   Layers, RefreshCw, Save, History, Trash2, Bookmark,
@@ -937,6 +938,37 @@ function Studio({ onOpenCampaign }: { onOpenCampaign?: (id: number) => void }) {
   const [slugEdited, setSlugEdited] = useState(false);
   const [blogPublishing, setBlogPublishing] = useState(false);
   const [blogError, setBlogError] = useState<string | null>(null);
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [mediaAlt, setMediaAlt] = useState("Core Git Internals architecture diagram");
+  const [mediaCaption, setMediaCaption] = useState("Core Git Internals — Content, Structure and History. Elevate360Official.");
+  const [mediaUploading, setMediaUploading] = useState(false);
+  const [mediaError, setMediaError] = useState<string | null>(null);
+  const insertBlogImage = async () => {
+    if (!mediaFile) { setMediaError("Choose an image first."); return; }
+    if (!["image/png", "image/jpeg", "image/webp"].includes(mediaFile.type) || mediaFile.size > 2 * 1024 * 1024) {
+      setMediaError("Choose a PNG, JPEG or WebP image up to 2 MB."); return;
+    }
+    if (!mediaAlt.trim()) { setMediaError("Accessible image alt text is required."); return; }
+    setMediaUploading(true); setMediaError(null);
+    try {
+      // Upload once; the returned immutable URL becomes part of the article body.
+      // No DeepSeek call or external hosting is involved.
+      const res = await fetch("/api/dashboard/blog-media", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": mediaFile.type }, body: mediaFile,
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.message || "Upload failed.");
+      const data = await res.json() as { url: string };
+      const markdown = mediaMarkdown(data.url, mediaAlt, mediaCaption);
+      setBlogForm((current) => ({
+        ...current, body: insertAfterHeading(current.body, "Core Git Internals", markdown),
+      }));
+      setMediaFile(null);
+    } catch (error) {
+      setMediaError((error as Error).message);
+    } finally { setMediaUploading(false); }
+  };
+
   const [blogPublished, setBlogPublished] = useState<
     { slug: string; title: string; published: boolean } | null
   >(null);
@@ -1163,6 +1195,8 @@ function Studio({ onOpenCampaign }: { onOpenCampaign?: (id: number) => void }) {
     });
     setSlugEdited(false);
     setBlogError(null);
+    setMediaError(null);
+    setMediaFile(null);
     setBlogPublished(null);
     setCampaignCreating(false);
     setCreatedCampaignId(null);
@@ -1841,12 +1875,32 @@ function Studio({ onOpenCampaign }: { onOpenCampaign?: (id: number) => void }) {
                     className="w-full bg-black/20 border border-white/10 rounded-xl px-3 py-2 text-sm text-white/90 focus:border-[#F4A62A]/50 outline-none"
                   />
                 </label>
+                <div className="flex flex-col gap-3 border border-white/10 bg-white/[0.03] rounded-xl p-4" data-testid="panel-blog-media">
+                  <h3 className="text-white font-semibold text-sm flex gap-2 items-center"><ImageIcon className="h-4 w-4 text-[#F4A62A]" /> Insert image after Section 4</h3>
+                  <p className="text-white/50 text-xs">PNG, JPEG or WebP · max 2 MB · saved durably before being referenced in the article. No AI tokens used.</p>
+                  <input type="file" data-testid="input-blog-image-file" accept="image/png,image/jpeg,image/webp"
+                    onChange={(e) => setMediaFile(e.target.files?.[0] ?? null)}
+                    className="text-xs text-white/70 file:bg-[#F4A62A] file:text-black file:rounded file:border-0 file:px-3 file:py-1.5" />
+                  <label className="text-xs text-white/70">Image alt text
+                    <input data-testid="input-blog-image-alt" maxLength={180} value={mediaAlt}
+                      onChange={(e) => setMediaAlt(e.target.value)} className="mt-1 w-full bg-black/20 border border-white/10 rounded-lg p-2 text-white" />
+                  </label>
+                  <label className="text-xs text-white/70">Caption
+                    <input data-testid="input-blog-image-caption" maxLength={240} value={mediaCaption}
+                      onChange={(e) => setMediaCaption(e.target.value)} className="mt-1 w-full bg-black/20 border border-white/10 rounded-lg p-2 text-white" />
+                  </label>
+                  {mediaError && <p className="text-red-400 text-xs" role="alert">{mediaError}</p>}
+                  <button type="button" data-testid="button-insert-blog-image" onClick={() => void insertBlogImage()}
+                    disabled={mediaUploading || !mediaFile || !mediaAlt.trim()}
+                    className="btn-secondary text-sm px-4 py-2 disabled:opacity-40 self-start">
+                    {mediaUploading ? "Uploading image…" : "Upload and insert after Section 4"}
+                  </button>
+                </div>
                 <div className="flex flex-col gap-1.5">
-                  <span className="text-white/60 text-xs">Content preview</span>
-                  <pre
-                    data-testid="text-blog-body-preview"
-                    className="whitespace-pre-wrap break-words text-white/70 text-xs leading-relaxed font-sans bg-black/20 border border-white/10 rounded-xl p-3 overflow-auto max-h-48"
-                  >{blogForm.body}</pre>
+                  <span className="text-white/60 text-xs">Rendered article preview (images and code blocks)</span>
+                  <div data-testid="text-blog-body-preview" className="text-sm bg-black/20 border border-white/10 rounded-xl p-4 overflow-auto max-h-[36rem]">
+                    <BlogMarkdown body={blogForm.body} />
+                  </div>
                 </div>
                 {/* Mission Control — display-only pre-publish recommendations */}
                 <div className="rounded-xl border border-[#F4A62A]/20 bg-[#F4A62A]/[0.05] p-3" data-testid="panel-mission-control">
