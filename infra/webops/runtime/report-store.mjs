@@ -53,7 +53,7 @@ export function storeDiagnosticReport(monitor, metadata, { directory, maxReports
   const root = resolve(directory);
   if (realpathSync(root) !== root) throw new Error('unsafe_report_directory');
   const dirFd = openSync(root, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
-  let locked = false, temporary;
+  let locked = false, temporary, mutationStarted = false, committed = false;
   try {
     const dirStat = fstatSync(dirFd);
     if (!dirStat.isDirectory() || (dirStat.mode & 0o777) !== 0o700 ||
@@ -69,21 +69,23 @@ export function storeDiagnosticReport(monitor, metadata, { directory, maxReports
     const pendingPath = join(root, `.pending-${randomUUID()}`);
     const fd = openSync(pendingPath, 'wx', 0o600);
     temporary = pendingPath; // Cleanup only a file this writer actually created.
+    mutationStarted = true; // Any later failure has ambiguous durable state.
     try { writeFileSync(fd, data); fsyncSync(fd); }
     finally { closeSync(fd); }
     // Hard-link publication is atomic and refuses to replace an existing name.
     linkSync(temporary, join(root, name));
     unlinkSync(temporary); temporary = undefined;
     fsyncSync(dirFd);
+    committed = true;
     return Object.freeze({ name, bytes: data.length,
       sha256: createHash('sha256').update(data).digest('hex'),
       stored: true, immutable: false, reportsRemaining: maxReports - names.length - 1 });
   } finally {
     try {
-      if (temporary) unlinkSync(temporary);
+      if (temporary && (!mutationStarted || committed)) unlinkSync(temporary);
     } finally {
       try {
-        if (locked) { rmdirSync(join(root, LOCK)); fsyncSync(dirFd); }
+        if (locked && (!mutationStarted || committed)) { rmdirSync(join(root, LOCK)); fsyncSync(dirFd); }
       } finally { closeSync(dirFd); }
     }
   }
