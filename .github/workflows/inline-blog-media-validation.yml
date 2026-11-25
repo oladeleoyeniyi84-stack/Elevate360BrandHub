@@ -26,6 +26,8 @@ jobs:
         run: npm ci --ignore-scripts
       - name: TypeScript check
         run: npm run check
+      - name: Inline media insertion and URL safety tests
+        run: npx tsx --test client/src/components/blog/BlogMarkdown.test.ts
       - name: AI Content policy regression
         run: npx tsx --test server/routes/aiContentPolicy.test.ts
       - name: Mock-provider integration
