@@ -7,6 +7,7 @@ import { ShareButton } from "@/components/ShareButton";
 import { useContentEngagement } from "@/hooks/useContentEngagement";
 import { trackContentShare } from "@/lib/searchIntelligence";
 import { ArrowLeft, Calendar, Tag } from "lucide-react";
+import BlogMarkdown from "@/components/blog/BlogMarkdown";
 
 function formatDate(d: string | Date) {
   return new Date(d).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
@@ -114,7 +115,7 @@ export default function BlogPostPage() {
               </div>
 
               <div className="border-t border-white/8 pt-8">
-                {renderBody(post.body)}
+                <BlogMarkdown body={post.body} />
               </div>
 
               <div className="mt-12 pt-8 border-t border-white/8 flex items-center justify-between">
