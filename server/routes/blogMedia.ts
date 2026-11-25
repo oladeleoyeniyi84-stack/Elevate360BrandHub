@@ -54,8 +54,19 @@ blogMediaRouter.get("/api/blog-media/:id", async (req, res) => {
     );
     const row = result.rows[0];
     if (!row) return res.status(404).end();
+    const founder = dashboardSessionPermitted((req as any).session, "GET");
+    if (!founder) {
+      // An uploaded illustration is private until a published blog post
+      // references its exact immutable URL. Opaque IDs alone are insufficient
+      // as an authorization boundary for unpublished editorial assets.
+      const referenced = await pool.query(
+        "SELECT 1 FROM blog_posts WHERE published = true AND position($1 in body) > 0 LIMIT 1",
+        [`/api/blog-media/${id}`],
+      );
+      if (!referenced.rowCount) return res.status(404).end();
+    }
     res.setHeader("Content-Type", row.mime_type);
-    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    res.setHeader("Cache-Control", founder ? "private, no-store" : "public, max-age=86400");
     res.setHeader("X-Content-Type-Options", "nosniff");
     return res.status(200).send(row.bytes);
   } catch {
