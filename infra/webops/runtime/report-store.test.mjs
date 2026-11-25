@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
 import { mkdtempSync, readFileSync, readdirSync, rmSync, mkdirSync, chmodSync,
   symlinkSync, writeFileSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -85,6 +87,36 @@ test('invalid reports and storage limits leave no filesystem changes', t => {
   for (const maxReports of [0, 721, 1.5, NaN])
     assert.throws(() => storeDiagnosticReport(monitor, metadata(), {directory: dir, maxReports}), /invalid_report_store_configuration/);
   assert.deepEqual(readdirSync(dir), []);
+});
+
+test('ambiguous storage failures preserve lock and artifacts for review', t => {
+  for (const failure of ['write', 'file-sync', 'close', 'publish', 'unlink-pending', 'directory-sync']) {
+    const dir = directory(t);
+    const method = failure === 'write' ? 'writeFileSync' :
+      ['file-sync', 'directory-sync'].includes(failure) ? 'fsyncSync' :
+      failure === 'close' ? 'closeSync' : failure === 'publish' ? 'linkSync' : 'unlinkSync';
+    const real = fs[method];
+    let calls = 0;
+    const mocked = t.mock.method(fs, method, (...args) => {
+      calls++;
+      const shouldFail = failure === 'directory-sync' ? calls === 2 : calls === 1;
+      if (shouldFail) throw new Error('injected_storage_failure');
+      return real(...args);
+    });
+    syncBuiltinESMExports();
+    try {
+      assert.throws(() => storeDiagnosticReport(monitor, metadata(), {directory:dir}), /injected_storage_failure/);
+    } finally {
+      mocked.mock.restore();
+      syncBuiltinESMExports();
+    }
+    const before = readdirSync(dir).sort();
+    assert.ok(before.includes('.report-store.lock'), failure);
+    assert.ok(before.some(name => name.startsWith('.pending-')) ||
+      before.some(name => name.startsWith('report-')), failure);
+    assert.throws(() => storeDiagnosticReport(monitor, metadata(), {directory:dir}), /report_store_locked/);
+    assert.deepEqual(readdirSync(dir).sort(), before);
+  }
 });
 
 test('competing processes cannot exceed the final available slot', {timeout: 5000}, async t => {
