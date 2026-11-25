@@ -1485,7 +1485,8 @@ fault-injection test covers all six storage boundaries, asserts artifact and loc
 retention, proves the next write is blocked and confirms existing bytes/names are
 unchanged. Existing duplicate, capacity, unsafe-file, competing-process, ingestion,
 scheduler and export tests also passed. Python code is unchanged and was not rerun.
-New full GitHub CI is pending.
+Full WebOps CI run 184 then succeeded at a187113b7b2a471a997ddee7ff65bca7601484d6:
+https://github.com/oladeleoyeniyi84-stack/Elevate360BrandHub/actions/runs/45537928622.
 
 This does not repair storage, authenticate evidence, upload externally, retire
 reports or deliver capacity/failure alerts. Retained locks require quiescent manual
