@@ -1521,7 +1521,9 @@ inspection, malformed/locked/foreign storage, artifact preservation and the
 ExecCondition-compatible fixed CLI result. The systemd contract test now requires
 both boot and capacity gates. Existing monitoring, scheduling, ingestion, export,
 emergency-stop and storage-failure tests also passed. Python code is unchanged and
-was not rerun. New full GitHub CI is pending.
+was not rerun. Full WebOps CI run 188 succeeded at
+bb0f3a287dcaee4384abf767b178186e16be5ccc:
+https://github.com/oladeleoyeniyi84-stack/Elevate360BrandHub/actions/runs/45745397293.
 
 This provides a local capacity stop and journal signal, not acknowledged external
 alert delivery. It does not export, delete, rotate or retire evidence, and operators
