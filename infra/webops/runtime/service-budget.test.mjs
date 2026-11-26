@@ -14,4 +14,6 @@ test('systemd deadline accommodates both inspection pairs and worker execution',
   assert.match(unit,/^Restart=no$/m,'timeout must not create automatic retries');
   assert.match(unit,/^ExecCondition=\/usr\/bin\/node .*boot-gate\.mjs .*schedule\.json .*boot\/approval\.json$/m,
     'every scheduled tick must pass the current-boot approval gate');
+  assert.match(unit,/^ExecCondition=\/usr\/bin\/node .*capacity-gate\.mjs .*schedule\.json$/m,
+    'every scheduled tick must preserve a report-capacity reserve');
 });
