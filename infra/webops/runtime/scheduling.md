@@ -43,6 +43,7 @@ unhealthy result; exit 2 is a sanitized blocked/error result. No raw Docker erro
 configuration content or worker stderr are printed. Journal capture is local only;
 external alert delivery is unfinished.
 
+
 Before the runner starts, capacity-gate.mjs serializes a report-store capacity
 observation with cooperating writers. An enabled schedule is skipped when only 24
 report slots remain, preserving a fixed response window instead of consuming the
@@ -61,7 +62,7 @@ and hourly after activation. The persistent application cadence prevents an earl
 post-reboot tick from executing again. Timer timing follows the systemd timer manual:
 https://www.freedesktop.org/software/systemd/man/latest/systemd.timer.html
 
-The service has no restart loop, a 60-second deadline, local Unix-socket access and
+The service has no restart loop, a 90-second deadline, local Unix-socket access and
 write access to only the three state directories within its filesystem sandbox.
 Docker socket access remains privileged; these restrictions do not make Docker a
 least-privilege API. Docker exec occurs in a separate container process and may
@@ -81,6 +82,87 @@ does not prove an in-container execution ended. Verify containers are stopped an
 preserve logs and both lock directories before any restart. Do not clear locks
 automatically or start a replacement worker as a retry.
 
-This is an operator procedure, not an implemented one-command emergency controller.
+The emergency-stop CLI below implements this operator procedure.
 No installation, enable command, production request or container stop is performed
 by these source files. A consolidated release/rollback procedure remains required.
+
+
+## Single-command emergency controller
+
+From a trusted host release directory, invoke:
+
+```sh
+node emergency-stop-cli.mjs /etc/elevate360-webops/schedule.json WORKER_FULL_ID GATEWAY_FULL_ID sha256:VERIFIED_IMAGE_DIGEST
+```
+
+Replace all three identity placeholders with independently recorded full release
+identities. Both containers must use that image and their exact WebOps names.
+This is an emergency operation, not an installation or activation command; do not
+run it as part of routine validation against a running production service.
+
+The controller atomically saves enabled=false while preserving configuration,
+disables/stops the timer, stops the host service, verifies each container's ID,
+name and image, stops running containers, and rechecks stopped state. It then
+checks both units are inactive/failed and the timer is disabled/masked. A failure
+in one step does not prevent attempts at later steps. A mismatched container is
+not stopped; its step is reported unsuccessful. Output contains fixed step names
+and booleans only. Exit 0 requires every step to succeed; any incomplete stop is
+exit 2. Keep the JSON output with incident evidence.
+
+This deliberately leaves all reports, audit records, cadence files and failure
+locks in place. It never removes containers, changes firewall/DNS settings,
+restarts work or clears locks. Reconcile locks only after independently confirming
+execution has ended. Configuration and release directories must have trusted
+administrator-owned ancestors. The operation does not serialize with another
+administrator deliberately starting/replacing services; final checks are point-in-time.
+
+Testing uses simulated Docker/systemctl responses and temporary files. Live host
+execution, installed unit behavior and stop/recovery rehearsal remain pending.
+
+
+## Host service time budget
+
+The 90-second outer deadline allows four bounded Docker inspections (10 seconds
+per command), one bounded worker exec (35 seconds), and 15 seconds of host startup,
+validation and durable-storage allowance. It does not increase the worker's 30-second
+monitor budget, request/byte limits or cadence. The previous 60-second service limit
+could interrupt a valid slow inspection sequence before the runner finished.
+A regression check compares the unit deadline with the runner's command budgets.
+
+Filesystem stalls can exceed the allowance; this is not a completion guarantee.
+Timeout still leaves ambiguous-execution locks for inspection, with Restart=no and
+no automatic retry. Live systemd behavior and host storage latency remain unverified.
+This template change does not update an installed unit or activate the timer.
+
+
+## Configuration and cadence read consistency
+
+The shared loader bounds allocation and reads to the initial validated file size
+plus one overflow byte (at most 16 KiB plus one). It rejects growth, truncation,
+observed metadata changes and path replacement during the read. This protects
+schedule loading, cadence loading and callers that verify or install disabled
+configuration. A rejected cadence read occurs before reservation/runner execution
+and retains the tick failure lock. No automatic repair or retry is added.
+
+These are point-in-time checks, not an atomic snapshot against a privileged actor.
+Stable trusted directories and no concurrent administrative edits remain required;
+changes after loading are not prevented. Disabling configuration does not cancel
+an already loaded invocation. Installed host behavior still needs live validation.
+
+
+## Current-boot gate
+
+The service template executes boot-gate.mjs before the scheduler. Disabled
+configuration passes without approval or boot-ID access. Enabled configuration
+requires a private operator receipt whose boot ID equals the current kernel boot ID
+and whose SHA-256 equals the exact installed schedule bytes. The receipt also
+asserts that the exact containers, DNS and firewall were verified after that boot.
+Unsafe files, stale values, false claims or extra fields skip the tick with a fixed
+failure result. The checker does not create or modify any receipt or runtime state.
+
+Because containers retain restart=no, this prevents a timer from attempting work
+after reboot until explicit reconciliation. It does not start containers or provide
+unattended recovery, operator authentication, cloud-firewall inspection or evidence
+retention. See boot-recovery.md for the controlled host workflow. Live reboot and
+rollback rehearsals are still required before activation.
+
