@@ -1534,3 +1534,35 @@ alert acknowledgement remain incomplete. NGINX exposure and patch status still
 require the existing host inventory. No user terminal command or private key request;
 no production merge/deployment/activation, paid resource, secret rotation or Vault
 change. Existing Founder authority remains recorded; build is incomplete.
+
+
+## Development correction — 2026-11-26 (America/New_York)
+
+Read current WebOps branches, open PRs and this checkpoint. Confirmed full WebOps CI
+run 188 passed the capacity-gate checkpoint at
+bb0f3a287dcaee4384abf767b178186e16be5ccc:
+https://github.com/oladeleoyeniyi84-stack/Elevate360BrandHub/actions/runs/45745397293.
+PR #51 remains independent and was not modified.
+
+Detected and repaired an operating-guide regression from the November 25 source
+update. The capacity-gate code, systemd template and tests were correct, but
+scheduling.md had been replaced from a stale local copy. That reverted its stated
+deadline from the actual 90 seconds to 60 seconds, removed the implemented emergency
+controller, host time-budget analysis, bounded cadence-read guidance and current-boot
+gate instructions. No installed unit or runtime behavior changed. Restored the last
+reviewed complete guide and retained the new 24-slot report-capacity section.
+
+Added repository regression assertions that the guide must match the 90-second unit
+deadline and retain the emergency controller, cadence consistency control, current-
+boot gate and report-capacity reserve. Validation: all 138 Node runtime tests passed
+locally, zero failures/skips. Python code is unchanged and was not rerun. New full
+GitHub CI is pending.
+
+This fixes repository operational documentation and its validation contract; it
+does not establish live host behavior or complete deployment. Host reconciliation,
+source/image/unit provenance, enabled transition, exact-image live validation, cloud
+firewall and controlled reboot evidence, rollback rehearsal, external retention and
+alert acknowledgement remain incomplete. NGINX exposure and patch status still
+require the existing host inventory. No user terminal command or private key request;
+no production merge/deployment/activation, paid resource, secret rotation or Vault
+change. Existing Founder authority remains recorded; build is incomplete.
