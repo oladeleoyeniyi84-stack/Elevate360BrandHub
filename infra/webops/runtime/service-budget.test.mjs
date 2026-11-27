@@ -5,6 +5,7 @@ import {HOST_COMMAND_TIMEOUTS} from './host-runner.mjs';
 
 test('systemd deadline accommodates both inspection pairs and worker execution',()=>{
   const unit=readFileSync(new URL('./systemd/webops-monitor.service',import.meta.url),'utf8');
+  const guide=readFileSync(new URL('./scheduling.md',import.meta.url),'utf8');
   const deadlines=[...unit.matchAll(/^TimeoutStartSec=(\d+)$/gm)];
   assert.equal(deadlines.length,1,'one finite explicit service deadline is required');
   const seconds=Number(deadlines[0][1]);
@@ -16,4 +17,14 @@ test('systemd deadline accommodates both inspection pairs and worker execution',
     'every scheduled tick must pass the current-boot approval gate');
   assert.match(unit,/^ExecCondition=\/usr\/bin\/node .*capacity-gate\.mjs .*schedule\.json$/m,
     'every scheduled tick must preserve a report-capacity reserve');
+  assert.match(guide,/The service has no restart loop, a 90-second deadline/,
+    'operator guide must match the service deadline');
+  assert.match(guide,/## Single-command emergency controller/,
+    'operator guide must retain the implemented emergency controller');
+  assert.match(guide,/## Configuration and cadence read consistency/,
+    'operator guide must retain cadence consistency controls');
+  assert.match(guide,/## Current-boot gate/,
+    'operator guide must retain the reboot safety control');
+  assert.match(guide,/capacity-gate\.mjs serializes a report-store capacity/,
+    'operator guide must retain the report-capacity reserve');
 });
