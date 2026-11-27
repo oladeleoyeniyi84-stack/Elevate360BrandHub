@@ -6,7 +6,14 @@ This is not a public blog publication authorization.
 ## Preconditions (NO-GO until satisfied)
 
 1. Review and back up the production PostgreSQL database.
-2. Apply `migrations/20261124_blog_media.sql` through the approved migration runner against `elevate360_db`. The migration is additive: it creates `blog_media`, and does not alter existing blog posts.
+2. Use the repository's established guarded table-bootstrap pattern: `scripts/create_blog_media_table.ts`. Never run `drizzle-kit push`.
+   - From the authenticated, approved Render application shell with its existing `DATABASE_URL` (do not expose or paste credentials), run exactly:
+     ```bash
+     npx tsx scripts/create_blog_media_table.ts --apply
+     ```
+   - The script refuses databases other than `elevate360_db`, uses a transactional advisory lock, creates only the additive `blog_media` table, and verifies columns and SELECT/INSERT privileges.
+   - In environments that do not already have a checkout of this PR branch, first use the approved migration runner to provide this exact script. Do not change a live web process's application branch or startup settings merely to obtain the script.
+   - A backup/restore point must be verified before executing the command.
 3. Verify the table and minimum privilege requirements using read-only SQL:
    ```sql
    SELECT to_regclass('public.blog_media')::text AS table_name;
