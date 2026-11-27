@@ -1,0 +1,37 @@
+name: Inline Blog Media Validation
+on:
+  pull_request:
+    paths:
+      - "client/src/pages/AiContentStudio.tsx"
+      - "client/src/pages/BlogPost.tsx"
+      - "client/src/components/blog/**"
+      - "server/routes/blogMedia.ts"
+      - "server/routes.ts"
+      - "migrations/20261124_blog_media.sql"
+      - "scripts/create_blog_media_table.ts"
+      - ".github/workflows/inline-blog-media-validation.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build-and-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+      - name: TypeScript check
+        run: npm run check
+      - name: Inline media insertion and URL safety tests
+        run: npx tsx --test client/src/components/blog/BlogMarkdown.test.ts
+      - name: AI Content policy regression
+        run: npx tsx --test server/routes/aiContentPolicy.test.ts
+      - name: Mock-provider integration
+        run: timeout 90s npx tsx --test server/routes/aiContentIntegration.test.ts
+      - name: Production build
+        run: npm run build
