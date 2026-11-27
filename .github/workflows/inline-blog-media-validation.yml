@@ -8,6 +8,7 @@ on:
       - "server/routes/blogMedia.ts"
       - "server/routes.ts"
       - "migrations/20261124_blog_media.sql"
+      - "scripts/create_blog_media_table.ts"
       - ".github/workflows/inline-blog-media-validation.yml"
   workflow_dispatch:
 permissions:
