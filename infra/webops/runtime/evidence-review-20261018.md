@@ -1593,7 +1593,9 @@ replacement after the approved read cannot alter executed identities; stale appr
 and low capacity block before cadence or Docker; disabled schedules read no approval,
 capacity, clock or Docker; and CLI failures remain fixed and sanitized. The systemd
 contract requires the guarded entry point and rejects the unguarded command.
-Python code is unchanged and was not rerun. New full GitHub CI is pending.
+Python code is unchanged and was not rerun. Full WebOps CI run 194 succeeded at
+6bdc0de4b2fbe24072dc63fe0db11561c7ffb00e:
+https://github.com/oladeleoyeniyi84-stack/Elevate360BrandHub/actions/runs/46099486209.
 
 This binds configuration within one invocation; it does not protect against a
 privileged administrator changing containers, firewall or other host state after
