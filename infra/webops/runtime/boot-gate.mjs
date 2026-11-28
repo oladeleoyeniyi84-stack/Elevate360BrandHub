@@ -43,9 +43,17 @@ export function verifyBootGate(schedulePath, approvalPath, {
   readBootId = () => currentBootId('/proc/sys/kernel/random/boot_id'),
 } = {}) {
   const scheduleBytes = readScheduleBytes(schedulePath);
+  return loadBootApprovedScheduleBytes(scheduleBytes, approvalPath, {readBootId}).gate;
+}
+
+export function loadBootApprovedScheduleBytes(scheduleBytes, approvalPath, {
+  readBootId = () => currentBootId('/proc/sys/kernel/random/boot_id'),
+} = {}) {
+  if (!Buffer.isBuffer(scheduleBytes) || scheduleBytes.length < 1 || scheduleBytes.length > 16384)
+    throw new Error('invalid_schedule_bytes');
   const schedule = JSON.parse(scheduleBytes.toString('utf8'));
   validateScheduleConfig(schedule);
-  if (!schedule.enabled) return {permitted:true, enabled:false, approvalRequired:false};
+  if (!schedule.enabled) return {schedule, gate:{permitted:true, enabled:false, approvalRequired:false}};
 
   const approval = JSON.parse(readPrivateBytes(approvalPath).toString('utf8'));
   if (!approval || Object.keys(approval).sort().join('\0') !== [...APPROVAL_KEYS].sort().join('\0') ||
@@ -58,8 +66,12 @@ export function verifyBootGate(schedulePath, approvalPath, {
   const bootId = readBootId();
   if (approval.scheduleSha256 !== digest || approval.bootId !== bootId)
     throw new Error('stale_boot_approval');
-  return {permitted:true, enabled:true, approvalRequired:true, bootId,
-    scheduleSha256:digest, containersVerified:true, firewallVerified:true, dnsVerified:true};
+  return {schedule, gate:{permitted:true, enabled:true, approvalRequired:true, bootId,
+    scheduleSha256:digest, containersVerified:true, firewallVerified:true, dnsVerified:true}};
+}
+
+export function loadBootApprovedSchedule(schedulePath, approvalPath, options = {}) {
+  return loadBootApprovedScheduleBytes(readScheduleBytes(schedulePath), approvalPath, options);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
