@@ -17,6 +17,10 @@ test('systemd deadline accommodates both inspection pairs and worker execution',
     'every scheduled tick must pass the current-boot approval gate');
   assert.match(unit,/^ExecCondition=\/usr\/bin\/node .*capacity-gate\.mjs .*schedule\.json$/m,
     'every scheduled tick must preserve a report-capacity reserve');
+  assert.match(unit,/^ExecStart=\/usr\/bin\/node .*guarded-scheduled-runner-cli\.mjs .*schedule\.json .*boot\/approval\.json$/m,
+    'the runner must bind final boot and capacity checks to one loaded schedule');
+  assert.doesNotMatch(unit,/^ExecStart=.*scheduled-runner-cli\.mjs .*schedule\.json$/m,
+    'the service must not use the unguarded runner entry point');
   assert.match(guide,/The service has no restart loop, a 90-second deadline/,
     'operator guide must match the service deadline');
   assert.match(guide,/## Single-command emergency controller/,
