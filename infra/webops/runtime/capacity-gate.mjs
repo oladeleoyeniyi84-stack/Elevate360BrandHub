@@ -6,8 +6,7 @@ export const REPORT_CAPACITY_RESERVE = 24;
 
 // A cooperating pre-run gate. It serializes its capacity observation with the
 // report writer, but does not create a report, call Docker or deliver messages.
-export function verifyCapacityGate(schedulePath, {inspect = checkReportCapacity} = {}) {
-  const schedule = readScheduleConfig(schedulePath);
+export function verifyCapacityForSchedule(schedule, {inspect = checkReportCapacity} = {}) {
   validateScheduleConfig(schedule);
   if (!schedule.enabled)
     return {permitted:true, enabled:false, capacityChecked:false};
@@ -18,6 +17,10 @@ export function verifyCapacityGate(schedulePath, {inspect = checkReportCapacity}
     throw new Error('report_capacity_low');
   return {permitted:true, enabled:true, capacityChecked:true,
     reportsRemaining:capacity.reportsRemaining, reserve:REPORT_CAPACITY_RESERVE};
+}
+
+export function verifyCapacityGate(schedulePath, options = {}) {
+  return verifyCapacityForSchedule(readScheduleConfig(schedulePath), options);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
