@@ -71,6 +71,18 @@ The timer must remain disabled until reconciliation, image/runtime checks, reten
 rollback, revised network/firewall tests and reboot evidence pass. Host Node 24,
 paths, unit compatibility and service sandbox behavior need live verification.
 
+The two ExecCondition checks provide early skip results, but they are not the final
+authority because each systemd command is a separate process. ExecStart uses
+guarded-scheduled-runner-cli.mjs, which reads the private schedule once, verifies
+the current-boot approval digest against those exact bytes, checks capacity from
+that same parsed object, and passes that object directly to cadence reservation.
+A schedule replacement after that read cannot change the identities or paths used
+by the invocation. A stale approval or low-capacity result blocks before cadence
+state or Docker. Disabled schedules need no approval, capacity read, clock or Docker.
+This closes the between-process schedule replacement gap; it does not prevent a
+privileged administrator from changing host state after inspection or cancel a
+tick whose approved configuration was already loaded.
+
 ## Disable and emergency stop
 
 To suspend future work, atomically replace the private schedule configuration with
