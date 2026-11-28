@@ -1567,3 +1567,41 @@ alert acknowledgement remain incomplete. NGINX exposure and patch status still
 require the existing host inventory. No user terminal command or private key request;
 no production merge/deployment/activation, paid resource, secret rotation or Vault
 change. Existing Founder authority remains recorded; build is incomplete.
+
+
+## Development checkpoint — 2026-11-27 (America/New_York)
+
+Read current WebOps branches, open PRs and this checkpoint. Confirmed full WebOps CI
+run 191 passed the November 26 correction at
+67f549d7e01a0c40fd244757c3d263cc6039ebe0:
+https://github.com/oladeleoyeniyi84-stack/Elevate360BrandHub/actions/runs/45932886500.
+PR #51 remains independent and was not modified.
+
+Closed the between-process schedule replacement gap. Previously systemd's boot
+ExecCondition, capacity ExecCondition and scheduled runner each reread the schedule
+in separate processes. Although each read was individually protected, a replacement
+between commands could make the final runner use bytes that were not the bytes
+checked by the earlier approval gate. The service now starts a guarded runner that
+reads the private schedule once, verifies current-boot approval against those exact
+bytes, checks report capacity from the same parsed object and passes that object
+directly to cadence reservation and execution. The existing ExecConditions remain
+early skip signals, while the guarded entry point is the final authority.
+
+Validation: all 143 Node runtime tests passed locally, zero failures/skips. Five new
+tests prove one approved object reaches capacity, cadence and runner; a file
+replacement after the approved read cannot alter executed identities; stale approval
+and low capacity block before cadence or Docker; disabled schedules read no approval,
+capacity, clock or Docker; and CLI failures remain fixed and sanitized. The systemd
+contract requires the guarded entry point and rejects the unguarded command.
+Python code is unchanged and was not rerun. New full GitHub CI is pending.
+
+This binds configuration within one invocation; it does not protect against a
+privileged administrator changing containers, firewall or other host state after
+inspection, and an already loaded approved tick is not cancelled by a later disable.
+Live unit installation and race/reboot rehearsal remain required. Other unfinished
+gates remain host reconciliation, source/image provenance, exact-image live network
+and cloud-firewall evidence, controlled reboot, rollback rehearsal, external
+retention and alert acknowledgement. NGINX exposure and patch status still require
+the existing host inventory. No user terminal command or private key request; no
+production merge/deployment/activation, paid resource, secret rotation or Vault
+change. Existing Founder authority remains recorded; build is incomplete.
